@@ -7,6 +7,15 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
+// Firestore Service
+import {
+  createCargoListing,
+  updateCargoListing,
+  createTruckListing,
+  updateTruckListing,
+  createBid,
+} from './services/firestoreService';
+
 // Hooks
 import { useAuth } from './contexts/AuthContext';
 import { useCargoListings } from './hooks/useCargoListings';
@@ -17,6 +26,7 @@ import { useShipments } from './hooks/useShipments';
 import { useTheme } from './hooks/useTheme';
 import { useMarketplace } from './hooks/useMarketplace';
 import { useModals } from './hooks/useModals';
+import { useSocket } from './hooks/useSocket';
 
 // Layout Components
 import { Header } from '@/components/layout/Header';
@@ -25,9 +35,11 @@ import { MobileNav } from '@/components/layout/MobileNav';
 
 // View Components
 import { HomeView } from '@/views/HomeView';
+import { TrackingView } from '@/views/TrackingView';
 
 // Modal Components
-import { PostModal, BidModal } from '@/components/modals';
+import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal } from '@/components/modals';
+import { FullMapModal } from '@/components/maps';
 
 // Sample Data (fallback for demo)
 const sampleCargoListings = [
@@ -190,6 +202,46 @@ export default function GetGoApp() {
   } = useMarketplace();
   const { modals, openModal, closeModal, getModalData } = useModals();
 
+  // Socket.io for instant notifications
+  const {
+    isConnected: socketConnected,
+    notifications: socketNotifications,
+    emitBid,
+    emitShipmentUpdate,
+    clearNotification,
+  } = useSocket(authUser?.uid);
+
+  // Loading states for form submissions
+  const [postLoading, setPostLoading] = useState(false);
+  const [bidLoading, setBidLoading] = useState(false);
+
+  // Toast notification state for real-time events
+  const [toasts, setToasts] = useState([]);
+
+  // Show toast notification
+  const showToast = (toast) => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, ...toast }]);
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  };
+
+  // Handle socket notifications
+  useEffect(() => {
+    if (socketNotifications.length > 0) {
+      const latestNotification = socketNotifications[0];
+      showToast({
+        type: latestNotification.type,
+        title: latestNotification.title,
+        message: latestNotification.message,
+      });
+      // Clear the notification from socket state
+      clearNotification(latestNotification.id);
+    }
+  }, [socketNotifications, clearNotification]);
+
   // Use Firebase data with fallback to sample data
   const userRole = currentRole || 'shipper';
   const cargoListings = firebaseCargoListings.length > 0 ? firebaseCargoListings : sampleCargoListings;
@@ -247,12 +299,41 @@ export default function GetGoApp() {
     openModal('post');
   };
 
+  // Check ownership helper
+  const isCargoOwner = (cargo) => {
+    return authUser?.uid && (cargo.shipperId === authUser.uid || cargo.userId === authUser.uid);
+  };
+
+  const isTruckOwner = (truck) => {
+    return authUser?.uid && (truck.truckerId === authUser.uid || truck.userId === authUser.uid);
+  };
+
   const handleViewCargoDetails = (cargo) => {
-    openModal('cargoDetails', cargo);
+    // Route based on ownership and role
+    if (isCargoOwner(cargo)) {
+      // Owner views their cargo details
+      openModal('cargoDetails', cargo);
+    } else if (userRole === 'trucker') {
+      // Trucker views details before bidding
+      openModal('cargoDetails', cargo);
+    } else {
+      // Shipper viewing others' cargo
+      openModal('cargoDetails', cargo);
+    }
   };
 
   const handleViewTruckDetails = (truck) => {
-    openModal('truckDetails', truck);
+    // Route based on ownership and role
+    if (isTruckOwner(truck)) {
+      // Owner views their truck details
+      openModal('truckDetails', truck);
+    } else if (userRole === 'shipper') {
+      // Shipper views details before booking
+      openModal('truckDetails', truck);
+    } else {
+      // Trucker viewing others' trucks
+      openModal('truckDetails', truck);
+    }
   };
 
   const handleBidCargo = (cargo) => {
@@ -261,6 +342,17 @@ export default function GetGoApp() {
 
   const handleBookTruck = (truck) => {
     openModal('bid', truck);
+  };
+
+  // Edit handlers
+  const handleEditCargo = (cargo) => {
+    closeModal('cargoDetails');
+    openModal('editCargo', cargo);
+  };
+
+  const handleEditTruck = (truck) => {
+    closeModal('truckDetails');
+    openModal('editTruck', truck);
   };
 
   const handleContactShipper = (cargo) => {
@@ -351,19 +443,22 @@ export default function GetGoApp() {
             onContactTrucker={handleContactTrucker}
             onViewMap={handleViewMap}
             currentRole={userRole}
+            currentUserId={authUser?.uid}
             darkMode={darkMode}
           />
         )}
 
         {activeTab === 'tracking' && (
-          <main className="flex-1 p-4 lg:p-8">
-            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Shipment Tracking
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              Track your active shipments here. (Integration with existing tracking view pending)
-            </p>
-          </main>
+          <TrackingView
+            shipments={activeShipments}
+            activeShipments={activeShipments.filter(s => s.status !== 'delivered')}
+            deliveredShipments={activeShipments.filter(s => s.status === 'delivered')}
+            loading={false}
+            currentRole={userRole}
+            currentUserId={authUser?.uid}
+            darkMode={darkMode}
+            onLocationUpdate={emitShipmentUpdate}
+          />
         )}
 
         {activeTab === 'notifications' && (
@@ -425,10 +520,52 @@ export default function GetGoApp() {
         open={modals.post}
         onClose={() => closeModal('post')}
         currentRole={userRole}
-        onSubmit={(data) => {
-          console.log('Post submitted:', data);
-          // TODO: Integrate with firestoreService
-          closeModal('post');
+        loading={postLoading}
+        onSubmit={async (data) => {
+          if (!authUser?.uid || !userProfile) {
+            console.error('User not authenticated');
+            return;
+          }
+
+          setPostLoading(true);
+          try {
+            if (userRole === 'shipper') {
+              // Create cargo listing
+              const listingData = {
+                origin: data.origin,
+                destination: data.destination,
+                cargoType: data.cargoType,
+                weight: data.weight,
+                weightUnit: data.unit || 'tons',
+                vehicleNeeded: data.vehicleType,
+                askingPrice: data.askingPrice,
+                description: data.description,
+                pickupDate: data.pickupDate,
+                photos: data.photos || [],
+              };
+              await createCargoListing(authUser.uid, userProfile, listingData);
+              console.log('Cargo listing created successfully');
+            } else {
+              // Create truck listing
+              const listingData = {
+                origin: data.origin,
+                destination: data.destination,
+                vehicleType: data.vehicleType,
+                capacity: data.weight || 0,
+                capacityUnit: data.unit || 'tons',
+                askingPrice: data.askingPrice,
+                description: data.description,
+                availableDate: data.pickupDate,
+              };
+              await createTruckListing(authUser.uid, userProfile, truckerProfile, listingData);
+              console.log('Truck listing created successfully');
+            }
+            closeModal('post');
+          } catch (error) {
+            console.error('Error creating listing:', error);
+          } finally {
+            setPostLoading(false);
+          }
         }}
       />
 
@@ -437,12 +574,246 @@ export default function GetGoApp() {
         onClose={() => closeModal('bid')}
         listing={getModalData('bid')}
         currentRole={userRole}
-        onSubmit={(data) => {
-          console.log('Bid submitted:', data);
-          // TODO: Integrate with firestoreService
-          closeModal('bid');
+        loading={bidLoading}
+        onSubmit={async (data) => {
+          const listing = getModalData('bid');
+          if (!authUser?.uid || !userProfile || !listing) {
+            console.error('Missing required data for bid');
+            return;
+          }
+
+          setBidLoading(true);
+          try {
+            // Determine listing type based on presence of trucker field
+            const listingType = listing.trucker ? 'truck' : 'cargo';
+
+            const bidData = {
+              price: data.amount,
+              message: data.message || '',
+              cargoType: data.cargoType || null,
+              cargoWeight: data.cargoWeight || null,
+            };
+
+            await createBid(authUser.uid, userProfile, listing, listingType, bidData);
+            console.log('Bid created successfully');
+
+            // Emit socket event for instant notification to listing owner
+            emitBid({
+              listingId: listing.id,
+              listingType,
+              bidderId: authUser.uid,
+              bidderName: userProfile?.name || 'Someone',
+              amount: data.amount,
+              message: data.message,
+              cargoDescription: listing.cargoDescription || listing.cargoType,
+              ownerId: listing.userId || listing.shipperId || listing.truckerId,
+            });
+
+            closeModal('bid');
+          } catch (error) {
+            console.error('Error creating bid:', error);
+          } finally {
+            setBidLoading(false);
+          }
         }}
       />
+
+      {/* Map Modal */}
+      {modals.map && getModalData('map') && (
+        <FullMapModal
+          listing={getModalData('map')}
+          darkMode={darkMode}
+          onClose={() => closeModal('map')}
+        />
+      )}
+
+      {/* Cargo Details Modal */}
+      <CargoDetailsModal
+        open={modals.cargoDetails}
+        onClose={() => closeModal('cargoDetails')}
+        cargo={getModalData('cargoDetails')}
+        currentRole={userRole}
+        isOwner={getModalData('cargoDetails') && isCargoOwner(getModalData('cargoDetails'))}
+        onEdit={handleEditCargo}
+        onBid={(cargo) => {
+          closeModal('cargoDetails');
+          openModal('bid', cargo);
+        }}
+        darkMode={darkMode}
+      />
+
+      {/* Truck Details Modal */}
+      <TruckDetailsModal
+        open={modals.truckDetails}
+        onClose={() => closeModal('truckDetails')}
+        truck={getModalData('truckDetails')}
+        currentRole={userRole}
+        isOwner={getModalData('truckDetails') && isTruckOwner(getModalData('truckDetails'))}
+        onEdit={handleEditTruck}
+        onBook={(truck) => {
+          closeModal('truckDetails');
+          openModal('bid', truck);
+        }}
+        darkMode={darkMode}
+      />
+
+      {/* Edit Cargo Modal (uses PostModal in edit mode) */}
+      <PostModal
+        open={modals.editCargo}
+        onClose={() => closeModal('editCargo')}
+        currentRole="shipper"
+        editMode={true}
+        existingData={getModalData('editCargo')}
+        loading={postLoading}
+        onSubmit={async (data) => {
+          if (!data.id) {
+            console.error('Missing listing ID for update');
+            return;
+          }
+
+          setPostLoading(true);
+          try {
+            const updateData = {
+              origin: data.origin,
+              destination: data.destination,
+              cargoType: data.cargoType,
+              weight: parseFloat(data.weight) || 0,
+              weightUnit: data.unit || 'tons',
+              vehicleNeeded: data.vehicleType,
+              askingPrice: parseFloat(data.askingPrice) || 0,
+              description: data.description,
+              pickupDate: data.pickupDate,
+            };
+
+            // Update coordinates if origin/destination changed
+            if (data.originCoords) {
+              updateData.originLat = data.originCoords.lat;
+              updateData.originLng = data.originCoords.lng;
+            }
+            if (data.destCoords) {
+              updateData.destLat = data.destCoords.lat;
+              updateData.destLng = data.destCoords.lng;
+            }
+
+            await updateCargoListing(data.id, updateData);
+            console.log('Cargo listing updated successfully');
+            closeModal('editCargo');
+          } catch (error) {
+            console.error('Error updating cargo listing:', error);
+          } finally {
+            setPostLoading(false);
+          }
+        }}
+      />
+
+      {/* Edit Truck Modal (uses PostModal in edit mode) */}
+      <PostModal
+        open={modals.editTruck}
+        onClose={() => closeModal('editTruck')}
+        currentRole="trucker"
+        editMode={true}
+        existingData={getModalData('editTruck')}
+        loading={postLoading}
+        onSubmit={async (data) => {
+          if (!data.id) {
+            console.error('Missing listing ID for update');
+            return;
+          }
+
+          setPostLoading(true);
+          try {
+            const updateData = {
+              origin: data.origin,
+              destination: data.destination,
+              vehicleType: data.vehicleType,
+              capacity: parseFloat(data.weight) || 0,
+              capacityUnit: data.unit || 'tons',
+              askingPrice: parseFloat(data.askingPrice) || 0,
+              description: data.description,
+              availableDate: data.pickupDate,
+            };
+
+            // Update coordinates if origin/destination changed
+            if (data.originCoords) {
+              updateData.originLat = data.originCoords.lat;
+              updateData.originLng = data.originCoords.lng;
+            }
+            if (data.destCoords) {
+              updateData.destLat = data.destCoords.lat;
+              updateData.destLng = data.destCoords.lng;
+            }
+
+            await updateTruckListing(data.id, updateData);
+            console.log('Truck listing updated successfully');
+            closeModal('editTruck');
+          } catch (error) {
+            console.error('Error updating truck listing:', error);
+          } finally {
+            setPostLoading(false);
+          }
+        }}
+      />
+
+      {/* Toast Notifications for Real-Time Events */}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={cn(
+              "flex items-start gap-3 p-4 rounded-xl shadow-lg border backdrop-blur-sm animate-in slide-in-from-right-5 duration-300",
+              toast.type === 'bid' && "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
+              toast.type === 'bid-accepted' && "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
+              toast.type === 'message' && "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800",
+              toast.type === 'tracking' && "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800",
+              !['bid', 'bid-accepted', 'message', 'tracking'].includes(toast.type) && "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+            )}
+          >
+            <div className={cn(
+              "size-8 rounded-full flex items-center justify-center flex-shrink-0",
+              toast.type === 'bid' && "bg-green-500",
+              toast.type === 'bid-accepted' && "bg-blue-500",
+              toast.type === 'message' && "bg-purple-500",
+              toast.type === 'tracking' && "bg-orange-500",
+              !['bid', 'bid-accepted', 'message', 'tracking'].includes(toast.type) && "bg-gray-500"
+            )}>
+              {toast.type === 'bid' && <span className="text-white text-sm">₱</span>}
+              {toast.type === 'bid-accepted' && <span className="text-white text-sm">✓</span>}
+              {toast.type === 'message' && <span className="text-white text-sm">💬</span>}
+              {toast.type === 'tracking' && <span className="text-white text-sm">📍</span>}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-gray-900 dark:text-white">
+                {toast.title}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                {toast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Socket Connection Indicator (dev mode) */}
+      {import.meta.env.DEV && (
+        <div className={cn(
+          "fixed bottom-4 left-4 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2",
+          socketConnected
+            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+        )}>
+          <div className={cn(
+            "size-2 rounded-full",
+            socketConnected ? "bg-green-500 animate-pulse" : "bg-red-500"
+          )} />
+          {socketConnected ? 'Socket Connected' : 'Socket Disconnected'}
+        </div>
+      )}
     </div>
   );
 }

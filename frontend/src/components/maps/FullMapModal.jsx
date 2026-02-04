@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { X, Route, Navigation } from 'lucide-react';
+import { X, Route, Navigation, Loader2 } from 'lucide-react';
+import { fetchRoute, formatDuration } from '../../services/routingService';
 
 // Custom marker icons
 const createIcon = (color, size = 24) => L.divIcon({
@@ -28,44 +29,48 @@ const createIcon = (color, size = 24) => L.divIcon({
 const originIcon = createIcon('#22c55e', 28);
 const destIcon = createIcon('#ef4444', 28);
 
-// Calculate distance between two points (Haversine formula)
-const calculateDistance = (lat1, lng1, lat2, lng2) => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return Math.round(R * c);
-};
-
-// Component to fit bounds when coordinates change
-const FitBounds = ({ bounds }) => {
+// Component to fit bounds to route
+const FitBounds = ({ coordinates }) => {
   const map = useMap();
   useEffect(() => {
-    if (bounds) {
+    if (coordinates && coordinates.length > 0) {
+      const bounds = L.latLngBounds(coordinates);
       map.fitBounds(bounds, { padding: [50, 50] });
     }
-  }, [map, bounds]);
+  }, [map, coordinates]);
   return null;
 };
 
 export default function FullMapModal({ listing, darkMode = false, onClose }) {
-  const distance = calculateDistance(
-    listing.originCoords.lat, listing.originCoords.lng,
-    listing.destCoords.lat, listing.destCoords.lng
-  );
+  const [routeData, setRouteData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const bounds = L.latLngBounds(
-    [listing.originCoords.lat, listing.originCoords.lng],
-    [listing.destCoords.lat, listing.destCoords.lng]
-  );
+  // Fetch route on mount
+  useEffect(() => {
+    const loadRoute = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchRoute(listing.originCoords, listing.destCoords);
+        setRouteData(data);
+      } catch (error) {
+        console.error('Failed to load route:', error);
+        // Fallback
+        setRouteData({
+          coordinates: [
+            [listing.originCoords.lat, listing.originCoords.lng],
+            [listing.destCoords.lat, listing.destCoords.lng]
+          ],
+          distance: 0,
+          duration: 0,
+          isRealRoute: false,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const routeLine = [
-    [listing.originCoords.lat, listing.originCoords.lng],
-    [listing.destCoords.lat, listing.destCoords.lng]
-  ];
+    loadRoute();
+  }, [listing.originCoords, listing.destCoords]);
 
   // Tile layer URLs
   const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -107,6 +112,15 @@ export default function FullMapModal({ listing, darkMode = false, onClose }) {
 
       {/* Map */}
       <div className="flex-1 relative">
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-[1000]">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 flex items-center gap-3 shadow-lg">
+              <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
+              <span className={theme.text}>Loading route...</span>
+            </div>
+          </div>
+        )}
+
         <MapContainer
           center={[(listing.originCoords.lat + listing.destCoords.lat) / 2, (listing.originCoords.lng + listing.destCoords.lng) / 2]}
           zoom={7}
@@ -117,18 +131,22 @@ export default function FullMapModal({ listing, darkMode = false, onClose }) {
             url={darkMode ? darkTiles : lightTiles}
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
-          <FitBounds bounds={bounds} />
 
-          {/* Route line */}
-          <Polyline
-            positions={routeLine}
-            pathOptions={{
-              color: '#f59e0b',
-              weight: 5,
-              dashArray: '12, 8',
-              opacity: 0.9
-            }}
-          />
+          {/* Fit bounds to route */}
+          {routeData && <FitBounds coordinates={routeData.coordinates} />}
+
+          {/* Route line - solid for real routes, dashed for fallback */}
+          {routeData && (
+            <Polyline
+              positions={routeData.coordinates}
+              pathOptions={{
+                color: '#f59e0b',
+                weight: 5,
+                dashArray: routeData.isRealRoute ? null : '12, 8',
+                opacity: 0.9
+              }}
+            />
+          )}
 
           {/* Origin marker */}
           <Marker position={[listing.originCoords.lat, listing.originCoords.lng]} icon={originIcon}>
@@ -152,20 +170,37 @@ export default function FullMapModal({ listing, darkMode = false, onClose }) {
       <div className={`${theme.bgCard} p-4 space-y-3`}>
         <div className="grid grid-cols-3 gap-3">
           <div className={`${theme.bgSecondary} rounded-xl p-3 text-center`}>
-            <p className="text-2xl font-bold text-amber-500">{distance} km</p>
-            <p className={`text-xs ${theme.textMuted}`}>Distance</p>
+            <p className="text-2xl font-bold text-amber-500">
+              {routeData ? routeData.distance : '—'} km
+            </p>
+            <p className={`text-xs ${theme.textMuted}`}>
+              {routeData?.isRealRoute ? 'Road Distance' : 'Distance'}
+            </p>
           </div>
           <div className={`${theme.bgSecondary} rounded-xl p-3 text-center`}>
-            <p className="text-2xl font-bold text-blue-500">{Math.round(distance / 50)}h</p>
-            <p className={`text-xs ${theme.textMuted}`}>Est. Time</p>
+            <p className="text-2xl font-bold text-blue-500">
+              {routeData ? formatDuration(routeData.duration) : '—'}
+            </p>
+            <p className={`text-xs ${theme.textMuted}`}>
+              {routeData?.isRealRoute ? 'Est. Drive Time' : 'Est. Time'}
+            </p>
           </div>
           <div className={`${theme.bgSecondary} rounded-xl p-3 text-center`}>
             <p className="text-2xl font-bold text-green-500">
-              ₱{listing.askingPrice ? (listing.askingPrice / distance).toFixed(0) : '—'}
+              {listing.askingPrice && routeData?.distance
+                ? `₱${(listing.askingPrice / routeData.distance).toFixed(0)}`
+                : '—'}
             </p>
             <p className={`text-xs ${theme.textMuted}`}>Per KM</p>
           </div>
         </div>
+
+        {/* Route type indicator */}
+        {routeData && !routeData.isRealRoute && (
+          <p className={`text-xs ${theme.textMuted} text-center`}>
+            Showing estimated straight-line distance. Add API key for accurate road routes.
+          </p>
+        )}
 
         <a
           href={`https://www.google.com/maps/dir/${listing.originCoords.lat},${listing.originCoords.lng}/${listing.destCoords.lat},${listing.destCoords.lng}`}

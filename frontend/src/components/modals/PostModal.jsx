@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Package, Truck, MapPin, Calendar, DollarSign, Weight, FileText, Camera, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Package, Truck, Calendar, DollarSign, Weight, FileText, Camera, X, Edit } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import AddressSearch from '../maps/AddressSearch';
 
 const VEHICLE_TYPES = [
   '4W Elf/Canter (1-2 tons)',
@@ -35,30 +36,22 @@ const CARGO_TYPES = [
   'Other',
 ];
 
-const CITIES = [
-  'Davao City',
-  'Cebu City',
-  'General Santos',
-  'Cagayan de Oro',
-  'Zamboanga City',
-  'Butuan City',
-  'Iligan City',
-  'Tagum City',
-  'Koronadal City',
-  'Cotabato City',
-];
-
 export function PostModal({
   open,
   onClose,
   currentRole = 'shipper',
   onSubmit,
   loading = false,
+  editMode = false,
+  existingData = null,
 }) {
   const isShipper = currentRole === 'shipper';
-  const [formData, setFormData] = useState({
+
+  const getInitialFormData = () => ({
     origin: '',
+    originCoords: null,
     destination: '',
+    destCoords: null,
     weight: '',
     unit: 'tons',
     cargoType: '',
@@ -69,12 +62,76 @@ export function PostModal({
     photos: [],
   });
 
+  const [formData, setFormData] = useState(getInitialFormData());
+
+  // Pre-populate form when editing
+  useEffect(() => {
+    if (editMode && existingData && open) {
+      setFormData({
+        origin: existingData.origin || '',
+        originCoords: existingData.originCoords || null,
+        destination: existingData.destination || '',
+        destCoords: existingData.destCoords || null,
+        weight: existingData.weight?.toString() || '',
+        unit: existingData.unit || 'tons',
+        cargoType: existingData.cargoType || '',
+        vehicleType: existingData.vehicleType || existingData.vehicleNeeded || '',
+        askingPrice: (existingData.askingPrice || existingData.askingRate || existingData.price)?.toString() || '',
+        description: existingData.description || '',
+        pickupDate: existingData.pickupDate || existingData.availableDate || '',
+        photos: existingData.cargoPhotos || existingData.truckPhotos || existingData.photos || [],
+        // Keep track of original ID for updates
+        id: existingData.id,
+      });
+    } else if (!editMode && open) {
+      setFormData(getInitialFormData());
+    }
+  }, [editMode, existingData, open]);
+
   const [errors, setErrors] = useState({});
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: null }));
+    }
+  };
+
+  const handleOriginSelect = (location) => {
+    if (location) {
+      setFormData(prev => ({
+        ...prev,
+        origin: location.name,
+        originCoords: { lat: location.lat, lng: location.lng },
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        origin: '',
+        originCoords: null,
+      }));
+    }
+    if (errors.origin) {
+      setErrors(prev => ({ ...prev, origin: null }));
+    }
+  };
+
+  const handleDestSelect = (location) => {
+    if (location) {
+      setFormData(prev => ({
+        ...prev,
+        destination: location.name,
+        destCoords: { lat: location.lat, lng: location.lng },
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        destination: '',
+        destCoords: null,
+      }));
+    }
+    if (errors.destination) {
+      setErrors(prev => ({ ...prev, destination: null }));
     }
   };
 
@@ -101,18 +158,7 @@ export function PostModal({
   };
 
   const handleClose = () => {
-    setFormData({
-      origin: '',
-      destination: '',
-      weight: '',
-      unit: 'tons',
-      cargoType: '',
-      vehicleType: '',
-      askingPrice: '',
-      description: '',
-      pickupDate: '',
-      photos: [],
-    });
+    setFormData(getInitialFormData());
     setErrors({});
     onClose?.();
   };
@@ -136,65 +182,43 @@ export function PostModal({
             </div>
             <div>
               <DialogTitle>
-                {isShipper ? 'Post New Cargo' : 'Post Available Truck'}
+                {editMode
+                  ? (isShipper ? 'Edit Cargo' : 'Edit Truck')
+                  : (isShipper ? 'Post New Cargo' : 'Post Available Truck')}
               </DialogTitle>
               <DialogDescription>
-                {isShipper
-                  ? 'Describe your cargo and find the right trucker'
-                  : 'Share your route and find cargo to haul'}
+                {editMode
+                  ? 'Update your listing details'
+                  : isShipper
+                    ? 'Describe your cargo and find the right trucker'
+                    : 'Share your route and find cargo to haul'}
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Route Section */}
+          {/* Route Section - Now using AddressSearch */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
-                Origin
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-green-500" />
-                <select
-                  value={formData.origin}
-                  onChange={(e) => handleChange('origin', e.target.value)}
-                  className={cn(
-                    "w-full h-10 pl-10 pr-3 rounded-xl border bg-input-background text-sm focus:ring-2 focus:ring-ring focus:ring-offset-2 outline-none",
-                    errors.origin ? "border-red-500" : "border-border"
-                  )}
-                >
-                  <option value="">Select city</option>
-                  {CITIES.map(city => (
-                    <option key={city} value={city}>{city}</option>
-                  ))}
-                </select>
-              </div>
-              {errors.origin && <p className="text-xs text-red-500 mt-1">{errors.origin}</p>}
-            </div>
+            <AddressSearch
+              label="Origin"
+              value={formData.origin}
+              onChange={(value) => handleChange('origin', value)}
+              onSelect={handleOriginSelect}
+              placeholder="Search origin city..."
+              error={errors.origin}
+              required
+            />
 
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
-                Destination
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-red-500" />
-                <select
-                  value={formData.destination}
-                  onChange={(e) => handleChange('destination', e.target.value)}
-                  className={cn(
-                    "w-full h-10 pl-10 pr-3 rounded-xl border bg-input-background text-sm focus:ring-2 focus:ring-ring focus:ring-offset-2 outline-none",
-                    errors.destination ? "border-red-500" : "border-border"
-                  )}
-                >
-                  <option value="">Select city</option>
-                  {CITIES.map(city => (
-                    <option key={city} value={city}>{city}</option>
-                  ))}
-                </select>
-              </div>
-              {errors.destination && <p className="text-xs text-red-500 mt-1">{errors.destination}</p>}
-            </div>
+            <AddressSearch
+              label="Destination"
+              value={formData.destination}
+              onChange={(value) => handleChange('destination', value)}
+              onSelect={handleDestSelect}
+              placeholder="Search destination..."
+              error={errors.destination}
+              required
+            />
           </div>
 
           {/* Cargo Details - Shipper only */}
@@ -346,7 +370,11 @@ export function PostModal({
             disabled={loading}
             className={isShipper ? "" : "bg-gradient-to-br from-blue-500 to-blue-600"}
           >
-            {loading ? 'Posting...' : `Post ${isShipper ? 'Cargo' : 'Truck'}`}
+            {loading
+              ? (editMode ? 'Saving...' : 'Posting...')
+              : editMode
+                ? `Update ${isShipper ? 'Cargo' : 'Truck'}`
+                : `Post ${isShipper ? 'Cargo' : 'Truck'}`}
           </Button>
         </DialogFooter>
       </DialogContent>

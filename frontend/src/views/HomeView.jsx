@@ -19,6 +19,7 @@ export function HomeView({
   onContactTrucker,
   onViewMap,
   currentRole = 'shipper',
+  currentUserId = null,
   darkMode = false,
   className,
 }) {
@@ -80,6 +81,7 @@ export function HomeView({
                   onContact={() => onContactShipper?.(cargo)}
                   onViewMap={() => onViewMap?.(cargo)}
                   canBid={currentRole === 'trucker'}
+                  isOwner={currentUserId && (cargo.shipperId === currentUserId || cargo.userId === currentUserId)}
                   darkMode={darkMode}
                 />
               ))
@@ -92,6 +94,7 @@ export function HomeView({
                   onContact={() => onContactTrucker?.(truck)}
                   onViewMap={() => onViewMap?.(truck)}
                   canBook={currentRole === 'shipper'}
+                  isOwner={currentUserId && (truck.truckerId === currentUserId || truck.userId === currentUserId)}
                   darkMode={darkMode}
                 />
               ))}

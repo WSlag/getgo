@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Maximize2 } from 'lucide-react';
+import { Maximize2, Loader2 } from 'lucide-react';
+import { fetchRoute, formatDuration } from '../../services/routingService';
 
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -40,18 +41,6 @@ const FitBounds = ({ bounds }) => {
   return null;
 };
 
-// Calculate distance between two points (Haversine formula)
-const calculateDistance = (lat1, lng1, lat2, lng2) => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return Math.round(R * c);
-};
-
 export default function RouteMap({
   origin,
   destination,
@@ -61,20 +50,52 @@ export default function RouteMap({
   onClick,
   height = '112px'
 }) {
-  const distance = calculateDistance(
-    originCoords.lat, originCoords.lng,
-    destCoords.lat, destCoords.lng
-  );
+  const [routeData, setRouteData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch route when coordinates change
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRoute = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchRoute(originCoords, destCoords);
+        if (!cancelled) {
+          setRouteData(data);
+        }
+      } catch (error) {
+        console.error('Failed to load route:', error);
+        // Fallback to straight line
+        if (!cancelled) {
+          setRouteData({
+            coordinates: [
+              [originCoords.lat, originCoords.lng],
+              [destCoords.lat, destCoords.lng]
+            ],
+            distance: 0,
+            duration: 0,
+            isRealRoute: false,
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadRoute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [originCoords.lat, originCoords.lng, destCoords.lat, destCoords.lng]);
 
   const bounds = L.latLngBounds(
     [originCoords.lat, originCoords.lng],
     [destCoords.lat, destCoords.lng]
   );
-
-  const routeLine = [
-    [originCoords.lat, originCoords.lng],
-    [destCoords.lat, destCoords.lng]
-  ];
 
   // Tile layer URLs
   const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -102,16 +123,18 @@ export default function RouteMap({
         <TileLayer url={darkMode ? darkTiles : lightTiles} />
         <FitBounds bounds={bounds} />
 
-        {/* Route line */}
-        <Polyline
-          positions={routeLine}
-          pathOptions={{
-            color: '#f59e0b',
-            weight: 4,
-            dashArray: '10, 6',
-            opacity: 0.9
-          }}
-        />
+        {/* Route line - now uses real road route when available */}
+        {routeData && (
+          <Polyline
+            positions={routeData.coordinates}
+            pathOptions={{
+              color: routeData.isRealRoute ? '#f59e0b' : '#f59e0b',
+              weight: 4,
+              dashArray: routeData.isRealRoute ? null : '10, 6', // Solid line for real routes
+              opacity: 0.9
+            }}
+          />
+        )}
 
         {/* Origin marker */}
         <Marker position={[originCoords.lat, originCoords.lng]} icon={originIcon} />
@@ -120,12 +143,21 @@ export default function RouteMap({
         <Marker position={[destCoords.lat, destCoords.lng]} icon={destIcon} />
       </MapContainer>
 
-      {/* Distance badge */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] pointer-events-none">
-        <div className="bg-amber-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-          {distance} km
+      {/* Loading indicator */}
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-[1000]">
+          <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
         </div>
-      </div>
+      )}
+
+      {/* Distance badge */}
+      {routeData && !loading && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] pointer-events-none">
+          <div className="bg-amber-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
+            {routeData.distance} km
+          </div>
+        </div>
+      )}
 
       {/* Hover overlay */}
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition flex items-center justify-center opacity-0 group-hover:opacity-100 z-[1000]">

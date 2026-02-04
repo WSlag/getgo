@@ -2,6 +2,7 @@ import React from 'react';
 import { MapPin, Clock, Navigation } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { RouteMap } from '@/components/maps';
 
 export function CargoCard({
   id,
@@ -31,6 +32,7 @@ export function CargoCard({
   onBid,
   onViewMap,
   canBid = true,
+  isOwner = false,
   darkMode = false,
   distance,
   estimatedTime,
@@ -193,24 +195,38 @@ export function CargoCard({
           </div>
         )}
 
-        {/* Map Preview - Figma style taller with animations */}
-        <div
-          className="relative rounded-xl overflow-hidden bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 cursor-pointer"
-          style={{ height: '160px', marginBottom: '16px' }}
-          onClick={onViewMap}
-        >
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <MapPin className="size-12 text-blue-400 mx-auto mb-2 animate-bounce" />
-              <p className="text-sm text-gray-600 dark:text-gray-400">Interactive Map</p>
+        {/* Map Preview - Interactive RouteMap */}
+        {originCoords && destCoords ? (
+          <div style={{ marginBottom: '16px' }}>
+            <RouteMap
+              origin={origin}
+              destination={destination}
+              originCoords={originCoords}
+              destCoords={destCoords}
+              darkMode={darkMode}
+              onClick={onViewMap}
+              height="140px"
+            />
+          </div>
+        ) : (
+          <div
+            className="relative rounded-xl overflow-hidden bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 cursor-pointer"
+            style={{ height: '140px', marginBottom: '16px' }}
+            onClick={onViewMap}
+          >
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center">
+                <MapPin className="size-12 text-blue-400 mx-auto mb-2 animate-bounce" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">Interactive Map</p>
+              </div>
+            </div>
+            <div className="absolute bottom-4 right-4">
+              <button className="px-4 py-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 hover:scale-105">
+                View Map
+              </button>
             </div>
           </div>
-          <div className="absolute bottom-4 right-4">
-            <button className="px-4 py-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 hover:scale-105">
-              View Map
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Bids Info */}
         {bids.length > 0 && (
@@ -224,26 +240,64 @@ export function CargoCard({
           </div>
         )}
 
-        {/* Action Buttons - Figma style with enhanced hover effects */}
+        {/* Action Buttons - Role-based rendering */}
         <div className="flex" style={{ gap: '12px' }}>
-          <button
-            onClick={onViewDetails}
-            className={cn(
-              "flex-1 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 font-medium",
-              currentGradient
-            )}
-            style={{ padding: '14px 20px' }}
-          >
-            View Details
-          </button>
-          {onContact && (
+          {isOwner ? (
+            // Owner sees View Details button
             <button
-              onClick={onContact}
-              className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
+              onClick={onViewDetails}
+              className={cn(
+                "flex-1 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 font-medium",
+                currentGradient
+              )}
               style={{ padding: '14px 20px' }}
             >
-              Contact
+              View Details
             </button>
+          ) : canBid ? (
+            // Trucker sees Bid button + Details
+            <>
+              <button
+                onClick={onBid}
+                className={cn(
+                  "flex-1 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 font-medium",
+                  "bg-gradient-to-r from-green-400 to-green-600"
+                )}
+                style={{ padding: '14px 20px' }}
+              >
+                Bid Now
+              </button>
+              <button
+                onClick={onViewDetails}
+                className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
+                style={{ padding: '14px 20px' }}
+              >
+                Details
+              </button>
+            </>
+          ) : (
+            // Shipper viewing others' cargo sees View Details
+            <>
+              <button
+                onClick={onViewDetails}
+                className={cn(
+                  "flex-1 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 font-medium",
+                  currentGradient
+                )}
+                style={{ padding: '14px 20px' }}
+              >
+                View Details
+              </button>
+              {onContact && (
+                <button
+                  onClick={onContact}
+                  className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
+                  style={{ padding: '14px 20px' }}
+                >
+                  Contact
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
