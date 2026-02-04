@@ -1,4 +1,4 @@
-import { Filter } from 'lucide-react';
+import { Filter, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CargoCard } from '@/components/cargo/CargoCard';
 import { TruckCard } from '@/components/truck/TruckCard';
@@ -61,6 +61,36 @@ export function HomeView({
         >
           Trucks
         </button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative" style={{ marginBottom: '24px' }}>
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange?.(e.target.value)}
+            placeholder={activeMarket === 'cargo'
+              ? "Search by shipper, route, or cargo type..."
+              : "Search by trucker, route, or vehicle type..."}
+            className={cn(
+              "w-full rounded-xl border border-gray-200 dark:border-gray-700",
+              "bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-lg",
+              "placeholder:text-gray-400 dark:placeholder:text-gray-500 placeholder:text-lg",
+              "focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500",
+              "transition-all duration-200"
+            )}
+            style={{ padding: '15px 16px' }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange?.('')}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            >
+              <X className="size-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Page Header - Figma style */}
@@ -137,9 +167,11 @@ export function HomeView({
             No {activeMarket === 'cargo' ? 'cargo' : 'trucks'} found
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
-            {filterStatus !== 'all'
-              ? `No ${activeMarket} with "${filterStatus}" status. Try changing the filter.`
-              : `There are currently no ${activeMarket === 'cargo' ? 'cargo listings' : 'available trucks'}. Check back later!`}
+            {searchQuery
+              ? `No ${activeMarket} found matching "${searchQuery}". Try a different search term.`
+              : filterStatus !== 'all'
+                ? `No ${activeMarket} with "${filterStatus}" status. Try changing the filter.`
+                : `There are currently no ${activeMarket === 'cargo' ? 'cargo listings' : 'available trucks'}. Check back later!`}
           </p>
         </div>
       )}
