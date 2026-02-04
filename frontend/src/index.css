@@ -1,0 +1,110 @@
+/* Tailwind CSS v4 */
+@import './styles/fonts.css';
+@import './styles/tailwind.css';
+@import './styles/theme.css';
+
+/* Leaflet Maps */
+@import 'leaflet/dist/leaflet.css';
+
+/* Base Resets */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+/* Only hide horizontal overflow on mobile for PWA feel */
+@media (max-width: 1023px) {
+  html, body, #root {
+    overflow-x: hidden;
+  }
+}
+
+body {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Hide scrollbar for mobile feel */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Smooth transitions */
+.transition-theme {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Animation for pulse effect */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* Contain Leaflet z-index within mini map containers */
+.mini-map-container .leaflet-pane,
+.mini-map-container .leaflet-control,
+.mini-map-container .leaflet-top,
+.mini-map-container .leaflet-bottom {
+  z-index: 1 !important;
+}
+
+.mini-map-container .leaflet-container {
+  z-index: 0 !important;
+}
+
+/* Full screen map modal should render above everything */
+.fixed.z-50 .leaflet-pane,
+.fixed.z-50 .leaflet-control,
+.fixed.z-50 .leaflet-top,
+.fixed.z-50 .leaflet-bottom {
+  z-index: auto !important;
+}
