@@ -21,6 +21,8 @@ export function useModals() {
     profile: false,
     earnings: false,
     routeOptimizer: false,
+    editCargo: false,
+    editTruck: false,
   });
 
   // Modal data (e.g., selected cargo for bid modal)
@@ -66,6 +68,8 @@ export function useModals() {
       profile: false,
       earnings: false,
       routeOptimizer: false,
+      editCargo: false,
+      editTruck: false,
     });
     setModalData({});
   }, []);

@@ -100,9 +100,39 @@ io.on('connection', (socket) => {
     socket.leave(`listing:${listingId}`);
   });
 
-  // Handle new bid (broadcast to listing room)
+  // Handle new bid (broadcast to listing room and notify owner)
   socket.on('new-bid', (data) => {
+    // Broadcast to anyone watching this listing
     io.to(`listing:${data.listingId}`).emit('bid-received', data);
+
+    // Send direct notification to the listing owner
+    if (data.ownerId) {
+      io.to(`user:${data.ownerId}`).emit('bid-received', data);
+      io.to(`user:${data.ownerId}`).emit('notification', {
+        type: 'bid',
+        title: 'New Bid Received',
+        message: `${data.bidderName || 'Someone'} placed a bid of ₱${data.amount?.toLocaleString()}`,
+        data,
+        timestamp: Date.now(),
+      });
+    }
+    console.log(`Bid notification sent to owner: ${data.ownerId}`);
+  });
+
+  // Handle bid accepted notification
+  socket.on('bid-accepted', (data) => {
+    // Notify the bidder that their bid was accepted
+    if (data.bidderId) {
+      io.to(`user:${data.bidderId}`).emit('bid-accepted', data);
+      io.to(`user:${data.bidderId}`).emit('notification', {
+        type: 'bid-accepted',
+        title: 'Bid Accepted!',
+        message: `Your bid on ${data.cargoDescription || 'cargo'} was accepted`,
+        data,
+        timestamp: Date.now(),
+      });
+    }
+    console.log(`Bid accepted notification sent to bidder: ${data.bidderId}`);
   });
 
   // Handle new chat message
@@ -141,9 +171,14 @@ const PORT = process.env.PORT || 3001;
 
 async function startServer() {
   try {
-    // Sync database (creates tables if they don't exist)
-    await sequelize.sync({ alter: true });
-    console.log('Database synchronized');
+    // Try to sync database, but don't fail if it errors (Socket.io will still work)
+    try {
+      await sequelize.sync({ alter: false }); // Changed to false to avoid migration issues
+      console.log('Database synchronized');
+    } catch (dbError) {
+      console.warn('Database sync skipped (may have migration issues):', dbError.message);
+      console.log('Socket.io server will still run without database sync');
+    }
 
     httpServer.listen(PORT, () => {
       console.log(`

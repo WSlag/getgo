@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { X, MapPinned, MapPin, Navigation, Radio } from 'lucide-react';
+import { X, MapPinned, MapPin, Navigation, Radio, Loader2 } from 'lucide-react';
+import { fetchRoute, formatDuration } from '../../services/routingService';
 
 // Custom marker icons
 const createIcon = (color, size = 24) => L.divIcon({
@@ -68,17 +69,21 @@ const originIcon = createIcon('#22c55e', 20);
 const destIcon = createIcon('#ef4444', 20);
 
 // Component to fit bounds when coordinates change
-const FitBounds = ({ bounds }) => {
+const FitBounds = ({ coordinates }) => {
   const map = useMap();
   useEffect(() => {
-    if (bounds) {
+    if (coordinates && coordinates.length > 0) {
+      const bounds = L.latLngBounds(coordinates);
       map.fitBounds(bounds, { padding: [50, 50] });
     }
-  }, [map, bounds]);
+  }, [map, coordinates]);
   return null;
 };
 
 export default function TrackingMap({ shipment, darkMode = false, showFull = false, onClose }) {
+  const [routeData, setRouteData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
   const statusColors = {
     picked_up: { color: '#3b82f6', label: 'Picked Up', pulse: true },
     in_transit: { color: '#f59e0b', label: 'In Transit', pulse: true },
@@ -86,6 +91,69 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
   };
   const currentStatus = statusColors[shipment.status] || statusColors.in_transit;
   const truckIcon = createTruckIcon(currentStatus.color);
+
+  // Fetch route on mount
+  useEffect(() => {
+    const loadRoute = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchRoute(shipment.originCoords, shipment.destCoords);
+        setRouteData(data);
+      } catch (error) {
+        console.error('Failed to load route:', error);
+        // Fallback to straight lines
+        setRouteData({
+          coordinates: [
+            [shipment.originCoords.lat, shipment.originCoords.lng],
+            [shipment.destCoords.lat, shipment.destCoords.lng]
+          ],
+          distance: 0,
+          duration: 0,
+          isRealRoute: false,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRoute();
+  }, [shipment.originCoords, shipment.destCoords]);
+
+  // Calculate completed vs remaining route based on progress
+  const getRouteSegments = () => {
+    if (!routeData || !routeData.coordinates || routeData.coordinates.length < 2) {
+      // Fallback to straight line segments
+      return {
+        completedRoute: [
+          [shipment.originCoords.lat, shipment.originCoords.lng],
+          [shipment.currentLocation.lat, shipment.currentLocation.lng]
+        ],
+        remainingRoute: [
+          [shipment.currentLocation.lat, shipment.currentLocation.lng],
+          [shipment.destCoords.lat, shipment.destCoords.lng]
+        ],
+      };
+    }
+
+    // For real routes, split based on progress percentage
+    const totalPoints = routeData.coordinates.length;
+    const splitIndex = Math.floor((shipment.progress / 100) * totalPoints);
+
+    const completedRoute = routeData.coordinates.slice(0, splitIndex + 1);
+    const remainingRoute = routeData.coordinates.slice(splitIndex);
+
+    // Add current location to both segments for continuity
+    if (completedRoute.length > 0) {
+      completedRoute.push([shipment.currentLocation.lat, shipment.currentLocation.lng]);
+    }
+    if (remainingRoute.length > 0) {
+      remainingRoute.unshift([shipment.currentLocation.lat, shipment.currentLocation.lng]);
+    }
+
+    return { completedRoute, remainingRoute };
+  };
+
+  const { completedRoute, remainingRoute } = getRouteSegments();
 
   // Tile layer URLs
   const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -100,23 +168,6 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
     border: darkMode ? 'border-gray-700' : 'border-gray-200',
   };
 
-  const bounds = L.latLngBounds([
-    [shipment.originCoords.lat, shipment.originCoords.lng],
-    [shipment.destCoords.lat, shipment.destCoords.lng],
-    [shipment.currentLocation.lat, shipment.currentLocation.lng]
-  ]);
-
-  // Route segments
-  const completedRoute = [
-    [shipment.originCoords.lat, shipment.originCoords.lng],
-    [shipment.currentLocation.lat, shipment.currentLocation.lng]
-  ];
-
-  const remainingRoute = [
-    [shipment.currentLocation.lat, shipment.currentLocation.lng],
-    [shipment.destCoords.lat, shipment.destCoords.lng]
-  ];
-
   // Prevent body scroll when modal is open
   useEffect(() => {
     if (showFull) {
@@ -126,6 +177,13 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
       };
     }
   }, [showFull]);
+
+  // All bounds for fitting map
+  const allCoordinates = routeData?.coordinates || [
+    [shipment.originCoords.lat, shipment.originCoords.lng],
+    [shipment.currentLocation.lat, shipment.currentLocation.lng],
+    [shipment.destCoords.lat, shipment.destCoords.lng]
+  ];
 
   // Full screen tracking view
   if (showFull) {
@@ -149,6 +207,15 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
 
         {/* Map */}
         <div className="flex-1 relative">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-[1000]">
+              <div className="bg-white dark:bg-gray-800 rounded-xl p-4 flex items-center gap-3 shadow-lg">
+                <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
+                <span className={theme.text}>Loading route...</span>
+              </div>
+            </div>
+          )}
+
           <MapContainer
             center={[shipment.currentLocation.lat, shipment.currentLocation.lng]}
             zoom={8}
@@ -159,7 +226,7 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
               url={darkMode ? darkTiles : lightTiles}
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
-            <FitBounds bounds={bounds} />
+            <FitBounds coordinates={allCoordinates} />
 
             {/* Completed route (solid green line) */}
             <Polyline
@@ -225,7 +292,28 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
               </span>
             </div>
             <span className={theme.textMuted}>Updated {shipment.lastUpdate}</span>
+            {routeData?.isRealRoute && (
+              <span className="text-xs text-green-500 ml-auto">Road route</span>
+            )}
           </div>
+
+          {/* Route info */}
+          {routeData && (
+            <div className="grid grid-cols-3 gap-2">
+              <div className={`${theme.bgSecondary} rounded-lg p-2 text-center`}>
+                <p className="text-lg font-bold text-amber-500">{routeData.distance} km</p>
+                <p className={`text-xs ${theme.textMuted}`}>Total Distance</p>
+              </div>
+              <div className={`${theme.bgSecondary} rounded-lg p-2 text-center`}>
+                <p className="text-lg font-bold text-blue-500">{formatDuration(routeData.duration)}</p>
+                <p className={`text-xs ${theme.textMuted}`}>Est. Duration</p>
+              </div>
+              <div className={`${theme.bgSecondary} rounded-lg p-2 text-center`}>
+                <p className="text-lg font-bold text-green-500">{shipment.progress}%</p>
+                <p className={`text-xs ${theme.textMuted}`}>Complete</p>
+              </div>
+            </div>
+          )}
 
           {/* Progress bar */}
           <div>
