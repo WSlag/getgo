@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dev-dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# Claude local settings (may contain tokens)
+.claude/settings.local.json
+
+# OS files
+.DS_Store
+Thumbs.db
+nul
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cache
+.cache/
+*.sqlite

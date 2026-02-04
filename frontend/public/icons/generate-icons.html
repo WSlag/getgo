@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate KARGA Icons</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    canvas { border: 1px solid #ccc; margin: 10px; }
+    .icon-container { display: flex; flex-wrap: wrap; gap: 10px; }
+    button { padding: 10px 20px; background: #f97316; color: white; border: none; cursor: pointer; margin: 10px; }
+  </style>
+</head>
+<body>
+  <h1>KARGA CONNECT Icon Generator</h1>
+  <p>Click each button to download the icon, or right-click canvas and "Save Image As"</p>
+  <div class="icon-container" id="icons"></div>
+
+  <script>
+    const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+    const container = document.getElementById('icons');
+
+    sizes.forEach(size => {
+      const div = document.createElement('div');
+      div.innerHTML = `<p>${size}x${size}</p>`;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      canvas.id = `icon-${size}`;
+
+      const ctx = canvas.getContext('2d');
+
+      // Background gradient (orange)
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#f97316');
+      gradient.addColorStop(1, '#ea580c');
+      ctx.fillStyle = gradient;
+
+      // Rounded rectangle background
+      const radius = size * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(radius, 0);
+      ctx.lineTo(size - radius, 0);
+      ctx.quadraticCurveTo(size, 0, size, radius);
+      ctx.lineTo(size, size - radius);
+      ctx.quadraticCurveTo(size, size, size - radius, size);
+      ctx.lineTo(radius, size);
+      ctx.quadraticCurveTo(0, size, 0, size - radius);
+      ctx.lineTo(0, radius);
+      ctx.quadraticCurveTo(0, 0, radius, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      // Draw truck icon
+      ctx.fillStyle = 'white';
+      const scale = size / 100;
+
+      // Truck body
+      ctx.fillRect(20 * scale, 40 * scale, 40 * scale, 25 * scale);
+
+      // Truck cab
+      ctx.fillRect(60 * scale, 45 * scale, 20 * scale, 20 * scale);
+
+      // Wheels
+      ctx.beginPath();
+      ctx.arc(30 * scale, 68 * scale, 6 * scale, 0, Math.PI * 2);
+      ctx.arc(50 * scale, 68 * scale, 6 * scale, 0, Math.PI * 2);
+      ctx.arc(70 * scale, 68 * scale, 6 * scale, 0, Math.PI * 2);
+      ctx.fill();
+
+      // "K" letter
+      ctx.font = `bold ${size * 0.25}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText('K', size * 0.5, size * 0.35);
+
+      div.appendChild(canvas);
+
+      // Download button
+      const btn = document.createElement('button');
+      btn.textContent = `Download ${size}x${size}`;
+      btn.onclick = () => {
+        const link = document.createElement('a');
+        link.download = `icon-${size}x${size}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      };
+      div.appendChild(btn);
+
+      container.appendChild(div);
+    });
+  </script>
+</body>
+</html>
