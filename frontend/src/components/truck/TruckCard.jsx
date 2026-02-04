@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MapPin, Clock, Navigation, ChevronDown, ChevronUp, Truck, Star, Calendar } from 'lucide-react';
+import React from 'react';
+import { MapPin, Clock, Navigation, Star, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -31,38 +31,31 @@ export function TruckCard({
   estimatedTime,
   className,
 }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const statusConfig = {
-    available: {
-      variant: 'gradient-green',
-      label: 'AVAILABLE',
-    },
-    'in-transit': {
-      variant: 'gradient-orange',
-      label: 'IN TRANSIT',
-    },
-    booked: {
-      variant: 'gradient-blue',
-      label: 'BOOKED',
-    },
-    offline: {
-      variant: 'secondary',
-      label: 'OFFLINE',
-    },
+  // Status badge styles - Figma gradient style with shadows (matching CargoCard)
+  const statusStyles = {
+    available: 'bg-gradient-to-br from-green-400 to-green-600 text-white shadow-lg',
+    'in-transit': 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg',
+    booked: 'bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg',
+    offline: 'bg-gradient-to-br from-gray-400 to-gray-600 text-white shadow-lg',
   };
 
-  const currentStatus = statusConfig[status] || statusConfig.available;
+  // Status labels
+  const statusLabels = {
+    available: 'AVAILABLE',
+    'in-transit': 'IN TRANSIT',
+    booked: 'BOOKED',
+    offline: 'OFFLINE',
+  };
 
-  // Blue/purple gradient for trucks
-  const gradientClasses = [
-    'from-blue-400 to-blue-600',
-    'from-purple-400 to-purple-600',
-    'from-indigo-400 to-indigo-600',
-    'from-cyan-400 to-cyan-600',
-    'from-teal-400 to-teal-600',
-  ];
-  const gradientClass = gradientClasses[id?.charCodeAt(0) % gradientClasses.length] || gradientClasses[0];
+  // Gradient colors for price pill and buttons based on status (matching CargoCard pattern)
+  const gradientColors = {
+    available: 'bg-gradient-to-r from-purple-400 to-purple-600',
+    'in-transit': 'bg-gradient-to-r from-orange-400 to-orange-600',
+    booked: 'bg-gradient-to-r from-blue-400 to-blue-600',
+    offline: 'bg-gradient-to-r from-gray-400 to-gray-600',
+  };
+
+  const currentGradient = gradientColors[status] || gradientColors.available;
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -77,11 +70,14 @@ export function TruckCard({
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    if (minutes > 0) return `${minutes}m ago`;
+    if (days > 0) return `${days} days ago`;
+    if (hours > 0) return `${hours} hours ago`;
+    if (minutes > 0) return `${minutes} minutes ago`;
     return 'Just now';
   };
+
+  // Format capacity display
+  const displayCapacity = capacity ? `${capacity}` : '';
 
   return (
     <div
@@ -90,38 +86,34 @@ export function TruckCard({
         className
       )}
     >
-      {/* Gradient Accent Bar */}
-      <div className={cn("h-1.5 bg-gradient-to-r", gradientClass)} />
+      {/* Gradient Accent Bar - Figma style solid gradient */}
+      <div className={cn("h-1.5", currentGradient)} />
 
-      <div className="p-6">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
+      <div style={{ padding: '24px' }}>
+        {/* Header Row - Status badges and Price */}
+        <div className="flex items-start justify-between" style={{ marginBottom: '16px' }}>
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <Badge variant={currentStatus.variant} className="px-3 py-1 text-xs tracking-wide shadow-lg">
-                {currentStatus.label}
+            <div className="flex items-center" style={{ gap: '8px', marginBottom: '8px' }}>
+              <Badge className={cn("uppercase tracking-wide", statusStyles[status] || statusStyles.available)} style={{ padding: '5px 10px', fontSize: '10px' }}>
+                {statusLabels[status] || 'AVAILABLE'}
               </Badge>
-              <Badge variant="info" className="px-3 py-1 text-xs uppercase">
+              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {vehicleType || 'TRUCK'}
               </Badge>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {formatTimeAgo(postedAt)}
-              </span>
+              <span className="text-xs text-gray-500">{formatTimeAgo(postedAt)}</span>
             </div>
-            <h3 className="font-bold text-gray-900 dark:text-white text-lg mb-1">
-              {trucker}
-            </h3>
-            <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+            <h3 className="font-bold text-gray-900 dark:text-white text-base" style={{ marginBottom: '4px' }}>{trucker}</h3>
+            <div className="flex items-center text-sm text-gray-600 dark:text-gray-400" style={{ gap: '8px' }}>
               {truckerRating > 0 && (
                 <div className="flex items-center gap-1">
                   <Star className="size-4 text-yellow-500 fill-yellow-500" />
                   <span>{truckerRating.toFixed(1)}</span>
                 </div>
               )}
-              {capacity && (
+              {displayCapacity && (
                 <>
-                  <span className="text-gray-300 dark:text-gray-600">|</span>
-                  <span>{capacity}</span>
+                  {truckerRating > 0 && <span className="text-gray-300 dark:text-gray-600">|</span>}
+                  <span>{displayCapacity}</span>
                 </>
               )}
               {plateNumber && (
@@ -132,45 +124,41 @@ export function TruckCard({
               )}
             </div>
           </div>
-
-          {/* Rate Badge */}
-          <div className={cn("px-4 py-3 rounded-xl bg-gradient-to-br shadow-lg", gradientClass)}>
-            <p className="text-xl lg:text-2xl font-bold text-white">
-              {formatPrice(askingRate)}
-            </p>
+          <div className={cn("rounded-xl shadow-lg", currentGradient)} style={{ padding: '10px 15px' }}>
+            <p className="text-2xl font-bold text-white">{formatPrice(askingRate)}</p>
           </div>
         </div>
 
-        {/* Route */}
-        <div className="flex items-center gap-3 mb-4 p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850 rounded-xl">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="size-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0">
+        {/* Route Section - Figma style with visible gray background */}
+        <div className="flex items-center rounded-xl bg-gray-100 dark:bg-gray-800/60" style={{ gap: '12px', marginBottom: '16px', padding: '16px' }}>
+          <div className="flex items-center gap-2 flex-1">
+            <div className="size-8 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center shadow-lg shadow-green-500/30">
               <MapPin className="size-4 text-white" />
             </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-500 dark:text-gray-400">From</p>
-              <p className="font-medium text-gray-900 dark:text-white truncate">{origin}</p>
+            <div>
+              <p className="text-xs text-gray-500">From</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white">{origin}</p>
             </div>
           </div>
 
-          <div className="flex flex-col items-center gap-1 px-3 flex-shrink-0">
-            <Truck className="size-4 text-blue-500 animate-pulse" />
-            <div className="h-0.5 w-12 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full" />
+          <div className="flex flex-col items-center gap-1 px-3">
+            <Navigation className="size-4 text-orange-500 animate-pulse" />
+            <div className="h-0.5 w-12 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full" />
           </div>
 
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="size-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="size-8 rounded-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shadow-lg shadow-red-500/30">
               <MapPin className="size-4 text-white" />
             </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-500 dark:text-gray-400">To</p>
-              <p className="font-medium text-gray-900 dark:text-white truncate">{destination}</p>
+            <div>
+              <p className="text-xs text-gray-500">To</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white">{destination}</p>
             </div>
           </div>
         </div>
 
-        {/* Details Row */}
-        <div className="flex items-center gap-4 mb-4 text-sm text-gray-600 dark:text-gray-400 flex-wrap">
+        {/* Distance & Time Details - Figma colored icons */}
+        <div className="flex items-center text-sm text-gray-600 dark:text-gray-400" style={{ gap: '16px', marginBottom: '16px' }}>
           {distance && (
             <div className="flex items-center gap-1.5">
               <Navigation className="size-4 text-blue-500" />
@@ -191,41 +179,18 @@ export function TruckCard({
           )}
         </div>
 
-        {/* Description - Expandable */}
+        {/* Description */}
         {description && (
-          <div className="mb-4">
-            <p className={cn(
-              "text-sm text-gray-600 dark:text-gray-400 leading-relaxed",
-              !expanded && "line-clamp-2"
-            )}>
-              {description}
-            </p>
-            {description.length > 100 && (
-              <button
-                onClick={() => setExpanded(!expanded)}
-                className="text-xs text-blue-500 hover:text-blue-600 mt-1 flex items-center gap-1"
-              >
-                {expanded ? (
-                  <>
-                    Show less <ChevronUp className="size-3" />
-                  </>
-                ) : (
-                  <>
-                    Show more <ChevronDown className="size-3" />
-                  </>
-                )}
-              </button>
-            )}
-          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed" style={{ marginBottom: '16px' }}>{description}</p>
         )}
 
-        {/* Photos */}
+        {/* Images - Figma style larger with hover overlay */}
         {truckPhotos.length > 0 && (
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-2 -mx-1 px-1">
+          <div className="flex" style={{ gap: '8px', marginBottom: '16px' }}>
             {truckPhotos.slice(0, 4).map((photo, idx) => (
               <div
                 key={idx}
-                className="relative size-16 lg:size-20 rounded-xl overflow-hidden group/img border-2 border-gray-200 dark:border-gray-700 hover:border-blue-400 transition-all duration-300 flex-shrink-0 cursor-pointer"
+                className="relative size-16 rounded-xl overflow-hidden group/img border-2 border-gray-200 dark:border-gray-700 hover:border-purple-400 transition-all duration-300 cursor-pointer"
                 onClick={() => onViewDetails?.()}
               >
                 <img
@@ -240,57 +205,49 @@ export function TruckCard({
               </div>
             ))}
             {truckPhotos.length > 4 && (
-              <div className="size-16 lg:size-20 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm font-medium flex-shrink-0">
+              <div className="size-16 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 text-xs font-medium border-2 border-gray-200 dark:border-gray-700">
                 +{truckPhotos.length - 4}
               </div>
             )}
           </div>
         )}
 
-        {/* Map Preview */}
-        {originCoords && destCoords && (
-          <div
-            className="relative h-32 lg:h-40 rounded-xl overflow-hidden bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 mb-4 cursor-pointer group/map"
-            onClick={onViewMap}
-          >
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <Truck className="size-10 lg:size-12 text-blue-400 mx-auto mb-2 animate-bounce" />
-                <p className="text-sm text-gray-600 dark:text-gray-400">View Route</p>
-              </div>
-            </div>
-            <div className="absolute bottom-4 right-4">
-              <button className="px-4 py-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg text-sm font-medium text-blue-600 hover:bg-white transition-all duration-300 hover:scale-105">
-                View Map
-              </button>
+        {/* Map Preview - Figma style taller with animations */}
+        <div
+          className="relative rounded-xl overflow-hidden bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 cursor-pointer"
+          style={{ height: '160px', marginBottom: '16px' }}
+          onClick={onViewMap}
+        >
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <MapPin className="size-12 text-blue-400 mx-auto mb-2 animate-bounce" />
+              <p className="text-sm text-gray-600 dark:text-gray-400">Interactive Map</p>
             </div>
           </div>
-        )}
+          <div className="absolute bottom-4 right-4">
+            <button className="px-4 py-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 hover:scale-105">
+              View Map
+            </button>
+          </div>
+        </div>
 
-        {/* Footer */}
-        <div className="flex gap-2">
+        {/* Action Buttons - Figma style with enhanced hover effects */}
+        <div className="flex" style={{ gap: '12px' }}>
           <button
             onClick={onViewDetails}
             className={cn(
-              "flex-1 py-3 px-4 rounded-xl text-white shadow-lg font-medium",
-              "hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95",
-              `bg-gradient-to-r ${gradientClass}`
+              "flex-1 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 font-medium",
+              currentGradient
             )}
+            style={{ padding: '14px 20px' }}
           >
             View Details
           </button>
-          {canBook && onBook && (
-            <button
-              onClick={onBook}
-              className="py-3 px-4 rounded-xl bg-gradient-to-br from-purple-100 to-purple-200 text-purple-700 hover:from-purple-200 hover:to-purple-300 transition-all duration-300 hover:scale-105 active:scale-95 font-medium dark:from-purple-900/50 dark:to-purple-800/50 dark:text-purple-300"
-            >
-              Book Now
-            </button>
-          )}
           {onContact && (
             <button
               onClick={onContact}
-              className="py-3 px-4 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300 transition-all duration-300 hover:scale-105 active:scale-95 font-medium dark:from-gray-700 dark:to-gray-800 dark:text-gray-200"
+              className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
+              style={{ padding: '14px 20px' }}
             >
               Contact
             </button>
