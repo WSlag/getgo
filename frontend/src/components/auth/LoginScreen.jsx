@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Phone, ArrowRight, Shield, Truck, Package, Loader2 } from 'lucide-react';
+import { Phone, ArrowRight, Shield, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { Logo } from '../shared/Logo';
 
 export default function LoginScreen({ darkMode, onSkipLogin }) {
   const { sendOtp, verifyOtp, authError } = useAuth();
@@ -12,8 +13,8 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
   const [formattedPhone, setFormattedPhone] = useState('');
 
   const theme = {
-    bg: darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 to-indigo-100',
-    card: darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200',
+    bg: darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-orange-50 to-amber-100',
+    card: darkMode ? 'bg-gray-800/90 backdrop-blur-xl border-gray-700' : 'bg-white/80 backdrop-blur-xl border-gray-200/50',
     text: darkMode ? 'text-white' : 'text-gray-900',
     textMuted: darkMode ? 'text-gray-400' : 'text-gray-600',
     input: darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500',
@@ -85,25 +86,18 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
   };
 
   return (
-    <div className={`min-h-screen ${theme.bg} flex items-center justify-center p-4`}>
-      <div className={`w-full max-w-md ${theme.card} rounded-2xl shadow-xl border p-8`}>
+    <div className={`min-h-screen ${theme.bg} flex items-center justify-center`} style={{ padding: '32px 24px' }}>
+      <div className={`w-full max-w-md ${theme.card} rounded-2xl shadow-xl border`} style={{ padding: '40px 32px' }}>
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl mb-4">
-            <div className="flex items-center gap-1">
-              <Truck className="w-5 h-5 text-white" />
-              <Package className="w-5 h-5 text-white" />
-            </div>
-          </div>
-          <h1 className={`text-2xl font-bold ${theme.text}`}>KARGA</h1>
-          <p className={`text-sm ${theme.textMuted} mt-1`}>Philippine Trucking Marketplace</p>
+        <div className="flex justify-center" style={{ marginBottom: '40px' }}>
+          <Logo size="lg" />
         </div>
 
         {step === 'phone' ? (
           /* Phone Number Step */
           <form onSubmit={handleSendOtp}>
-            <div className="mb-6">
-              <label className={`block text-sm font-medium ${theme.textMuted} mb-2`}>
+            <div style={{ marginBottom: '32px' }}>
+              <label className={`block text-sm font-medium ${theme.textMuted}`} style={{ marginBottom: '12px' }}>
                 Phone Number
               </label>
               <div className="relative">
@@ -115,18 +109,19 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
                   value={phone}
                   onChange={handlePhoneChange}
                   placeholder="9171234567"
-                  className={`w-full pl-14 pr-4 py-3 rounded-xl border ${theme.input} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  className={`w-full rounded-xl border ${theme.input} focus:outline-none focus:ring-2 focus:ring-orange-500`}
+                  style={{ padding: '14px 16px 14px 56px' }}
                   autoFocus
                 />
                 <Phone className={`absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 ${theme.textMuted}`} />
               </div>
-              <p className={`text-xs ${theme.textMuted} mt-2`}>
+              <p className={`text-xs ${theme.textMuted}`} style={{ marginTop: '12px' }}>
                 We'll send a verification code to this number
               </p>
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg" style={{ marginBottom: '24px', padding: '12px' }}>
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               </div>
             )}
@@ -135,9 +130,10 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
               id="send-otp-button"
               type="submit"
               disabled={loading || phone.length < 10}
-              className={`w-full py-3 px-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-all
+              style={{ padding: '14px 16px' }}
+              className={`w-full rounded-xl font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:scale-105 active:scale-95
                 ${phone.length >= 10 && !loading
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700'
+                  ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700 shadow-lg shadow-orange-500/30'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                 }`}
             >
@@ -157,20 +153,20 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
         ) : (
           /* OTP Verification Step */
           <form onSubmit={handleVerifyOtp}>
-            <div className="mb-6">
+            <div className="mb-8">
               <button
                 type="button"
                 onClick={handleBack}
-                className={`text-sm ${theme.textMuted} hover:text-blue-500 mb-4 flex items-center gap-1`}
+                className={`text-sm ${theme.textMuted} hover:text-orange-500 mb-4 flex items-center gap-1`}
               >
                 <ArrowRight className="w-4 h-4 rotate-180" />
                 Back
               </button>
 
-              <label className={`block text-sm font-medium ${theme.textMuted} mb-2`}>
+              <label className={`block text-sm font-medium ${theme.textMuted} mb-3`}>
                 Verification Code
               </label>
-              <p className={`text-xs ${theme.textMuted} mb-4`}>
+              <p className={`text-xs ${theme.textMuted} mb-5`}>
                 Enter the 6-digit code sent to {formattedPhone}
               </p>
 
@@ -180,13 +176,13 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
                 onChange={handleOtpChange}
                 placeholder="000000"
                 maxLength={6}
-                className={`w-full text-center text-2xl tracking-[0.5em] py-4 rounded-xl border ${theme.input} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                className={`w-full text-center text-2xl tracking-[0.5em] py-4 rounded-xl border ${theme.input} focus:outline-none focus:ring-2 focus:ring-orange-500`}
                 autoFocus
               />
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="mb-6 p-3 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               </div>
             )}
@@ -194,9 +190,9 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
             <button
               type="submit"
               disabled={loading || otp.length !== 6}
-              className={`w-full py-3 px-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-all
+              className={`w-full py-3 px-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:scale-105 active:scale-95
                 ${otp.length === 6 && !loading
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700'
+                  ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700 shadow-lg shadow-orange-500/30'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                 }`}
             >
@@ -216,7 +212,7 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
             <button
               type="button"
               onClick={() => { setStep('phone'); setOtp(''); }}
-              className={`w-full mt-3 py-2 text-sm ${theme.textMuted} hover:text-blue-500`}
+              className={`w-full mt-3 py-2 text-sm ${theme.textMuted} hover:text-orange-500`}
             >
               Didn't receive code? Try again
             </button>
@@ -225,7 +221,7 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
 
         {/* Continue Browsing Button */}
         {onSkipLogin && (
-          <div className="mt-6">
+          <div style={{ marginTop: '32px' }}>
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className={`w-full border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}></div>
@@ -237,7 +233,8 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
             <button
               type="button"
               onClick={onSkipLogin}
-              className={`w-full mt-4 py-3 px-4 rounded-xl font-medium border-2 border-dashed transition-all
+              style={{ marginTop: '20px', padding: '14px 16px' }}
+              className={`w-full rounded-xl font-medium border-2 border-dashed transition-all
                 ${darkMode
                   ? 'border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300'
                   : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-700'
@@ -249,7 +246,7 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
         )}
 
         {/* Footer */}
-        <div className={`mt-8 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+        <div className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`} style={{ marginTop: '40px', paddingTop: '24px' }}>
           <p className={`text-xs text-center ${theme.textMuted}`}>
             By continuing, you agree to our Terms of Service and Privacy Policy
           </p>
