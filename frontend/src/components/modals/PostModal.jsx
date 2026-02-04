@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Truck, Calendar, DollarSign, Weight, FileText, Camera, X, Edit } from 'lucide-react';
+import { Package, Truck, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import AddressSearch from '../maps/AddressSearch';
 
 const VEHICLE_TYPES = [
@@ -63,6 +63,7 @@ export function PostModal({
   });
 
   const [formData, setFormData] = useState(getInitialFormData());
+  const isMobile = !useMediaQuery('(min-width: 640px)');
 
   // Pre-populate form when editing
   useEffect(() => {
@@ -197,9 +198,9 @@ export function PostModal({
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="py-4" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Route Section - Now using AddressSearch */}
-          <div className="grid grid-cols-2 gap-3">
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
             <AddressSearch
               label="Origin"
               value={formData.origin}
@@ -224,7 +225,7 @@ export function PostModal({
           {/* Cargo Details - Shipper only */}
           {isShipper && (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
                     Cargo Type
@@ -250,13 +251,12 @@ export function PostModal({
                     Weight
                   </label>
                   <div className="relative">
-                    <Weight className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                     <Input
                       type="number"
                       placeholder="0"
                       value={formData.weight}
                       onChange={(e) => handleChange('weight', e.target.value)}
-                      className={cn("pl-10", errors.weight && "border-red-500")}
+                      className={cn("pr-12", errors.weight && "border-red-500")}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                       tons
@@ -290,19 +290,18 @@ export function PostModal({
           </div>
 
           {/* Price & Date */}
-          <div className="grid grid-cols-2 gap-3">
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
                 {isShipper ? 'Budget / Asking Price' : 'Rate'}
               </label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-green-500" />
                 <Input
                   type="number"
                   placeholder="0"
                   value={formData.askingPrice}
                   onChange={(e) => handleChange('askingPrice', e.target.value)}
-                  className={cn("pl-10", errors.askingPrice && "border-red-500")}
+                  className={cn("pr-12", errors.askingPrice && "border-red-500")}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                   PHP
@@ -315,15 +314,11 @@ export function PostModal({
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
                 {isShipper ? 'Pickup Date' : 'Available Date'}
               </label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-blue-500" />
-                <Input
-                  type="date"
-                  value={formData.pickupDate}
-                  onChange={(e) => handleChange('pickupDate', e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+              <Input
+                type="date"
+                value={formData.pickupDate}
+                onChange={(e) => handleChange('pickupDate', e.target.value)}
+              />
             </div>
           </div>
 
@@ -361,14 +356,15 @@ export function PostModal({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={handleClose}>
+          <Button variant="ghost" onClick={handleClose} style={{ paddingLeft: '28px', paddingRight: '28px' }}>
             Cancel
           </Button>
           <Button
             variant="gradient"
             onClick={handleSubmit}
             disabled={loading}
-            className={isShipper ? "" : "bg-gradient-to-br from-blue-500 to-blue-600"}
+            style={{ paddingLeft: '28px', paddingRight: '28px' }}
+            className={!isShipper ? "bg-gradient-to-br from-blue-500 to-blue-600" : ""}
           >
             {loading
               ? (editMode ? 'Saving...' : 'Posting...')

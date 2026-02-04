@@ -1,6 +1,7 @@
 import React from 'react';
 import { MapPin, Clock, Navigation, Truck, Calendar, Star, Edit, DollarSign, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,8 @@ export function TruckDetailsModal({
   onBook,
   darkMode = false,
 }) {
+  const isMobile = !useMediaQuery('(min-width: 640px)');
+
   if (!truck) return null;
 
   const formatPrice = (price) => {
@@ -193,7 +196,7 @@ export function TruckDetailsModal({
         {/* Truck Details */}
         <div className="py-4 border-b border-gray-200 dark:border-gray-700">
           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Truck Details</h4>
-          <div className="grid grid-cols-2 gap-4">
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
             {truck.vehicleType && (
               <div className="flex items-center gap-2">
                 <Truck className="size-5 text-purple-500" />
@@ -324,7 +327,6 @@ export function TruckDetailsModal({
               className="flex-1"
               onClick={() => onBook?.(truck)}
             >
-              <DollarSign className="size-4 mr-2" />
               Book Now
             </Button>
           )}

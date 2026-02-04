@@ -11,34 +11,96 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/icon.svg'],
+      includeAssets: ['icons/icon.svg', 'icons/*.png'],
       manifest: {
-        name: 'GetGo',
-        short_name: 'GetGo',
-        description: 'Your Cargo Marketplace - Connect shippers with truckers',
+        name: 'KARGA CONNECT',
+        short_name: 'KARGA',
+        description: 'Philippine Trucking Backload Marketplace - Connect shippers with truckers',
         theme_color: '#f97316',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait-primary',
         scope: '/',
         start_url: '/',
+        lang: 'en',
+        categories: ['business', 'logistics', 'transportation'],
         icons: [
           {
-            src: 'icons/icon.svg',
+            src: 'icons/icon-72x72.png',
+            sizes: '72x72',
+            type: 'image/png',
+            purpose: 'maskable any'
+          },
+          {
+            src: 'icons/icon-96x96.png',
+            sizes: '96x96',
+            type: 'image/png',
+            purpose: 'maskable any'
+          },
+          {
+            src: 'icons/icon-128x128.png',
+            sizes: '128x128',
+            type: 'image/png',
+            purpose: 'maskable any'
+          },
+          {
+            src: 'icons/icon-144x144.png',
+            sizes: '144x144',
+            type: 'image/png',
+            purpose: 'maskable any'
+          },
+          {
+            src: 'icons/icon-152x152.png',
+            sizes: '152x152',
+            type: 'image/png',
+            purpose: 'maskable any'
+          },
+          {
+            src: 'icons/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable any'
+          },
+          {
+            src: 'icons/icon-384x384.png',
+            sizes: '384x384',
+            type: 'image/png',
+            purpose: 'maskable any'
+          },
+          {
+            src: 'icons/icon-512x512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any'
+            type: 'image/png',
+            purpose: 'maskable any'
           },
           {
             src: 'icons/icon.svg',
-            sizes: '512x512',
+            sizes: 'any',
             type: 'image/svg+xml',
-            purpose: 'maskable'
+            purpose: 'any'
+          }
+        ],
+        shortcuts: [
+          {
+            name: 'Post Cargo',
+            short_name: 'Post',
+            description: 'Post a new cargo listing',
+            url: '/?action=post-cargo',
+            icons: [{ src: 'icons/icon-96x96.png', sizes: '96x96' }]
+          },
+          {
+            name: 'Find Trucks',
+            short_name: 'Trucks',
+            description: 'Browse available trucks',
+            url: '/?tab=trucks',
+            icons: [{ src: 'icons/icon-96x96.png', sizes: '96x96' }]
           }
         ]
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        navigateFallback: '/offline.html',
+        navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\./i,
@@ -47,17 +109,28 @@ export default defineConfig({
               cacheName: 'api-cache',
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                maxAgeSeconds: 60 * 60 * 24
               },
               cacheableResponse: {
                 statuses: [0, 200]
+              }
+            }
+          },
+          {
+            urlPattern: /\.(png|jpg|jpeg|svg|gif|webp)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'image-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 30
               }
             }
           }
         ]
       },
       devOptions: {
-        enabled: false // Disabled in development to allow HMR to work properly
+        enabled: false
       }
     })
   ],

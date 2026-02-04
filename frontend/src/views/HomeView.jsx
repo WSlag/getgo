@@ -5,6 +5,7 @@ import { TruckCard } from '@/components/truck/TruckCard';
 
 export function HomeView({
   activeMarket = 'cargo',
+  onMarketChange,
   cargoListings = [],
   truckListings = [],
   filterStatus = 'all',
@@ -33,7 +34,35 @@ export function HomeView({
   ];
 
   return (
-    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: '32px 40px' }}>
+    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto lg:p-8", className)} style={{ padding: '28px 14px' }}>
+      {/* Mobile Market Switcher - only visible on mobile */}
+      <div className="lg:hidden flex gap-2" style={{ marginBottom: '24px' }}>
+        <button
+          onClick={() => onMarketChange?.('cargo')}
+          className={cn(
+            "flex-1 rounded-xl font-medium text-sm transition-all",
+            activeMarket === 'cargo'
+              ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30"
+              : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
+          )}
+          style={{ padding: '16px 16px' }}
+        >
+          Cargo
+        </button>
+        <button
+          onClick={() => onMarketChange?.('trucks')}
+          className={cn(
+            "flex-1 rounded-xl font-medium text-sm transition-all",
+            activeMarket === 'trucks'
+              ? "bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg shadow-blue-500/30"
+              : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
+          )}
+          style={{ padding: '16px 16px' }}
+        >
+          Trucks
+        </button>
+      </div>
+
       {/* Page Header - Figma style */}
       <div className="flex items-center justify-between" style={{ marginBottom: '32px' }}>
         <div>
