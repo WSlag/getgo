@@ -429,6 +429,7 @@ export default function GetGoApp() {
         {activeTab === 'home' && (
           <HomeView
             activeMarket={activeMarket}
+            onMarketChange={setActiveMarket}
             cargoListings={filteredCargoListings}
             truckListings={filteredTruckListings}
             filterStatus={filterStatus}

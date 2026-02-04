@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DollarSign, MessageSquare, MapPin, Package, Truck, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,7 @@ export function BidModal({
   const [cargoType, setCargoType] = useState('');
   const [cargoWeight, setCargoWeight] = useState('');
   const [errors, setErrors] = useState({});
+  const isMobile = !useMediaQuery('(min-width: 640px)');
 
   const isCargo = listing?.type === 'cargo' || !listing?.trucker;
   const isShipper = currentRole === 'shipper';
@@ -133,14 +135,13 @@ export function BidModal({
           )}
         </div>
 
-        <div className="space-y-4 py-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingTop: '8px', paddingBottom: '8px' }}>
           {/* Bid Amount */}
           <div>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
               Your {isCargo ? 'Bid' : 'Offer'} Amount
             </label>
             <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-green-500" />
               <Input
                 type="number"
                 placeholder={listing.askingPrice || listing.askingRate || '0'}
@@ -149,7 +150,7 @@ export function BidModal({
                   setBidAmount(e.target.value);
                   if (errors.bidAmount) setErrors(prev => ({ ...prev, bidAmount: null }));
                 }}
-                className={cn("pl-10 text-lg font-semibold", errors.bidAmount && "border-red-500")}
+                className={cn("text-lg font-semibold", errors.bidAmount && "border-red-500")}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                 PHP
@@ -182,7 +183,7 @@ export function BidModal({
 
           {/* Cargo Details - For shipper booking truck */}
           {isShipper && !isCargo && (
-            <div className="grid grid-cols-2 gap-3">
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
                   Your Cargo Type
@@ -239,6 +240,7 @@ export function BidModal({
             variant="gradient"
             onClick={handleSubmit}
             disabled={loading}
+            style={{ paddingLeft: '28px', paddingRight: '28px' }}
           >
             {loading ? 'Submitting...' : `Submit ${isCargo ? 'Bid' : 'Offer'}`}
           </Button>

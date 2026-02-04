@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Search, Loader2, X } from 'lucide-react';
+import { MapPin, Loader2, X } from 'lucide-react';
 import { autocomplete, isGeocodingAvailable } from '../../services/geocodingService';
 import { philippineCities, getCoordinates } from '../../utils/cityCoordinates';
 
@@ -149,7 +149,6 @@ export default function AddressSearch({
         )}
 
         <div className="relative">
-          <MapPin className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${theme.textSecondary}`} />
           <input
             ref={inputRef}
             type="text"
@@ -157,7 +156,7 @@ export default function AddressSearch({
             onChange={handleInputChange}
             onFocus={() => setIsOpen(true)}
             placeholder={placeholder}
-            className={`w-full pl-10 pr-10 py-2.5 rounded-lg border ${theme.border} ${theme.input} focus:ring-2 focus:ring-amber-500 focus:border-transparent transition`}
+            className={`w-full px-3 pr-10 py-2.5 rounded-lg border ${theme.border} ${theme.input} focus:ring-2 focus:ring-amber-500 focus:border-transparent transition`}
           />
           {query && (
             <button
@@ -204,7 +203,6 @@ export default function AddressSearch({
       )}
 
       <div className="relative">
-        <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${theme.textSecondary}`} />
         <input
           ref={inputRef}
           type="text"
@@ -212,7 +210,7 @@ export default function AddressSearch({
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
-          className={`w-full pl-10 pr-10 py-2.5 rounded-lg border ${theme.border} ${theme.input} focus:ring-2 focus:ring-amber-500 focus:border-transparent transition`}
+          className={`w-full px-3 pr-10 py-2.5 rounded-lg border ${theme.border} ${theme.input} focus:ring-2 focus:ring-amber-500 focus:border-transparent transition`}
         />
         {loading ? (
           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500 animate-spin" />

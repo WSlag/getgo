@@ -95,7 +95,7 @@ export default function FullMapModal({ listing, darkMode = false, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex flex-col">
       {/* Header */}
-      <div className={`${theme.bgCard} p-4 flex justify-between items-center shadow-lg`}>
+      <div className={`${theme.bgCard} flex justify-between items-center shadow-lg`} style={{ padding: '16px 24px' }}>
         <div>
           <h2 className={`font-bold ${theme.text} flex items-center gap-2`}>
             <Route className="text-amber-500" /> Route Details
@@ -167,7 +167,7 @@ export default function FullMapModal({ listing, darkMode = false, onClose }) {
       </div>
 
       {/* Stats Panel */}
-      <div className={`${theme.bgCard} p-4 space-y-3`}>
+      <div className={`${theme.bgCard} space-y-3`} style={{ padding: '16px 24px' }}>
         <div className="grid grid-cols-3 gap-3">
           <div className={`${theme.bgSecondary} rounded-xl p-3 text-center`}>
             <p className="text-2xl font-bold text-amber-500">

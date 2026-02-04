@@ -30,7 +30,7 @@ export function Header({
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Logo className="hidden sm:flex" />
-          <Logo className="sm:hidden" showText={false} size="sm" />
+          <Logo className="flex sm:hidden" size="sm" />
 
           {/* Navigation - Desktop */}
           <nav className="hidden lg:flex items-center gap-2">
