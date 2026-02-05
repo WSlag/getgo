@@ -382,7 +382,7 @@ const Notification = sequelize.define('Notification', {
     primaryKey: true,
   },
   type: {
-    type: DataTypes.ENUM('NEW_BID', 'BID_ACCEPTED', 'BID_REJECTED', 'NEW_MESSAGE', 'NEW_CARGO', 'NEW_TRUCK', 'CONTRACT_READY', 'SHIPMENT_UPDATE', 'RATING_REQUEST'),
+    type: DataTypes.ENUM('NEW_BID', 'BID_ACCEPTED', 'BID_REJECTED', 'NEW_MESSAGE', 'NEW_CARGO', 'NEW_TRUCK', 'CONTRACT_READY', 'SHIPMENT_UPDATE', 'RATING_REQUEST', 'BADGE_UPGRADE', 'TIER_UPGRADE'),
     allowNull: false,
   },
   title: DataTypes.STRING,

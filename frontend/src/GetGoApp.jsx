@@ -41,7 +41,7 @@ import { TrackingView } from '@/views/TrackingView';
 import { ProfilePage } from '@/components/profile/ProfilePage';
 
 // Modal Components
-import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal } from '@/components/modals';
+import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal } from '@/components/modals';
 import { FullMapModal } from '@/components/maps';
 import AuthModal from '@/components/auth/AuthModal';
 
@@ -667,6 +667,22 @@ export default function GetGoApp() {
           openModal('bid', truck);
         }}
         darkMode={darkMode}
+      />
+
+      {/* Chat Modal */}
+      <ChatModal
+        open={modals.chat}
+        onClose={() => closeModal('chat')}
+        data={getModalData('chat')}
+        currentUser={authUser}
+      />
+
+      {/* Route Optimizer Modal */}
+      <RouteOptimizerModal
+        open={modals.routeOptimizer}
+        onClose={() => closeModal('routeOptimizer')}
+        initialOrigin={getModalData('routeOptimizer')?.origin}
+        initialDestination={getModalData('routeOptimizer')?.destination}
       />
 
       {/* Edit Cargo Modal (uses PostModal in edit mode) */}

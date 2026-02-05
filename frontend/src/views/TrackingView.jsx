@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, Package, Truck, Clock, Navigation, Radio, ChevronRight, MapPinned } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import TrackingMap from '@/components/maps/TrackingMap';
-import { updateShipmentLocation } from '@/services/firestoreService';
+import api from '@/services/api';
 import { getCoordinates, getCityNames } from '@/utils/cityCoordinates';
 
 export function TrackingView({
@@ -27,7 +27,7 @@ export function TrackingView({
     delivered: { color: 'bg-green-500', label: 'Delivered', textColor: 'text-green-500' },
   };
 
-  // Handle location update for truckers
+  // Handle location update for truckers (via API)
   const handleUpdateLocation = async (shipment, city) => {
     if (!city) return;
 
@@ -35,29 +35,17 @@ export function TrackingView({
     try {
       const coords = getCoordinates(city);
 
-      // Calculate progress based on distance
-      const originLat = shipment.originCoords?.lat || 0;
-      const originLng = shipment.originCoords?.lng || 0;
-      const destLat = shipment.destCoords?.lat || 0;
-      const destLng = shipment.destCoords?.lng || 0;
+      // Call backend API to update location
+      // The API handles progress calculation, status updates, and socket notifications
+      const result = await api.shipments.updateLocation(shipment.id, {
+        currentLat: coords.lat,
+        currentLng: coords.lng,
+        currentLocation: city,
+      });
 
-      // Simple progress calculation based on position between origin and destination
-      const totalDist = Math.sqrt(Math.pow(destLat - originLat, 2) + Math.pow(destLng - originLng, 2));
-      const currentDist = Math.sqrt(Math.pow(coords.lat - originLat, 2) + Math.pow(coords.lng - originLng, 2));
-      const progress = Math.min(Math.round((currentDist / totalDist) * 100), 100);
+      console.log('Location updated successfully via API:', result);
 
-      // Determine status based on city
-      let status = 'in_transit';
-      if (city === shipment.origin) {
-        status = 'picked_up';
-      } else if (city === shipment.destination) {
-        status = 'delivered';
-      }
-
-      await updateShipmentLocation(shipment.id, coords.lat, coords.lng, city, progress, status);
-      console.log('Location updated successfully');
-
-      // Emit socket event for instant notification to shipper
+      // Also emit socket event for instant UI update while API processes
       if (onLocationUpdate) {
         onLocationUpdate({
           shipmentId: shipment.id,
@@ -66,12 +54,13 @@ export function TrackingView({
           currentLocation: city,
           lat: coords.lat,
           lng: coords.lng,
-          progress,
-          status,
+          progress: result.shipment?.progress || shipment.progress,
+          status: result.shipment?.status || shipment.status,
         });
       }
     } catch (error) {
       console.error('Error updating location:', error);
+      alert('Failed to update location: ' + error.message);
     } finally {
       setUpdatingLocation(null);
     }
