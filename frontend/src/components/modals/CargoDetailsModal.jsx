@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Package, Calendar, Weight, Truck, Edit, Star, DollarSign, X } from 'lucide-react';
+import { MapPin, Clock, Navigation, Package, Calendar, Weight, Truck, Edit, Star, DollarSign, X, Loader2, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -10,6 +10,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RouteMap } from '@/components/maps';
+import { useBidsForListing } from '@/hooks/useBids';
+import { sanitizeMessage } from '@/utils/messageUtils';
 
 export function CargoDetailsModal({
   open,
@@ -19,8 +21,15 @@ export function CargoDetailsModal({
   isOwner = false,
   onEdit,
   onBid,
+  onOpenChat,
   darkMode = false,
 }) {
+  // Fetch bids for this cargo when owner views the modal
+  const { bids: fetchedBids, loading: bidsLoading } = useBidsForListing(
+    isOwner && open ? cargo?.id : null,
+    'cargo'
+  );
+
   if (!cargo) return null;
 
   const formatPrice = (price) => {
@@ -63,7 +72,20 @@ export function CargoDetailsModal({
   const displayPrice = cargo.price || cargo.askingPrice;
   const displayImages = cargo.images?.length > 0 ? cargo.images : cargo.cargoPhotos || [];
   const displayWeight = cargo.weight ? (cargo.unit && cargo.unit !== 'kg' ? `${cargo.weight} ${cargo.unit}` : `${cargo.weight} tons`) : '';
-  const bids = cargo.bids || [];
+
+  // Map fetched bids to display format (keep full bid data for chat)
+  const bids = fetchedBids.map(bid => ({
+    id: bid.id,
+    bidder: bid.bidderName,
+    bidderId: bid.bidderId,
+    amount: bid.price,
+    rating: bid.bidderRating,
+    status: bid.status,
+    message: bid.message,
+    createdAt: bid.createdAt,
+    // Keep the full bid object for opening chat
+    _original: bid,
+  }));
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -253,39 +275,75 @@ export function CargoDetailsModal({
         )}
 
         {/* Bids Section - Only for owner */}
-        {isOwner && bids.length > 0 && (
+        {isOwner && (
           <div className="py-4 border-b border-gray-200 dark:border-gray-700">
             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-              Bids Received ({bids.length})
+              Bids Received {!bidsLoading && `(${bids.length})`}
             </h4>
-            <div className="space-y-2">
-              {bids.map((bid, idx) => (
-                <div
-                  key={bid.id || idx}
-                  className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold">
-                      {bid.bidder?.[0]?.toUpperCase() || 'T'}
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">{bid.bidder}</p>
-                      {bid.rating && (
-                        <div className="flex items-center gap-1 text-sm text-gray-500">
-                          <Star className="size-3 text-yellow-500 fill-yellow-500" />
-                          <span>{bid.rating}</span>
+            {bidsLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="size-6 text-orange-500 animate-spin" />
+                <span className="ml-2 text-sm text-gray-500">Loading bids...</span>
+              </div>
+            ) : bids.length > 0 ? (
+              <div className="space-y-3">
+                {bids.map((bid, idx) => (
+                  <div
+                    key={bid.id || idx}
+                    className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="size-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold">
+                          {bid.bidder?.[0]?.toUpperCase() || 'T'}
                         </div>
-                      )}
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">{bid.bidder}</p>
+                          {bid.rating && (
+                            <div className="flex items-center gap-1 text-sm text-gray-500">
+                              <Star className="size-3 text-yellow-500 fill-yellow-500" />
+                              <span>{bid.rating}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-lg text-green-600 dark:text-green-400">
+                          {formatPrice(bid.amount)}
+                        </p>
+                      </div>
+                    </div>
+                    {/* Bid Message - Sanitized */}
+                    {bid.message && (
+                      <div className="mt-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30">
+                        <div className="flex items-start gap-2">
+                          <MessageSquare className="size-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                          <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+                            "{sanitizeMessage(bid.message)}"
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {/* Chat Button */}
+                    <div className="flex gap-2 mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-2"
+                        onClick={() => onOpenChat?.(bid._original, cargo)}
+                      >
+                        <MessageSquare className="size-4" />
+                        Chat
+                      </Button>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-lg text-green-600 dark:text-green-400">
-                      {formatPrice(bid.amount)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                No bids received yet
+              </p>
+            )}
           </div>
         )}
 

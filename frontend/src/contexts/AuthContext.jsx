@@ -321,6 +321,51 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Update user profile
+  const updateProfile = async (profileData) => {
+    try {
+      if (!authUser || !userProfile) throw new Error('Not authenticated');
+
+      // Update main user profile
+      const userRef = doc(db, 'users', authUser.uid);
+      const userUpdates = {
+        updatedAt: serverTimestamp()
+      };
+
+      if (profileData.name) userUpdates.name = profileData.name;
+      if (profileData.email !== undefined) userUpdates.email = profileData.email;
+      if (profileData.facebookUrl !== undefined) userUpdates.facebookUrl = profileData.facebookUrl;
+
+      await setDoc(userRef, userUpdates, { merge: true });
+
+      // Update role-specific profile
+      const currentRole = userProfile?.role || 'shipper';
+
+      if (currentRole === 'shipper' && shipperProfile) {
+        const shipperRef = doc(db, 'users', authUser.uid, 'shipperProfile', 'profile');
+        const shipperUpdates = { updatedAt: serverTimestamp() };
+
+        if (profileData.businessName !== undefined) shipperUpdates.businessName = profileData.businessName;
+        if (profileData.businessAddress !== undefined) shipperUpdates.businessAddress = profileData.businessAddress;
+        if (profileData.businessType !== undefined) shipperUpdates.businessType = profileData.businessType;
+
+        await setDoc(shipperRef, shipperUpdates, { merge: true });
+      } else if (currentRole === 'trucker' && truckerProfile) {
+        const truckerRef = doc(db, 'users', authUser.uid, 'truckerProfile', 'profile');
+        const truckerUpdates = { updatedAt: serverTimestamp() };
+
+        if (profileData.businessName !== undefined) truckerUpdates.businessName = profileData.businessName;
+
+        await setDoc(truckerRef, truckerUpdates, { merge: true });
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Update profile error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
   // Logout
   const logout = async () => {
     try {
@@ -365,6 +410,7 @@ export function AuthProvider({ children }) {
     sendOtp,
     verifyOtp,
     createUserProfile,
+    updateProfile,
     switchRole,
     logout,
     getIdToken,

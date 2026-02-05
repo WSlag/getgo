@@ -1,4 +1,4 @@
-import { Ship, Package, Truck, Plus, CheckCircle, Route, Navigation } from 'lucide-react';
+import { Ship, Package, Truck, Plus, CheckCircle, Route, Navigation, MessageSquare, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Sidebar({
@@ -11,8 +11,10 @@ export function Sidebar({
   openCargoCount = 0,
   availableTrucksCount = 0,
   activeShipmentsCount = 0,
+  myBidsCount = 0,
   onPostClick,
   onRouteOptimizerClick,
+  onMyBidsClick,
   className,
 }) {
   return (
@@ -102,6 +104,40 @@ export function Sidebar({
               {truckCount}
             </span>
           </button>
+
+          {/* My Bids - For Truckers */}
+          {currentRole === 'trucker' && (
+            <button
+              onClick={onMyBidsClick}
+              className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
+              style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+            >
+              <FileText className="size-5 text-green-500" />
+              <span className="font-medium flex-1 text-left">My Bids</span>
+              {myBidsCount > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-green-200/70 dark:bg-green-800/40 text-green-700 dark:text-green-300">
+                  {myBidsCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* My Bookings - For Shippers */}
+          {currentRole === 'shipper' && (
+            <button
+              onClick={onMyBidsClick}
+              className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
+              style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+            >
+              <FileText className="size-5 text-purple-500" />
+              <span className="font-medium flex-1 text-left">My Bookings</span>
+              {myBidsCount > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-purple-200/70 dark:bg-purple-800/40 text-purple-700 dark:text-purple-300">
+                  {myBidsCount}
+                </span>
+              )}
+            </button>
+          )}
         </nav>
       </div>
 
@@ -122,9 +158,10 @@ export function Sidebar({
         {currentRole === 'trucker' && onRouteOptimizerClick && (
           <button
             onClick={onRouteOptimizerClick}
-            className="w-full mt-3 py-2.5 px-4 rounded-xl bg-white/80 dark:bg-gray-800/80 text-gray-600 dark:text-gray-300 text-sm font-medium hover:shadow-md transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 border border-gray-200/50 dark:border-gray-700/50"
+            className="w-full rounded-xl bg-white/80 dark:bg-gray-800/80 text-gray-600 dark:text-gray-300 font-medium hover:shadow-md transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 border border-gray-200/50 dark:border-gray-700/50"
+            style={{ marginTop: '12px', paddingTop: '12px', paddingBottom: '12px' }}
           >
-            <Route className="size-4 text-purple-500" />
+            <Route className="size-5 text-purple-500" />
             <span>Route Optimizer</span>
           </button>
         )}

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Send, MapPin, Package, Truck, User, Clock, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { MessageSquare, Send, MapPin, Package, Truck, Loader2, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { useChat } from '@/hooks/useChat';
 import { sendChatMessage } from '@/services/firestoreService';
 import socketService from '@/services/socketService';
+import { sanitizeMessage } from '@/utils/messageUtils';
 
 export function ChatModal({
   open,
@@ -30,10 +31,33 @@ export function ChatModal({
   // Extract data from modal props
   const listing = data?.listing;
   const listingType = data?.type || 'cargo';
-  const bidId = data?.bidId;
+  const bid = data?.bid;
+  const bidId = data?.bidId || bid?.id;
 
   // Get chat messages via hook
-  const { messages, loading: messagesLoading } = useChat(bidId);
+  const { messages: fetchedMessages, loading: messagesLoading } = useChat(bidId);
+
+  // Combine initial bid message with chat messages
+  const messages = useMemo(() => {
+    const allMessages = [];
+
+    // Add initial bid message if it exists
+    if (bid?.message) {
+      allMessages.push({
+        id: 'bid-initial',
+        senderId: bid.bidderId,
+        senderName: bid.bidderName || 'Bidder',
+        message: bid.message,
+        createdAt: bid.createdAt,
+        isInitialBid: true,
+      });
+    }
+
+    // Add fetched messages
+    allMessages.push(...fetchedMessages);
+
+    return allMessages;
+  }, [bid, fetchedMessages]);
 
   // Determine the other party's info
   const isCargo = listingType === 'cargo';
@@ -135,9 +159,18 @@ export function ChatModal({
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="max-w-md backdrop-blur-sm">
           <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="size-12 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                <MessageSquare className="size-6 text-white" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                background: 'linear-gradient(to bottom right, #60a5fa, #2563eb)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.3)'
+              }}>
+                <MessageSquare style={{ width: '24px', height: '24px', color: 'white' }} />
               </div>
               <div>
                 <DialogTitle>Start a Conversation</DialogTitle>
@@ -148,19 +181,28 @@ export function ChatModal({
             </div>
           </DialogHeader>
 
-          <div className="py-8 text-center">
-            <div className="size-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-              <MessageSquare className="size-8 text-gray-400" />
+          <div style={{ padding: '32px 0', textAlign: 'center' }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              margin: '0 auto 16px',
+              borderRadius: '50%',
+              backgroundColor: '#f3f4f6',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <MessageSquare style={{ width: '32px', height: '32px', color: '#9ca3af' }} />
             </div>
-            <p className="text-gray-600 dark:text-gray-400 mb-2">
+            <p style={{ color: '#4b5563', marginBottom: '8px' }}>
               To start a conversation, please place a bid first.
             </p>
-            <p className="text-sm text-gray-500">
+            <p style={{ fontSize: '14px', color: '#6b7280' }}>
               Messaging is available after you've shown interest in this listing.
             </p>
           </div>
 
-          <div className="flex justify-end">
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button variant="ghost" onClick={handleClose}>
               Close
             </Button>
@@ -172,157 +214,265 @@ export function ChatModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col backdrop-blur-sm p-0 overflow-hidden">
-        {/* Header */}
-        <DialogHeader className="p-4 pb-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="size-12 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <MessageSquare className="size-6 text-white" />
+      <DialogContent className="max-w-md backdrop-blur-sm">
+        <DialogHeader>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              background: isCargo
+                ? 'linear-gradient(to bottom right, #fb923c, #ea580c)'
+                : 'linear-gradient(to bottom right, #a78bfa, #7c3aed)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: isCargo
+                ? '0 10px 15px -3px rgba(249, 115, 22, 0.3)'
+                : '0 10px 15px -3px rgba(139, 92, 246, 0.3)'
+            }}>
+              {isCargo ? (
+                <Package style={{ width: '24px', height: '24px', color: 'white' }} />
+              ) : (
+                <Truck style={{ width: '24px', height: '24px', color: 'white' }} />
+              )}
             </div>
-            <div className="flex-1 min-w-0">
-              <DialogTitle className="text-lg truncate">
-                Chat with {otherPartyName}
-              </DialogTitle>
-              <DialogDescription className="flex items-center gap-1 text-sm">
-                <MapPin className="size-3 text-green-500 flex-shrink-0" />
-                <span className="truncate">{listing.origin}</span>
-                <span className="text-gray-400 mx-1">→</span>
-                <MapPin className="size-3 text-red-500 flex-shrink-0" />
-                <span className="truncate">{listing.destination}</span>
+            <div>
+              <DialogTitle>Chat with {otherPartyName}</DialogTitle>
+              <DialogDescription style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <MapPin style={{ width: '12px', height: '12px', color: '#22c55e' }} />
+                <span>{listing.origin}</span>
+                <span style={{ color: '#9ca3af', margin: '0 4px' }}>→</span>
+                <MapPin style={{ width: '12px', height: '12px', color: '#ef4444' }} />
+                <span>{listing.destination}</span>
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         {/* Listing Summary */}
-        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "size-8 rounded-lg flex items-center justify-center",
-                isCargo
-                  ? "bg-gradient-to-br from-orange-400 to-orange-600"
-                  : "bg-gradient-to-br from-blue-400 to-blue-600"
-              )}>
-                {isCargo ? (
-                  <Package className="size-4 text-white" />
-                ) : (
-                  <Truck className="size-4 text-white" />
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {isCargo ? listing.cargoType || 'Cargo' : listing.vehicleType || 'Truck'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {isCargo ? `${listing.weight || '---'} ${listing.weightUnit || 'tons'}` : `${listing.capacity || '---'} ${listing.capacityUnit || 'tons'}`}
-                </p>
-              </div>
+        <div style={{
+          padding: '16px',
+          background: 'linear-gradient(to bottom right, #f9fafb, #f3f4f6)',
+          borderRadius: '12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <p style={{ fontWeight: '600', color: '#111827' }}>
+                {isCargo ? listing.cargoType || 'Cargo' : listing.vehicleType || 'Truck'}
+              </p>
+              <p style={{ fontSize: '14px', color: '#4b5563' }}>
+                {isCargo
+                  ? `${listing.weight || '---'} ${listing.weightUnit || 'tons'}`
+                  : `${listing.capacity || '---'} ${listing.capacityUnit || 'tons'}`
+                }
+              </p>
             </div>
-            <Badge variant="gradient-orange" className="text-sm font-bold px-3 py-1">
-              {formatPrice(listing.askingPrice || listing.price)}
-            </Badge>
+            <div style={{
+              padding: '8px 16px',
+              borderRadius: '12px',
+              background: 'linear-gradient(to right, #fb923c, #ea580c)',
+              color: 'white',
+              fontWeight: '700',
+              fontSize: '16px'
+            }}>
+              {bid?.price ? `Bid: ${formatPrice(bid.price)}` : formatPrice(listing.askingPrice || listing.price)}
+            </div>
           </div>
         </div>
 
         {/* Messages Container */}
-        <div className="flex-1 overflow-y-auto p-4 min-h-[200px] max-h-[400px]">
-          {messagesLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="size-6 text-blue-500 animate-spin" />
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center py-8">
-              <div className="size-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
-                <MessageSquare className="size-8 text-blue-500" />
+        <div style={{
+          borderRadius: '12px',
+          backgroundColor: '#f9fafb',
+          overflow: 'hidden',
+          minHeight: '220px',
+          maxHeight: '320px'
+        }}>
+          <div style={{
+            height: '100%',
+            overflowY: 'auto',
+            padding: '16px',
+            minHeight: '220px',
+            maxHeight: '320px'
+          }}>
+            {messagesLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                <Loader2 style={{ width: '24px', height: '24px', color: '#3b82f6', animation: 'spin 1s linear infinite' }} />
               </div>
-              <p className="text-gray-600 dark:text-gray-400 font-medium">
-                Start the conversation!
-              </p>
-              <p className="text-sm text-gray-500 mt-1">
-                Send a message to {otherPartyName}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {messages.map((msg) => {
-                const isSent = msg.senderId === currentUser?.uid;
-                return (
-                  <div
-                    key={msg.id}
-                    className={cn("flex", isSent ? "justify-end" : "justify-start")}
-                  >
+            ) : messages.length === 0 ? (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                textAlign: 'center',
+                padding: '32px 0'
+              }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  backgroundColor: '#dbeafe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '12px'
+                }}>
+                  <MessageSquare style={{ width: '28px', height: '28px', color: '#3b82f6' }} />
+                </div>
+                <p style={{ color: '#4b5563', fontWeight: '500' }}>
+                  Start the conversation!
+                </p>
+                <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>
+                  Send a message to {otherPartyName}
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {messages.map((msg) => {
+                  const isSent = msg.senderId === currentUser?.uid;
+                  const isInitialBid = msg.isInitialBid;
+
+                  // Special styling for initial bid message
+                  if (isInitialBid) {
+                    return (
+                      <div key={msg.id}>
+                        <div style={{
+                          padding: '12px',
+                          background: 'linear-gradient(to bottom right, #fffbeb, #fff7ed)',
+                          border: '1px solid #fde68a',
+                          borderRadius: '12px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <FileText style={{ width: '16px', height: '16px', color: '#d97706' }} />
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              color: '#b45309',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em'
+                            }}>
+                              Initial Bid Message
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '12px', fontWeight: '500', color: '#b45309', marginBottom: '4px' }}>
+                            {msg.senderName}
+                          </p>
+                          <p style={{
+                            fontSize: '14px',
+                            color: '#1f2937',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word'
+                          }}>
+                            "{sanitizeMessage(msg.message)}"
+                          </p>
+                          <p style={{ fontSize: '12px', color: '#d97706', marginTop: '8px' }}>
+                            {formatTimeAgo(msg.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
                     <div
-                      className={cn(
-                        "max-w-[80%] px-4 py-2 shadow-sm",
-                        isSent
-                          ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl rounded-br-sm"
-                          : "bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-bl-sm"
-                      )}
+                      key={msg.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: isSent ? 'flex-end' : 'flex-start'
+                      }}
                     >
-                      {!isSent && (
-                        <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">
-                          {msg.senderName}
+                      <div style={{
+                        maxWidth: '75%',
+                        padding: '10px 16px',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        background: isSent
+                          ? 'linear-gradient(to bottom right, #fb923c, #ea580c)'
+                          : 'white',
+                        color: isSent ? 'white' : '#111827',
+                        borderRadius: isSent ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                        border: isSent ? 'none' : '1px solid #e5e7eb'
+                      }}>
+                        {!isSent && (
+                          <p style={{ fontSize: '12px', fontWeight: '500', color: '#ea580c', marginBottom: '4px' }}>
+                            {msg.senderName}
+                          </p>
+                        )}
+                        <p style={{
+                          fontSize: '14px',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word'
+                        }}>
+                          {sanitizeMessage(msg.message)}
                         </p>
-                      )}
-                      <p className={cn(
-                        "text-sm whitespace-pre-wrap break-words",
-                        isSent ? "text-white" : "text-gray-900 dark:text-white"
-                      )}>
-                        {msg.message}
-                      </p>
-                      <p className={cn(
-                        "text-xs mt-1",
-                        isSent ? "text-blue-100 text-right" : "text-gray-500"
-                      )}>
-                        {formatTimeAgo(msg.createdAt)}
-                      </p>
+                        <p style={{
+                          fontSize: '11px',
+                          marginTop: '6px',
+                          color: isSent ? 'rgba(255,255,255,0.8)' : '#6b7280',
+                          textAlign: isSent ? 'right' : 'left'
+                        }}>
+                          {formatTimeAgo(msg.createdAt)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Error Message */}
         {error && (
-          <div className="px-4 py-2 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <div style={{
+            padding: '12px',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '12px'
+          }}>
+            <p style={{ fontSize: '14px', color: '#dc2626' }}>{error}</p>
           </div>
         )}
 
         {/* Input Section */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-900">
-          <div className="flex gap-2">
-            <Textarea
-              ref={inputRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              className="flex-1 min-h-[44px] max-h-[120px] resize-none"
-              disabled={sending}
-            />
-            <Button
-              variant="gradient"
-              size="icon"
-              onClick={handleSend}
-              disabled={!message.trim() || sending}
-              className="size-11 flex-shrink-0"
-            >
-              {sending ? (
-                <Loader2 className="size-5 animate-spin" />
-              ) : (
-                <Send className="size-5" />
-              )}
-            </Button>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Press Enter to send, Shift+Enter for new line
-          </p>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <Textarea
+            ref={inputRef}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a message..."
+            style={{ flex: 1, minHeight: '48px', maxHeight: '100px', resize: 'none' }}
+            disabled={sending}
+          />
+          <Button
+            variant="gradient"
+            onClick={handleSend}
+            disabled={!message.trim() || sending}
+            style={{
+              width: '48px',
+              height: '48px',
+              flexShrink: 0,
+              borderRadius: '12px',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {sending ? (
+              <Loader2 style={{ width: '20px', height: '20px', animation: 'spin 1s linear infinite' }} />
+            ) : (
+              <Send style={{ width: '20px', height: '20px' }} />
+            )}
+          </Button>
         </div>
+        <p style={{ fontSize: '12px', color: '#6b7280', textAlign: 'center' }}>
+          Press Enter to send, Shift+Enter for new line
+        </p>
       </DialogContent>
     </Dialog>
   );

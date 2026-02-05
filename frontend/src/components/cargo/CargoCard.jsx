@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Clock, Navigation } from 'lucide-react';
+import { MapPin, Clock, Navigation, Gavel } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { RouteMap } from '@/components/maps';
@@ -27,6 +27,7 @@ export function CargoCard({
   cargoPhotos = [],
   images = [],
   bids = [],
+  bidCount = 0,
   onViewDetails,
   onContact,
   onBid,
@@ -117,6 +118,28 @@ export function CargoCard({
             <p className="text-2xl font-bold text-white">{formatPrice(displayPrice)}</p>
           </div>
         </div>
+
+        {/* Bid Count Indicator - Only for owner */}
+        {isOwner && bidCount > 0 && (
+          <div
+            className="flex items-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl cursor-pointer hover:from-green-100 hover:to-emerald-100 dark:hover:from-green-900/30 dark:hover:to-emerald-900/30 transition-all"
+            style={{ padding: '12px 16px', marginBottom: '16px' }}
+            onClick={onViewDetails}
+          >
+            <div className="size-8 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center shadow-lg shadow-green-500/30">
+              <Gavel className="size-4 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-green-700 dark:text-green-400">
+                {bidCount} {bidCount === 1 ? 'Bid' : 'Bids'} Received
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-500">Click to view details</p>
+            </div>
+            <div className="size-6 rounded-full bg-green-500 flex items-center justify-center animate-pulse">
+              <span className="text-white text-xs font-bold">{bidCount}</span>
+            </div>
+          </div>
+        )}
 
         {/* Route Section - Figma style with visible gray background */}
         <div className="flex items-center rounded-xl bg-gray-100 dark:bg-gray-800/60" style={{ gap: '12px', marginBottom: '16px', padding: '16px' }}>
