@@ -1,6 +1,63 @@
 import { Router } from 'express';
-import { Bid, CargoListing, TruckListing, User, TruckerProfile, ShipperProfile, ChatMessage, Wallet, WalletTransaction, Notification } from '../models/index.js';
+import { Bid, CargoListing, TruckListing, User, TruckerProfile, ShipperProfile, ChatMessage, Wallet, WalletTransaction, Notification, Contract } from '../models/index.js';
 import { authenticateToken } from '../middleware/auth.js';
+
+// Helper function to mask contact info
+const maskContactInfo = (user, showContact = false) => {
+  if (!user) return user;
+
+  const masked = { ...user.toJSON ? user.toJSON() : user };
+
+  if (!showContact) {
+    if (masked.phone) {
+      masked.phone = '****' + masked.phone.slice(-4);
+      masked.phoneMasked = true;
+    }
+    if (masked.email) {
+      masked.email = '****@****';
+      masked.emailMasked = true;
+    }
+    if (masked.facebookUrl) {
+      masked.facebookUrl = null;
+      masked.facebookMasked = true;
+    }
+    masked.contactMasked = true;
+  } else {
+    masked.contactMasked = false;
+  }
+
+  return masked;
+};
+
+// Check if user has a signed contract with another user
+const hasSignedContract = async (userId1, userId2) => {
+  if (!userId1 || !userId2) return false;
+
+  const { Op } = await import('sequelize');
+  const contracts = await Contract.findAll({
+    where: { status: { [Op.in]: ['signed', 'completed'] } },
+    include: [
+      {
+        model: Bid,
+        include: [
+          { model: CargoListing },
+          { model: TruckListing },
+        ],
+      },
+    ],
+  });
+
+  return contracts.some((contract) => {
+    const bid = contract.Bid;
+    if (!bid) return false;
+
+    const listing = bid.CargoListing || bid.TruckListing;
+    if (!listing) return false;
+
+    const involvedUsers = [listing.userId, bid.bidderId];
+    return involvedUsers.includes(userId1) && involvedUsers.includes(userId2);
+  });
+};
 
 const router = Router();
 
@@ -36,7 +93,27 @@ router.get('/listing/:listingType/:listingId', authenticateToken, async (req, re
       order: [['createdAt', 'DESC']],
     });
 
-    res.json({ bids });
+    // Get the listing to find its owner
+    const listing = listingType === 'cargo'
+      ? await CargoListing.findByPk(listingId)
+      : await TruckListing.findByPk(listingId);
+
+    // Apply contact masking to bidders
+    const maskedBids = await Promise.all(
+      bids.map(async (bid) => {
+        const bidJson = bid.toJSON();
+        // Listing owner can see bidder contacts only if there's a signed contract
+        const canSeeContact = req.user.id === bidJson.bidder?.id ||
+          (listing && listing.userId === req.user.id && await hasSignedContract(req.user.id, bidJson.bidder?.id));
+
+        if (bidJson.bidder) {
+          bidJson.bidder = maskContactInfo(bidJson.bidder, canSeeContact);
+        }
+        return bidJson;
+      })
+    );
+
+    res.json({ bids: maskedBids });
   } catch (error) {
     console.error('Get bids error:', error);
     res.status(500).json({ error: 'Failed to get bids' });

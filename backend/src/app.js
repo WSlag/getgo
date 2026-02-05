@@ -19,6 +19,9 @@ import bidsRoutes from './routes/bids.js';
 import walletRoutes from './routes/wallet.js';
 import chatRoutes from './routes/chat.js';
 import notificationsRoutes from './routes/notifications.js';
+import contractsRoutes from './routes/contracts.js';
+import ratingsRoutes from './routes/ratings.js';
+import shipmentsRoutes from './routes/shipments.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -52,6 +55,9 @@ app.use('/api/bids', bidsRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/contracts', contractsRoutes);
+app.use('/api/ratings', ratingsRoutes);
+app.use('/api/shipments', shipmentsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -75,6 +81,9 @@ app.get('/api', (req, res) => {
       wallet: '/api/wallet',
       chat: '/api/chat',
       notifications: '/api/notifications',
+      contracts: '/api/contracts',
+      ratings: '/api/ratings',
+      shipments: '/api/shipments',
     },
   });
 });
@@ -194,6 +203,8 @@ async function startServer() {
 ║   - Wallet:        /api/wallet                    ║
 ║   - Chat:          /api/chat                      ║
 ║   - Notifications: /api/notifications             ║
+║   - Contracts:     /api/contracts                 ║
+║   - Ratings:       /api/ratings                   ║
 ║                                                   ║
 ╚═══════════════════════════════════════════════════╝
       `);

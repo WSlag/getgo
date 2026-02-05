@@ -160,9 +160,21 @@ const api = {
 
   listings: {
     getCargo: (params) => get(`/listings/cargo${params ? `?${new URLSearchParams(params)}` : ''}`),
-    getTrucks: (params) => get(`/listings/truck${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getTrucks: (params) => get(`/listings/trucks${params ? `?${new URLSearchParams(params)}` : ''}`),
     getCargoById: (id) => get(`/listings/cargo/${id}`),
-    getTruckById: (id) => get(`/listings/truck/${id}`),
+    getTruckById: (id) => get(`/listings/trucks/${id}`),
+    createCargo: (data) => post('/listings/cargo', data),
+    createTruck: (data) => post('/listings/trucks', data),
+    updateCargo: (id, data) => put(`/listings/cargo/${id}`, data),
+    updateTruck: (id, data) => put(`/listings/trucks/${id}`, data),
+    deleteCargo: (id) => del(`/listings/cargo/${id}`),
+    deleteTruck: (id) => del(`/listings/trucks/${id}`),
+  },
+
+  // Route Optimization / Backload Finder
+  optimize: {
+    findBackload: (params) => get(`/listings/optimize/backload${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getPopularRoutes: () => get('/listings/optimize/popular-routes'),
   },
 
   bids: {
@@ -178,9 +190,36 @@ const api = {
   },
 
   chat: {
-    getConversations: () => get('/chat/conversations'),
-    getMessages: (conversationId) => get(`/chat/conversations/${conversationId}/messages`),
-    sendMessage: (conversationId, message) => post(`/chat/conversations/${conversationId}/messages`, { message }),
+    getMessages: (bidId) => get(`/chat/${bidId}`),
+    sendMessage: (bidId, message) => post(`/chat/${bidId}`, { message }),
+    markAsRead: (bidId) => put(`/chat/${bidId}/read`, {}),
+    getUnreadCount: () => get('/chat/unread/count'),
+  },
+
+  contracts: {
+    getAll: (params) => get(`/contracts${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getById: (id) => get(`/contracts/${id}`),
+    getByBid: (bidId) => get(`/contracts/bid/${bidId}`),
+    create: (data) => post('/contracts', data),
+    sign: (id) => put(`/contracts/${id}/sign`, {}),
+    complete: (id) => put(`/contracts/${id}/complete`, {}),
+  },
+
+  ratings: {
+    getForUser: (userId, params) => get(`/ratings/user/${userId}${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getForContract: (contractId) => get(`/ratings/contract/${contractId}`),
+    getPending: () => get('/ratings/pending'),
+    getMyRatings: () => get('/ratings/my-ratings'),
+    submit: (data) => post('/ratings', data),
+  },
+
+  // Shipment Tracking
+  shipments: {
+    getAll: (params) => get(`/shipments${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getById: (id) => get(`/shipments/${id}`),
+    track: (trackingNumber) => get(`/shipments/track/${trackingNumber}`),
+    updateLocation: (id, data) => put(`/shipments/${id}/location`, data),
+    updateStatus: (id, status) => put(`/shipments/${id}/status`, { status }),
   },
 };
 
