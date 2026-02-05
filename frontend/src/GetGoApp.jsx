@@ -41,7 +41,7 @@ import { TrackingView } from '@/views/TrackingView';
 import { ProfilePage } from '@/components/profile/ProfilePage';
 
 // Modal Components
-import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal } from '@/components/modals';
+import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal, MyBidsModal } from '@/components/modals';
 import { FullMapModal } from '@/components/maps';
 import AuthModal from '@/components/auth/AuthModal';
 
@@ -435,6 +435,7 @@ export default function GetGoApp() {
           activeShipmentsCount={activeShipmentsCount}
           onPostClick={handlePostClick}
           onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
+          onMyBidsClick={() => requireAuth(() => openModal('myBids'), 'Sign in to view your bids')}
           darkMode={darkMode}
         />
 
@@ -491,11 +492,25 @@ export default function GetGoApp() {
         {activeTab === 'bids' && (
           <main className="flex-1 p-4 lg:p-8">
             <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              My Bids
+              {userRole === 'trucker' ? 'My Bids' : 'My Bookings'}
             </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              View your bids here. (Integration pending)
-            </p>
+            {authUser ? (
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Click below to view and manage your {userRole === 'trucker' ? 'cargo bids' : 'truck bookings'}.
+              </p>
+            ) : (
+              <p className="text-gray-600 dark:text-gray-400">
+                Please sign in to view your {userRole === 'trucker' ? 'bids' : 'bookings'}.
+              </p>
+            )}
+            {authUser && (
+              <button
+                onClick={() => openModal('myBids')}
+                className="px-6 py-3 bg-gradient-to-r from-orange-400 to-orange-600 text-white font-medium rounded-xl shadow-lg shadow-orange-500/30 hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-300"
+              >
+                View {userRole === 'trucker' ? 'My Bids' : 'My Bookings'}
+              </button>
+            )}
           </main>
         )}
 
@@ -651,6 +666,10 @@ export default function GetGoApp() {
           closeModal('cargoDetails');
           openModal('bid', cargo);
         }}
+        onOpenChat={(bid, listing) => {
+          closeModal('cargoDetails');
+          openModal('chat', { bid, listing, type: 'cargo', bidId: bid.id });
+        }}
         darkMode={darkMode}
       />
 
@@ -665,6 +684,10 @@ export default function GetGoApp() {
         onBook={(truck) => {
           closeModal('truckDetails');
           openModal('bid', truck);
+        }}
+        onOpenChat={(bid, listing) => {
+          closeModal('truckDetails');
+          openModal('chat', { bid, listing, type: 'truck', bidId: bid.id });
         }}
         darkMode={darkMode}
       />
@@ -683,6 +706,18 @@ export default function GetGoApp() {
         onClose={() => closeModal('routeOptimizer')}
         initialOrigin={getModalData('routeOptimizer')?.origin}
         initialDestination={getModalData('routeOptimizer')?.destination}
+      />
+
+      {/* My Bids Modal */}
+      <MyBidsModal
+        open={modals.myBids}
+        onClose={() => closeModal('myBids')}
+        currentUser={authUser}
+        currentRole={userRole}
+        onOpenChat={(bid, listing) => {
+          closeModal('myBids');
+          openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
+        }}
       />
 
       {/* Edit Cargo Modal (uses PostModal in edit mode) */}

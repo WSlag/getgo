@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
 // Hook to get bids for a specific listing
@@ -16,10 +16,11 @@ export function useBidsForListing(listingId, listingType) {
     }
 
     const fieldName = listingType === 'cargo' ? 'cargoListingId' : 'truckListingId';
+    // Note: Not using orderBy to avoid needing a composite index
+    // Sorting is done in JavaScript after fetching
     const q = query(
       collection(db, 'bids'),
-      where(fieldName, '==', listingId),
-      orderBy('createdAt', 'desc')
+      where(fieldName, '==', listingId)
     );
 
     const unsubscribe = onSnapshot(
@@ -31,6 +32,8 @@ export function useBidsForListing(listingId, listingType) {
           createdAt: doc.data().createdAt?.toDate?.() || new Date(),
           updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
         }));
+        // Sort by createdAt descending (newest first)
+        data.sort((a, b) => b.createdAt - a.createdAt);
         setBids(data);
         setLoading(false);
         setError(null);
@@ -63,8 +66,7 @@ export function useMyBids(userId) {
 
     const q = query(
       collection(db, 'bids'),
-      where('bidderId', '==', userId),
-      orderBy('createdAt', 'desc')
+      where('bidderId', '==', userId)
     );
 
     const unsubscribe = onSnapshot(
@@ -76,6 +78,8 @@ export function useMyBids(userId) {
           createdAt: doc.data().createdAt?.toDate?.() || new Date(),
           updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
         }));
+        // Sort by createdAt descending (newest first)
+        data.sort((a, b) => b.createdAt - a.createdAt);
         setBids(data);
         setLoading(false);
         setError(null);
@@ -108,8 +112,7 @@ export function useBidsOnMyListings(userId) {
 
     const q = query(
       collection(db, 'bids'),
-      where('listingOwnerId', '==', userId),
-      orderBy('createdAt', 'desc')
+      where('listingOwnerId', '==', userId)
     );
 
     const unsubscribe = onSnapshot(
@@ -121,6 +124,8 @@ export function useBidsOnMyListings(userId) {
           createdAt: doc.data().createdAt?.toDate?.() || new Date(),
           updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
         }));
+        // Sort by createdAt descending (newest first)
+        data.sort((a, b) => b.createdAt - a.createdAt);
         setBids(data);
         setLoading(false);
         setError(null);

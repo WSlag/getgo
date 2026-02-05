@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Star, Calendar } from 'lucide-react';
+import { MapPin, Clock, Navigation, Star, Calendar, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { RouteMap } from '@/components/maps';
@@ -22,6 +22,7 @@ export function TruckCard({
   status = 'available',
   postedAt,
   truckPhotos = [],
+  bidCount = 0,
   onViewDetails,
   onContact,
   onBook,
@@ -130,6 +131,28 @@ export function TruckCard({
             <p className="text-2xl font-bold text-white">{formatPrice(askingRate)}</p>
           </div>
         </div>
+
+        {/* Booking Request Count Indicator - Only for owner */}
+        {isOwner && bidCount > 0 && (
+          <div
+            className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800 rounded-xl cursor-pointer hover:from-purple-100 hover:to-indigo-100 dark:hover:from-purple-900/30 dark:hover:to-indigo-900/30 transition-all"
+            style={{ padding: '12px 16px', marginBottom: '16px' }}
+            onClick={onViewDetails}
+          >
+            <div className="size-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+              <Users className="size-4 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-purple-700 dark:text-purple-400">
+                {bidCount} Booking {bidCount === 1 ? 'Request' : 'Requests'}
+              </p>
+              <p className="text-xs text-purple-600 dark:text-purple-500">Click to view details</p>
+            </div>
+            <div className="size-6 rounded-full bg-purple-500 flex items-center justify-center animate-pulse">
+              <span className="text-white text-xs font-bold">{bidCount}</span>
+            </div>
+          </div>
+        )}
 
         {/* Route Section - Figma style with visible gray background */}
         <div className="flex items-center rounded-xl bg-gray-100 dark:bg-gray-800/60" style={{ gap: '12px', marginBottom: '16px', padding: '16px' }}>

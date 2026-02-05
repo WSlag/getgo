@@ -33,18 +33,51 @@ export function useTruckListings(options = {}) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          type: 'truck',
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-          availableDate: doc.data().availableDate,
-          originCoords: { lat: doc.data().originLat, lng: doc.data().originLng },
-          destCoords: { lat: doc.data().destLat, lng: doc.data().destLng },
-          rating: doc.data().userRating || 0,
-          trips: doc.data().userTrips || 0,
-        }));
+        const data = snapshot.docs.map((doc) => {
+          const docData = doc.data();
+          const createdAt = docData.createdAt?.toDate?.() || new Date();
+
+          // Calculate distance if coordinates exist
+          let distance = null;
+          if (docData.originLat && docData.originLng && docData.destLat && docData.destLng) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (docData.destLat - docData.originLat) * Math.PI / 180;
+            const dLng = (docData.destLng - docData.originLng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(docData.originLat * Math.PI / 180) * Math.cos(docData.destLat * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distance = Math.round(R * c);
+          }
+
+          // Estimate time based on distance (assuming 50km/h average for trucks)
+          const estimatedTime = distance ? `${Math.ceil(distance / 50)} hrs` : null;
+
+          return {
+            id: doc.id,
+            type: 'truck',
+            ...docData,
+            // Map Firebase field names to TruckCard expected names
+            trucker: docData.userName || 'Unknown Trucker',
+            truckerRating: docData.userRating || 0,
+            truckerTransactions: docData.userTrips || 0,
+            postedAt: createdAt.getTime(),
+            truckPhotos: docData.photos || [],
+            capacity: docData.capacity ? `${docData.capacity} ${docData.capacityUnit || 'tons'}` : null,
+            askingRate: docData.askingPrice,
+            distance: distance ? `${distance} km` : null,
+            estimatedTime: estimatedTime,
+            bidCount: docData.bidCount || 0,
+            // Map status: Firebase uses 'open' but TruckCard expects 'available'
+            status: docData.status === 'open' ? 'available' : docData.status,
+            // Keep original fields
+            createdAt: createdAt,
+            updatedAt: docData.updatedAt?.toDate?.() || new Date(),
+            availableDate: docData.availableDate,
+            originCoords: { lat: docData.originLat, lng: docData.originLng },
+            destCoords: { lat: docData.destLat, lng: docData.destLng },
+          };
+        });
         setListings(data);
         setLoading(false);
         setError(null);

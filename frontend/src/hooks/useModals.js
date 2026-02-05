@@ -23,6 +23,7 @@ export function useModals() {
     routeOptimizer: false,
     editCargo: false,
     editTruck: false,
+    myBids: false,
   });
 
   // Modal data (e.g., selected cargo for bid modal)
@@ -70,6 +71,7 @@ export function useModals() {
       routeOptimizer: false,
       editCargo: false,
       editTruck: false,
+      myBids: false,
     });
     setModalData({});
   }, []);

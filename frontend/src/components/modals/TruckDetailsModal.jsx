@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Truck, Calendar, Star, Edit, DollarSign, User } from 'lucide-react';
+import { MapPin, Clock, Navigation, Truck, Calendar, Star, Edit, DollarSign, User, Loader2, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
@@ -11,6 +11,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RouteMap } from '@/components/maps';
+import { useBidsForListing } from '@/hooks/useBids';
+import { sanitizeMessage } from '@/utils/messageUtils';
 
 export function TruckDetailsModal({
   open,
@@ -20,9 +22,16 @@ export function TruckDetailsModal({
   isOwner = false,
   onEdit,
   onBook,
+  onOpenChat,
   darkMode = false,
 }) {
   const isMobile = !useMediaQuery('(min-width: 640px)');
+
+  // Fetch booking requests (bids) for this truck when owner views the modal
+  const { bids: fetchedBids, loading: bidsLoading } = useBidsForListing(
+    isOwner && open ? truck?.id : null,
+    'truck'
+  );
 
   if (!truck) return null;
 
@@ -69,7 +78,21 @@ export function TruckDetailsModal({
 
   const currentGradient = gradientColors[truck.status] || gradientColors.available;
   const truckPhotos = truck.truckPhotos || [];
-  const bookings = truck.bookings || [];
+
+  // Map fetched bids to booking display format (keep full bid data for chat)
+  const bookings = fetchedBids.map(bid => ({
+    id: bid.id,
+    shipper: bid.bidderName,
+    shipperId: bid.bidderId,
+    amount: bid.price,
+    cargoType: bid.cargoType,
+    cargoWeight: bid.cargoWeight,
+    status: bid.status,
+    message: bid.message,
+    createdAt: bid.createdAt,
+    // Keep the full bid object for opening chat
+    _original: bid,
+  }));
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -286,36 +309,72 @@ export function TruckDetailsModal({
         )}
 
         {/* Bookings Section - Only for owner */}
-        {isOwner && bookings.length > 0 && (
+        {isOwner && (
           <div className="py-4 border-b border-gray-200 dark:border-gray-700">
             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-              Booking Requests ({bookings.length})
+              Booking Requests {!bidsLoading && `(${bookings.length})`}
             </h4>
-            <div className="space-y-2">
-              {bookings.map((booking, idx) => (
-                <div
-                  key={booking.id || idx}
-                  className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold">
-                      {booking.shipper?.[0]?.toUpperCase() || 'S'}
+            {bidsLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="size-6 text-purple-500 animate-spin" />
+                <span className="ml-2 text-sm text-gray-500">Loading requests...</span>
+              </div>
+            ) : bookings.length > 0 ? (
+              <div className="space-y-3">
+                {bookings.map((booking, idx) => (
+                  <div
+                    key={booking.id || idx}
+                    className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="size-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold">
+                          {booking.shipper?.[0]?.toUpperCase() || 'S'}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">{booking.shipper}</p>
+                          {booking.cargoType && (
+                            <p className="text-sm text-gray-500">{booking.cargoType}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-lg text-green-600 dark:text-green-400">
+                          {formatPrice(booking.amount)}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">{booking.shipper}</p>
-                      {booking.cargoType && (
-                        <p className="text-sm text-gray-500">{booking.cargoType}</p>
-                      )}
+                    {/* Booking Message - Sanitized */}
+                    {booking.message && (
+                      <div className="mt-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/30">
+                        <div className="flex items-start gap-2">
+                          <MessageSquare className="size-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                          <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+                            "{sanitizeMessage(booking.message)}"
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {/* Chat Button */}
+                    <div className="flex gap-2 mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-2"
+                        onClick={() => onOpenChat?.(booking._original, truck)}
+                      >
+                        <MessageSquare className="size-4" />
+                        Chat
+                      </Button>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-lg text-green-600 dark:text-green-400">
-                      {formatPrice(booking.amount)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                No booking requests yet
+              </p>
+            )}
           </div>
         )}
 

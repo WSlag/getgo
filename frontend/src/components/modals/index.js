@@ -7,3 +7,4 @@ export { ContractModal } from './ContractModal';
 export { RatingModal } from './RatingModal';
 export { ChatModal } from './ChatModal';
 export { RouteOptimizerModal } from './RouteOptimizerModal';
+export { MyBidsModal } from './MyBidsModal';
