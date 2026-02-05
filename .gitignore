@@ -11,6 +11,10 @@ build/
 .env.local
 .env.*.local
 
+# Firebase service account key (NEVER commit this!)
+serviceAccountKey.json
+**/serviceAccountKey.json
+
 # IDE
 .vscode/
 .idea/

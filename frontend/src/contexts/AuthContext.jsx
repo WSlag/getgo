@@ -127,11 +127,9 @@ export function AuthProvider({ children }) {
         size: 'invisible',
         callback: () => {
           // reCAPTCHA solved
-          console.log('reCAPTCHA verified');
         },
         'expired-callback': () => {
           // Reset reCAPTCHA
-          console.log('reCAPTCHA expired');
           window.recaptchaVerifier = null;
         }
       });
@@ -149,31 +147,39 @@ export function AuthProvider({ children }) {
       setAuthError(null);
       // Format phone number to E.164 format (+63XXXXXXXXXX)
       let formattedPhone = phoneNumber.trim();
-      if (formattedPhone.startsWith('0')) {
+      if (formattedPhone.startsWith('+')) {
+        // Already has country code, use as-is
+      } else if (formattedPhone.startsWith('63')) {
+        // Has 63 prefix but no +, add +
+        formattedPhone = '+' + formattedPhone;
+      } else if (formattedPhone.startsWith('0')) {
+        // Local format starting with 0, replace with +63
         formattedPhone = '+63' + formattedPhone.slice(1);
-      } else if (!formattedPhone.startsWith('+')) {
+      } else {
+        // Just the number without prefix, add +63
         formattedPhone = '+63' + formattedPhone;
       }
 
-      console.log('sendOtp: Formatted phone:', formattedPhone);
-
       const recaptchaVerifier = setupRecaptcha(buttonId);
-      console.log('sendOtp: reCAPTCHA verifier created');
 
       // Render the reCAPTCHA widget before signing in
       await recaptchaVerifier.render();
-      console.log('sendOtp: reCAPTCHA rendered');
 
-      console.log('sendOtp: Calling signInWithPhoneNumber...');
       const result = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
-      console.log('sendOtp: SUCCESS - confirmationResult received:', !!result);
+
+      // Clear reCAPTCHA after successful OTP send to prevent it from intercepting future clicks
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {
+          // Ignore clear errors
+        }
+        window.recaptchaVerifier = null;
+      }
 
       setConfirmationResult(result);
       return { success: true, formattedPhone };
     } catch (error) {
-      console.error('sendOtp ERROR:', error);
-      console.error('sendOtp ERROR code:', error.code);
-      console.error('sendOtp ERROR message:', error.message);
       setAuthError(error.message);
       // Reset recaptcha on error
       if (window.recaptchaVerifier) {
@@ -190,26 +196,17 @@ export function AuthProvider({ children }) {
 
   // Verify OTP code
   const verifyOtp = async (code) => {
-    console.log('verifyOtp called with code:', code);
-    console.log('confirmationResult exists:', !!confirmationResult);
-
     try {
       setAuthError(null);
       if (!confirmationResult) {
-        console.error('No confirmationResult available');
         throw new Error('No confirmation result. Please request OTP first.');
       }
 
-      console.log('Calling confirmationResult.confirm...');
       const result = await confirmationResult.confirm(code);
-      console.log('OTP verification successful, user:', result.user?.uid);
 
       setConfirmationResult(null);
       return { success: true, user: result.user };
     } catch (error) {
-      console.error('Verify OTP error:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
       setAuthError(error.message);
       return { success: false, error: error.message };
     }
@@ -340,6 +337,21 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Get Firebase ID token for API calls
+  // This token can be sent to the backend for verification
+  const getIdToken = async (forceRefresh = false) => {
+    try {
+      if (!authUser) {
+        return null;
+      }
+      const token = await authUser.getIdToken(forceRefresh);
+      return token;
+    } catch (error) {
+      console.error('Error getting ID token:', error);
+      return null;
+    }
+  };
+
   const value = {
     authUser,
     userProfile,
@@ -355,6 +367,7 @@ export function AuthProvider({ children }) {
     createUserProfile,
     switchRole,
     logout,
+    getIdToken,
     // Computed values
     isAuthenticated: !!authUser && !!userProfile,
     currentRole: userProfile?.role || 'shipper',
