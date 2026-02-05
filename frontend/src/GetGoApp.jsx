@@ -14,6 +14,7 @@ import {
   createTruckListing,
   updateTruckListing,
   createBid,
+  uploadListingPhotos,
 } from './services/firestoreService';
 
 // Hooks
@@ -27,6 +28,7 @@ import { useTheme } from './hooks/useTheme';
 import { useMarketplace } from './hooks/useMarketplace';
 import { useModals } from './hooks/useModals';
 import { useSocket } from './hooks/useSocket';
+import { useAuthGuard } from './hooks/useAuthGuard';
 
 // Layout Components
 import { Header } from '@/components/layout/Header';
@@ -36,10 +38,12 @@ import { MobileNav } from '@/components/layout/MobileNav';
 // View Components
 import { HomeView } from '@/views/HomeView';
 import { TrackingView } from '@/views/TrackingView';
+import { ProfilePage } from '@/components/profile/ProfilePage';
 
 // Modal Components
 import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal } from '@/components/modals';
 import { FullMapModal } from '@/components/maps';
+import AuthModal from '@/components/auth/AuthModal';
 
 // Sample Data (fallback for demo)
 const sampleCargoListings = [
@@ -211,6 +215,15 @@ export default function GetGoApp() {
     clearNotification,
   } = useSocket(authUser?.uid);
 
+  // Auth Guard for protected actions
+  const {
+    requireAuth,
+    showAuthModal,
+    setShowAuthModal,
+    pendingActionTitle,
+    executePendingAction,
+  } = useAuthGuard();
+
   // Loading states for form submissions
   const [postLoading, setPostLoading] = useState(false);
   const [bidLoading, setBidLoading] = useState(false);
@@ -296,7 +309,7 @@ export default function GetGoApp() {
   };
 
   const handlePostClick = () => {
-    openModal('post');
+    requireAuth(() => openModal('post'), 'Sign in to post a listing');
   };
 
   // Check ownership helper
@@ -337,11 +350,11 @@ export default function GetGoApp() {
   };
 
   const handleBidCargo = (cargo) => {
-    openModal('bid', cargo);
+    requireAuth(() => openModal('bid', cargo), 'Sign in to place a bid');
   };
 
   const handleBookTruck = (truck) => {
-    openModal('bid', truck);
+    requireAuth(() => openModal('bid', truck), 'Sign in to book a truck');
   };
 
   // Edit handlers
@@ -356,11 +369,11 @@ export default function GetGoApp() {
   };
 
   const handleContactShipper = (cargo) => {
-    openModal('chat', { listing: cargo, type: 'cargo' });
+    requireAuth(() => openModal('chat', { listing: cargo, type: 'cargo' }), 'Sign in to contact shipper');
   };
 
   const handleContactTrucker = (truck) => {
-    openModal('chat', { listing: truck, type: 'truck' });
+    requireAuth(() => openModal('chat', { listing: truck, type: 'truck' }), 'Sign in to contact trucker');
   };
 
   const handleViewMap = (listing) => {
@@ -368,15 +381,15 @@ export default function GetGoApp() {
   };
 
   const handleNotificationClick = () => {
-    openModal('notifications');
+    requireAuth(() => openModal('notifications'), 'Sign in to view notifications');
   };
 
   const handleProfileClick = () => {
-    setActiveTab('profile');
+    requireAuth(() => setActiveTab('profile'), 'Sign in to view profile');
   };
 
   const handleWalletClick = () => {
-    openModal('wallet');
+    requireAuth(() => openModal('wallet'), 'Sign in to view wallet');
   };
 
   const handleLogout = async () => {
@@ -473,16 +486,7 @@ export default function GetGoApp() {
           </main>
         )}
 
-        {activeTab === 'profile' && (
-          <main className="flex-1 p-4 lg:p-8">
-            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Profile
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              Manage your profile here. (Integration pending)
-            </p>
-          </main>
-        )}
+        {activeTab === 'profile' && <ProfilePage />}
 
         {activeTab === 'bids' && (
           <main className="flex-1 p-4 lg:p-8">
@@ -531,6 +535,9 @@ export default function GetGoApp() {
           setPostLoading(true);
           try {
             if (userRole === 'shipper') {
+              // Upload photos first (if any)
+              const photoUrls = await uploadListingPhotos(authUser.uid, data.photos || [], 'cargo');
+
               // Create cargo listing
               const listingData = {
                 origin: data.origin,
@@ -542,11 +549,14 @@ export default function GetGoApp() {
                 askingPrice: data.askingPrice,
                 description: data.description,
                 pickupDate: data.pickupDate,
-                photos: data.photos || [],
+                photos: photoUrls,
               };
               await createCargoListing(authUser.uid, userProfile, listingData);
               console.log('Cargo listing created successfully');
             } else {
+              // Upload photos first (if any)
+              const photoUrls = await uploadListingPhotos(authUser.uid, data.photos || [], 'truck');
+
               // Create truck listing
               const listingData = {
                 origin: data.origin,
@@ -557,6 +567,7 @@ export default function GetGoApp() {
                 askingPrice: data.askingPrice,
                 description: data.description,
                 availableDate: data.pickupDate,
+                photos: photoUrls,
               };
               await createTruckListing(authUser.uid, userProfile, truckerProfile, listingData);
               console.log('Truck listing created successfully');
@@ -815,6 +826,14 @@ export default function GetGoApp() {
           {socketConnected ? 'Socket Connected' : 'Socket Disconnected'}
         </div>
       )}
+
+      {/* Auth Modal - shown when unauthenticated user tries protected action */}
+      <AuthModal
+        open={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={executePendingAction}
+        title={pendingActionTitle}
+      />
     </div>
   );
 }

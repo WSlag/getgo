@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import LoginScreen from './components/auth/LoginScreen';
 import RegisterScreen from './components/auth/RegisterScreen';
 import GetGoApp from './GetGoApp';
 import KargaMarketplace from './KargaMarketplace';
@@ -12,16 +11,9 @@ import { PWAUpdateNotification } from '@/components/shared/PWAUpdateNotification
 const USE_NEW_UI = true;
 
 function AppContent() {
-  const { loading, isAuthenticated, isNewUser, authUser } = useAuth();
-  const [darkMode, setDarkMode] = useState(false);
-  const [demoMode, setDemoMode] = useState(false);
+  const { loading, isNewUser, authUser } = useAuth();
 
-  // Demo mode - skip auth and show marketplace with sample data
-  if (demoMode) {
-    return USE_NEW_UI ? <GetGoApp /> : <KargaMarketplace />;
-  }
-
-  // Loading state - new design
+  // Loading state - show spinner while checking auth
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
@@ -36,17 +28,14 @@ function AppContent() {
     );
   }
 
-  // Not authenticated - show login
-  if (!authUser) {
-    return <LoginScreen darkMode={darkMode} onSkipLogin={() => setDemoMode(true)} />;
-  }
-
   // Authenticated but no profile yet - show registration
-  if (isNewUser) {
-    return <RegisterScreen darkMode={darkMode} />;
+  // This happens after successful OTP verification for new users
+  if (authUser && isNewUser) {
+    return <RegisterScreen />;
   }
 
-  // Fully authenticated with profile - show marketplace
+  // Show main app for both authenticated users AND guests
+  // Login/signup is handled via modal when user tries protected actions
   return USE_NEW_UI ? <GetGoApp /> : <KargaMarketplace />;
 }
 

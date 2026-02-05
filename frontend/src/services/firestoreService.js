@@ -15,9 +15,44 @@ import {
   increment,
   writeBatch
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase';
 import { getCoordinates } from '../utils/cityCoordinates';
 import { PLATFORM_FEE_RATE } from '../utils/constants';
+
+// ============================================================
+// PHOTO UPLOAD
+// ============================================================
+
+export const uploadListingPhotos = async (userId, photos, listingType = 'cargo') => {
+  if (!photos || photos.length === 0) return [];
+
+  const uploadPromises = photos.map(async (photo, index) => {
+    // Handle both new File objects and existing URL strings
+    if (typeof photo === 'string') {
+      // Already a URL, return as-is
+      return photo;
+    }
+
+    // Get the actual File object
+    const file = photo.file || photo;
+    if (!(file instanceof File)) {
+      console.warn('Invalid photo object, skipping:', photo);
+      return null;
+    }
+
+    const timestamp = Date.now();
+    const fileName = `${listingType}_${userId}_${timestamp}_${index}_${file.name}`;
+    const storageRef = ref(storage, `listings/${listingType}/${userId}/${fileName}`);
+
+    const snapshot = await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return downloadURL;
+  });
+
+  const results = await Promise.all(uploadPromises);
+  return results.filter(url => url !== null);
+};
 
 // ============================================================
 // USER OPERATIONS
@@ -113,6 +148,7 @@ export const createTruckListing = async (userId, userProfile, truckerProfile, da
     description: data.description || '',
     availableDate: data.availableDate,
     departureTime: data.departureTime || '',
+    photos: data.photos || [],
     status: 'open',
     bidCount: 0,
     createdAt: serverTimestamp(),

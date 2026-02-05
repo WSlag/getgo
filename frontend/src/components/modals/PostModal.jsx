@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Package, Truck, Camera } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Package, Truck, Camera, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
@@ -338,12 +338,47 @@ export function PostModal({
             />
           </div>
 
-          {/* Photo Upload Placeholder */}
+          {/* Photo Upload */}
           <div>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
               Photos (Optional)
             </label>
-            <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-6 text-center hover:border-orange-400 hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-all duration-300 cursor-pointer group">
+            <input
+              type="file"
+              id="photo-upload"
+              accept="image/png,image/jpeg,image/jpg"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                const validFiles = files.filter(file => {
+                  if (file.size > 5 * 1024 * 1024) {
+                    alert(`${file.name} is larger than 5MB`);
+                    return false;
+                  }
+                  return true;
+                });
+
+                // Create preview URLs for the selected files
+                const newPhotos = validFiles.map(file => ({
+                  file,
+                  preview: URL.createObjectURL(file),
+                  name: file.name,
+                }));
+
+                setFormData(prev => ({
+                  ...prev,
+                  photos: [...(prev.photos || []), ...newPhotos],
+                }));
+
+                // Reset input so same file can be selected again
+                e.target.value = '';
+              }}
+            />
+            <label
+              htmlFor="photo-upload"
+              className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-6 text-center hover:border-orange-400 hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-all duration-300 cursor-pointer group block"
+            >
               <Camera className="size-8 text-gray-400 mx-auto mb-2 group-hover:text-orange-500 transition-colors duration-300" />
               <p className="text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-300">
                 Click to upload photos
@@ -351,7 +386,38 @@ export function PostModal({
               <p className="text-xs text-gray-400 mt-1">
                 PNG, JPG up to 5MB each
               </p>
-            </div>
+            </label>
+
+            {/* Photo Previews */}
+            {formData.photos && formData.photos.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {formData.photos.map((photo, index) => (
+                  <div key={index} className="relative group/photo">
+                    <img
+                      src={photo.preview || photo}
+                      alt={photo.name || `Photo ${index + 1}`}
+                      className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Revoke object URL to prevent memory leaks
+                        if (photo.preview) {
+                          URL.revokeObjectURL(photo.preview);
+                        }
+                        setFormData(prev => ({
+                          ...prev,
+                          photos: prev.photos.filter((_, i) => i !== index),
+                        }));
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
