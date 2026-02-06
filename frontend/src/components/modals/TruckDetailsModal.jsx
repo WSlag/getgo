@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Truck, Calendar, Star, Edit, DollarSign, User, Loader2, MessageSquare, Check, X, FileText } from 'lucide-react';
+import { MapPin, Clock, Navigation, Truck, Calendar, Star, Edit, User, Loader2, MessageSquare, Check, X, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
@@ -154,7 +154,7 @@ export function TruckDetailsModal({
         </DialogHeader>
 
         {/* Status and Price Header */}
-        <div className="flex items-center justify-between py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between py-4 mt-1 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <Badge className={cn("uppercase tracking-wide", statusStyles[truck.status] || statusStyles.available)} style={{ padding: '6px 12px', fontSize: '11px' }}>
               {statusLabels[truck.status] || 'AVAILABLE'}
@@ -248,7 +248,7 @@ export function TruckDetailsModal({
         {/* Truck Details */}
         <div className="py-4 border-b border-gray-200 dark:border-gray-700">
           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Truck Details</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '12px' : '16px' }}>
             {truck.vehicleType && (
               <div className="flex items-center gap-2">
                 <Truck className="size-5 text-purple-500" />
@@ -461,7 +461,7 @@ export function TruckDetailsModal({
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-3 pt-4">
+        <div className="flex gap-3 pt-3">
           {!isOwner && currentRole === 'shipper' && (
             <Button
               variant="gradient"

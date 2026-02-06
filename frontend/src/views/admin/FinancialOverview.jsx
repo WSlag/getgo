@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  DollarSign,
   TrendingUp,
   CreditCard,
   Wallet,
@@ -9,6 +8,8 @@ import {
   Calendar,
 } from 'lucide-react';
 import { cn, formatDate, formatPrice } from '@/lib/utils';
+import { PesoIcon } from '@/components/ui/PesoIcon';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
 import { collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
@@ -19,7 +20,7 @@ import api from '@/services/api';
 function TransactionTypeBadge({ type }) {
   const config = {
     topup: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', icon: ArrowUpRight },
-    fee: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', icon: DollarSign },
+    fee: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', icon: PesoIcon },
     payout: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-600 dark:text-orange-400', icon: ArrowDownRight },
     refund: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400', icon: ArrowUpRight },
   };
@@ -36,6 +37,7 @@ function TransactionTypeBadge({ type }) {
 }
 
 export function FinancialOverview() {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [stats, setStats] = useState({
     totalRevenue: 0,
     todayRevenue: 0,
@@ -182,13 +184,13 @@ export function FinancialOverview() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
       {/* Revenue Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
         <StatCard
           title="Today's Revenue"
           value={`₱${formatPrice(stats.todayRevenue)}`}
-          icon={DollarSign}
+          icon={PesoIcon}
           iconColor="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
         />
         <StatCard
@@ -206,13 +208,13 @@ export function FinancialOverview() {
         <StatCard
           title="All Time"
           value={`₱${formatPrice(stats.totalRevenue)}`}
-          icon={DollarSign}
+          icon={PesoIcon}
           iconColor="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
         />
       </div>
 
       {/* Wallet Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: isDesktop ? '24px' : '12px' }}>
         <StatCard
           title="Total Wallet Balances"
           value={`₱${formatPrice(stats.totalWalletBalance)}`}
@@ -235,7 +237,7 @@ export function FinancialOverview() {
         data={filteredTransactions}
         loading={loading}
         emptyMessage="No transactions found"
-        emptyIcon={DollarSign}
+        emptyIcon={PesoIcon}
         searchable
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}

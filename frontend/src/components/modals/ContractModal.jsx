@@ -15,12 +15,12 @@ import {
   ScrollText,
   ChevronDown,
   ChevronUp,
-  DollarSign,
   Info,
   User,
   Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PesoIcon } from '@/components/ui/PesoIcon';
 import {
   Dialog,
   DialogContent,
@@ -317,7 +317,7 @@ export function ContractModal({
         {/* Financial Details */}
         <div className="py-4 border-b border-gray-200 dark:border-gray-700">
           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-            <DollarSign className="size-4" /> Financial Terms
+            <PesoIcon className="size-4" /> Financial Terms
           </h4>
           <div className="space-y-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
             <div className="flex justify-between text-sm">

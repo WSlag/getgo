@@ -9,6 +9,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
@@ -53,6 +54,7 @@ function ProgressBar({ progress }) {
 }
 
 export function ShipmentsView() {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [shipments, setShipments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -159,9 +161,9 @@ export function ShipmentsView() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
       {/* Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: isDesktop ? '24px' : '12px' }}>
         <StatCard
           title="Total Shipments"
           value={stats.total}
@@ -183,7 +185,7 @@ export function ShipmentsView() {
       </div>
 
       {/* Map placeholder */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: isDesktop ? '24px' : '16px' }}>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Active Shipments Map</h3>
         <div className="h-64 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center">
           <div className="text-center">

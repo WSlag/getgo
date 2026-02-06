@@ -17,11 +17,11 @@ import {
   User,
   Calendar,
   Hash,
-  DollarSign,
   Flag,
   FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PesoIcon } from '@/components/ui/PesoIcon';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -233,7 +233,7 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-500 flex items-center gap-1.5">
-                    <DollarSign className="size-4" /> Expected Amount:
+                    <PesoIcon className="size-4" /> Expected Amount:
                   </span>
                   <span className="font-semibold text-gray-900 dark:text-white">
                     PHP {formatPrice(submission.orderAmount)}
@@ -275,7 +275,7 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
                   </div>
                   <div className="flex justify-between">
                     <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                      <DollarSign className="size-4" /> Amount:
+                      <PesoIcon className="size-4" /> Amount:
                     </span>
                     <span className={cn(
                       'font-semibold',
@@ -670,7 +670,7 @@ export function AdminPaymentsView({ darkMode = false, className }) {
                 "rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center",
                 isMobile ? "size-8" : "size-10"
               )}>
-                <DollarSign className={cn(isMobile ? "size-4" : "size-5", "text-blue-600 dark:text-blue-400")} />
+                <PesoIcon className={cn(isMobile ? "size-4" : "size-5", "text-blue-600 dark:text-blue-400")} />
               </div>
               <div>
                 <p className={cn(

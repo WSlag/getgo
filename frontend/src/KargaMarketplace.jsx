@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Package, MessageSquare, FileText, Users, Plus, Send, Check, X, MapPin, Weight, Calendar, DollarSign, ChevronDown, ChevronUp, Star, Filter, ArrowRight, Shield, CheckCircle2, Eye, Bell, Home, User, Phone, Mail, Lock, Navigation, Route, Maximize2, TrendingUp, TrendingDown, Minus, Clock, Box, Award, Crown, Gem, Medal, Trophy, ThumbsUp, ThumbsDown, MapPinned, Radio, Circle, Zap, BadgeCheck, Timer, Moon, Sun, Camera, Image, Upload, RotateCcw, Fuel, GitBranch, Waypoints, CircleDot, LogOut } from 'lucide-react';
+import { Truck, Package, MessageSquare, FileText, Users, Plus, Send, Check, X, MapPin, Weight, Calendar, ChevronDown, ChevronUp, Star, Filter, ArrowRight, Shield, CheckCircle2, Eye, Bell, Home, User, Phone, Mail, Lock, Navigation, Route, Maximize2, TrendingUp, TrendingDown, Minus, Clock, Box, Award, Crown, Gem, Medal, Trophy, ThumbsUp, ThumbsDown, MapPinned, Radio, Circle, Zap, BadgeCheck, Timer, Moon, Sun, Camera, Image, Upload, RotateCcw, Fuel, GitBranch, Waypoints, CircleDot, LogOut } from 'lucide-react';
+import { PesoIcon } from '@/components/ui/PesoIcon';
 
 // Firebase imports
 import { useAuth } from './contexts/AuthContext';
@@ -1048,7 +1049,7 @@ export default function KargaMarketplace() {
           <div className={`sticky top-0 ${theme.bgCard} p-4 border-b ${theme.borderLight} flex justify-between items-center`}>
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center">
-                <DollarSign size={20} className="text-white" />
+                <PesoIcon size={20} className="text-white" />
               </div>
               <div>
                 <h2 className={`text-lg font-bold ${theme.text}`}>My Wallet</h2>
@@ -1408,7 +1409,7 @@ export default function KargaMarketplace() {
           <div className={`p-4 border-b ${theme.borderLight} flex justify-between items-center flex-shrink-0`}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center">
-                <DollarSign size={20} className="text-white" />
+                <PesoIcon size={20} className="text-white" />
               </div>
               <div>
                 <h2 className={`text-lg font-bold ${theme.text}`}>Earnings</h2>
@@ -2777,7 +2778,7 @@ export default function KargaMarketplace() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${isBroker ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gradient-to-br from-amber-400 to-orange-500'}`}>
-                <DollarSign size={28} className="text-white" />
+                <PesoIcon size={28} className="text-white" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -2955,7 +2956,7 @@ export default function KargaMarketplace() {
                       : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
                   } shadow-sm`}
                 >
-                  <DollarSign size={14} />
+                  <PesoIcon size={14} />
                   <span className="font-bold text-sm">₱{walletBalance.toLocaleString()}</span>
                 </button>
               )}
@@ -3479,7 +3480,7 @@ export default function KargaMarketplace() {
                     <span className={`font-bold text-green-500`}>₱{Math.round(parseFloat(bidAmount) * (1 - PLATFORM_FEE_RATE)).toLocaleString()}</span>
                   </div>
                   <div className={`flex items-center gap-2 text-xs ${theme.textMuted} pt-2 border-t ${theme.borderLight}`}>
-                    <DollarSign size={12} />
+                    <PesoIcon size={12} />
                     <span>Wallet Balance: <strong className={walletBalance >= Math.round(parseFloat(bidAmount) * PLATFORM_FEE_RATE) ? 'text-green-500' : 'text-red-500'}>₱{walletBalance.toLocaleString()}</strong></span>
                     {walletBalance < Math.round(parseFloat(bidAmount) * PLATFORM_FEE_RATE) && (
                       <span className="text-red-500">(Insufficient!)</span>

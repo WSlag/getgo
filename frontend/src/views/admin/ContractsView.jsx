@@ -4,7 +4,6 @@ import {
   Eye,
   MapPin,
   Calendar,
-  DollarSign,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -12,6 +11,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { cn, formatDate, formatPrice } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
@@ -42,6 +42,7 @@ function StatusBadge({ status }) {
 }
 
 export function ContractsView() {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -159,9 +160,9 @@ export function ContractsView() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
         <StatCard
           title="Total Contracts"
           value={stats.total}

@@ -157,7 +157,10 @@ export function AdminDashboard({ onBackToApp }) {
         />
 
         {/* Content Area */}
-        <main className="flex-1 p-3 lg:p-8">
+        <main
+          className="flex-1"
+          style={{ padding: isDesktop ? '32px 40px' : '16px' }}
+        >
           {renderContent()}
         </main>
       </div>

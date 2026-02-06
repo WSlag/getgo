@@ -23,6 +23,7 @@ export function PaymentStatusModal({
   orderId,
   onRetry,
   onViewWallet,
+  viewWalletLabel = 'View Wallet',
 }) {
   const { submission, loading: loadingSubmission } = useOrderSubmission(orderId);
   const { order, loading: loadingOrder } = usePaymentOrder(orderId);
@@ -351,7 +352,7 @@ export function PaymentStatusModal({
               }}
             >
               <Wallet style={{ width: '18px', height: '18px' }} />
-              View Wallet
+              {viewWalletLabel}
             </button>
           )}
 

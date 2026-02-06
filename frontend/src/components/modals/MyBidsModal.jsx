@@ -1,6 +1,7 @@
 import React from 'react';
-import { MapPin, Package, Truck, DollarSign, MessageSquare, Clock, Loader2, FileText } from 'lucide-react';
+import { MapPin, Package, Truck, MessageSquare, Clock, Loader2, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PesoIcon } from '@/components/ui/PesoIcon';
 import {
   Dialog,
   DialogContent,
@@ -150,7 +151,7 @@ export function MyBidsModal({
                   {/* Bid Amount */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-1.5">
-                      <DollarSign className="size-4 text-emerald-500" />
+                      <PesoIcon className="size-4 text-emerald-500" />
                       <span className="text-sm text-gray-500 dark:text-gray-400">Your bid:</span>
                     </div>
                     <span className="font-bold text-lg text-emerald-600 dark:text-emerald-400">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Wallet,
   ArrowDownLeft,
@@ -49,6 +49,9 @@ export function WalletModal({
   loading = false,
   onTopUp,
   onPayout,
+  returnToFee = false,
+  onTopUpSuccess,
+  requiredAmount = null,
 }) {
   const [activeTab, setActiveTab] = useState('topup');
   const [amount, setAmount] = useState('');
@@ -62,6 +65,15 @@ export function WalletModal({
   const [currentOrder, setCurrentOrder] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+
+  // Pre-fill amount when opened from PlatformFeeModal
+  useEffect(() => {
+    if (open && returnToFee && requiredAmount) {
+      setAmount(requiredAmount.toString());
+      setSelectedMethod('gcash');
+      setActiveTab('topup');
+    }
+  }, [open, returnToFee, requiredAmount]);
 
   const formatPrice = (price) => {
     if (price === null || price === undefined) return '₱0';
@@ -195,7 +207,11 @@ export function WalletModal({
     setGcashStep('amount');
     setCurrentOrder(null);
     setAmount('');
-    setActiveTab('history');
+    if (returnToFee && onTopUpSuccess) {
+      onTopUpSuccess();
+    } else {
+      setActiveTab('history');
+    }
   };
 
   // Go back from QR step
@@ -424,6 +440,26 @@ export function WalletModal({
               </div>
             </div>
           </DialogHeader>
+
+          {/* Return-to-fee context banner */}
+          {returnToFee && requiredAmount && (
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: '12px',
+              background: '#fff7ed',
+              border: '1px solid #fed7aa',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              fontSize: '14px',
+              color: '#9a3412',
+            }}>
+              <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+              <span>
+                Top up at least <strong>{formatPrice(requiredAmount)}</strong> to pay the platform fee. You'll return to payment after top-up.
+              </span>
+            </div>
+          )}
 
           {/* Balance Card */}
           <div style={{
@@ -1028,6 +1064,7 @@ export function WalletModal({
         orderId={currentOrder?.orderId}
         onRetry={handleRetry}
         onViewWallet={handleViewWallet}
+        viewWalletLabel={returnToFee ? 'Continue to Payment' : 'View Wallet'}
       />
 
       <style>{`

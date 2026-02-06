@@ -4,7 +4,6 @@ import {
   Users,
   Package,
   Truck,
-  DollarSign,
   CreditCard,
   AlertTriangle,
   TrendingUp,
@@ -15,11 +14,13 @@ import {
   XCircle,
 } from 'lucide-react';
 import { StatCard, StatCardSkeleton } from '@/components/admin/StatCard';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import api from '@/services/api';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/firebase';
 
 export function DashboardOverview({ badges, onNavigate }) {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
@@ -110,9 +111,9 @@ export function DashboardOverview({ badges, onNavigate }) {
   ];
 
   return (
-    <div className="space-y-3 lg:space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 lg:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
         {loading ? (
           <>
             <StatCardSkeleton />
@@ -150,7 +151,6 @@ export function DashboardOverview({ badges, onNavigate }) {
               title="Today's Revenue"
               value={`₱${(stats?.totalAmountToday || 0).toLocaleString()}`}
               subtitle={`${stats?.approvedToday || 0} approved`}
-              icon={DollarSign}
               iconColor="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
               onClick={() => onNavigate('financial')}
             />
@@ -159,7 +159,7 @@ export function DashboardOverview({ badges, onNavigate }) {
       </div>
 
       {/* Payment Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 lg:gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: isDesktop ? '24px' : '12px' }}>
         <StatCard
           title="Pending Payments"
           value={stats?.pendingPayments || 0}
@@ -182,13 +182,13 @@ export function DashboardOverview({ badges, onNavigate }) {
       </div>
 
       {/* Quick Actions & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: isDesktop ? '24px' : '16px' }}>
         {/* Quick Actions */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 lg:p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: isDesktop ? '24px' : '16px' }}>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Quick Actions
           </h2>
-          <div className="grid grid-cols-2 gap-2 lg:gap-3">
+          <div className="grid grid-cols-2" style={{ gap: isDesktop ? '16px' : '12px' }}>
             {quickActions.map((action) => {
               const Icon = action.icon;
               return (
@@ -216,7 +216,7 @@ export function DashboardOverview({ badges, onNavigate }) {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 lg:p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: isDesktop ? '24px' : '16px' }}>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Recent Activity
           </h2>
@@ -244,11 +244,11 @@ export function DashboardOverview({ badges, onNavigate }) {
       </div>
 
       {/* Platform Health */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 lg:p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: isDesktop ? '24px' : '16px' }}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Platform Health
         </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '16px' : '12px' }}>
           <div className="text-center p-4 rounded-xl bg-green-50 dark:bg-green-900/20">
             <div className="size-3 rounded-full bg-green-500 mx-auto mb-2 animate-pulse" />
             <p className="text-sm font-medium text-green-700 dark:text-green-400">API Status</p>

@@ -15,11 +15,12 @@ import {
   User,
   Calendar,
   Hash,
-  DollarSign,
   Flag,
   FileText,
 } from 'lucide-react';
 import { cn, getFraudScoreStyle, formatDate, formatPrice } from '@/lib/utils';
+import { PesoIcon } from '@/components/ui/PesoIcon';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -142,7 +143,7 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
           </div>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mt-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 mt-4" style={{ gap: '24px' }}>
           {/* Left: Screenshot */}
           <div>
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
@@ -210,7 +211,7 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-500 flex items-center gap-1.5">
-                    <DollarSign className="size-4" /> Expected Amount:
+                    <PesoIcon className="size-4" /> Expected Amount:
                   </span>
                   <span className="font-semibold text-gray-900 dark:text-white">
                     PHP {formatPrice(submission.orderAmount)}
@@ -252,7 +253,7 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
                   </div>
                   <div className="flex justify-between">
                     <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                      <DollarSign className="size-4" /> Amount:
+                      <PesoIcon className="size-4" /> Amount:
                     </span>
                     <span className={cn(
                       'font-semibold',
@@ -384,6 +385,7 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
 
 // Main PaymentsView component
 export function PaymentsView({ className }) {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [submissions, setSubmissions] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -568,10 +570,10 @@ export function PaymentsView({ className }) {
   ];
 
   return (
-    <div className={cn('space-y-6', className)}>
+    <div className={className} style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
           <StatCard
             title="Pending Review"
             value={stats.stats?.pendingReview || 0}
@@ -593,7 +595,7 @@ export function PaymentsView({ className }) {
           <StatCard
             title="Total Today"
             value={`₱${formatPrice(stats.stats?.totalAmountToday || 0)}`}
-            icon={DollarSign}
+            icon={PesoIcon}
             iconColor="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
           />
         </div>

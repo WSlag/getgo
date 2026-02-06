@@ -7,7 +7,6 @@ import {
   FileText,
   Truck,
   CreditCard,
-  DollarSign,
   AlertTriangle,
   Link2,
   Star,
@@ -16,6 +15,7 @@ import {
   X,
   Menu,
 } from 'lucide-react';
+import { PesoIcon } from '@/components/ui/PesoIcon';
 
 const navItems = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
@@ -24,7 +24,7 @@ const navItems = [
   { id: 'contracts', label: 'Contracts', icon: FileText },
   { id: 'shipments', label: 'Shipments', icon: Truck },
   { id: 'payments', label: 'Payments', icon: CreditCard, badge: 'pendingPayments' },
-  { id: 'financial', label: 'Financial', icon: DollarSign },
+  { id: 'financial', label: 'Financial', icon: PesoIcon },
   { id: 'disputes', label: 'Disputes', icon: AlertTriangle, badge: 'openDisputes' },
   { id: 'referrals', label: 'Referrals', icon: Link2 },
   { id: 'ratings', label: 'Ratings', icon: Star },
@@ -62,7 +62,7 @@ export function AdminSidebar({
         )}
       >
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-800">
+        <div className="border-b border-gray-200 dark:border-gray-800" style={{ padding: '24px' }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="size-10 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/30">
@@ -83,8 +83,8 @@ export function AdminSidebar({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-4">
-          <div className="space-y-1">
+        <nav className="flex-1 overflow-y-auto" style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {navItems.map((item) => {
               const Icon = item.icon;
               const badgeCount = item.badge ? badges[item.badge] : null;
@@ -98,11 +98,12 @@ export function AdminSidebar({
                     onClose?.();
                   }}
                   className={cn(
-                    'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
+                    'w-full flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200',
                     isActive
                       ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
                   )}
+                  style={{ padding: '10px 16px' }}
                 >
                   <Icon className={cn('size-5', isActive && 'text-white')} />
                   <span className="flex-1 text-left">{item.label}</span>
@@ -124,7 +125,7 @@ export function AdminSidebar({
           </div>
 
           {/* Divider */}
-          <div className="my-4 border-t border-gray-200 dark:border-gray-800" />
+          <div className="border-t border-gray-200 dark:border-gray-800" style={{ marginTop: '16px', marginBottom: '16px' }} />
 
           {/* Settings */}
           <button
@@ -133,11 +134,12 @@ export function AdminSidebar({
               onClose?.();
             }}
             className={cn(
-              'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
+              'w-full flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200',
               activeSection === 'settings'
                 ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30'
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
             )}
+            style={{ padding: '10px 16px' }}
           >
             <Settings className="size-5" />
             <span className="flex-1 text-left">Settings</span>
@@ -145,10 +147,11 @@ export function AdminSidebar({
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+        <div className="border-t border-gray-200 dark:border-gray-800" style={{ padding: '16px 24px' }}>
           <button
             onClick={onBackToApp}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
+            className="w-full flex items-center gap-3 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
+            style={{ padding: '10px 16px' }}
           >
             <ArrowLeft className="size-5" />
             <span>Back to App</span>

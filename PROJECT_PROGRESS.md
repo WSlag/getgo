@@ -99,6 +99,9 @@
 - [x] Platform fee calculation (5%)
 - [x] Platform fee payment before contract generation
 - [x] Minimum balance enforcement (₱500 for truckers)
+- [x] Wallet accessible to all roles (shipper + trucker) from header
+- [x] Wallet → Platform Fee return flow (top-up then auto-return to fee payment)
+- [x] Pre-filled top-up amount when opened from platform fee modal
 - [x] WalletModal component
 - [x] PaymentUploadModal component
 - [x] PaymentStatusModal component
@@ -186,6 +189,9 @@
 - [x] Service worker updates
 - [x] ProfileDropdown component
 - [x] Logo component
+- [x] Custom PesoIcon (₱) component replacing DollarSign across the app
+- [x] Responsive desktop/mobile spacing in admin dashboard (useMediaQuery)
+- [x] Responsive dialog bottom sheet padding (mobile vs desktop)
 
 ### Admin Dashboard
 - [x] Admin authentication and role verification
@@ -279,7 +285,8 @@
 ### Commit History
 | Commit | Description | Date |
 |--------|-------------|------|
-| `pending` | Add admin dashboard, payment verification, wallet enhancements | Feb 6, 2026 |
+| `pending` | UI polish: PesoIcon, wallet return flow, responsive admin spacing | Feb 6, 2026 |
+| `f20c88d` | Add admin dashboard, payment verification, wallet enhancements | Feb 6, 2026 |
 | `d6c358b` | Add My Bids modal with chat integration and profile enhancements | Feb 5, 2026 |
 | `fc43c07` | Add contracts, ratings, shipments features with chat and route optimization | Feb 5, 2026 |
 | `148e1ea` | Add authentication system with user profiles and Firebase configuration | Recent |
@@ -367,7 +374,8 @@ frontend/src/
 │       ├── tooltip, textarea, select, separator
 │       ├── dialog, label, scroll-area
 │       ├── dropdown-menu             ✨
-│       └── switch                    ✨
+│       ├── switch                    ✨
+│       └── PesoIcon.jsx             ✨
 ├── hooks/
 │   ├── useAuth.js
 │   ├── useCargoListings.js
