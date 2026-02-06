@@ -9,6 +9,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
@@ -36,6 +37,7 @@ function StarRating({ score }) {
 }
 
 export function RatingsManagement() {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [ratings, setRatings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -207,9 +209,9 @@ export function RatingsManagement() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
         <StatCard
           title="Total Ratings"
           value={stats.total}
@@ -237,9 +239,9 @@ export function RatingsManagement() {
       </div>
 
       {/* Rating Distribution */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: isDesktop ? '24px' : '16px' }}>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Rating Distribution</h3>
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {[5, 4, 3, 2, 1].map((star) => {
             const count = ratings.filter(r => r.score === star).length;
             const percentage = ratings.length > 0 ? (count / ratings.length) * 100 : 0;

@@ -66,9 +66,9 @@ const DialogBottomSheet = React.forwardRef(
           "lg:max-w-2xl lg:rounded-2xl lg:border lg:data-[state=closed]:slide-out-to-top-[48%] lg:data-[state=open]:slide-in-from-top-[48%]",
           "lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=open]:slide-in-from-left-1/2",
           "lg:data-[state=closed]:zoom-out-95 lg:data-[state=open]:zoom-in-95",
+          "p-5 lg:p-7",
           className
         )}
-        style={{ padding: '20px' }}
         {...props}
       >
         {/* Drag Handle for mobile */}

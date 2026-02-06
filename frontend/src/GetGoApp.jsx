@@ -115,6 +115,9 @@ export default function GetGoApp() {
   // Pending contract data (after fee payment)
   const [pendingContractData, setPendingContractData] = useState(null);
 
+  // Track if wallet was opened from platform fee modal (for return flow)
+  const [walletReturnToFee, setWalletReturnToFee] = useState(false);
+
   // Admin: Dashboard view state
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
@@ -483,7 +486,32 @@ export default function GetGoApp() {
   // Handler: Open wallet top-up (from platform fee modal)
   const handleTopUpFromFee = () => {
     closeModal('platformFee');
+    setWalletReturnToFee(true);
     openModal('wallet');
+  };
+
+  // Handler: Wallet top-up succeeded, return to platform fee modal
+  const handleWalletTopUpSuccess = () => {
+    closeModal('wallet');
+    setWalletReturnToFee(false);
+    if (pendingContractData) {
+      const { bid, listing, platformFee } = pendingContractData;
+      setTimeout(() => {
+        openModal('platformFee', { bid, listing, platformFee });
+      }, 350);
+    }
+  };
+
+  // Handler: Wallet modal closed (may need to return to fee modal)
+  const handleWalletClose = () => {
+    closeModal('wallet');
+    if (walletReturnToFee && pendingContractData) {
+      setWalletReturnToFee(false);
+      const { bid, listing, platformFee } = pendingContractData;
+      setTimeout(() => {
+        openModal('platformFee', { bid, listing, platformFee });
+      }, 350);
+    }
   };
 
   // Handler: Wallet top-up
@@ -906,12 +934,15 @@ export default function GetGoApp() {
       {/* Wallet Modal */}
       <WalletModal
         open={modals.wallet}
-        onClose={() => closeModal('wallet')}
+        onClose={handleWalletClose}
         walletBalance={walletBalance}
         transactions={firebaseWalletTransactions || []}
         loading={walletLoading}
         onTopUp={handleWalletTopUp}
         onPayout={handleWalletPayout}
+        returnToFee={walletReturnToFee}
+        onTopUpSuccess={handleWalletTopUpSuccess}
+        requiredAmount={walletReturnToFee ? pendingContractData?.platformFee : null}
       />
 
       {/* Edit Cargo Modal (uses PostModal in edit mode) */}

@@ -80,10 +80,10 @@ export function Header({
           {/* Right Actions */}
           <div className="flex items-center gap-3">
             {/* Wallet - Trucker only */}
-            {currentRole === 'trucker' && walletBalance !== undefined && (
+            {walletBalance !== undefined && (
               <button
                 onClick={onWalletClick}
-                className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm"
               >
                 <Wallet className="size-4 text-green-600" />
                 <span className="font-semibold text-sm text-green-600">

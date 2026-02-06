@@ -8,6 +8,7 @@ import {
   Search,
 } from 'lucide-react';
 import { AdminMenuButton } from './AdminSidebar';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export function AdminHeader({
   title,
@@ -26,14 +27,16 @@ export function AdminHeader({
   actions,
   className,
 }) {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+
   return (
     <header
       className={cn(
         'sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl',
         'border-b border-gray-200/50 dark:border-gray-800/50',
-        'px-3 lg:px-8 py-3 lg:py-4',
         className
       )}
+      style={{ padding: isDesktop ? '20px 40px' : '12px 16px' }}
     >
       <div className="flex items-center gap-4">
         {/* Mobile Menu Button */}

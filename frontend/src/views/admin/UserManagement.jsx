@@ -18,6 +18,7 @@ import {
   UserX,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -183,6 +184,7 @@ function UserDetailModal({ open, onClose, user, onSuspend, onActivate, onToggleA
 }
 
 export function UserManagement() {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -349,7 +351,7 @@ export function UserManagement() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
       <DataTable
         columns={columns}
         data={filteredUsers}

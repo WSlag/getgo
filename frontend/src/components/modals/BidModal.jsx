@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, MessageSquare, MapPin, Package, Truck, Star } from 'lucide-react';
+import { MessageSquare, MapPin, Package, Truck, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export function StatCard({
   title,
@@ -13,6 +14,7 @@ export function StatCard({
   onClick,
   className,
 }) {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const Wrapper = onClick ? 'button' : 'div';
 
   return (
@@ -20,10 +22,11 @@ export function StatCard({
       onClick={onClick}
       className={cn(
         'rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm',
-        'p-3 lg:p-5 text-left w-full',
+        'text-left w-full',
         onClick && 'hover:shadow-md hover:border-orange-300 dark:hover:border-orange-700 cursor-pointer transition-all duration-200',
         className
       )}
+      style={{ padding: isDesktop ? '20px 24px' : '16px 20px' }}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
@@ -76,9 +79,10 @@ export function StatCardSkeleton({ className }) {
     <div
       className={cn(
         'rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm',
-        'p-3 lg:p-5 animate-pulse',
+        'animate-pulse',
         className
       )}
+      style={{ padding: '16px 20px' }}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">

@@ -11,6 +11,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -87,7 +88,7 @@ function DisputeDetailModal({ open, onClose, dispute, onResolve, loading }) {
           </div>
 
           {/* Parties */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2" style={{ gap: '16px' }}>
             <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
               <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
                 <User className="size-4" /> Shipper
@@ -163,6 +164,7 @@ function DisputeDetailModal({ open, onClose, dispute, onResolve, loading }) {
 }
 
 export function DisputesManagement() {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [disputes, setDisputes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -314,9 +316,9 @@ export function DisputesManagement() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
         <StatCard
           title="Total Disputes"
           value={stats.total}

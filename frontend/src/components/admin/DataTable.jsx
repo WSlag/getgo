@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Search,
   ChevronLeft,
@@ -24,12 +25,14 @@ export function DataTable({
   pagination,
   className,
 }) {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+
   return (
     <div className={cn('bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden', className)}>
       {/* Header with search and filters */}
       {(searchable || filters) && (
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col sm:flex-row gap-3">
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ padding: isDesktop ? '20px 24px' : '16px' }}>
+          <div className="flex flex-col sm:flex-row" style={{ gap: '12px' }}>
             {searchable && (
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
@@ -49,7 +52,7 @@ export function DataTable({
                 />
               </div>
             )}
-            {filters && <div className="flex gap-2 flex-wrap">{filters}</div>}
+            {filters && <div className="flex flex-wrap" style={{ gap: '8px' }}>{filters}</div>}
           </div>
         </div>
       )}
@@ -63,12 +66,12 @@ export function DataTable({
                 <th
                   key={col.key || idx}
                   className={cn(
-                    'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400',
+                    'text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400',
                     col.align === 'center' && 'text-center',
                     col.align === 'right' && 'text-right',
                     col.className
                   )}
-                  style={{ width: col.width }}
+                  style={{ width: col.width, padding: isDesktop ? '14px 24px' : '12px 16px' }}
                 >
                   {col.header}
                 </th>
@@ -112,11 +115,12 @@ export function DataTable({
                     <td
                       key={col.key || colIdx}
                       className={cn(
-                        'px-4 py-3 text-sm',
+                        'text-sm',
                         col.align === 'center' && 'text-center',
                         col.align === 'right' && 'text-right',
                         col.cellClassName
                       )}
+                      style={{ padding: isDesktop ? '14px 24px' : '12px 16px' }}
                     >
                       {col.render ? col.render(row[col.key], row, rowIdx) : row[col.key]}
                     </td>
@@ -130,7 +134,7 @@ export function DataTable({
 
       {/* Pagination */}
       {pagination && (
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between" style={{ padding: isDesktop ? '14px 24px' : '12px 16px', gap: '12px' }}>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Showing {pagination.from} to {pagination.to} of {pagination.total} results
           </p>

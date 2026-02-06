@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Settings,
-  DollarSign,
   Percent,
   CreditCard,
   Save,
@@ -12,12 +11,14 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PesoIcon } from '@/components/ui/PesoIcon';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 
 // Setting card component
 function SettingCard({ title, description, children, icon: Icon }) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: '24px' }}>
       <div className="flex items-start gap-4">
         {Icon && (
           <div className="size-12 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
@@ -98,6 +99,7 @@ function SettingToggle({ label, description, checked, onChange }) {
 }
 
 export function SystemSettings() {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -133,7 +135,7 @@ export function SystemSettings() {
   };
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
       {/* Save Button */}
       <div className="flex justify-end">
         <Button
@@ -156,9 +158,9 @@ export function SystemSettings() {
       <SettingCard
         title="Platform Fees"
         description="Configure the platform fee structure for transactions"
-        icon={DollarSign}
+        icon={PesoIcon}
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: '16px' }}>
           <SettingInput
             label="Fee Percentage"
             value={platformFeePercent}
@@ -189,7 +191,7 @@ export function SystemSettings() {
         description="Configure the GCash account for receiving payments"
         icon={CreditCard}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: '16px' }}>
           <SettingInput
             label="GCash Number"
             value={gcashNumber}
@@ -211,7 +213,7 @@ export function SystemSettings() {
         description="Set commission percentages for each broker tier"
         icon={Percent}
       >
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: '16px' }}>
           <SettingInput
             label="Starter Tier"
             value={starterCommission}
@@ -295,7 +297,7 @@ export function SystemSettings() {
       </SettingCard>
 
       {/* Danger Zone */}
-      <div className="bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800 p-6">
+      <div className="bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800" style={{ padding: '24px' }}>
         <h3 className="text-lg font-semibold text-red-700 dark:text-red-300 mb-2">Danger Zone</h3>
         <p className="text-sm text-red-600 dark:text-red-400 mb-4">
           These actions are irreversible. Please proceed with caution.

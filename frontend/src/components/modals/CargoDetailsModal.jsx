@@ -1,6 +1,7 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Package, Calendar, Weight, Truck, Edit, Star, DollarSign, X, Loader2, MessageSquare, Check, FileText } from 'lucide-react';
+import { MapPin, Clock, Navigation, Package, Calendar, Weight, Truck, Edit, Star, X, Loader2, MessageSquare, Check, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PesoIcon } from '@/components/ui/PesoIcon';
 import {
   Dialog,
   DialogBottomSheet,
@@ -437,7 +438,7 @@ export function CargoDetailsModal({
               className="flex-1"
               onClick={() => onBid?.(cargo)}
             >
-              <DollarSign className="size-4 mr-2" />
+              <PesoIcon className="size-4 mr-2" />
               Place Bid
             </Button>
           )}
