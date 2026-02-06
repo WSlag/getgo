@@ -16,7 +16,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../firebase';
+import { db, storage, auth } from '../firebase';
 import { getCoordinates } from '../utils/cityCoordinates';
 import { PLATFORM_FEE_RATE } from '../utils/constants';
 
@@ -643,4 +643,120 @@ export const generateReferralCode = (role) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const random = Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
   return `${prefix}${random}`;
+};
+
+// ============================================================
+// PAYMENT SCREENSHOT VERIFICATION
+// ============================================================
+
+/**
+ * Upload payment screenshot to Firebase Storage
+ * @param {string} orderId - Order ID for the payment
+ * @param {File} file - Screenshot file to upload
+ * @returns {Promise<string>} - Download URL of uploaded screenshot
+ */
+export const uploadPaymentScreenshot = async (orderId, file) => {
+  const userId = auth.currentUser?.uid;
+  if (!userId) throw new Error('Not authenticated');
+
+  // Validate file
+  if (!file) throw new Error('No file provided');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    throw new Error('Invalid file type. Please upload a JPG, PNG, or WebP image.');
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('File too large. Maximum size is 5MB.');
+  }
+
+  // Generate unique filename
+  const timestamp = Date.now();
+  const extension = file.name.split('.').pop() || 'jpg';
+  const fileName = `${orderId}_${timestamp}.${extension}`;
+  const storageRef = ref(storage, `payments/${userId}/${fileName}`);
+
+  // Upload file
+  const snapshot = await uploadBytes(storageRef, file);
+  const downloadURL = await getDownloadURL(snapshot.ref);
+
+  return downloadURL;
+};
+
+/**
+ * Create a payment submission document in Firestore
+ * This triggers the Cloud Function to process the screenshot
+ * @param {Object} data - Submission data
+ * @returns {Promise<Object>} - Created submission with ID
+ */
+export const createPaymentSubmission = async (data) => {
+  const userId = auth.currentUser?.uid;
+  if (!userId) throw new Error('Not authenticated');
+
+  const submissionData = {
+    orderId: data.orderId,
+    userId,
+    screenshotUrl: data.screenshotUrl,
+    status: 'pending',
+    ocrStatus: 'pending',
+    uploadedAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+
+  const docRef = await addDoc(collection(db, 'paymentSubmissions'), submissionData);
+  return { id: docRef.id, ...submissionData };
+};
+
+/**
+ * Get payment submission by ID
+ * @param {string} submissionId - Submission ID
+ * @returns {Promise<Object|null>} - Submission data or null
+ */
+export const getPaymentSubmission = async (submissionId) => {
+  const docRef = doc(db, 'paymentSubmissions', submissionId);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+};
+
+/**
+ * Get submissions for an order
+ * @param {string} orderId - Order ID
+ * @returns {Promise<Array>} - Array of submissions
+ */
+export const getSubmissionsForOrder = async (orderId) => {
+  const q = query(
+    collection(db, 'paymentSubmissions'),
+    where('orderId', '==', orderId),
+    orderBy('createdAt', 'desc')
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+/**
+ * Get user's payment orders
+ * @param {string} userId - User ID
+ * @param {string} status - Optional status filter
+ * @returns {Promise<Array>} - Array of orders
+ */
+export const getUserPaymentOrders = async (userId, status = null) => {
+  let q = query(
+    collection(db, 'orders'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc'),
+    limit(20)
+  );
+
+  if (status) {
+    q = query(
+      collection(db, 'orders'),
+      where('userId', '==', userId),
+      where('status', '==', status),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+  }
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };

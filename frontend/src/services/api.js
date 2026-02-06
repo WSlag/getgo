@@ -180,13 +180,23 @@ const api = {
   bids: {
     create: (data) => post('/bids', data),
     getMyBids: () => get('/bids/my'),
-    accept: (bidId) => post(`/bids/${bidId}/accept`, {}),
-    reject: (bidId) => post(`/bids/${bidId}/reject`, {}),
+    accept: (bidId) => put(`/bids/${bidId}/accept`, {}),
+    reject: (bidId) => put(`/bids/${bidId}/reject`, {}),
   },
 
   wallet: {
     getBalance: () => get('/wallet'),
     getTransactions: () => get('/wallet/transactions'),
+    topUp: (data) => post('/wallet/topup', data),
+    payout: (data) => post('/wallet/payout', data),
+    payPlatformFee: (bidId, amount) => post('/wallet/pay-platform-fee', { bidId, amount }),
+    getFeeStatus: (bidId) => get(`/wallet/fee-status/${bidId}`),
+    getPaymentMethods: () => get('/wallet/payment-methods'),
+    // GCash Payment Flow
+    createTopUpOrder: (data) => post('/wallet/create-topup-order', data),
+    getOrder: (orderId) => get(`/wallet/order/${orderId}`),
+    getPendingOrders: () => get('/wallet/pending-orders'),
+    getGcashConfig: () => get('/wallet/gcash-config'),
   },
 
   chat: {
@@ -220,6 +230,61 @@ const api = {
     track: (trackingNumber) => get(`/shipments/track/${trackingNumber}`),
     updateLocation: (id, data) => put(`/shipments/${id}/location`, data),
     updateStatus: (id, status) => put(`/shipments/${id}/status`, { status }),
+  },
+
+  // Admin Endpoints
+  admin: {
+    // Dashboard
+    getDashboardStats: () => get('/admin/dashboard/stats'),
+
+    // Payments
+    getPendingPayments: (params) => get(`/admin/payments/pending${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getPayments: (params) => get(`/admin/payments${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getPaymentStats: () => get('/admin/payments/stats'),
+    getPaymentDetails: (submissionId) => get(`/admin/payments/${submissionId}`),
+    approvePayment: (submissionId, data) => post(`/admin/payments/${submissionId}/approve`, data),
+    rejectPayment: (submissionId, data) => post(`/admin/payments/${submissionId}/reject`, data),
+
+    // Users
+    getUsers: (params) => get(`/admin/users${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getUserDetails: (userId) => get(`/admin/users/${userId}`),
+    suspendUser: (userId, data) => post(`/admin/users/${userId}/suspend`, data),
+    activateUser: (userId) => post(`/admin/users/${userId}/activate`, {}),
+    verifyUser: (userId) => post(`/admin/users/${userId}/verify`, {}),
+    toggleAdmin: (userId, grant) => post(`/admin/users/${userId}/admin`, { grant }),
+
+    // Listings
+    getListings: (params) => get(`/admin/listings${params ? `?${new URLSearchParams(params)}` : ''}`),
+    deactivateListing: (listingId, data) => post(`/admin/listings/${listingId}/deactivate`, data),
+
+    // Contracts
+    getContracts: (params) => get(`/admin/contracts${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getContractDetails: (contractId) => get(`/admin/contracts/${contractId}`),
+
+    // Shipments
+    getShipments: (params) => get(`/admin/shipments${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getActiveShipments: () => get('/admin/shipments/active'),
+
+    // Financial
+    getFinancialSummary: () => get('/admin/financial/summary'),
+    getTransactions: (params) => get(`/admin/financial/transactions${params ? `?${new URLSearchParams(params)}` : ''}`),
+
+    // Disputes
+    getDisputes: (params) => get(`/admin/disputes${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getDisputeDetails: (disputeId) => get(`/admin/disputes/${disputeId}`),
+    resolveDispute: (disputeId, data) => post(`/admin/disputes/${disputeId}/resolve`, data),
+
+    // Referrals/Brokers
+    getBrokers: (params) => get(`/admin/referrals/brokers${params ? `?${new URLSearchParams(params)}` : ''}`),
+    updateBrokerTier: (brokerId, tier) => post(`/admin/referrals/${brokerId}/tier`, { tier }),
+
+    // Ratings
+    getRatings: (params) => get(`/admin/ratings${params ? `?${new URLSearchParams(params)}` : ''}`),
+    deleteRating: (ratingId, data) => del(`/admin/ratings/${ratingId}`, { body: JSON.stringify(data) }),
+
+    // Settings
+    getSettings: () => get('/admin/settings'),
+    updateSettings: (settings) => put('/admin/settings', { settings }),
   },
 };
 

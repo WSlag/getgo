@@ -2,6 +2,7 @@ import { Home, TrendingUp, Bell, User, Moon, Sun, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Logo } from '@/components/shared/Logo';
+import { ProfileDropdown } from '@/components/shared/ProfileDropdown';
 
 export function Header({
   activeTab = 'home',
@@ -16,6 +17,10 @@ export function Header({
   onWalletClick,
   onNotificationClick,
   onProfileClick,
+  onEditProfile,
+  onNotificationSettings,
+  onHelpSupport,
+  user = {},
 }) {
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
@@ -99,13 +104,28 @@ export function Header({
               )}
             </button>
 
-            {/* User Avatar */}
-            <div
-              onClick={onProfileClick}
-              className="size-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white text-sm font-medium shadow-lg shadow-purple-500/30 cursor-pointer hover:scale-105 transition-transform"
+            {/* User Avatar with Profile Dropdown */}
+            <ProfileDropdown
+              user={{ ...user, initial: userInitial }}
+              currentRole={currentRole}
+              darkMode={darkMode}
+              onToggleDarkMode={onToggleDarkMode}
+              onEditProfile={onEditProfile}
+              onNotificationSettings={onNotificationSettings}
+              onHelpSupport={onHelpSupport}
+              onLogout={onLogout}
             >
-              <span>{userInitial}</span>
-            </div>
+              <button
+                className={cn(
+                  "size-9 rounded-full flex items-center justify-center text-white text-sm font-semibold shadow-lg cursor-pointer hover:scale-110 active:scale-95 transition-all duration-200 border-2",
+                  currentRole === 'trucker'
+                    ? "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/30 border-emerald-300"
+                    : "bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30 border-blue-300"
+                )}
+              >
+                <span>{userInitial}</span>
+              </button>
+            </ProfileDropdown>
           </div>
         </div>
       </div>

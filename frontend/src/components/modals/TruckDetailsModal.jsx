@@ -1,10 +1,10 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Truck, Calendar, Star, Edit, DollarSign, User, Loader2, MessageSquare } from 'lucide-react';
+import { MapPin, Clock, Navigation, Truck, Calendar, Star, Edit, DollarSign, User, Loader2, MessageSquare, Check, X, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Dialog,
-  DialogContent,
+  DialogBottomSheet,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -23,9 +23,38 @@ export function TruckDetailsModal({
   onEdit,
   onBook,
   onOpenChat,
+  onAcceptBid,
+  onRejectBid,
+  onCreateContract,
   darkMode = false,
 }) {
   const isMobile = !useMediaQuery('(min-width: 640px)');
+  const [processingBidId, setProcessingBidId] = React.useState(null);
+  const [processingAction, setProcessingAction] = React.useState(null);
+
+  const handleAcceptBid = async (bid) => {
+    if (!onAcceptBid) return;
+    setProcessingBidId(bid.id);
+    setProcessingAction('accept');
+    try {
+      await onAcceptBid(bid, truck, 'truck');
+    } finally {
+      setProcessingBidId(null);
+      setProcessingAction(null);
+    }
+  };
+
+  const handleRejectBid = async (bid) => {
+    if (!onRejectBid) return;
+    setProcessingBidId(bid.id);
+    setProcessingAction('reject');
+    try {
+      await onRejectBid(bid, truck, 'truck');
+    } finally {
+      setProcessingBidId(null);
+      setProcessingAction(null);
+    }
+  };
 
   // Fetch booking requests (bids) for this truck when owner views the modal
   const { bids: fetchedBids, loading: bidsLoading } = useBidsForListing(
@@ -96,7 +125,7 @@ export function TruckDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto backdrop-blur-sm">
+      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -338,10 +367,20 @@ export function TruckDetailsModal({
                           )}
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right flex items-center gap-2">
                         <p className="font-bold text-lg text-green-600 dark:text-green-400">
                           {formatPrice(booking.amount)}
                         </p>
+                        {booking.status === 'accepted' && (
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                            Accepted
+                          </Badge>
+                        )}
+                        {booking.status === 'rejected' && (
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                            Rejected
+                          </Badge>
+                        )}
                       </div>
                     </div>
                     {/* Booking Message - Sanitized */}
@@ -355,7 +394,7 @@ export function TruckDetailsModal({
                         </div>
                       </div>
                     )}
-                    {/* Chat Button */}
+                    {/* Action Buttons */}
                     <div className="flex gap-2 mt-3">
                       <Button
                         variant="outline"
@@ -366,6 +405,49 @@ export function TruckDetailsModal({
                         <MessageSquare className="size-4" />
                         Chat
                       </Button>
+                      {booking.status === 'pending' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+                            onClick={() => handleAcceptBid(booking._original)}
+                            disabled={processingBidId === booking.id}
+                          >
+                            {processingBidId === booking.id && processingAction === 'accept' ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Check className="size-4" />
+                            )}
+                            Accept
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            onClick={() => handleRejectBid(booking._original)}
+                            disabled={processingBidId === booking.id}
+                          >
+                            {processingBidId === booking.id && processingAction === 'reject' ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <X className="size-4" />
+                            )}
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                      {booking.status === 'accepted' && (
+                        <Button
+                          variant="gradient"
+                          size="sm"
+                          className="flex-1 gap-2"
+                          onClick={() => onCreateContract?.(booking._original, truck)}
+                        >
+                          <FileText className="size-4" />
+                          Create Contract
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -397,7 +479,7 @@ export function TruckDetailsModal({
             Close
           </Button>
         </div>
-      </DialogContent>
+      </DialogBottomSheet>
     </Dialog>
   );
 }

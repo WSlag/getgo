@@ -418,6 +418,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!authUser && !!userProfile,
     currentRole: userProfile?.role || 'shipper',
     isBroker: !!brokerProfile,
+    isAdmin: !!userProfile?.isAdmin || userProfile?.role === 'admin',
   };
 
   return (

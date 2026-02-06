@@ -1,6 +1,30 @@
 {
   "indexes": [
     {
+      "collectionGroup": "paymentSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "paymentSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "resolvedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "paymentSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fraudFlags", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "cargoListings",
       "queryScope": "COLLECTION",
       "fields": [

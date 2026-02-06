@@ -338,12 +338,52 @@ const Contract = sequelize.define('Contract', {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
   },
+  // Declared cargo value for liability purposes
+  declaredCargoValue: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 100000, // Default PHP 100,000 if not declared
+  },
+  // Shipper signature details
   shipperSignature: DataTypes.STRING,
+  shipperSignedAt: DataTypes.DATE,
+  shipperSignatureIp: DataTypes.STRING,
+  // Trucker signature details
   truckerSignature: DataTypes.STRING,
+  truckerSignedAt: DataTypes.DATE,
+  truckerSignatureIp: DataTypes.STRING,
+  // Contract execution
   signedAt: DataTypes.DATE,
+  // Pickup and delivery details
+  pickupDate: DataTypes.DATE,
+  pickupAddress: DataTypes.STRING,
+  deliveryAddress: DataTypes.STRING,
+  expectedDeliveryDate: DataTypes.DATE,
+  // Cargo details for contract record
+  cargoType: DataTypes.STRING,
+  cargoWeight: DataTypes.FLOAT,
+  cargoWeightUnit: {
+    type: DataTypes.STRING,
+    defaultValue: 'tons',
+  },
+  cargoDescription: DataTypes.TEXT,
+  specialInstructions: DataTypes.TEXT,
+  // Vehicle details
+  vehicleType: DataTypes.STRING,
+  vehiclePlateNumber: DataTypes.STRING,
+  // Terms and conditions
   terms: DataTypes.TEXT,
+  // Liability acknowledgment
+  liabilityAcknowledged: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  // Dispute details
+  disputeReason: DataTypes.TEXT,
+  disputeFiledAt: DataTypes.DATE,
+  disputeResolvedAt: DataTypes.DATE,
+  disputeResolution: DataTypes.TEXT,
   status: {
-    type: DataTypes.ENUM('draft', 'signed', 'completed', 'disputed', 'cancelled'),
+    type: DataTypes.ENUM('draft', 'signed', 'in_transit', 'completed', 'disputed', 'cancelled'),
     defaultValue: 'draft',
   },
 });

@@ -15,6 +15,10 @@ import {
   updateTruckListing,
   createBid,
   uploadListingPhotos,
+  acceptBid,
+  rejectBid,
+  markNotificationRead,
+  markAllNotificationsRead,
 } from './services/firestoreService';
 
 // Hooks
@@ -38,140 +42,17 @@ import { MobileNav } from '@/components/layout/MobileNav';
 // View Components
 import { HomeView } from '@/views/HomeView';
 import { TrackingView } from '@/views/TrackingView';
+import { AdminPaymentsView } from '@/views/AdminPaymentsView';
 import { ProfilePage } from '@/components/profile/ProfilePage';
+import { AdminDashboard } from '@/views/admin/AdminDashboard';
 
 // Modal Components
-import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal, MyBidsModal } from '@/components/modals';
+import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal, MyBidsModal, PlatformFeeModal, ContractModal, NotificationsModal, WalletModal } from '@/components/modals';
 import { FullMapModal } from '@/components/maps';
 import AuthModal from '@/components/auth/AuthModal';
 
-// Sample Data (fallback for demo)
-const sampleCargoListings = [
-  {
-    id: 'C1',
-    shipper: 'ABC Trading',
-    shipperTransactions: 45,
-    origin: 'Davao City',
-    destination: 'Cebu City',
-    originCoords: { lat: 7.0707, lng: 125.6087 },
-    destCoords: { lat: 10.3157, lng: 123.8854 },
-    weight: 12,
-    unit: 'tons',
-    cargoType: 'General Merchandise',
-    vehicleNeeded: '10W Wing Van',
-    askingPrice: 18000,
-    description: 'Assorted dry goods, palletized. 24 pallets total, properly wrapped.',
-    pickupDate: '2026-01-26',
-    status: 'open',
-    postedAt: Date.now() - 2 * 60 * 60 * 1000,
-    cargoPhotos: [
-      'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=400',
-      'https://images.unsplash.com/photo-1553413077-190dd305871c?w=400',
-    ],
-    bids: [
-      { id: 'B1', bidder: 'Juan Trucking', amount: 17500 },
-      { id: 'B2', bidder: 'Mindanao Haulers', amount: 19000 },
-    ],
-    distance: '408 km',
-    estimatedTime: '5 days',
-    gradientClass: 'bg-gradient-to-r from-orange-400 to-orange-600',
-  },
-  {
-    id: 'C2',
-    shipper: 'Fresh Farms Inc.',
-    shipperTransactions: 12,
-    origin: 'General Santos',
-    destination: 'Davao City',
-    originCoords: { lat: 6.1164, lng: 125.1716 },
-    destCoords: { lat: 7.0707, lng: 125.6087 },
-    weight: 8,
-    unit: 'tons',
-    cargoType: 'Fruits & Vegetables',
-    vehicleNeeded: '6W Forward',
-    askingPrice: 8500,
-    description: 'Fresh bananas and mangoes. Temperature sensitive, need early morning delivery.',
-    pickupDate: '2026-01-25',
-    status: 'waiting',
-    postedAt: Date.now() - 5 * 60 * 60 * 1000,
-    cargoPhotos: [
-      'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400',
-    ],
-    bids: [],
-    distance: '117 km',
-    estimatedTime: '5 days',
-    gradientClass: 'bg-gradient-to-r from-yellow-400 to-orange-500',
-  },
-  {
-    id: 'C3',
-    shipper: 'BuildRight Construction',
-    shipperTransactions: 67,
-    origin: 'Cagayan de Oro',
-    destination: 'Butuan City',
-    originCoords: { lat: 8.4542, lng: 124.6319 },
-    destCoords: { lat: 8.9475, lng: 125.5406 },
-    weight: 12,
-    unit: 'tons',
-    cargoType: 'Construction Materials',
-    vehicleNeeded: '6W Dropside',
-    askingPrice: 12000,
-    description: 'Steel bars and cement. Heavy items, need truck with crane or boom.',
-    pickupDate: '2026-01-27',
-    status: 'open',
-    postedAt: Date.now() - 1 * 60 * 60 * 1000,
-    cargoPhotos: [
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
-    ],
-    bids: [],
-    distance: '134 km',
-    estimatedTime: '4 days',
-    gradientClass: 'bg-gradient-to-r from-blue-400 to-blue-600',
-  },
-];
-
-const sampleTruckListings = [
-  {
-    id: 'T1',
-    trucker: 'Heavy Haul PH',
-    truckerRating: 4.7,
-    truckerTransactions: 178,
-    origin: 'Cagayan de Oro',
-    destination: 'Davao City',
-    originCoords: { lat: 8.4542, lng: 124.6319 },
-    destCoords: { lat: 7.0707, lng: 125.6087 },
-    vehicleType: '10W Flatbed',
-    plateNumber: 'HHP 3456',
-    capacity: '12-15 tons',
-    askingRate: 15000,
-    availableDate: '2026-01-27',
-    description: 'Backload available, may crane for loading',
-    status: 'available',
-    postedAt: Date.now() - 3 * 60 * 60 * 1000,
-    truckPhotos: [],
-    distance: '250 km',
-    estimatedTime: '6-8 hrs',
-  },
-  {
-    id: 'T2',
-    trucker: 'Quick Logistics',
-    truckerRating: 4.9,
-    truckerTransactions: 234,
-    origin: 'Cebu City',
-    destination: 'Davao City',
-    originCoords: { lat: 10.3157, lng: 123.8854 },
-    destCoords: { lat: 7.0707, lng: 125.6087 },
-    vehicleType: '10W Wing Van',
-    plateNumber: 'QL 9012',
-    capacity: '12 tons',
-    askingRate: 22000,
-    availableDate: '2026-01-28',
-    description: 'RORO via Liloan-Lipata, experienced route',
-    status: 'available',
-    postedAt: Date.now() - 1 * 60 * 60 * 1000,
-    truckPhotos: [],
-    distance: '408 km',
-    estimatedTime: '14-16 hrs',
-  },
-];
+// API
+import api from './services/api';
 
 export default function GetGoApp() {
   // Firebase Auth
@@ -183,13 +64,14 @@ export default function GetGoApp() {
     currentRole,
     switchRole,
     logout,
+    isAdmin,
   } = useAuth();
 
-  // Firebase Data Hooks
-  const { listings: firebaseCargoListings, loading: cargoLoading } = useCargoListings({ status: 'open' });
-  const { listings: firebaseTruckListings, loading: truckLoading } = useTruckListings({ status: 'open' });
+  // Firebase Data Hooks - fetch ALL listings, filter in view layer
+  const { listings: firebaseCargoListings, loading: cargoLoading } = useCargoListings();
+  const { listings: firebaseTruckListings, loading: truckLoading } = useTruckListings();
   const { notifications: firebaseNotifications, unreadCount: firebaseUnreadCount } = useNotifications(authUser?.uid);
-  const { balance: firebaseWalletBalance } = useWallet(authUser?.uid);
+  const { balance: firebaseWalletBalance, transactions: firebaseWalletTransactions, loading: walletLoading } = useWallet(authUser?.uid);
   const { activeShipments: firebaseActiveShipments } = useShipments(authUser?.uid);
 
   // Custom Hooks for UI State
@@ -222,11 +104,22 @@ export default function GetGoApp() {
     setShowAuthModal,
     pendingActionTitle,
     executePendingAction,
+    clearPendingAction,
   } = useAuthGuard();
 
   // Loading states for form submissions
   const [postLoading, setPostLoading] = useState(false);
   const [bidLoading, setBidLoading] = useState(false);
+  const [contractLoading, setContractLoading] = useState(false);
+
+  // Pending contract data (after fee payment)
+  const [pendingContractData, setPendingContractData] = useState(null);
+
+  // Admin: Dashboard view state
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+
+  // Admin: Pending payments count
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
 
   // Toast notification state for real-time events
   const [toasts, setToasts] = useState([]);
@@ -255,10 +148,32 @@ export default function GetGoApp() {
     }
   }, [socketNotifications, clearNotification]);
 
-  // Use Firebase data with fallback to sample data
+  // Fetch pending payments count for admin users
+  useEffect(() => {
+    if (!isAdmin) {
+      setPendingPaymentsCount(0);
+      return;
+    }
+
+    const fetchPendingCount = async () => {
+      try {
+        const data = await api.admin.getPaymentStats();
+        setPendingPaymentsCount(data.stats?.pendingReview || 0);
+      } catch (error) {
+        console.error('Error fetching pending payments count:', error);
+      }
+    };
+
+    fetchPendingCount();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchPendingCount, 30000);
+    return () => clearInterval(interval);
+  }, [isAdmin]);
+
+  // Use Firebase data directly - no sample data fallback
   const userRole = currentRole || 'shipper';
-  const cargoListings = firebaseCargoListings.length > 0 ? firebaseCargoListings : sampleCargoListings;
-  const truckListings = firebaseTruckListings.length > 0 ? firebaseTruckListings : sampleTruckListings;
+  const cargoListings = firebaseCargoListings;
+  const truckListings = firebaseTruckListings;
   const activeShipments = firebaseActiveShipments || [];
   const unreadNotifications = firebaseUnreadCount || 0;
   const walletBalance = firebaseWalletBalance || 0;
@@ -302,12 +217,6 @@ export default function GetGoApp() {
   const userInitial = userProfile?.name?.[0]?.toUpperCase() || authUser?.phoneNumber?.[0] || 'U';
 
   // Handlers
-  const handleRoleChange = (role) => {
-    if (switchRole) {
-      switchRole(role);
-    }
-  };
-
   const handlePostClick = () => {
     requireAuth(() => openModal('post'), 'Sign in to post a listing');
   };
@@ -388,6 +297,19 @@ export default function GetGoApp() {
     requireAuth(() => setActiveTab('profile'), 'Sign in to view profile');
   };
 
+  const handleEditProfile = () => {
+    requireAuth(() => setActiveTab('profile'), 'Sign in to edit profile');
+  };
+
+  const handleNotificationSettings = () => {
+    requireAuth(() => openModal('notifications'), 'Sign in to manage notifications');
+  };
+
+  const handleHelpSupport = () => {
+    // Could open a help modal or redirect to support page
+    window.open('mailto:support@getgo.ph', '_blank');
+  };
+
   const handleWalletClick = () => {
     requireAuth(() => openModal('wallet'), 'Sign in to view wallet');
   };
@@ -395,12 +317,211 @@ export default function GetGoApp() {
   const handleLogout = async () => {
     if (logout) {
       await logout();
+      // Reset to home tab and show auth modal with welcome message
+      setActiveTab('home');
+      clearPendingAction(); // Reset title to default "Sign in to continue"
+      setShowAuthModal(true);
     }
   };
 
   const handleRouteOptimizerClick = () => {
     openModal('routeOptimizer');
   };
+
+  const handlePaymentReviewClick = () => {
+    setShowAdminDashboard(true);
+  };
+
+  const handleBackFromAdmin = () => {
+    setShowAdminDashboard(false);
+  };
+
+  // Accept/Reject bid handlers
+  const handleAcceptBid = async (bid, listing, listingType) => {
+    try {
+      // Use Firestore service for bid acceptance
+      await acceptBid(bid.id, bid, listing, listingType);
+      showToast({
+        type: 'bid-accepted',
+        title: 'Bid Accepted',
+        message: `You accepted ${bid.bidderName || 'the bid'} for ₱${bid.price?.toLocaleString()}`,
+      });
+      // Close modal - data will refresh via Firestore real-time updates
+      closeModal('cargoDetails');
+      closeModal('truckDetails');
+    } catch (error) {
+      console.error('Error accepting bid:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: error.message || 'Failed to accept bid',
+      });
+      throw error;
+    }
+  };
+
+  const handleRejectBid = async (bid, listing, listingType) => {
+    try {
+      // Use Firestore service for bid rejection
+      await rejectBid(bid.id, bid, listing, listingType);
+      showToast({
+        type: 'info',
+        title: 'Bid Rejected',
+        message: `You rejected the bid from ${bid.bidderName || 'the bidder'}`,
+      });
+    } catch (error) {
+      console.error('Error rejecting bid:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: error.message || 'Failed to reject bid',
+      });
+      throw error;
+    }
+  };
+
+  // Contract Creation Flow Handlers
+  const handleCreateContract = async (bid, listing) => {
+    const platformFee = Math.round(bid.price * 0.05); // 5%
+
+    // Store bid/listing for after payment
+    setPendingContractData({ bid, listing, platformFee });
+
+    // Open platform fee payment modal
+    openModal('platformFee', { bid, listing, platformFee });
+  };
+
+  // Handler: After fee is paid, create the contract
+  const handleFeePaymentComplete = async (bidId, feeAmount) => {
+    if (!pendingContractData) return;
+
+    const { bid, listing } = pendingContractData;
+
+    try {
+      // First pay the platform fee
+      await api.wallet.payPlatformFee(bidId, feeAmount);
+
+      // Then create the contract
+      const response = await api.contracts.create({
+        bidId: bid.id,
+        declaredCargoValue: (listing.askingPrice || bid.price) * 2,
+      });
+
+      showToast({
+        type: 'bid-accepted',
+        title: 'Contract Created',
+        message: `Contract #${response.contract.contractNumber} ready for signing`,
+      });
+
+      closeModal('platformFee');
+      setPendingContractData(null);
+
+      // Open contract modal for signing
+      openModal('contract', response.contract);
+    } catch (error) {
+      console.error('Error creating contract:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: error.message || 'Failed to create contract',
+      });
+      throw error;
+    }
+  };
+
+  // Handler: Sign contract
+  const handleSignContract = async (contractId) => {
+    setContractLoading(true);
+    try {
+      const response = await api.contracts.sign(contractId);
+      showToast({
+        type: 'bid-accepted',
+        title: response.fullyExecuted ? 'Contract Signed!' : 'Signature Recorded',
+        message: response.fullyExecuted
+          ? 'Both parties signed. Shipment tracking is now active.'
+          : 'Waiting for the other party to sign.',
+      });
+      if (response.fullyExecuted) {
+        closeModal('contract');
+        setActiveTab('tracking');
+      }
+    } catch (error) {
+      console.error('Error signing contract:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: error.message || 'Failed to sign contract',
+      });
+    } finally {
+      setContractLoading(false);
+    }
+  };
+
+  // Handler: Complete contract (delivery confirmation)
+  const handleCompleteContract = async (contractId) => {
+    setContractLoading(true);
+    try {
+      await api.contracts.complete(contractId);
+      showToast({
+        type: 'bid-accepted',
+        title: 'Delivery Confirmed!',
+        message: 'Contract completed. Please rate your experience.',
+      });
+      closeModal('contract');
+    } catch (error) {
+      console.error('Error completing contract:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: error.message || 'Failed to complete contract',
+      });
+    } finally {
+      setContractLoading(false);
+    }
+  };
+
+  // Handler: Open wallet top-up (from platform fee modal)
+  const handleTopUpFromFee = () => {
+    closeModal('platformFee');
+    openModal('wallet');
+  };
+
+  // Handler: Wallet top-up
+  const handleWalletTopUp = async (amount, method) => {
+    try {
+      const response = await api.wallet.topUp({ amount, method });
+      showToast({
+        type: 'bid-accepted',
+        title: 'Top Up Successful',
+        message: `Added ₱${amount.toLocaleString()} to your wallet`,
+      });
+      return response;
+    } catch (error) {
+      console.error('Top-up error:', error);
+      throw error;
+    }
+  };
+
+  // Handler: Wallet payout
+  const handleWalletPayout = async (amount, method) => {
+    try {
+      const response = await api.wallet.payout({ amount, method });
+      showToast({
+        type: 'bid-accepted',
+        title: 'Payout Requested',
+        message: `Payout of ₱${amount.toLocaleString()} is being processed`,
+      });
+      return response;
+    } catch (error) {
+      console.error('Payout error:', error);
+      throw error;
+    }
+  };
+
+  // If admin dashboard is open, render it instead of main app
+  if (showAdminDashboard && isAdmin) {
+    return <AdminDashboard onBackToApp={handleBackFromAdmin} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -418,6 +539,16 @@ export default function GetGoApp() {
         onWalletClick={handleWalletClick}
         onNotificationClick={handleNotificationClick}
         onProfileClick={handleProfileClick}
+        onEditProfile={handleEditProfile}
+        onNotificationSettings={handleNotificationSettings}
+        onHelpSupport={handleHelpSupport}
+        user={{
+          name: userProfile?.name || 'User',
+          initial: userInitial,
+          rating: userProfile?.rating || 0,
+          tripsCompleted: userProfile?.tripsCompleted || 0,
+          avatarUrl: userProfile?.avatarUrl,
+        }}
       />
 
       <div className="flex min-h-[calc(100vh-73px)]">
@@ -425,7 +556,6 @@ export default function GetGoApp() {
         <Sidebar
           className="hidden lg:flex"
           currentRole={userRole}
-          onRoleChange={handleRoleChange}
           activeMarket={activeMarket}
           onMarketChange={setActiveMarket}
           cargoCount={cargoListings.length}
@@ -433,10 +563,12 @@ export default function GetGoApp() {
           openCargoCount={openCargoCount}
           availableTrucksCount={availableTrucksCount}
           activeShipmentsCount={activeShipmentsCount}
+          isAdmin={isAdmin}
+          pendingPaymentsCount={pendingPaymentsCount}
           onPostClick={handlePostClick}
           onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
           onMyBidsClick={() => requireAuth(() => openModal('myBids'), 'Sign in to view your bids')}
-          darkMode={darkMode}
+          onPaymentReviewClick={isAdmin ? handlePaymentReviewClick : undefined}
         />
 
         {/* Main Content */}
@@ -524,6 +656,10 @@ export default function GetGoApp() {
             </p>
           </main>
         )}
+
+        {activeTab === 'adminPayments' && isAdmin && (
+          <AdminPaymentsView darkMode={darkMode} />
+        )}
       </div>
 
       {/* Mobile Navigation */}
@@ -532,7 +668,9 @@ export default function GetGoApp() {
         onTabChange={setActiveTab}
         onPostClick={handlePostClick}
         unreadMessages={0}
+        unreadBids={0}
         unreadNotifications={unreadNotifications}
+        currentRole={userRole}
       />
 
       {/* Modals */}
@@ -670,6 +808,12 @@ export default function GetGoApp() {
           closeModal('cargoDetails');
           openModal('chat', { bid, listing, type: 'cargo', bidId: bid.id });
         }}
+        onAcceptBid={handleAcceptBid}
+        onRejectBid={handleRejectBid}
+        onCreateContract={(bid, listing) => {
+          closeModal('cargoDetails');
+          handleCreateContract(bid, listing);
+        }}
         darkMode={darkMode}
       />
 
@@ -688,6 +832,12 @@ export default function GetGoApp() {
         onOpenChat={(bid, listing) => {
           closeModal('truckDetails');
           openModal('chat', { bid, listing, type: 'truck', bidId: bid.id });
+        }}
+        onAcceptBid={handleAcceptBid}
+        onRejectBid={handleRejectBid}
+        onCreateContract={(bid, listing) => {
+          closeModal('truckDetails');
+          handleCreateContract(bid, listing);
         }}
         darkMode={darkMode}
       />
@@ -718,6 +868,50 @@ export default function GetGoApp() {
           closeModal('myBids');
           openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
         }}
+      />
+
+      {/* Platform Fee Modal */}
+      <PlatformFeeModal
+        open={modals.platformFee}
+        onClose={() => closeModal('platformFee')}
+        data={getModalData('platformFee')}
+        walletBalance={walletBalance}
+        onPaymentComplete={handleFeePaymentComplete}
+        onTopUp={handleTopUpFromFee}
+        loading={contractLoading}
+      />
+
+      {/* Contract Modal */}
+      <ContractModal
+        open={modals.contract}
+        onClose={() => closeModal('contract')}
+        contract={getModalData('contract')}
+        currentUser={{ id: authUser?.uid, ...userProfile }}
+        onSign={handleSignContract}
+        onComplete={handleCompleteContract}
+        loading={contractLoading}
+      />
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        open={modals.notifications}
+        onClose={() => closeModal('notifications')}
+        notifications={firebaseNotifications}
+        loading={false}
+        onMarkAsRead={markNotificationRead}
+        onMarkAllAsRead={markAllNotificationsRead}
+        currentUserId={authUser?.uid}
+      />
+
+      {/* Wallet Modal */}
+      <WalletModal
+        open={modals.wallet}
+        onClose={() => closeModal('wallet')}
+        walletBalance={walletBalance}
+        transactions={firebaseWalletTransactions || []}
+        loading={walletLoading}
+        onTopUp={handleWalletTopUp}
+        onPayout={handleWalletPayout}
       />
 
       {/* Edit Cargo Modal (uses PostModal in edit mode) */}

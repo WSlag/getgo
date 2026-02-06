@@ -2,6 +2,7 @@ import { Filter, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CargoCard } from '@/components/cargo/CargoCard';
 import { TruckCard } from '@/components/truck/TruckCard';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export function HomeView({
   activeMarket = 'cargo',
@@ -27,6 +28,9 @@ export function HomeView({
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
 
+  // Detect mobile screen for compact cards
+  const isMobile = useMediaQuery('(max-width: 1023px)');
+
   const filterOptions = [
     { id: 'all', label: 'All' },
     { id: 'open', label: activeMarket === 'cargo' ? 'Open' : 'Available' },
@@ -34,37 +38,37 @@ export function HomeView({
   ];
 
   return (
-    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto lg:p-8", className)} style={{ padding: '28px 14px' }}>
+    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '16px 14px' : '32px' }}>
       {/* Mobile Market Switcher - only visible on mobile */}
-      <div className="lg:hidden flex gap-2" style={{ marginBottom: '24px' }}>
+      <div className="lg:hidden flex gap-2" style={{ marginBottom: '16px' }}>
         <button
           onClick={() => onMarketChange?.('cargo')}
           className={cn(
-            "flex-1 rounded-xl font-medium text-sm transition-all",
+            "flex-1 rounded-full font-medium text-sm transition-all active:scale-95",
             activeMarket === 'cargo'
               ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30"
               : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
           )}
-          style={{ padding: '16px 16px' }}
+          style={{ padding: '12px 16px' }}
         >
           Cargo
         </button>
         <button
           onClick={() => onMarketChange?.('trucks')}
           className={cn(
-            "flex-1 rounded-xl font-medium text-sm transition-all",
+            "flex-1 rounded-full font-medium text-sm transition-all active:scale-95",
             activeMarket === 'trucks'
               ? "bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg shadow-blue-500/30"
               : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
           )}
-          style={{ padding: '16px 16px' }}
+          style={{ padding: '12px 16px' }}
         >
           Trucks
         </button>
       </div>
 
       {/* Search Bar */}
-      <div className="relative" style={{ marginBottom: '24px' }}>
+      <div className="relative" style={{ marginBottom: isMobile ? '16px' : '24px' }}>
         <div className="relative">
           <input
             type="text"
@@ -74,13 +78,15 @@ export function HomeView({
               ? "Search by shipper, route, or cargo type..."
               : "Search by trucker, route, or vehicle type..."}
             className={cn(
-              "w-full rounded-xl border border-gray-200 dark:border-gray-700",
-              "bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-lg",
-              "placeholder:text-gray-400 dark:placeholder:text-gray-500 placeholder:text-lg",
+              "w-full rounded-full border border-gray-200 dark:border-gray-700",
+              "bg-white dark:bg-gray-800 text-gray-900 dark:text-white",
+              isMobile ? "text-sm" : "text-lg",
+              "placeholder:text-gray-400 dark:placeholder:text-gray-500",
+              isMobile ? "placeholder:text-sm" : "placeholder:text-lg",
               "focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500",
               "transition-all duration-200"
             )}
-            style={{ padding: '15px 16px' }}
+            style={{ padding: isMobile ? '12px 16px' : '15px 16px' }}
           />
           {searchQuery && (
             <button
@@ -94,12 +100,20 @@ export function HomeView({
       </div>
 
       {/* Page Header - Figma style */}
-      <div className="flex items-center justify-between" style={{ marginBottom: '32px' }}>
+      <div className={cn(
+        isMobile ? "flex flex-col gap-4" : "flex items-center justify-between"
+      )} style={{ marginBottom: isMobile ? '20px' : '32px' }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white" style={{ marginBottom: '8px' }}>
+          <h1 className={cn(
+            "font-bold text-gray-900 dark:text-white",
+            isMobile ? "text-lg" : "text-2xl"
+          )} style={{ marginBottom: '4px' }}>
             {activeMarket === 'cargo' ? 'Available Cargo' : 'Available Trucks'}
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 text-base">
+          <p className={cn(
+            "text-gray-600 dark:text-gray-400",
+            isMobile ? "text-sm" : "text-base"
+          )}>
             <span className="font-semibold text-orange-500">
               {listingCount} {activeMarket === 'cargo' ? 'cargo listings' : 'trucks'}
             </span>{' '}
@@ -107,19 +121,23 @@ export function HomeView({
           </p>
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex" style={{ gap: '12px' }}>
+        {/* Filter Pills - Horizontal scroll on mobile */}
+        <div className={cn(
+          "flex",
+          isMobile ? "overflow-x-auto pb-2 -mx-3.5 px-3.5 scrollbar-hide" : ""
+        )} style={{ gap: isMobile ? '8px' : '12px' }}>
           {filterOptions.map((option) => (
             <button
               key={option.id}
               onClick={() => onFilterChange?.(option.id)}
               className={cn(
-                "rounded-xl font-medium text-sm transition-all duration-300 hover:scale-105 active:scale-95",
+                "rounded-xl font-medium transition-all duration-300 active:scale-95 whitespace-nowrap flex-shrink-0",
+                isMobile ? "text-xs" : "text-sm hover:scale-105",
                 filterStatus === option.id
                   ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30"
                   : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
               )}
-              style={{ padding: '10px 24px' }}
+              style={{ padding: isMobile ? '8px 16px' : '10px 24px' }}
             >
               {option.label}
             </button>
@@ -127,14 +145,18 @@ export function HomeView({
         </div>
       </div>
 
-      {/* Listings Grid */}
+      {/* Listings Grid - Compact on mobile (12px gap), full on desktop (32px gap) */}
       {listings.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+        <div className={cn(
+          "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3",
+          isMobile ? "gap-3" : "gap-8"
+        )}>
           {activeMarket === 'cargo'
             ? listings.map((cargo) => (
                 <CargoCard
                   key={cargo.id}
                   {...cargo}
+                  compact={isMobile}
                   onViewDetails={() => onViewCargoDetails?.(cargo)}
                   onBid={() => onBidCargo?.(cargo)}
                   onContact={() => onContactShipper?.(cargo)}
@@ -148,6 +170,7 @@ export function HomeView({
                 <TruckCard
                   key={truck.id}
                   {...truck}
+                  compact={isMobile}
                   onViewDetails={() => onViewTruckDetails?.(truck)}
                   onBook={() => onBookTruck?.(truck)}
                   onContact={() => onContactTrucker?.(truck)}

@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDK0-bmmPsuScseGdhN4wj71knEEeicpGs",
@@ -21,6 +22,26 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app, 'asia-southeast1');
+
+// Expose functions on window for admin setup (console access)
+if (typeof window !== 'undefined') {
+  window.firebaseFunctions = functions;
+  window.initAdmin = async () => {
+    const { httpsCallable } = await import('firebase/functions');
+    const initFirstAdmin = httpsCallable(functions, 'initializeFirstAdmin');
+    try {
+      const result = await initFirstAdmin();
+      console.log('SUCCESS:', result.data);
+      alert('You are now an admin! Please refresh the page.');
+      return result.data;
+    } catch (error) {
+      console.error('Error:', error.code, error.message);
+      alert('Error: ' + error.message);
+      throw error;
+    }
+  };
+}
 
 // Initialize Analytics (only in browser)
 let analytics = null;

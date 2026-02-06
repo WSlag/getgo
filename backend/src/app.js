@@ -22,6 +22,7 @@ import notificationsRoutes from './routes/notifications.js';
 import contractsRoutes from './routes/contracts.js';
 import ratingsRoutes from './routes/ratings.js';
 import shipmentsRoutes from './routes/shipments.js';
+import adminRoutes from './routes/admin.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,14 +33,14 @@ const httpServer = createServer(app);
 // Socket.io setup
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
-    methods: ['GET', 'POST'],
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
 });
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'],
   credentials: true,
 }));
 app.use(express.json());
@@ -58,6 +59,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/contracts', contractsRoutes);
 app.use('/api/ratings', ratingsRoutes);
 app.use('/api/shipments', shipmentsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

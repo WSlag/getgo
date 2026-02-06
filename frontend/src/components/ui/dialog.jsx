@@ -47,6 +47,45 @@ const DialogContent = React.forwardRef(
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+// Bottom Sheet variant - slides up from bottom on mobile
+const DialogBottomSheet = React.forwardRef(
+  ({ className, children, ...props }, ref) => (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          // Mobile: Bottom sheet that slides up
+          "fixed inset-x-0 bottom-0 z-50 w-full border-t bg-background shadow-2xl duration-300",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+          "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          "rounded-t-3xl max-h-[90vh] overflow-y-auto",
+          // Desktop: Center modal
+          "lg:inset-auto lg:left-[50%] lg:top-[50%] lg:translate-x-[-50%] lg:translate-y-[-50%]",
+          "lg:max-w-2xl lg:rounded-2xl lg:border lg:data-[state=closed]:slide-out-to-top-[48%] lg:data-[state=open]:slide-in-from-top-[48%]",
+          "lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=open]:slide-in-from-left-1/2",
+          "lg:data-[state=closed]:zoom-out-95 lg:data-[state=open]:zoom-in-95",
+          className
+        )}
+        style={{ padding: '20px' }}
+        {...props}
+      >
+        {/* Drag Handle for mobile */}
+        <div className="lg:hidden flex justify-center pb-2">
+          <div className="w-12 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600" />
+        </div>
+        {children}
+        <DialogPrimitive.Close className="absolute right-4 top-4 lg:right-6 lg:top-6 rounded-xl p-2 opacity-70 ring-offset-background transition-all hover:opacity-100 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+          <X className="size-4" />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  )
+);
+DialogBottomSheet.displayName = "DialogBottomSheet";
+
 const DialogHeader = ({ className, ...props }) => (
   <div
     className={cn(
@@ -97,6 +136,7 @@ export {
   DialogClose,
   DialogTrigger,
   DialogContent,
+  DialogBottomSheet,
   DialogHeader,
   DialogFooter,
   DialogTitle,
