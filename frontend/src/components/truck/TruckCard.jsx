@@ -33,6 +33,7 @@ export function TruckCard({
   distance,
   estimatedTime,
   className,
+  compact = false, // New prop for condensed mobile view
 }) {
   // Status badge styles - Figma gradient style with shadows (matching CargoCard)
   const statusStyles = {
@@ -82,6 +83,88 @@ export function TruckCard({
   // Format capacity display
   const displayCapacity = capacity ? `${capacity}` : '';
 
+  // Compact status badge styles for mobile
+  const compactStatusStyles = {
+    available: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
+    open: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
+    'in-transit': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
+    booked: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
+    offline: 'bg-gray-100 text-gray-700 dark:bg-gray-900/40 dark:text-gray-400',
+  };
+
+  // Compact card variant for mobile - ~100px height
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "group relative bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] border border-gray-200/50 dark:border-gray-800/50 cursor-pointer",
+          className
+        )}
+        onClick={onViewDetails}
+      >
+        {/* Gradient Accent Bar */}
+        <div className={cn("h-1", currentGradient)} />
+
+        <div className="p-4">
+          {/* Row 1: Status Badge + Vehicle Type + Rate */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Badge
+                className={cn("uppercase tracking-wide text-[10px] font-semibold px-2 py-0.5", compactStatusStyles[status] || compactStatusStyles.available)}
+              >
+                {statusLabels[status] || 'AVAILABLE'}
+              </Badge>
+              {vehicleType && (
+                <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase text-[10px] px-2 py-0.5">
+                  {vehicleType}
+                </Badge>
+              )}
+            </div>
+            <div className={cn("rounded-lg px-3 py-1", currentGradient)}>
+              <span className="text-sm font-bold text-white">{formatPrice(askingRate)}</span>
+            </div>
+          </div>
+
+          {/* Row 2: Trucker + Capacity + Rating */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="font-semibold text-gray-900 dark:text-white text-sm truncate">{trucker}</span>
+            {displayCapacity && (
+              <>
+                <span className="text-gray-400">•</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{displayCapacity}</span>
+              </>
+            )}
+            {truckerRating > 0 && (
+              <>
+                <span className="text-gray-400">•</span>
+                <span className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-0.5">
+                  <Star className="size-3 fill-yellow-500 text-yellow-500" />
+                  {truckerRating.toFixed(1)}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Row 3: Route + Metrics */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <div className="size-2 rounded-full bg-green-500 flex-shrink-0" />
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{origin}</span>
+              <span className="text-orange-500 flex-shrink-0">→</span>
+              <div className="size-2 rounded-full bg-red-500 flex-shrink-0" />
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{destination}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
+              {distance && <span>{distance}</span>}
+              {estimatedTime && <span>• {estimatedTime}</span>}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Full card view (original)
   return (
     <div
       className={cn(

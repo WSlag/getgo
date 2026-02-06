@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GetGo Mobile Layout Mockups</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #1a1a1a;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .section {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #FF6B00;
+            margin-top: 0;
+        }
+        .svg-container {
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+            gap: 40px;
+        }
+        .phone-wrapper {
+            text-align: center;
+        }
+        .phone-wrapper h3 {
+            margin-bottom: 16px;
+            color: #333;
+        }
+        .shipper-label {
+            color: #3B82F6;
+        }
+        .trucker-label {
+            color: #10B981;
+        }
+        .key-changes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        .change-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 16px;
+            border-left: 4px solid #FF6B00;
+        }
+        .change-card h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        .change-card .before {
+            color: #F44336;
+            text-decoration: line-through;
+        }
+        .change-card .after {
+            color: #4CAF50;
+            font-weight: 600;
+        }
+        .nav-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-top: 20px;
+        }
+        .nav-box {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .nav-box h4 {
+            margin: 0 0 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .nav-box.shipper h4 {
+            color: #3B82F6;
+        }
+        .nav-box.trucker h4 {
+            color: #10B981;
+        }
+        .nav-tabs {
+            display: flex;
+            justify-content: space-around;
+            background: white;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .nav-tab {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+        .nav-tab .icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+        .nav-tab.active {
+            color: #FF6B00;
+            font-weight: 600;
+        }
+        .nav-tab.fab {
+            background: linear-gradient(135deg, #FF6B00, #FF9500);
+            color: white;
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: -16px;
+            box-shadow: 0 4px 12px rgba(255,107,0,0.4);
+        }
+        .nav-tab.fab .icon {
+            font-size: 24px;
+            margin: 0;
+        }
+        .feature-list {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #666;
+        }
+        .feature-list li {
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GetGo PWA - Mobile Layout Mockups</h1>
+
+        <!-- Shipper vs Trucker Views -->
+        <div class="section">
+            <h2>Shipper vs Trucker Mobile Views</h2>
+            <p style="color: #666; margin-bottom: 24px;">Separate accounts with tailored experiences for each user type</p>
+            <div class="svg-container">
+                <div class="phone-wrapper">
+                    <h3 class="shipper-label">🚢 SHIPPER Account</h3>
+                    <object data="frontend/src/assets/shipper-mobile-layout.svg" type="image/svg+xml" width="375" height="812">
+                        Your browser does not support SVG
+                    </object>
+                </div>
+                <div class="phone-wrapper">
+                    <h3 class="trucker-label">🚚 TRUCKER Account</h3>
+                    <object data="frontend/src/assets/trucker-mobile-layout.svg" type="image/svg+xml" width="375" height="812">
+                        Your browser does not support SVG
+                    </object>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Comparison -->
+        <div class="section">
+            <h2>Bottom Navigation by Account Type</h2>
+            <div class="nav-comparison">
+                <div class="nav-box shipper">
+                    <h4>🚢 Shipper Navigation</h4>
+                    <div class="nav-tabs">
+                        <div class="nav-tab active">
+                            <div class="icon">🏠</div>
+                            Home
+                        </div>
+                        <div class="nav-tab">
+                            <div class="icon">📋</div>
+                            Bookings
+                        </div>
+                        <div class="nav-tab fab">
+                            <div class="icon">+</div>
+                        </div>
+                        <div class="nav-tab">
+                            <div class="icon">💬</div>
+                            Chat
+                        </div>
+                        <div class="nav-tab">
+                            <div class="icon">📍</div>
+                            Track
+                        </div>
+                    </div>
+                    <ul class="feature-list">
+                        <li><strong>Home:</strong> Browse available trucks</li>
+                        <li><strong>Bookings:</strong> View trucks I've booked</li>
+                        <li><strong>Post:</strong> Post cargo that needs hauling</li>
+                        <li><strong>Chat:</strong> Messages with truckers</li>
+                        <li><strong>Track:</strong> Track my shipments</li>
+                    </ul>
+                </div>
+                <div class="nav-box trucker">
+                    <h4>🚚 Trucker Navigation</h4>
+                    <div class="nav-tabs">
+                        <div class="nav-tab active">
+                            <div class="icon">🏠</div>
+                            Home
+                        </div>
+                        <div class="nav-tab">
+                            <div class="icon">📦</div>
+                            My Bids
+                        </div>
+                        <div class="nav-tab fab">
+                            <div class="icon">+</div>
+                        </div>
+                        <div class="nav-tab">
+                            <div class="icon">💬</div>
+                            Chat
+                        </div>
+                        <div class="nav-tab">
+                            <div class="icon">🗺️</div>
+                            Routes
+                        </div>
+                    </div>
+                    <ul class="feature-list">
+                        <li><strong>Home:</strong> Browse available cargo</li>
+                        <li><strong>My Bids:</strong> Cargo I've bid on</li>
+                        <li><strong>Post:</strong> Post truck availability</li>
+                        <li><strong>Chat:</strong> Messages with shippers</li>
+                        <li><strong>Routes:</strong> Track deliveries + Route Optimizer</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Before/After Comparison -->
+        <div class="section">
+            <h2>Card Layout: Before vs After</h2>
+            <div class="svg-container">
+                <object data="frontend/src/assets/layout-comparison.svg" type="image/svg+xml" width="800" height="900">
+                    Your browser does not support SVG
+                </object>
+            </div>
+        </div>
+
+        <!-- Key Changes -->
+        <div class="section">
+            <h2>Key Changes Summary</h2>
+            <div class="key-changes">
+                <div class="change-card">
+                    <h3>Card Height</h3>
+                    <span class="before">~400px</span> → <span class="after">~100px</span>
+                </div>
+                <div class="change-card">
+                    <h3>Cards Per Screen</h3>
+                    <span class="before">1.5</span> → <span class="after">4-5</span>
+                </div>
+                <div class="change-card">
+                    <h3>Card Gap</h3>
+                    <span class="before">32px</span> → <span class="after">12px</span>
+                </div>
+                <div class="change-card">
+                    <h3>Card Padding</h3>
+                    <span class="before">24px</span> → <span class="after">16px</span>
+                </div>
+                <div class="change-card">
+                    <h3>Map Preview</h3>
+                    <span class="before">Every card</span> → <span class="after">Detail view only</span>
+                </div>
+                <div class="change-card">
+                    <h3>Image Thumbnails</h3>
+                    <span class="before">4 per card</span> → <span class="after">Detail view only</span>
+                </div>
+                <div class="change-card">
+                    <h3>Route Display</h3>
+                    <span class="before">Two rows</span> → <span class="after">Single line</span>
+                </div>
+                <div class="change-card">
+                    <h3>Detail View</h3>
+                    <span class="before">Modal popup</span> → <span class="after">Bottom sheet</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Dropdown -->
+        <div class="section">
+            <h2>Profile Dropdown (Avatar Click)</h2>
+            <p style="color: #666; margin-bottom: 24px;">When user clicks their avatar, this dropdown appears</p>
+            <div class="svg-container">
+                <object data="frontend/src/assets/profile-dropdown-mockup.svg" type="image/svg+xml" width="375" height="500">
+                    Your browser does not support SVG
+                </object>
+            </div>
+            <div style="margin-top: 20px; padding: 16px; background: #f8f9fa; border-radius: 12px;">
+                <h4 style="margin: 0 0 12px 0;">Dropdown Contents:</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #666;">
+                    <li><strong>Profile Header:</strong> Avatar, Name, Account Type, Rating</li>
+                    <li><strong>Edit Profile:</strong> Update name, photo, contact info</li>
+                    <li><strong>Notifications:</strong> Push notification settings</li>
+                    <li><strong>Dark Mode:</strong> Toggle switch</li>
+                    <li><strong>Help & Support:</strong> Contact support</li>
+                    <li><strong>Logout:</strong> Sign out of account</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Account Differences -->
+        <div class="section">
+            <h2>Account Type Differences</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+                <thead>
+                    <tr style="background: #f8f9fa;">
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">Feature</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0; color: #3B82F6;">🚢 Shipper</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0; color: #10B981;">🚚 Trucker</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Home View</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Browse Trucks to book</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Browse Cargo to bid on</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Post Button</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Post Cargo</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Post Truck Availability</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Bids/Bookings Tab</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">My Bookings (trucks booked)</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">My Bids (cargo bid on)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Track/Routes Tab</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Track Shipments</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Routes + Route Optimizer</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Wallet</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Pay for bookings</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">Receive payments</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px;">Registration</td>
+                        <td style="padding: 12px;">Separate shipper account</td>
+                        <td style="padding: 12px;">Separate trucker account</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

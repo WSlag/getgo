@@ -1,11 +1,11 @@
 import React from 'react';
 import { MapPin, Package, Truck, DollarSign, MessageSquare, Clock, Loader2, FileText } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -58,174 +58,112 @@ export function MyBidsModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent style={{ maxWidth: '600px', maxHeight: '85vh', overflow: 'hidden' }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto backdrop-blur-sm">
         <DialogHeader>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              background: isTrucker
-                ? 'linear-gradient(to bottom right, #34d399, #10b981)'
-                : 'linear-gradient(to bottom right, #a78bfa, #7c3aed)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: isTrucker
-                ? '0 10px 15px -3px rgba(16, 185, 129, 0.3)'
-                : '0 10px 15px -3px rgba(139, 92, 246, 0.3)'
-            }}>
-              <FileText style={{ width: '24px', height: '24px', color: 'white' }} />
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "size-12 rounded-xl flex items-center justify-center shadow-lg",
+              isTrucker
+                ? "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/30"
+                : "bg-gradient-to-br from-violet-400 to-violet-600 shadow-violet-500/30"
+            )}>
+              <FileText className="size-6 text-white" />
             </div>
             <div>
-              <DialogTitle>{title}</DialogTitle>
-              <DialogDescription>{description}</DialogDescription>
+              <DialogTitle className="text-xl">{title}</DialogTitle>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {description}
+              </p>
             </div>
           </div>
         </DialogHeader>
 
         {/* Bids List */}
-        <div style={{
-          maxHeight: 'calc(85vh - 140px)',
-          overflowY: 'auto',
-          paddingRight: '8px',
-        }}>
+        <div className="max-h-[calc(90vh-180px)] overflow-y-auto pr-2">
           {loading ? (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '48px 0',
-            }}>
-              <Loader2 style={{
-                width: '32px',
-                height: '32px',
-                color: isTrucker ? '#10b981' : '#7c3aed',
-                animation: 'spin 1s linear infinite'
-              }} />
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className={cn(
+                "size-8 animate-spin",
+                isTrucker ? "text-emerald-500" : "text-violet-500"
+              )} />
             </div>
           ) : bids.length === 0 ? (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '48px 0',
-              textAlign: 'center',
-            }}>
-              <div style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                backgroundColor: '#f3f4f6',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '16px',
-              }}>
-                <FileText style={{ width: '32px', height: '32px', color: '#9ca3af' }} />
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="size-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                <FileText className="size-8 text-gray-400" />
               </div>
-              <p style={{ color: '#4b5563', fontWeight: '500', marginBottom: '4px' }}>
+              <p className="text-gray-600 dark:text-gray-300 font-medium mb-1">
                 No {isTrucker ? 'bids' : 'bookings'} yet
               </p>
-              <p style={{ fontSize: '14px', color: '#6b7280' }}>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 {isTrucker
                   ? 'Start bidding on cargo listings to see them here'
                   : 'Book trucks to see your bookings here'}
               </p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="space-y-3">
               {bids.map((bid) => (
                 <div
                   key={bid.id}
-                  style={{
-                    padding: '16px',
-                    borderRadius: '12px',
-                    backgroundColor: '#f9fafb',
-                    border: '1px solid #e5e7eb',
-                  }}
+                  className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700"
                 >
                   {/* Header - Listing Info */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '10px',
-                        background: bid.cargoListingId
-                          ? 'linear-gradient(to bottom right, #fb923c, #ea580c)'
-                          : 'linear-gradient(to bottom right, #a78bfa, #7c3aed)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "size-10 rounded-xl flex items-center justify-center",
+                        bid.cargoListingId
+                          ? "bg-gradient-to-br from-orange-400 to-orange-600"
+                          : "bg-gradient-to-br from-violet-400 to-violet-600"
+                      )}>
                         {bid.cargoListingId ? (
-                          <Package style={{ width: '20px', height: '20px', color: 'white' }} />
+                          <Package className="size-5 text-white" />
                         ) : (
-                          <Truck style={{ width: '20px', height: '20px', color: 'white' }} />
+                          <Truck className="size-5 text-white" />
                         )}
                       </div>
                       <div>
-                        <p style={{ fontWeight: '600', color: '#111827', fontSize: '14px' }}>
+                        <p className="font-semibold text-gray-900 dark:text-white text-sm">
                           {bid.listingOwnerName || 'Listing Owner'}
                         </p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#6b7280' }}>
-                          <Clock style={{ width: '12px', height: '12px' }} />
+                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                          <Clock className="size-3" />
                           <span>{formatTimeAgo(bid.createdAt)}</span>
                         </div>
                       </div>
                     </div>
-                    <Badge className={getStatusBadge(bid.status)} style={{ padding: '4px 10px', fontSize: '11px', textTransform: 'uppercase' }}>
+                    <Badge className={cn("uppercase text-[11px] px-2.5 py-1", getStatusBadge(bid.status))}>
                       {bid.status || 'pending'}
                     </Badge>
                   </div>
 
                   {/* Route */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '10px 12px',
-                    backgroundColor: 'white',
-                    borderRadius: '8px',
-                    marginBottom: '12px',
-                    fontSize: '13px',
-                  }}>
-                    <MapPin style={{ width: '14px', height: '14px', color: '#22c55e', flexShrink: 0 }} />
-                    <span style={{ color: '#374151' }}>{bid.origin || '---'}</span>
-                    <span style={{ color: '#9ca3af' }}>→</span>
-                    <MapPin style={{ width: '14px', height: '14px', color: '#ef4444', flexShrink: 0 }} />
-                    <span style={{ color: '#374151' }}>{bid.destination || '---'}</span>
+                  <div className="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg mb-3 text-sm">
+                    <MapPin className="size-3.5 text-green-500 flex-shrink-0" />
+                    <span className="text-gray-700 dark:text-gray-300">{bid.origin || '---'}</span>
+                    <span className="text-gray-400">→</span>
+                    <MapPin className="size-3.5 text-red-500 flex-shrink-0" />
+                    <span className="text-gray-700 dark:text-gray-300">{bid.destination || '---'}</span>
                   </div>
 
                   {/* Bid Amount */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <DollarSign style={{ width: '16px', height: '16px', color: '#10b981' }} />
-                      <span style={{ fontSize: '13px', color: '#6b7280' }}>Your bid:</span>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-1.5">
+                      <DollarSign className="size-4 text-emerald-500" />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Your bid:</span>
                     </div>
-                    <span style={{
-                      fontWeight: '700',
-                      fontSize: '18px',
-                      color: '#10b981',
-                    }}>
+                    <span className="font-bold text-lg text-emerald-600 dark:text-emerald-400">
                       {formatPrice(bid.price)}
                     </span>
                   </div>
 
                   {/* Your Message */}
                   {bid.message && (
-                    <div style={{
-                      padding: '10px 12px',
-                      backgroundColor: '#ecfdf5',
-                      border: '1px solid #a7f3d0',
-                      borderRadius: '8px',
-                      marginBottom: '12px',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                        <MessageSquare style={{ width: '14px', height: '14px', color: '#10b981', marginTop: '2px', flexShrink: 0 }} />
-                        <p style={{ fontSize: '13px', color: '#065f46', fontStyle: 'italic' }}>
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/30 rounded-lg mb-3">
+                      <div className="flex items-start gap-2">
+                        <MessageSquare className="size-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-emerald-700 dark:text-emerald-300 italic">
                           "{sanitizeMessage(bid.message)}"
                         </p>
                       </div>
@@ -236,9 +174,8 @@ export function MyBidsModal({
                   <Button
                     variant="outline"
                     size="sm"
-                    style={{ width: '100%', gap: '8px' }}
+                    className="w-full gap-2"
                     onClick={() => {
-                      // Create a listing-like object for the chat modal
                       const listingData = {
                         id: bid.cargoListingId || bid.truckListingId,
                         origin: bid.origin,
@@ -251,7 +188,7 @@ export function MyBidsModal({
                       onOpenChat?.(bid, listingData);
                     }}
                   >
-                    <MessageSquare style={{ width: '16px', height: '16px' }} />
+                    <MessageSquare className="size-4" />
                     View Chat
                   </Button>
                 </div>
@@ -261,8 +198,8 @@ export function MyBidsModal({
         </div>
 
         {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
-          <Button variant="ghost" onClick={onClose}>
+        <div className="flex gap-3 pt-4">
+          <Button variant="ghost" onClick={onClose} className="flex-1">
             Close
           </Button>
         </div>

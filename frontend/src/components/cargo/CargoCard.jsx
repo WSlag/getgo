@@ -41,6 +41,7 @@ export function CargoCard({
   category = 'CARGO',
   gradientClass,
   className,
+  compact = false, // New prop for condensed mobile view
 }) {
   // Status badge styles - Figma gradient style with shadows
   const statusStyles = {
@@ -88,6 +89,75 @@ export function CargoCard({
   const displayWeight = weight ? (unit && unit !== 'kg' ? `${weight} ${unit}` : `${weight} tons`) : '';
   const currentGradient = gradientClass || gradientColors[status] || gradientColors.open;
 
+  // Compact status badge styles for mobile
+  const compactStatusStyles = {
+    open: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
+    waiting: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
+    negotiating: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
+    'in-progress': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
+    delivered: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400',
+  };
+
+  // Compact card variant for mobile - ~100px height
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "group relative bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] border border-gray-200/50 dark:border-gray-800/50 cursor-pointer",
+          className
+        )}
+        onClick={onViewDetails}
+      >
+        {/* Gradient Accent Bar */}
+        <div className={cn("h-1", currentGradient)} />
+
+        <div className="p-4">
+          {/* Row 1: Status Badge + Price */}
+          <div className="flex items-center justify-between mb-2">
+            <Badge
+              className={cn("uppercase tracking-wide text-[10px] font-semibold px-2 py-0.5", compactStatusStyles[status] || compactStatusStyles.open)}
+            >
+              {status === 'negotiating' ? 'NEGOTIATING' : status.toUpperCase()}
+            </Badge>
+            <div className={cn("rounded-lg px-3 py-1", currentGradient)}>
+              <span className="text-sm font-bold text-white">{formatPrice(displayPrice)}</span>
+            </div>
+          </div>
+
+          {/* Row 2: Company + Weight */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="font-semibold text-gray-900 dark:text-white text-sm truncate">{displayCompany}</span>
+            {displayWeight && (
+              <>
+                <span className="text-gray-400">•</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{displayWeight}</span>
+              </>
+            )}
+          </div>
+
+          {/* Row 3: Route + Metrics */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <div className="size-2 rounded-full bg-green-500 flex-shrink-0" />
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{origin}</span>
+              <span className="text-orange-500 flex-shrink-0">→</span>
+              <div className="size-2 rounded-full bg-red-500 flex-shrink-0" />
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{destination}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
+              {distance && <span>{distance}</span>}
+              {displayTime && <span>• {displayTime}</span>}
+              {bidCount > 0 && (
+                <span className="text-orange-600 dark:text-orange-400 font-semibold">• {bidCount} {bidCount === 1 ? 'bid' : 'bids'}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Full card view (original)
   return (
     <div
       className={cn(

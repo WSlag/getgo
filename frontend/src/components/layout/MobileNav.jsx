@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Package, MessageSquare, TrendingUp, User, Plus, Bell } from 'lucide-react';
+import { Home, Package, MessageSquare, TrendingUp, User, Plus, Bell, ClipboardList, Map } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -9,15 +9,30 @@ export function MobileNav({
   onPostClick,
   unreadMessages = 0,
   unreadNotifications = 0,
+  unreadBids = 0,
+  currentRole = 'shipper', // 'shipper' or 'trucker'
   className,
 }) {
-  const navItems = [
+  // Account-specific navigation items
+  // Shipper: Home, Bookings, Post, Chat, Track
+  // Trucker: Home, My Bids, Post, Chat, Routes
+  const shipperNavItems = [
     { id: 'home', label: 'Home', icon: Home },
-    { id: 'bids', label: 'Bids', icon: Package },
+    { id: 'bids', label: 'Bookings', icon: ClipboardList, badge: unreadBids },
     { id: 'post', label: 'Post', icon: Plus, isAction: true },
     { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadMessages },
     { id: 'tracking', label: 'Track', icon: TrendingUp },
   ];
+
+  const truckerNavItems = [
+    { id: 'home', label: 'Home', icon: Home },
+    { id: 'bids', label: 'My Bids', icon: Package, badge: unreadBids },
+    { id: 'post', label: 'Post', icon: Plus, isAction: true },
+    { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadMessages },
+    { id: 'tracking', label: 'Routes', icon: Map },
+  ];
+
+  const navItems = currentRole === 'trucker' ? truckerNavItems : shipperNavItems;
 
   return (
     <nav

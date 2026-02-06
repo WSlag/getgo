@@ -19,6 +19,27 @@ service firebase.storage {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Payment screenshots - users can upload to their own folder
+    // Only images under 5MB allowed
+    match /payments/{userId}/{allPaths=**} {
+      // Users can read their own, admins (with custom claim) can read all for review
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        request.auth.token.admin == true
+      );
+      // Users can only upload images under 5MB
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Static assets folder (GCash QR code, etc.) - public read
+    match /assets/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; // Only admin uploads via Firebase Console
+    }
+
     // Default deny all other paths
     match /{allPaths=**} {
       allow read, write: if false;

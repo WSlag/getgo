@@ -1,9 +1,8 @@
-import { Ship, Package, Truck, Plus, CheckCircle, Route, Navigation, MessageSquare, FileText } from 'lucide-react';
+import { Ship, Package, Truck, Plus, CheckCircle, Route, Navigation, MessageSquare, FileText, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Sidebar({
   currentRole = 'shipper',
-  onRoleChange,
   activeMarket = 'cargo',
   onMarketChange,
   cargoCount = 0,
@@ -12,11 +11,37 @@ export function Sidebar({
   availableTrucksCount = 0,
   activeShipmentsCount = 0,
   myBidsCount = 0,
+  pendingPaymentsCount = 0,
+  isAdmin = false,
   onPostClick,
   onRouteOptimizerClick,
   onMyBidsClick,
+  onPaymentReviewClick,
   className,
 }) {
+  // Account type display configuration
+  const accountConfig = {
+    shipper: {
+      icon: Ship,
+      label: 'Shipper Account',
+      bgGradient: 'from-blue-500 to-blue-600',
+      shadowColor: 'shadow-blue-500/30',
+      badgeBg: 'bg-blue-100 dark:bg-blue-900/50',
+      badgeText: 'text-blue-600 dark:text-blue-400',
+    },
+    trucker: {
+      icon: Truck,
+      label: 'Trucker Account',
+      bgGradient: 'from-emerald-500 to-emerald-600',
+      shadowColor: 'shadow-emerald-500/30',
+      badgeBg: 'bg-emerald-100 dark:bg-emerald-900/50',
+      badgeText: 'text-emerald-600 dark:text-emerald-400',
+    },
+  };
+
+  const config = accountConfig[currentRole] || accountConfig.shipper;
+  const AccountIcon = config.icon;
+
   return (
     <aside
       className={cn(
@@ -24,36 +49,21 @@ export function Sidebar({
         className
       )}
     >
-      {/* Role Selector */}
-      <div className="border-b border-gray-200/50 dark:border-gray-800/50" style={{ padding: '35px 24px 35px 24px' }}>
-        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide" style={{ marginBottom: '15px' }}>I am a</p>
-        <div className="flex gap-2">
-          <button
-            onClick={() => onRoleChange?.('shipper')}
-            className={cn(
-              "flex-1 px-3 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 flex flex-col items-center justify-center",
-              currentRole === 'shipper'
-                ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40"
-                : "bg-white/80 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50"
-            )}
-            style={{ paddingTop: '15px', paddingBottom: '15px' }}
-          >
-            <Ship className="size-4 mb-1" />
-            <span className="text-xs font-medium">Shipper</span>
-          </button>
-          <button
-            onClick={() => onRoleChange?.('trucker')}
-            className={cn(
-              "flex-1 px-3 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 flex flex-col items-center justify-center",
-              currentRole === 'trucker'
-                ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40"
-                : "bg-white/80 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50"
-            )}
-            style={{ paddingTop: '15px', paddingBottom: '15px' }}
-          >
-            <Truck className="size-4 mb-1" />
-            <span className="text-xs font-medium">Trucker</span>
-          </button>
+      {/* Account Type Display (Read-only) */}
+      <div className="border-b border-gray-200/50 dark:border-gray-800/50" style={{ padding: '24px' }}>
+        <div className={cn(
+          "flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br",
+          config.bgGradient,
+          "text-white shadow-lg",
+          config.shadowColor
+        )}>
+          <div className="size-10 rounded-lg bg-white/20 flex items-center justify-center">
+            <AccountIcon className="size-5" />
+          </div>
+          <div>
+            <p className="text-xs text-white/70 uppercase tracking-wide">Logged in as</p>
+            <p className="font-semibold">{config.label}</p>
+          </div>
         </div>
       </div>
 
@@ -134,6 +144,23 @@ export function Sidebar({
               {myBidsCount > 0 && (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-purple-200/70 dark:bg-purple-800/40 text-purple-700 dark:text-purple-300">
                   {myBidsCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Admin Dashboard - Admin Only */}
+          {isAdmin && onPaymentReviewClick && (
+            <button
+              onClick={onPaymentReviewClick}
+              className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 text-amber-700 dark:text-amber-400 hover:shadow-md border border-amber-200/50 dark:border-amber-800/50"
+              style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+            >
+              <Shield className="size-5" />
+              <span className="font-medium flex-1 text-left">Admin Dashboard</span>
+              {pendingPaymentsCount > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-red-500 text-white animate-pulse">
+                  {pendingPaymentsCount}
                 </span>
               )}
             </button>

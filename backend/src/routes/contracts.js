@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { Op } from 'sequelize';
 import {
   Contract,
   Bid,
@@ -10,12 +9,13 @@ import {
   ShipperProfile,
   Notification,
   Shipment,
+  WalletTransaction,
 } from '../models/index.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
-const PLATFORM_FEE_RATE = parseFloat(process.env.PLATFORM_FEE_RATE) || 0.03;
+const PLATFORM_FEE_RATE = parseFloat(process.env.PLATFORM_FEE_RATE) || 0.05;
 
 // Generate unique contract number
 const generateContractNumber = () => {
@@ -187,7 +187,15 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Create contract from accepted bid
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { bidId, terms } = req.body;
+    const {
+      bidId,
+      terms,
+      declaredCargoValue,
+      pickupDate,
+      expectedDeliveryDate,
+      specialInstructions,
+      liabilityAcknowledged
+    } = req.body;
 
     if (!bidId) {
       return res.status(400).json({ error: 'Bid ID is required' });
@@ -224,7 +232,8 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Contract already exists for this bid' });
     }
 
-    // Determine listing owner
+    // Determine listing and type
+    const isCargo = !!bid.CargoListing;
     const listing = bid.CargoListing || bid.TruckListing;
     const listingOwnerId = listing.userId;
 
@@ -235,13 +244,81 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const platformFee = Math.round(bid.price * PLATFORM_FEE_RATE);
 
-    // Create contract
+    // Check if platform fee has been paid
+    const feeTransaction = await WalletTransaction.findOne({
+      where: {
+        reference: bidId,
+        type: 'fee',
+        status: 'completed',
+      },
+    });
+
+    if (!feeTransaction) {
+      return res.status(400).json({
+        error: 'Platform fee must be paid before creating contract',
+        requiresPayment: true,
+        platformFee: platformFee,
+        bidId: bidId,
+      });
+    }
+
+    // Build default terms
+    const defaultTerms = `
+KARGA FREIGHT TRANSPORTATION CONTRACT
+
+This Contract is entered into between the Shipper and Trucker through the Karga platform.
+
+1. TRANSPORTATION SERVICES
+The Trucker agrees to transport cargo from ${listing.origin} to ${listing.destination}.
+
+2. CARGO LIABILITY
+- Maximum liability: PHP ${(declaredCargoValue || 100000).toLocaleString()} (Declared Value)
+- Trucker exercises extraordinary diligence per Philippine Civil Code
+- Exceptions: Force majeure, shipper's fault, inherent defect
+
+3. PAYMENT TERMS
+- Freight Rate: PHP ${Number(bid.price).toLocaleString()}
+- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - PAID
+- Payment Method: Direct payment from Shipper to Trucker
+- Payment Schedule: As agreed between parties (COD, advance, or partial)
+
+4. OBLIGATIONS
+Shipper: Accurate cargo info, proper packaging, timely payment to Trucker
+Trucker: Safe transport, communication, timely delivery
+
+5. DISPUTE RESOLUTION
+Negotiation (7 days) → Mediation (14 days) → Arbitration per RA 9285
+
+6. PLATFORM DISCLAIMER
+Karga is a technology platform only, NOT a party to this contract.
+Karga has no liability for cargo loss, damage, payment disputes, or other issues between parties.
+
+7. GOVERNING LAW
+Republic of the Philippines
+
+By signing, both parties agree to these terms.
+    `.trim();
+
+    // Create contract with full details
     const contract = await Contract.create({
       bidId,
       contractNumber: generateContractNumber(),
       agreedPrice: bid.price,
       platformFee,
-      terms: terms || `Standard terms for shipment from ${listing.origin} to ${listing.destination}`,
+      declaredCargoValue: declaredCargoValue || 100000,
+      pickupDate: pickupDate || listing.pickupDate || listing.availableDate,
+      pickupAddress: listing.origin,
+      deliveryAddress: listing.destination,
+      expectedDeliveryDate: expectedDeliveryDate || null,
+      cargoType: isCargo ? listing.cargoType : (bid.cargoType || 'General'),
+      cargoWeight: isCargo ? listing.weight : (bid.cargoWeight || 0),
+      cargoWeightUnit: isCargo ? listing.weightUnit : 'tons',
+      cargoDescription: listing.description || '',
+      specialInstructions: specialInstructions || '',
+      vehicleType: isCargo ? listing.vehicleNeeded : listing.vehicleType,
+      vehiclePlateNumber: isCargo ? '' : listing.plateNumber,
+      terms: terms || defaultTerms,
+      liabilityAcknowledged: liabilityAcknowledged || false,
       status: 'draft',
     });
 
@@ -253,7 +330,7 @@ router.post('/', authenticateToken, async (req, res) => {
       userId: bid.bidderId,
       type: 'CONTRACT_READY',
       title: 'Contract Ready for Signing',
-      message: `Contract #${contract.contractNumber} is ready for your signature`,
+      message: `Contract #${contract.contractNumber} is ready for your signature. Please review the terms and sign to proceed.`,
       data: { contractId: contract.id, bidId },
     });
 
@@ -332,7 +409,9 @@ router.put('/:id/sign', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to sign this contract' });
     }
 
-    const signature = `${req.user.name} - ${new Date().toISOString()}`;
+    const signatureTimestamp = new Date();
+    const clientIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || 'unknown';
+    const signature = `${req.user.name} - ${signatureTimestamp.toISOString()}`;
     const updates = {};
 
     if (isShipper) {
@@ -340,11 +419,15 @@ router.put('/:id/sign', authenticateToken, async (req, res) => {
         return res.status(400).json({ error: 'Shipper has already signed' });
       }
       updates.shipperSignature = signature;
+      updates.shipperSignedAt = signatureTimestamp;
+      updates.shipperSignatureIp = clientIp;
     } else {
       if (contract.truckerSignature) {
         return res.status(400).json({ error: 'Trucker has already signed' });
       }
       updates.truckerSignature = signature;
+      updates.truckerSignedAt = signatureTimestamp;
+      updates.truckerSignatureIp = clientIp;
     }
 
     await contract.update(updates);

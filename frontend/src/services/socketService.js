@@ -58,11 +58,16 @@ class SocketService {
       console.log('Socket disconnected:', reason);
     });
 
-    this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error.message);
+    this.socket.on('connect_error', () => {
       this.reconnectAttempts++;
+
+      // Only log first error to reduce console noise
+      if (this.reconnectAttempts === 1) {
+        console.warn(`Socket server unavailable (${SOCKET_URL}) - real-time features disabled`);
+      }
+
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.warn('Max reconnection attempts reached. Running in offline mode.');
+        console.info('Running in offline mode. Start backend server for real-time features.');
       }
     });
 
