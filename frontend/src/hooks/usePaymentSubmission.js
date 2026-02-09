@@ -8,7 +8,7 @@ import {
   limit,
   onSnapshot
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 
 /**
  * Hook to watch a payment submission's status in real-time
@@ -70,7 +70,8 @@ export function useOrderSubmission(orderId) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!orderId) {
+    const userId = auth.currentUser?.uid;
+    if (!orderId || !userId) {
       setLoading(false);
       return;
     }
@@ -81,6 +82,7 @@ export function useOrderSubmission(orderId) {
     const q = query(
       collection(db, 'paymentSubmissions'),
       where('orderId', '==', orderId),
+      where('userId', '==', userId),
       orderBy('createdAt', 'desc'),
       limit(1)
     );

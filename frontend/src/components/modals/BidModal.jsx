@@ -70,6 +70,9 @@ export function BidModal({
 
   if (!listing) return null;
 
+  // Prevent bidding on non-open listings
+  const canPlaceBid = listing.status === 'open' || listing.status === 'waiting' || listing.status === 'available';
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md backdrop-blur-sm">
@@ -100,6 +103,18 @@ export function BidModal({
           </div>
         </DialogHeader>
 
+        {/* Warning Banner for Non-Open Listings */}
+        {!canPlaceBid && (
+          <div className="p-4 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 rounded-xl border-2 border-red-200 dark:border-red-800">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+              ⚠️ This listing is no longer accepting bids
+            </p>
+            <p className="text-xs text-red-600 dark:text-red-500 mt-1">
+              Status: {listing.status?.toUpperCase()}
+            </p>
+          </div>
+        )}
+
         {/* Listing Summary */}
         <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850 rounded-xl">
           <div className="flex items-center justify-between mb-3">
@@ -119,12 +134,30 @@ export function BidModal({
             </Badge>
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-            <MapPin className="size-4 text-green-500" />
-            <span>{listing.origin}</span>
-            <span className="text-gray-300 dark:text-gray-600">→</span>
-            <MapPin className="size-4 text-red-500" />
-            <span>{listing.destination}</span>
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-2 mb-1">
+              <MapPin className="size-4 text-green-500" />
+              <span className="font-medium">{listing.origin}</span>
+            </div>
+            {listing.originStreetAddress && (
+              <p className="text-xs text-gray-500 ml-6 mb-2">
+                {listing.originStreetAddress}
+              </p>
+            )}
+
+            <div className="flex items-center gap-1 justify-center my-1">
+              <span className="text-gray-300 dark:text-gray-600">→</span>
+            </div>
+
+            <div className="flex items-center gap-2 mb-1">
+              <MapPin className="size-4 text-red-500" />
+              <span className="font-medium">{listing.destination}</span>
+            </div>
+            {listing.destinationStreetAddress && (
+              <p className="text-xs text-gray-500 ml-6">
+                {listing.destinationStreetAddress}
+              </p>
+            )}
           </div>
 
           {isCargo && (
@@ -239,10 +272,10 @@ export function BidModal({
           <Button
             variant="gradient"
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || !canPlaceBid}
             style={{ paddingLeft: '28px', paddingRight: '28px' }}
           >
-            {loading ? 'Submitting...' : `Submit ${isCargo ? 'Bid' : 'Offer'}`}
+            {loading ? 'Submitting...' : !canPlaceBid ? 'Bidding Closed' : `Submit ${isCargo ? 'Bid' : 'Offer'}`}
           </Button>
         </DialogFooter>
       </DialogContent>

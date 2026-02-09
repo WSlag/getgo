@@ -50,8 +50,10 @@ export function PostModal({
   const getInitialFormData = () => ({
     origin: '',
     originCoords: null,
+    originStreetAddress: '',
     destination: '',
     destCoords: null,
+    destinationStreetAddress: '',
     weight: '',
     unit: 'tons',
     cargoType: '',
@@ -71,8 +73,10 @@ export function PostModal({
       setFormData({
         origin: existingData.origin || '',
         originCoords: existingData.originCoords || null,
+        originStreetAddress: existingData.originStreetAddress || '',
         destination: existingData.destination || '',
         destCoords: existingData.destCoords || null,
+        destinationStreetAddress: existingData.destinationStreetAddress || '',
         weight: existingData.weight?.toString() || '',
         unit: existingData.unit || 'tons',
         cargoType: existingData.cargoType || '',
@@ -201,25 +205,67 @@ export function PostModal({
         <div className="py-4" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Route Section - Now using AddressSearch */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
-            <AddressSearch
-              label="Origin"
-              value={formData.origin}
-              onChange={(value) => handleChange('origin', value)}
-              onSelect={handleOriginSelect}
-              placeholder="Search origin city..."
-              error={errors.origin}
-              required
-            />
+            {/* Origin City and Street Address */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <AddressSearch
+                label="Origin"
+                value={formData.origin}
+                onChange={(value) => handleChange('origin', value)}
+                onSelect={handleOriginSelect}
+                placeholder="Search origin city..."
+                error={errors.origin}
+                required
+              />
 
-            <AddressSearch
-              label="Destination"
-              value={formData.destination}
-              onChange={(value) => handleChange('destination', value)}
-              onSelect={handleDestSelect}
-              placeholder="Search destination..."
-              error={errors.destination}
-              required
-            />
+              {/* Pickup Street Address */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                  Pickup Street Address
+                  <span className="text-xs text-gray-500 ml-2">(Optional but recommended)</span>
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g., 123 Main St, Barangay Central, Building Name"
+                  value={formData.originStreetAddress}
+                  onChange={(e) => handleChange('originStreetAddress', e.target.value)}
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Include building name, floor number, or landmarks to help the trucker find you
+                </p>
+              </div>
+            </div>
+
+            {/* Destination City and Street Address */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <AddressSearch
+                label="Destination"
+                value={formData.destination}
+                onChange={(value) => handleChange('destination', value)}
+                onSelect={handleDestSelect}
+                placeholder="Search destination..."
+                error={errors.destination}
+                required
+              />
+
+              {/* Delivery Street Address */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                  Delivery Street Address
+                  <span className="text-xs text-gray-500 ml-2">(Optional but recommended)</span>
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g., 456 Commerce Ave, Warehouse 3, Gate B"
+                  value={formData.destinationStreetAddress}
+                  onChange={(e) => handleChange('destinationStreetAddress', e.target.value)}
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Include receiving area details, contact person, or gate number
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Cargo Details - Shipper only */}

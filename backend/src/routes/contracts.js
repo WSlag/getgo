@@ -12,8 +12,36 @@ import {
   WalletTransaction,
 } from '../models/index.js';
 import { authenticateToken } from '../middleware/auth.js';
+import admin from '../config/firebase-admin.js';
 
 const router = Router();
+
+// Helper: fetch bid and listing data from Firestore
+async function getFirestoreBidData(bidId) {
+  const db = admin.firestore();
+  const bidDoc = await db.collection('bids').doc(bidId).get();
+  if (!bidDoc.exists) return null;
+
+  const bid = { id: bidDoc.id, ...bidDoc.data() };
+
+  // Fetch the listing from Firestore
+  let listing = null;
+  let isCargo = false;
+  if (bid.cargoListingId) {
+    const listingDoc = await db.collection('cargoListings').doc(bid.cargoListingId).get();
+    if (listingDoc.exists) {
+      listing = { id: listingDoc.id, ...listingDoc.data() };
+      isCargo = true;
+    }
+  } else if (bid.truckListingId) {
+    const listingDoc = await db.collection('truckListings').doc(bid.truckListingId).get();
+    if (listingDoc.exists) {
+      listing = { id: listingDoc.id, ...listingDoc.data() };
+    }
+  }
+
+  return { bid, listing, isCargo };
+}
 
 const PLATFORM_FEE_RATE = parseFloat(process.env.PLATFORM_FEE_RATE) || 0.05;
 
@@ -32,81 +60,42 @@ const generateTrackingNumber = () => {
   return `TRK-${random}`;
 };
 
+/**
+ * Compose full address from city + street address
+ * @param {string} city - City name (e.g., "Davao City")
+ * @param {string} streetAddress - Street-level details (e.g., "123 Main St, Bldg A")
+ * @returns {string} Full address or city if no street address
+ */
+function composeFullAddress(city, streetAddress) {
+  if (!streetAddress || streetAddress.trim() === '') {
+    return city;  // Fallback to city-only for old listings
+  }
+  return `${streetAddress}, ${city}`;
+}
+
 // Get all contracts for the current user
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { status, limit = 50, offset = 0 } = req.query;
+    const { status } = req.query;
+    const userId = req.user.uid;
+    const db = admin.firestore();
 
-    // Find contracts where user is either shipper or trucker
-    const contracts = await Contract.findAndCountAll({
-      include: [
-        {
-          model: Bid,
-          include: [
-            {
-              model: CargoListing,
-              include: [
-                {
-                  model: User,
-                  as: 'shipper',
-                  attributes: ['id', 'name', 'phone', 'email', 'facebookUrl'],
-                  include: [{ model: ShipperProfile, as: 'shipperProfile' }],
-                },
-              ],
-            },
-            {
-              model: TruckListing,
-              include: [
-                {
-                  model: User,
-                  as: 'trucker',
-                  attributes: ['id', 'name', 'phone', 'email', 'facebookUrl'],
-                  include: [{ model: TruckerProfile, as: 'truckerProfile' }],
-                },
-              ],
-            },
-            {
-              model: User,
-              as: 'bidder',
-              attributes: ['id', 'name', 'phone', 'email', 'facebookUrl'],
-              include: [
-                { model: TruckerProfile, as: 'truckerProfile' },
-                { model: ShipperProfile, as: 'shipperProfile' },
-              ],
-            },
-          ],
-        },
-        {
-          model: Shipment,
-          as: 'shipment',
-        },
-      ],
-      where: status ? { status } : {},
-      order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-    });
+    // Query contracts where user is a participant
+    let q = db.collection('contracts')
+      .where('participantIds', 'array-contains', userId)
+      .orderBy('createdAt', 'desc');
 
-    // Filter to only include contracts where user is involved
-    const userContracts = contracts.rows.filter((contract) => {
-      const bid = contract.Bid;
-      if (!bid) return false;
+    const contractsSnap = await q.get();
+    let contracts = contractsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // User is the bidder
-      if (bid.bidderId === req.user.id) return true;
-
-      // User is the listing owner
-      if (bid.CargoListing && bid.CargoListing.userId === req.user.id) return true;
-      if (bid.TruckListing && bid.TruckListing.userId === req.user.id) return true;
-
-      return false;
-    });
+    // Filter by status if requested
+    if (status) {
+      contracts = contracts.filter(c => c.status === status);
+    }
 
     res.json({
-      contracts: userContracts,
-      total: userContracts.length,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      contracts,
+      total: contracts.length,
     });
   } catch (error) {
     console.error('Get contracts error:', error);
@@ -117,64 +106,29 @@ router.get('/', authenticateToken, async (req, res) => {
 // Get single contract
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
-    const contract = await Contract.findByPk(req.params.id, {
-      include: [
-        {
-          model: Bid,
-          include: [
-            {
-              model: CargoListing,
-              include: [
-                {
-                  model: User,
-                  as: 'shipper',
-                  attributes: ['id', 'name', 'phone', 'email', 'facebookUrl'],
-                  include: [{ model: ShipperProfile, as: 'shipperProfile' }],
-                },
-              ],
-            },
-            {
-              model: TruckListing,
-              include: [
-                {
-                  model: User,
-                  as: 'trucker',
-                  attributes: ['id', 'name', 'phone', 'email', 'facebookUrl'],
-                  include: [{ model: TruckerProfile, as: 'truckerProfile' }],
-                },
-              ],
-            },
-            {
-              model: User,
-              as: 'bidder',
-              attributes: ['id', 'name', 'phone', 'email', 'facebookUrl'],
-              include: [
-                { model: TruckerProfile, as: 'truckerProfile' },
-                { model: ShipperProfile, as: 'shipperProfile' },
-              ],
-            },
-          ],
-        },
-        {
-          model: Shipment,
-          as: 'shipment',
-        },
-      ],
-    });
+    const userId = req.user.uid;
+    const db = admin.firestore();
 
-    if (!contract) {
+    const contractDoc = await db.collection('contracts').doc(req.params.id).get();
+    if (!contractDoc.exists) {
       return res.status(404).json({ error: 'Contract not found' });
     }
 
-    // Check user is involved in this contract
-    const bid = contract.Bid;
-    const isInvolved =
-      bid.bidderId === req.user.id ||
-      (bid.CargoListing && bid.CargoListing.userId === req.user.id) ||
-      (bid.TruckListing && bid.TruckListing.userId === req.user.id);
+    const contract = { id: contractDoc.id, ...contractDoc.data() };
 
-    if (!isInvolved) {
+    // Check user is involved
+    if (!contract.participantIds || !contract.participantIds.includes(userId)) {
       return res.status(403).json({ error: 'Not authorized to view this contract' });
+    }
+
+    // Fetch associated shipment
+    const shipmentSnap = await db.collection('shipments')
+      .where('contractId', '==', contractDoc.id)
+      .limit(1)
+      .get();
+
+    if (!shipmentSnap.empty) {
+      contract.shipment = { id: shipmentSnap.docs[0].id, ...shipmentSnap.docs[0].data() };
     }
 
     res.json({ contract });
@@ -196,64 +150,56 @@ router.post('/', authenticateToken, async (req, res) => {
       specialInstructions,
       liabilityAcknowledged
     } = req.body;
+    const userId = req.user.uid;
 
     if (!bidId) {
       return res.status(400).json({ error: 'Bid ID is required' });
     }
 
-    const bid = await Bid.findByPk(bidId, {
-      include: [
-        {
-          model: CargoListing,
-          include: [{ model: User, as: 'shipper' }],
-        },
-        {
-          model: TruckListing,
-          include: [{ model: User, as: 'trucker' }],
-        },
-        {
-          model: User,
-          as: 'bidder',
-        },
-      ],
-    });
+    const db = admin.firestore();
 
-    if (!bid) {
+    // Fetch bid and listing from Firestore
+    const bidData = await getFirestoreBidData(bidId);
+    if (!bidData || !bidData.bid) {
       return res.status(404).json({ error: 'Bid not found' });
+    }
+
+    const { bid, listing, isCargo } = bidData;
+
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
     }
 
     if (bid.status !== 'accepted') {
       return res.status(400).json({ error: 'Bid must be accepted before creating a contract' });
     }
 
-    // Check if contract already exists for this bid
-    const existingContract = await Contract.findOne({ where: { bidId } });
-    if (existingContract) {
+    // Check if contract already exists for this bid in Firestore
+    const existingContractSnap = await db.collection('contracts')
+      .where('bidId', '==', bidId)
+      .limit(1)
+      .get();
+    if (!existingContractSnap.empty) {
       return res.status(400).json({ error: 'Contract already exists for this bid' });
     }
 
-    // Determine listing and type
-    const isCargo = !!bid.CargoListing;
-    const listing = bid.CargoListing || bid.TruckListing;
     const listingOwnerId = listing.userId;
 
     // Only listing owner can create contract
-    if (listingOwnerId !== req.user.id) {
+    if (listingOwnerId !== userId) {
       return res.status(403).json({ error: 'Only the listing owner can create the contract' });
     }
 
     const platformFee = Math.round(bid.price * PLATFORM_FEE_RATE);
 
-    // Check if platform fee has been paid
-    const feeTransaction = await WalletTransaction.findOne({
-      where: {
-        reference: bidId,
-        type: 'fee',
-        status: 'completed',
-      },
-    });
+    // Check if platform fee has been paid in Firestore
+    const feeSnap = await db.collection('platformFees')
+      .where('bidId', '==', bidId)
+      .where('status', '==', 'completed')
+      .limit(1)
+      .get();
 
-    if (!feeTransaction) {
+    if (feeSnap.empty) {
       return res.status(400).json({
         error: 'Platform fee must be paid before creating contract',
         requiresPayment: true,
@@ -269,7 +215,9 @@ KARGA FREIGHT TRANSPORTATION CONTRACT
 This Contract is entered into between the Shipper and Trucker through the Karga platform.
 
 1. TRANSPORTATION SERVICES
-The Trucker agrees to transport cargo from ${listing.origin} to ${listing.destination}.
+The Trucker agrees to transport cargo from:
+  Pickup: ${composeFullAddress(listing.origin, listing.originStreetAddress)}
+  Delivery: ${composeFullAddress(listing.destination, listing.destinationStreetAddress)}
 
 2. CARGO LIABILITY
 - Maximum liability: PHP ${(declaredCargoValue || 100000).toLocaleString()} (Declared Value)
@@ -299,16 +247,26 @@ Republic of the Philippines
 By signing, both parties agree to these terms.
     `.trim();
 
-    // Create contract with full details
-    const contract = await Contract.create({
+    const contractNumber = generateContractNumber();
+
+    // Determine participant IDs for Firestore security rules
+    const participantIds = [listingOwnerId, bid.bidderId];
+
+    // Create contract in Firestore
+    const contractRef = db.collection('contracts').doc();
+    const contractData = {
       bidId,
-      contractNumber: generateContractNumber(),
+      contractNumber,
       agreedPrice: bid.price,
       platformFee,
       declaredCargoValue: declaredCargoValue || 100000,
-      pickupDate: pickupDate || listing.pickupDate || listing.availableDate,
-      pickupAddress: listing.origin,
-      deliveryAddress: listing.destination,
+      pickupDate: pickupDate || listing.pickupDate || listing.availableDate || null,
+      pickupAddress: composeFullAddress(listing.origin, listing.originStreetAddress),
+      pickupCity: listing.origin,
+      pickupStreetAddress: listing.originStreetAddress || '',
+      deliveryAddress: composeFullAddress(listing.destination, listing.destinationStreetAddress),
+      deliveryCity: listing.destination,
+      deliveryStreetAddress: listing.destinationStreetAddress || '',
       expectedDeliveryDate: expectedDeliveryDate || null,
       cargoType: isCargo ? listing.cargoType : (bid.cargoType || 'General'),
       cargoWeight: isCargo ? listing.weight : (bid.cargoWeight || 0),
@@ -316,36 +274,63 @@ By signing, both parties agree to these terms.
       cargoDescription: listing.description || '',
       specialInstructions: specialInstructions || '',
       vehicleType: isCargo ? listing.vehicleNeeded : listing.vehicleType,
-      vehiclePlateNumber: isCargo ? '' : listing.plateNumber,
+      vehiclePlateNumber: isCargo ? '' : (listing.plateNumber || ''),
       terms: terms || defaultTerms,
       liabilityAcknowledged: liabilityAcknowledged || false,
       status: 'draft',
+      listingType: isCargo ? 'cargo' : 'truck',
+      listingId: listing.id,
+      listingOwnerId,
+      bidderId: bid.bidderId,
+      bidderName: bid.bidderName || '',
+      listingOwnerName: listing.userName || bid.listingOwnerName || '',
+      participantIds,
+      shipperSignature: null,
+      truckerSignature: null,
+      shipperSignedAt: null,
+      truckerSignedAt: null,
+      signedAt: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await contractRef.set(contractData);
+
+    // Update listing status in Firestore
+    const listingCollection = isCargo ? 'cargoListings' : 'truckListings';
+    await db.collection(listingCollection).doc(listing.id).update({
+      status: 'contracted',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Update listing status
-    await listing.update({ status: 'contracted' });
+    // Update bid status in Firestore
+    await db.collection('bids').doc(bidId).update({
+      status: 'contracted',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
-    // Notify bidder
-    await Notification.create({
-      userId: bid.bidderId,
+    // Create notification in Firestore for bidder
+    await db.collection(`users/${bid.bidderId}/notifications`).doc().set({
       type: 'CONTRACT_READY',
       title: 'Contract Ready for Signing',
-      message: `Contract #${contract.contractNumber} is ready for your signature. Please review the terms and sign to proceed.`,
-      data: { contractId: contract.id, bidId },
+      message: `Contract #${contractNumber} is ready for your signature. Please review the terms and sign to proceed.`,
+      data: { contractId: contractRef.id, bidId },
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     // Emit socket event
     const io = req.app.get('io');
     if (io) {
       io.to(`user:${bid.bidderId}`).emit('contract-ready', {
-        contractId: contract.id,
-        contractNumber: contract.contractNumber,
+        contractId: contractRef.id,
+        contractNumber,
       });
     }
 
     res.status(201).json({
       message: 'Contract created successfully',
-      contract,
+      contract: { id: contractRef.id, ...contractData },
     });
   } catch (error) {
     console.error('Create contract error:', error);
@@ -356,53 +341,34 @@ By signing, both parties agree to these terms.
 // Sign contract
 router.put('/:id/sign', authenticateToken, async (req, res) => {
   try {
-    const contract = await Contract.findByPk(req.params.id, {
-      include: [
-        {
-          model: Bid,
-          include: [
-            {
-              model: CargoListing,
-              include: [{ model: User, as: 'shipper' }],
-            },
-            {
-              model: TruckListing,
-              include: [{ model: User, as: 'trucker' }],
-            },
-            {
-              model: User,
-              as: 'bidder',
-            },
-          ],
-        },
-      ],
-    });
+    const contractId = req.params.id;
+    const userId = req.user.uid;
+    const db = admin.firestore();
 
-    if (!contract) {
+    // Fetch contract from Firestore
+    const contractDoc = await db.collection('contracts').doc(contractId).get();
+    if (!contractDoc.exists) {
       return res.status(404).json({ error: 'Contract not found' });
     }
+
+    const contract = { id: contractDoc.id, ...contractDoc.data() };
 
     if (contract.status !== 'draft') {
       return res.status(400).json({ error: 'Contract has already been signed or is not in draft status' });
     }
 
-    const bid = contract.Bid;
-    const listing = bid.CargoListing || bid.TruckListing;
-    const listingOwnerId = listing.userId;
-    const bidderId = bid.bidderId;
+    const listingOwnerId = contract.listingOwnerId;
+    const bidderId = contract.bidderId;
+    const isCargo = contract.listingType === 'cargo';
 
     // Determine if user is shipper or trucker in this transaction
-    const isCargo = !!bid.CargoListing;
     let isShipper, isTrucker;
-
     if (isCargo) {
-      // Cargo listing: shipper owns listing, trucker is bidder
-      isShipper = listingOwnerId === req.user.id;
-      isTrucker = bidderId === req.user.id;
+      isShipper = listingOwnerId === userId;
+      isTrucker = bidderId === userId;
     } else {
-      // Truck listing: trucker owns listing, shipper is bidder
-      isTrucker = listingOwnerId === req.user.id;
-      isShipper = bidderId === req.user.id;
+      isTrucker = listingOwnerId === userId;
+      isShipper = bidderId === userId;
     }
 
     if (!isShipper && !isTrucker) {
@@ -411,8 +377,13 @@ router.put('/:id/sign', authenticateToken, async (req, res) => {
 
     const signatureTimestamp = new Date();
     const clientIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || 'unknown';
-    const signature = `${req.user.name} - ${signatureTimestamp.toISOString()}`;
-    const updates = {};
+
+    // Get user's name from Firestore
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userName = userDoc.exists ? (userDoc.data().name || userId) : userId;
+    const signature = `${userName} - ${signatureTimestamp.toISOString()}`;
+
+    const updates = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
     if (isShipper) {
       if (contract.shipperSignature) {
@@ -430,62 +401,82 @@ router.put('/:id/sign', authenticateToken, async (req, res) => {
       updates.truckerSignatureIp = clientIp;
     }
 
-    await contract.update(updates);
-    await contract.reload();
+    await db.collection('contracts').doc(contractId).update(updates);
+
+    // Re-read updated contract
+    const updatedDoc = await db.collection('contracts').doc(contractId).get();
+    const updatedContract = { id: updatedDoc.id, ...updatedDoc.data() };
 
     // Check if both parties have signed
-    if (contract.shipperSignature && contract.truckerSignature) {
-      await contract.update({
+    if (updatedContract.shipperSignature && updatedContract.truckerSignature) {
+      const trackingNumber = generateTrackingNumber();
+
+      await db.collection('contracts').doc(contractId).update({
         status: 'signed',
         signedAt: new Date(),
       });
+      updatedContract.status = 'signed';
 
-      // Create shipment for tracking
-      const shipment = await Shipment.create({
-        contractId: contract.id,
-        trackingNumber: generateTrackingNumber(),
-        currentLocation: listing.origin,
+      // Create shipment in Firestore
+      const shipmentRef = db.collection('shipments').doc();
+      await shipmentRef.set({
+        contractId,
+        trackingNumber,
+        currentLocation: contract.pickupAddress,
         status: 'picked_up',
         progress: 0,
+        participantIds: contract.participantIds,
+        origin: contract.pickupAddress,
+        destination: contract.deliveryAddress,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       // Update listing status to in_transit
-      await listing.update({ status: 'in_transit' });
+      const listingCollection = isCargo ? 'cargoListings' : 'truckListings';
+      if (contract.listingId) {
+        await db.collection(listingCollection).doc(contract.listingId).update({
+          status: 'in_transit',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
 
       // Notify both parties
       const otherUserId = isShipper ? bidderId : listingOwnerId;
-      await Notification.create({
-        userId: otherUserId,
+      await db.collection(`users/${otherUserId}/notifications`).doc().set({
         type: 'SHIPMENT_UPDATE',
         title: 'Contract Fully Signed!',
-        message: `Contract #${contract.contractNumber} is now active. Tracking: ${shipment.trackingNumber}`,
-        data: { contractId: contract.id, shipmentId: shipment.id, trackingNumber: shipment.trackingNumber },
+        message: `Contract #${contract.contractNumber} is now active. Tracking: ${trackingNumber}`,
+        data: { contractId, shipmentId: shipmentRef.id, trackingNumber },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       // Emit socket events
       const io = req.app.get('io');
       if (io) {
         io.to(`user:${otherUserId}`).emit('contract-signed', {
-          contractId: contract.id,
-          trackingNumber: shipment.trackingNumber,
+          contractId,
+          trackingNumber,
         });
       }
     } else {
       // Notify the other party to sign
       const otherUserId = isShipper ? bidderId : listingOwnerId;
-      await Notification.create({
-        userId: otherUserId,
+      await db.collection(`users/${otherUserId}/notifications`).doc().set({
         type: 'CONTRACT_READY',
         title: 'Waiting for Your Signature',
         message: `Contract #${contract.contractNumber} needs your signature`,
-        data: { contractId: contract.id },
+        data: { contractId },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
 
     res.json({
       message: 'Contract signed successfully',
-      contract,
-      fullyExecuted: !!(contract.shipperSignature && contract.truckerSignature),
+      contract: updatedContract,
+      fullyExecuted: !!(updatedContract.shipperSignature && updatedContract.truckerSignature),
     });
   } catch (error) {
     console.error('Sign contract error:', error);
@@ -496,93 +487,78 @@ router.put('/:id/sign', authenticateToken, async (req, res) => {
 // Complete contract (mark delivery done)
 router.put('/:id/complete', authenticateToken, async (req, res) => {
   try {
-    const contract = await Contract.findByPk(req.params.id, {
-      include: [
-        {
-          model: Bid,
-          include: [
-            {
-              model: CargoListing,
-              include: [{ model: User, as: 'shipper' }],
-            },
-            {
-              model: TruckListing,
-              include: [{ model: User, as: 'trucker' }],
-            },
-            {
-              model: User,
-              as: 'bidder',
-            },
-          ],
-        },
-        {
-          model: Shipment,
-          as: 'shipment',
-        },
-      ],
-    });
+    const contractId = req.params.id;
+    const userId = req.user.uid;
+    const db = admin.firestore();
 
-    if (!contract) {
+    const contractDoc = await db.collection('contracts').doc(contractId).get();
+    if (!contractDoc.exists) {
       return res.status(404).json({ error: 'Contract not found' });
     }
+
+    const contract = { id: contractDoc.id, ...contractDoc.data() };
 
     if (contract.status !== 'signed') {
       return res.status(400).json({ error: 'Contract must be signed before it can be completed' });
     }
 
-    const bid = contract.Bid;
-    const listing = bid.CargoListing || bid.TruckListing;
-
-    // Only listing owner (shipper for cargo, trucker for truck) can mark complete
-    if (listing.userId !== req.user.id) {
+    // Only listing owner can mark complete
+    if (contract.listingOwnerId !== userId) {
       return res.status(403).json({ error: 'Only the listing owner can mark the contract as complete' });
     }
 
     // Update contract status
-    await contract.update({ status: 'completed' });
+    await db.collection('contracts').doc(contractId).update({
+      status: 'completed',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
-    // Update shipment
-    if (contract.shipment) {
-      await contract.shipment.update({
+    // Update shipment in Firestore
+    const shipmentSnap = await db.collection('shipments')
+      .where('contractId', '==', contractId)
+      .limit(1)
+      .get();
+
+    if (!shipmentSnap.empty) {
+      await shipmentSnap.docs[0].ref.update({
         status: 'delivered',
         progress: 100,
-        currentLocation: listing.destination,
+        currentLocation: contract.deliveryAddress,
         deliveredAt: new Date(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
 
     // Update listing status
-    const listingStatus = bid.CargoListing ? 'delivered' : 'completed';
-    await listing.update({ status: listingStatus });
+    const listingCollection = contract.listingType === 'cargo' ? 'cargoListings' : 'truckListings';
+    const listingStatus = contract.listingType === 'cargo' ? 'delivered' : 'completed';
+    if (contract.listingId) {
+      await db.collection(listingCollection).doc(contract.listingId).update({
+        status: listingStatus,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
-    // Notify bidder to rate
-    await Notification.create({
-      userId: bid.bidderId,
-      type: 'RATING_REQUEST',
-      title: 'Rate Your Experience',
-      message: `Please rate your experience for contract #${contract.contractNumber}`,
-      data: { contractId: contract.id },
-    });
-
-    // Notify listing owner to rate
-    await Notification.create({
-      userId: listing.userId,
-      type: 'RATING_REQUEST',
-      title: 'Rate Your Experience',
-      message: `Please rate your experience for contract #${contract.contractNumber}`,
-      data: { contractId: contract.id },
-    });
+    // Notify both parties to rate
+    for (const notifyUserId of [contract.bidderId, contract.listingOwnerId]) {
+      await db.collection(`users/${notifyUserId}/notifications`).doc().set({
+        type: 'RATING_REQUEST',
+        title: 'Rate Your Experience',
+        message: `Please rate your experience for contract #${contract.contractNumber}`,
+        data: { contractId },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     const io = req.app.get('io');
     if (io) {
-      io.to(`user:${bid.bidderId}`).emit('contract-completed', {
-        contractId: contract.id,
-      });
+      io.to(`user:${contract.bidderId}`).emit('contract-completed', { contractId });
     }
 
     res.json({
       message: 'Contract completed successfully',
-      contract,
+      contract: { ...contract, status: 'completed' },
     });
   } catch (error) {
     console.error('Complete contract error:', error);
@@ -593,48 +569,27 @@ router.put('/:id/complete', authenticateToken, async (req, res) => {
 // Get contract by bid ID
 router.get('/bid/:bidId', authenticateToken, async (req, res) => {
   try {
-    const contract = await Contract.findOne({
-      where: { bidId: req.params.bidId },
-      include: [
-        {
-          model: Bid,
-          include: [
-            {
-              model: CargoListing,
-              include: [
-                {
-                  model: User,
-                  as: 'shipper',
-                  attributes: ['id', 'name', 'phone', 'email', 'facebookUrl'],
-                },
-              ],
-            },
-            {
-              model: TruckListing,
-              include: [
-                {
-                  model: User,
-                  as: 'trucker',
-                  attributes: ['id', 'name', 'phone', 'email', 'facebookUrl'],
-                },
-              ],
-            },
-            {
-              model: User,
-              as: 'bidder',
-              attributes: ['id', 'name', 'phone', 'email', 'facebookUrl'],
-            },
-          ],
-        },
-        {
-          model: Shipment,
-          as: 'shipment',
-        },
-      ],
-    });
+    const db = admin.firestore();
+    const contractSnap = await db.collection('contracts')
+      .where('bidId', '==', req.params.bidId)
+      .limit(1)
+      .get();
 
-    if (!contract) {
+    if (contractSnap.empty) {
       return res.status(404).json({ error: 'Contract not found for this bid' });
+    }
+
+    const contractDoc = contractSnap.docs[0];
+    const contract = { id: contractDoc.id, ...contractDoc.data() };
+
+    // Fetch associated shipment
+    const shipmentSnap = await db.collection('shipments')
+      .where('contractId', '==', contractDoc.id)
+      .limit(1)
+      .get();
+
+    if (!shipmentSnap.empty) {
+      contract.shipment = { id: shipmentSnap.docs[0].id, ...shipmentSnap.docs[0].data() };
     }
 
     res.json({ contract });

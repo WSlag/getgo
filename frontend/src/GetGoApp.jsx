@@ -17,6 +17,7 @@ import {
   uploadListingPhotos,
   acceptBid,
   rejectBid,
+  reopenListing,
   markNotificationRead,
   markAllNotificationsRead,
 } from './services/firestoreService';
@@ -26,7 +27,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useCargoListings } from './hooks/useCargoListings';
 import { useTruckListings } from './hooks/useTruckListings';
 import { useNotifications } from './hooks/useNotifications';
-import { useWallet } from './hooks/useWallet';
+// Wallet removed - using direct GCash payment
 import { useShipments } from './hooks/useShipments';
 import { useTheme } from './hooks/useTheme';
 import { useMarketplace } from './hooks/useMarketplace';
@@ -43,11 +44,15 @@ import { MobileNav } from '@/components/layout/MobileNav';
 import { HomeView } from '@/views/HomeView';
 import { TrackingView } from '@/views/TrackingView';
 import { AdminPaymentsView } from '@/views/AdminPaymentsView';
+import { ContractVerificationView } from '@/views/ContractVerificationView';
+import { ContractsView } from '@/views/ContractsView';
+import { BidsView } from '@/views/BidsView';
 import { ProfilePage } from '@/components/profile/ProfilePage';
 import { AdminDashboard } from '@/views/admin/AdminDashboard';
 
 // Modal Components
-import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal, MyBidsModal, PlatformFeeModal, ContractModal, NotificationsModal, WalletModal } from '@/components/modals';
+import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal, MyBidsModal, ContractModal, NotificationsModal } from '@/components/modals';
+import { GCashPaymentModal } from '@/components/modals/GCashPaymentModal';
 import { FullMapModal } from '@/components/maps';
 import AuthModal from '@/components/auth/AuthModal';
 
@@ -71,7 +76,7 @@ export default function GetGoApp() {
   const { listings: firebaseCargoListings, loading: cargoLoading } = useCargoListings();
   const { listings: firebaseTruckListings, loading: truckLoading } = useTruckListings();
   const { notifications: firebaseNotifications, unreadCount: firebaseUnreadCount } = useNotifications(authUser?.uid);
-  const { balance: firebaseWalletBalance, transactions: firebaseWalletTransactions, loading: walletLoading } = useWallet(authUser?.uid);
+  // Wallet removed - using direct GCash payment for platform fees
   const { activeShipments: firebaseActiveShipments } = useShipments(authUser?.uid);
 
   // Custom Hooks for UI State
@@ -115,14 +120,17 @@ export default function GetGoApp() {
   // Pending contract data (after fee payment)
   const [pendingContractData, setPendingContractData] = useState(null);
 
-  // Track if wallet was opened from platform fee modal (for return flow)
-  const [walletReturnToFee, setWalletReturnToFee] = useState(false);
+  // Wallet removed - direct GCash payment flow
 
   // Admin: Dashboard view state
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
   // Admin: Pending payments count
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
+
+  // Contracts state
+  const [contracts, setContracts] = useState([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
 
   // Toast notification state for real-time events
   const [toasts, setToasts] = useState([]);
@@ -173,18 +181,46 @@ export default function GetGoApp() {
     return () => clearInterval(interval);
   }, [isAdmin]);
 
+  // Fetch contracts for current user
+  useEffect(() => {
+    if (!authUser?.uid) {
+      setContracts([]);
+      return;
+    }
+
+    const fetchContracts = async () => {
+      setContractsLoading(true);
+      try {
+        const response = await api.contracts.getAll();
+        setContracts(response.contracts || []);
+      } catch (error) {
+        console.error('Error fetching contracts:', error);
+        setContracts([]);
+      } finally {
+        setContractsLoading(false);
+      }
+    };
+
+    fetchContracts();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchContracts, 30000);
+    return () => clearInterval(interval);
+  }, [authUser?.uid]);
+
   // Use Firebase data directly - no sample data fallback
   const userRole = currentRole || 'shipper';
   const cargoListings = firebaseCargoListings;
   const truckListings = firebaseTruckListings;
   const activeShipments = firebaseActiveShipments || [];
   const unreadNotifications = firebaseUnreadCount || 0;
-  const walletBalance = firebaseWalletBalance || 0;
+  // Wallet removed - no balance tracking
 
   // Counts for sidebar
   const openCargoCount = cargoListings.filter(c => c.status === 'open').length;
   const availableTrucksCount = truckListings.filter(t => t.status === 'available' || t.status === 'open').length;
   const activeShipmentsCount = activeShipments.length;
+  const pendingContractsCount = contracts.filter(c => c.status === 'draft').length;
+  const activeContractsCount = contracts.filter(c => c.status === 'signed' || c.status === 'in_transit').length;
 
   // Filter listings
   const filteredCargoListings = cargoListings.filter(cargo => {
@@ -313,9 +349,7 @@ export default function GetGoApp() {
     window.open('mailto:support@getgo.ph', '_blank');
   };
 
-  const handleWalletClick = () => {
-    requireAuth(() => openModal('wallet'), 'Sign in to view wallet');
-  };
+  // Wallet removed - direct GCash payment only
 
   const handleLogout = async () => {
     if (logout) {
@@ -329,6 +363,10 @@ export default function GetGoApp() {
 
   const handleRouteOptimizerClick = () => {
     openModal('routeOptimizer');
+  };
+
+  const handleContractsClick = () => {
+    requireAuth(() => setActiveTab('contracts'), 'Sign in to view contracts');
   };
 
   const handlePaymentReviewClick = () => {
@@ -383,6 +421,28 @@ export default function GetGoApp() {
     }
   };
 
+  const handleReopenListing = async (listingId, listingType) => {
+    try {
+      await reopenListing(listingId, listingType);
+      showToast({
+        type: 'success',
+        title: 'Listing Reopened',
+        message: 'The listing has been reopened for bidding',
+      });
+      // Close modal - data will refresh via Firestore real-time updates
+      closeModal('cargoDetails');
+      closeModal('truckDetails');
+    } catch (error) {
+      console.error('Error reopening listing:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: error.message || 'Failed to reopen listing',
+      });
+      throw error;
+    }
+  };
+
   // Contract Creation Flow Handlers
   const handleCreateContract = async (bid, listing) => {
     const platformFee = Math.round(bid.price * 0.05); // 5%
@@ -394,42 +454,20 @@ export default function GetGoApp() {
     openModal('platformFee', { bid, listing, platformFee });
   };
 
-  // Handler: After fee is paid, create the contract
-  const handleFeePaymentComplete = async (bidId, feeAmount) => {
-    if (!pendingContractData) return;
+  // Handler: Contract created after GCash payment approved
+  const handleContractCreated = (data) => {
+    closeModal('platformFee');
+    setPendingContractData(null);
 
-    const { bid, listing } = pendingContractData;
+    showToast({
+      type: 'bid-accepted',
+      title: 'Contract Created!',
+      message: 'Your payment has been verified and the contract has been created.',
+    });
 
-    try {
-      // First pay the platform fee
-      await api.wallet.payPlatformFee(bidId, feeAmount);
-
-      // Then create the contract
-      const response = await api.contracts.create({
-        bidId: bid.id,
-        declaredCargoValue: (listing.askingPrice || bid.price) * 2,
-      });
-
-      showToast({
-        type: 'bid-accepted',
-        title: 'Contract Created',
-        message: `Contract #${response.contract.contractNumber} ready for signing`,
-      });
-
-      closeModal('platformFee');
-      setPendingContractData(null);
-
-      // Open contract modal for signing
-      openModal('contract', response.contract);
-    } catch (error) {
-      console.error('Error creating contract:', error);
-      showToast({
-        type: 'error',
-        title: 'Error',
-        message: error.message || 'Failed to create contract',
-      });
-      throw error;
-    }
+    // Note: Contract is created server-side after payment approval
+    // User will see it in their contracts list via real-time updates
+    setActiveTab('home'); // Or wherever contracts are shown
   };
 
   // Handler: Sign contract
@@ -483,66 +521,22 @@ export default function GetGoApp() {
     }
   };
 
-  // Handler: Open wallet top-up (from platform fee modal)
-  const handleTopUpFromFee = () => {
-    closeModal('platformFee');
-    setWalletReturnToFee(true);
-    openModal('wallet');
-  };
+  // Wallet handlers removed - using direct GCash payment
 
-  // Handler: Wallet top-up succeeded, return to platform fee modal
-  const handleWalletTopUpSuccess = () => {
-    closeModal('wallet');
-    setWalletReturnToFee(false);
-    if (pendingContractData) {
-      const { bid, listing, platformFee } = pendingContractData;
-      setTimeout(() => {
-        openModal('platformFee', { bid, listing, platformFee });
-      }, 350);
-    }
-  };
-
-  // Handler: Wallet modal closed (may need to return to fee modal)
-  const handleWalletClose = () => {
-    closeModal('wallet');
-    if (walletReturnToFee && pendingContractData) {
-      setWalletReturnToFee(false);
-      const { bid, listing, platformFee } = pendingContractData;
-      setTimeout(() => {
-        openModal('platformFee', { bid, listing, platformFee });
-      }, 350);
-    }
-  };
-
-  // Handler: Wallet top-up
-  const handleWalletTopUp = async (amount, method) => {
+  // Handler: Open contract from notification
+  const handleOpenContract = async (contractId) => {
     try {
-      const response = await api.wallet.topUp({ amount, method });
-      showToast({
-        type: 'bid-accepted',
-        title: 'Top Up Successful',
-        message: `Added ₱${amount.toLocaleString()} to your wallet`,
-      });
-      return response;
+      const response = await api.contracts.getById(contractId);
+      if (response.contract) {
+        openModal('contract', response.contract);
+      }
     } catch (error) {
-      console.error('Top-up error:', error);
-      throw error;
-    }
-  };
-
-  // Handler: Wallet payout
-  const handleWalletPayout = async (amount, method) => {
-    try {
-      const response = await api.wallet.payout({ amount, method });
+      console.error('Error fetching contract:', error);
       showToast({
-        type: 'bid-accepted',
-        title: 'Payout Requested',
-        message: `Payout of ₱${amount.toLocaleString()} is being processed`,
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to load contract',
       });
-      return response;
-    } catch (error) {
-      console.error('Payout error:', error);
-      throw error;
     }
   };
 
@@ -561,10 +555,8 @@ export default function GetGoApp() {
         onToggleDarkMode={toggleDarkMode}
         unreadNotifications={unreadNotifications}
         userInitial={userInitial}
-        walletBalance={walletBalance}
         currentRole={userRole}
         onLogout={handleLogout}
-        onWalletClick={handleWalletClick}
         onNotificationClick={handleNotificationClick}
         onProfileClick={handleProfileClick}
         onEditProfile={handleEditProfile}
@@ -579,7 +571,7 @@ export default function GetGoApp() {
         }}
       />
 
-      <div className="flex min-h-[calc(100vh-73px)]">
+      <div className="flex h-[calc(100vh-73px)]">
         {/* Sidebar - Desktop only */}
         <Sidebar
           className="hidden lg:flex"
@@ -591,11 +583,14 @@ export default function GetGoApp() {
           openCargoCount={openCargoCount}
           availableTrucksCount={availableTrucksCount}
           activeShipmentsCount={activeShipmentsCount}
+          pendingContractsCount={pendingContractsCount}
+          activeContractsCount={activeContractsCount}
           isAdmin={isAdmin}
           pendingPaymentsCount={pendingPaymentsCount}
           onPostClick={handlePostClick}
           onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
           onMyBidsClick={() => requireAuth(() => openModal('myBids'), 'Sign in to view your bids')}
+          onContractsClick={handleContractsClick}
           onPaymentReviewClick={isAdmin ? handlePaymentReviewClick : undefined}
         />
 
@@ -620,6 +615,10 @@ export default function GetGoApp() {
             currentRole={userRole}
             currentUserId={authUser?.uid}
             darkMode={darkMode}
+            activeShipments={activeShipments.filter(s => s.status !== 'delivered')}
+            onTrackLive={(shipment) => {
+              setActiveTab('tracking');
+            }}
           />
         )}
 
@@ -649,28 +648,25 @@ export default function GetGoApp() {
 
         {activeTab === 'profile' && <ProfilePage />}
 
-        {activeTab === 'bids' && (
+        {activeTab === 'bids' && authUser && (
+          <BidsView
+            currentUser={authUser}
+            currentRole={userRole}
+            onOpenChat={(bid, listing) => {
+              openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
+            }}
+            darkMode={darkMode}
+          />
+        )}
+
+        {activeTab === 'bids' && !authUser && (
           <main className="flex-1 p-4 lg:p-8">
             <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-4">
               {userRole === 'trucker' ? 'My Bids' : 'My Bookings'}
             </h2>
-            {authUser ? (
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Click below to view and manage your {userRole === 'trucker' ? 'cargo bids' : 'truck bookings'}.
-              </p>
-            ) : (
-              <p className="text-gray-600 dark:text-gray-400">
-                Please sign in to view your {userRole === 'trucker' ? 'bids' : 'bookings'}.
-              </p>
-            )}
-            {authUser && (
-              <button
-                onClick={() => openModal('myBids')}
-                className="px-6 py-3 bg-gradient-to-r from-orange-400 to-orange-600 text-white font-medium rounded-xl shadow-lg shadow-orange-500/30 hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-300"
-              >
-                View {userRole === 'trucker' ? 'My Bids' : 'My Bookings'}
-              </button>
-            )}
+            <p className="text-gray-600 dark:text-gray-400">
+              Please sign in to view your {userRole === 'trucker' ? 'bids' : 'bookings'}.
+            </p>
           </main>
         )}
 
@@ -685,8 +681,23 @@ export default function GetGoApp() {
           </main>
         )}
 
+        {activeTab === 'contracts' && (
+          <ContractsView
+            darkMode={darkMode}
+            currentUser={{ id: authUser?.uid, ...userProfile }}
+            onOpenContract={handleOpenContract}
+          />
+        )}
+
         {activeTab === 'adminPayments' && isAdmin && (
-          <AdminPaymentsView darkMode={darkMode} />
+          <AdminPaymentsView
+            darkMode={darkMode}
+            onVerifyContracts={() => setActiveTab('contractVerification')}
+          />
+        )}
+
+        {activeTab === 'contractVerification' && isAdmin && (
+          <ContractVerificationView darkMode={darkMode} />
         )}
       </div>
 
@@ -698,6 +709,7 @@ export default function GetGoApp() {
         unreadMessages={0}
         unreadBids={0}
         unreadNotifications={unreadNotifications}
+        pendingContractsCount={pendingContractsCount}
         currentRole={userRole}
       />
 
@@ -777,8 +789,31 @@ export default function GetGoApp() {
 
           setBidLoading(true);
           try {
+            // Validation checks
+            if (!authUser || !authUser.uid) {
+              console.error('User not authenticated');
+              alert('You must be logged in to place a bid');
+              setBidLoading(false);
+              return;
+            }
+
+            if (!userProfile) {
+              console.error('User profile not loaded');
+              alert('Please wait for your profile to load');
+              setBidLoading(false);
+              return;
+            }
+
             // Determine listing type based on presence of trucker field
             const listingType = listing.trucker ? 'truck' : 'cargo';
+
+            // Ensure listing has required fields
+            if (!listing.userId && !listing.shipperId && !listing.truckerId) {
+              console.error('Listing missing owner ID:', listing);
+              alert('Cannot place bid: listing owner information is missing');
+              setBidLoading(false);
+              return;
+            }
 
             const bidData = {
               price: data.amount,
@@ -786,6 +821,13 @@ export default function GetGoApp() {
               cargoType: data.cargoType || null,
               cargoWeight: data.cargoWeight || null,
             };
+
+            console.log('Creating bid with data:', {
+              bidderId: authUser.uid,
+              listingId: listing.id,
+              listingType,
+              listingOwnerId: listing.userId || listing.shipperId || listing.truckerId,
+            });
 
             await createBid(authUser.uid, userProfile, listing, listingType, bidData);
             console.log('Bid created successfully');
@@ -803,8 +845,15 @@ export default function GetGoApp() {
             });
 
             closeModal('bid');
+            alert('Bid placed successfully!');
           } catch (error) {
             console.error('Error creating bid:', error);
+            console.error('Error details:', {
+              code: error.code,
+              message: error.message,
+              stack: error.stack,
+            });
+            alert(`Failed to place bid: ${error.message || 'Unknown error'}`);
           } finally {
             setBidLoading(false);
           }
@@ -838,6 +887,7 @@ export default function GetGoApp() {
         }}
         onAcceptBid={handleAcceptBid}
         onRejectBid={handleRejectBid}
+        onReopenListing={handleReopenListing}
         onCreateContract={(bid, listing) => {
           closeModal('cargoDetails');
           handleCreateContract(bid, listing);
@@ -863,6 +913,7 @@ export default function GetGoApp() {
         }}
         onAcceptBid={handleAcceptBid}
         onRejectBid={handleRejectBid}
+        onReopenListing={handleReopenListing}
         onCreateContract={(bid, listing) => {
           closeModal('truckDetails');
           handleCreateContract(bid, listing);
@@ -898,15 +949,15 @@ export default function GetGoApp() {
         }}
       />
 
-      {/* Platform Fee Modal */}
-      <PlatformFeeModal
+      {/* GCash Payment Modal (replaces PlatformFeeModal) */}
+      <GCashPaymentModal
         open={modals.platformFee}
-        onClose={() => closeModal('platformFee')}
+        onClose={() => {
+          closeModal('platformFee');
+          setPendingContractData(null);
+        }}
         data={getModalData('platformFee')}
-        walletBalance={walletBalance}
-        onPaymentComplete={handleFeePaymentComplete}
-        onTopUp={handleTopUpFromFee}
-        loading={contractLoading}
+        onContractCreated={handleContractCreated}
       />
 
       {/* Contract Modal */}
@@ -929,21 +980,10 @@ export default function GetGoApp() {
         onMarkAsRead={markNotificationRead}
         onMarkAllAsRead={markAllNotificationsRead}
         currentUserId={authUser?.uid}
+        onOpenContract={handleOpenContract}
       />
 
-      {/* Wallet Modal */}
-      <WalletModal
-        open={modals.wallet}
-        onClose={handleWalletClose}
-        walletBalance={walletBalance}
-        transactions={firebaseWalletTransactions || []}
-        loading={walletLoading}
-        onTopUp={handleWalletTopUp}
-        onPayout={handleWalletPayout}
-        returnToFee={walletReturnToFee}
-        onTopUpSuccess={handleWalletTopUpSuccess}
-        requiredAmount={walletReturnToFee ? pendingContractData?.platformFee : null}
-      />
+      {/* Wallet Modal removed - using direct GCash payment */}
 
       {/* Edit Cargo Modal (uses PostModal in edit mode) */}
       <PostModal

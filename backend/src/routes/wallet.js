@@ -1,3 +1,24 @@
+/**
+ * Wallet Routes
+ *
+ * NOTE: Most wallet functionality has been REMOVED in favor of direct GCash payment.
+ * Platform fees are now paid via GCash screenshot upload instead of wallet deduction.
+ *
+ * DEPRECATED ROUTES (commented out below):
+ * - GET / - Get wallet balance
+ * - GET /transactions - Get wallet transactions
+ * - POST /topup - Wallet top-up
+ * - POST /payout - Wallet payout
+ * - POST /pay-platform-fee - Wallet-based platform fee payment
+ * - GET /fee-status/:bidId - Platform fee status
+ * - GET /payment-methods - Payment methods list
+ *
+ * ACTIVE ROUTES (kept for GCash order management):
+ * - GET /order/:orderId - Get order details
+ * - GET /pending-orders - Get user's pending orders
+ * - GET /gcash-config - Get GCash configuration
+ */
+
 import { Router } from 'express';
 import { Wallet, WalletTransaction, User, Bid, CargoListing, TruckListing } from '../models/index.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -27,6 +48,8 @@ const paymentMethods = {
   cebuana: { name: 'Cebuana', fee: 25 },
 };
 
+// DEPRECATED ROUTES - Wallet functionality removed
+/* WALLET DEPRECATED
 // Get wallet balance and transactions
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -264,30 +287,28 @@ router.get('/payment-methods', (req, res) => {
 router.post('/pay-platform-fee', authenticateToken, async (req, res) => {
   try {
     const { bidId, amount } = req.body;
+    const userId = req.user.uid;
 
     if (!bidId) {
       return res.status(400).json({ error: 'Bid ID is required' });
     }
 
-    // Validate bid exists and is accepted
-    const bid = await Bid.findByPk(bidId, {
-      include: [
-        { model: CargoListing },
-        { model: TruckListing },
-      ],
-    });
+    const db = admin.firestore();
 
-    if (!bid) {
+    // Validate bid exists in Firestore and is accepted
+    const bidDoc = await db.collection('bids').doc(bidId).get();
+    if (!bidDoc.exists) {
       return res.status(404).json({ error: 'Bid not found' });
     }
+
+    const bid = { id: bidDoc.id, ...bidDoc.data() };
 
     if (bid.status !== 'accepted') {
       return res.status(400).json({ error: 'Bid must be accepted before paying platform fee' });
     }
 
     // Verify the user is the listing owner
-    const listing = bid.CargoListing || bid.TruckListing;
-    if (listing.userId !== req.user.id) {
+    if (bid.listingOwnerId !== userId) {
       return res.status(403).json({ error: 'Only the listing owner can pay the platform fee' });
     }
 
@@ -295,55 +316,69 @@ router.post('/pay-platform-fee', authenticateToken, async (req, res) => {
     const expectedFee = Math.round(bid.price * PLATFORM_FEE_RATE);
     const feeAmount = amount || expectedFee;
 
-    // Check if fee already paid for this bid
-    const existingFee = await WalletTransaction.findOne({
-      where: {
-        reference: bidId,
-        type: 'fee',
-        status: 'completed',
-      },
-    });
+    // Check if fee already paid for this bid in Firestore
+    const existingFeeSnap = await db.collection('platformFees')
+      .where('bidId', '==', bidId)
+      .where('status', '==', 'completed')
+      .limit(1)
+      .get();
 
-    if (existingFee) {
+    if (!existingFeeSnap.empty) {
       return res.status(400).json({
         error: 'Platform fee already paid for this bid',
-        transactionId: existingFee.id,
+        transactionId: existingFeeSnap.docs[0].id,
       });
     }
 
-    // Get or create wallet
-    let wallet = await Wallet.findOne({ where: { userId: req.user.id } });
-    if (!wallet) {
-      wallet = await Wallet.create({ userId: req.user.id, balance: 0 });
-    }
+    // Get wallet balance from Firestore
+    const walletRef = db.doc(`users/${userId}/wallet/main`);
+    const walletSnap = await walletRef.get();
+    const currentBalance = walletSnap.exists ? (walletSnap.data().balance || 0) : 0;
 
     // Check sufficient balance
-    if (parseFloat(wallet.balance) < feeAmount) {
+    if (currentBalance < feeAmount) {
       return res.status(400).json({
         error: 'Insufficient wallet balance',
-        currentBalance: parseFloat(wallet.balance),
+        currentBalance,
         requiredFee: feeAmount,
-        shortfall: feeAmount - parseFloat(wallet.balance),
+        shortfall: feeAmount - currentBalance,
       });
     }
 
-    // Deduct from wallet
-    await wallet.update({ balance: parseFloat(wallet.balance) - feeAmount });
+    // Deduct from Firestore wallet
+    const newBalance = currentBalance - feeAmount;
+    await walletRef.set({
+      balance: newBalance,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
 
-    // Create fee transaction with bidId as reference
-    const transaction = await WalletTransaction.create({
-      walletId: wallet.id,
+    // Record fee transaction in Firestore wallet transactions
+    const txRef = db.collection(`users/${userId}/walletTransactions`).doc();
+    await txRef.set({
       type: 'fee',
       amount: -feeAmount,
-      description: `Platform fee for contract (${listing.origin} → ${listing.destination})`,
+      method: 'wallet',
+      description: `Platform fee for contract (${bid.origin} → ${bid.destination})`,
       reference: bidId,
+      balanceBefore: currentBalance,
+      balanceAfter: newBalance,
       status: 'completed',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Record in platformFees collection for tracking
+    await db.collection('platformFees').doc().set({
+      bidId,
+      userId,
+      amount: feeAmount,
+      status: 'completed',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     res.json({
       message: 'Platform fee paid successfully',
-      transaction,
-      newBalance: parseFloat(wallet.balance),
+      transactionId: txRef.id,
+      newBalance,
       bidId,
       feeAmount,
     });
@@ -375,9 +410,10 @@ router.get('/fee-status/:bidId', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to check fee status' });
   }
 });
+END WALLET DEPRECATED */
 
 // ============================================================
-// GCASH SCREENSHOT VERIFICATION ENDPOINTS
+// GCASH SCREENSHOT VERIFICATION ENDPOINTS (ACTIVE)
 // ============================================================
 
 // Helper: Generate unique order ID

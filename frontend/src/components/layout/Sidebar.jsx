@@ -11,11 +11,14 @@ export function Sidebar({
   availableTrucksCount = 0,
   activeShipmentsCount = 0,
   myBidsCount = 0,
+  pendingContractsCount = 0,
+  activeContractsCount = 0,
   pendingPaymentsCount = 0,
   isAdmin = false,
   onPostClick,
   onRouteOptimizerClick,
   onMyBidsClick,
+  onContractsClick,
   onPaymentReviewClick,
   className,
 }) {
@@ -148,6 +151,26 @@ export function Sidebar({
               )}
             </button>
           )}
+
+          {/* Contracts - For All Users */}
+          <button
+            onClick={onContractsClick}
+            className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
+            style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+          >
+            <FileText className="size-5 text-indigo-500" />
+            <span className="font-medium flex-1 text-left">My Contracts</span>
+            {pendingContractsCount > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-200/70 dark:bg-yellow-800/40 text-yellow-700 dark:text-yellow-300 animate-pulse">
+                {pendingContractsCount}
+              </span>
+            )}
+            {pendingContractsCount === 0 && activeContractsCount > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-200/70 dark:bg-indigo-800/40 text-indigo-700 dark:text-indigo-300">
+                {activeContractsCount}
+              </span>
+            )}
+          </button>
 
           {/* Admin Dashboard - Admin Only */}
           {isAdmin && onPaymentReviewClick && (

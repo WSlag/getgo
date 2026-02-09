@@ -21,6 +21,7 @@ const {
   determineFinalStatus,
   createFraudLog
 } = require('./src/services/fraud');
+const { createContractFromApprovedFee } = require('./src/services/contractCreation');
 
 const db = admin.firestore();
 
@@ -170,8 +171,10 @@ exports.processPaymentSubmission = functions
       // Step 13: Create fraud log for audit trail
       await createFraudLog(db, submissionId, submission.userId, finalStatus, fraudResults);
 
-      // Step 14: Send notification to user
-      await sendUserNotification(submission.userId, finalStatus, order.amount, submissionId);
+      // Step 14: Send notification to user (for non-approved statuses, approved sends its own in approvePayment)
+      if (finalStatus !== 'approved') {
+        await sendUserNotification(submission.userId, finalStatus, order.amount, submissionId, null, order.type);
+      }
 
       // Step 15: If flagged for review, notify admin
       if (finalStatus === 'manual_review') {
@@ -231,52 +234,100 @@ async function handleOCRFailure(submissionRef, submissionId, userId, error) {
 }
 
 /**
- * Approve payment - credit wallet and update order
+ * Approve payment - handle platform fee or wallet top-up
  */
 async function approvePayment(submission, order, submissionId) {
-  const batch = db.batch();
-
   // Update order status
-  const orderRef = db.collection('orders').doc(submission.orderId);
-  batch.update(orderRef, {
+  await db.collection('orders').doc(submission.orderId).update({
     status: 'verified',
     verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
     verifiedSubmissionId: submissionId,
     updatedAt: admin.firestore.FieldValue.serverTimestamp()
   });
 
-  // Credit user's wallet
-  const walletRef = db.collection('users').doc(submission.userId).collection('wallet').doc('main');
+  // Check if this is a platform fee payment or wallet top-up
+  if (order.type === 'platform_fee') {
+    console.log(`Processing platform fee payment for bid ${order.bidId}`);
 
-  // Get current wallet or create if doesn't exist
-  const walletDoc = await walletRef.get();
-  if (walletDoc.exists) {
-    batch.update(walletRef, {
-      balance: admin.firestore.FieldValue.increment(order.amount),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-  } else {
-    batch.set(walletRef, {
-      balance: order.amount,
+    // Record in platformFees collection
+    await db.collection('platformFees').doc().set({
+      bidId: order.bidId,
+      userId: submission.userId,
+      amount: order.amount,
+      status: 'completed',
+      submissionId,
+      orderId: order.orderId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
+
+    // Auto-create contract from approved fee payment
+    try {
+      const contract = await createContractFromApprovedFee(order.bidId, submission.userId);
+      console.log(`Contract created successfully: ${contract.contractNumber} (ID: ${contract.id})`);
+
+      // Send notification to user about contract creation
+      await db.collection(`users/${submission.userId}/notifications`).doc().set({
+        type: 'CONTRACT_CREATED',
+        title: 'Payment Verified & Contract Created!',
+        message: `Your payment has been verified and contract #${contract.contractNumber} has been created. Please review and sign to proceed.`,
+        data: {
+          submissionId,
+          contractId: contract.id,
+          bidId: order.bidId,
+        },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (error) {
+      console.error('Error creating contract from approved fee:', error);
+      // Notify user of error
+      await db.collection(`users/${submission.userId}/notifications`).doc().set({
+        type: 'PAYMENT_STATUS',
+        title: 'Payment Verified',
+        message: 'Your payment has been verified, but there was an issue creating the contract. Our team will assist you.',
+        data: { submissionId, error: error.message },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+  } else {
+    // Legacy: wallet top-up flow (kept for backward compatibility)
+    console.log(`Processing wallet top-up: ₱${order.amount} for user ${submission.userId}`);
+
+    const batch = db.batch();
+
+    // Credit user's wallet
+    const walletRef = db.collection('users').doc(submission.userId).collection('wallet').doc('main');
+    const walletDoc = await walletRef.get();
+
+    if (walletDoc.exists) {
+      batch.update(walletRef, {
+        balance: admin.firestore.FieldValue.increment(order.amount),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      batch.set(walletRef, {
+        balance: order.amount,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    // Create wallet transaction record
+    const txRef = db.collection('users').doc(submission.userId).collection('walletTransactions').doc();
+    batch.set(txRef, {
+      type: 'topup',
+      amount: order.amount,
+      method: 'GCash (Screenshot)',
+      description: `Top-up via GCash screenshot verification`,
+      reference: submissionId,
+      status: 'completed',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await batch.commit();
+    console.log(`Wallet credited: ₱${order.amount} for user ${submission.userId}`);
   }
-
-  // Create wallet transaction record
-  const txRef = db.collection('users').doc(submission.userId).collection('walletTransactions').doc();
-  batch.set(txRef, {
-    type: 'topup',
-    amount: order.amount,
-    method: 'GCash (Screenshot)',
-    description: `Top-up via GCash screenshot verification`,
-    reference: submissionId,
-    status: 'completed',
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
-  });
-
-  await batch.commit();
-  console.log(`Wallet credited: ₱${order.amount} for user ${submission.userId}`);
 }
 
 /**
@@ -293,14 +344,18 @@ async function rejectPayment(orderId, errors) {
 
 /**
  * Send notification to user about payment status
+ * Note: For platform_fee payments, contract creation sends its own notification
  */
-async function sendUserNotification(userId, status, amount, submissionId, customMessage = null) {
+async function sendUserNotification(userId, status, amount, submissionId, customMessage = null, orderType = null) {
   let title, message;
 
   switch (status) {
     case 'approved':
+      // Note: Platform fee payments send a different notification in approvePayment function
       title = 'Payment Verified!';
-      message = `Your ₱${amount.toLocaleString()} top-up has been verified and added to your wallet.`;
+      message = orderType === 'platform_fee'
+        ? `Your platform fee payment has been verified. Contract is being created.`
+        : `Your ₱${amount.toLocaleString()} top-up has been verified and added to your wallet.`;
       break;
     case 'rejected':
       title = 'Payment Verification Failed';
@@ -322,7 +377,8 @@ async function sendUserNotification(userId, status, amount, submissionId, custom
     data: {
       submissionId,
       status,
-      amount
+      amount,
+      orderType
     },
     isRead: false,
     createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -436,8 +492,10 @@ exports.adminApprovePayment = functions
       details: []
     }, context.auth.uid, notes);
 
-    // Notify user
-    await sendUserNotification(submission.userId, 'approved', order.amount, submissionId);
+    // Notify user (only for non-platform-fee orders, since approvePayment already sends CONTRACT_CREATED notification)
+    if (order.type !== 'platform_fee') {
+      await sendUserNotification(submission.userId, 'approved', order.amount, submissionId, null, order.type);
+    }
 
     return { success: true, message: 'Payment approved' };
   });
@@ -676,3 +734,79 @@ exports.initializeFirstAdmin = functions
       throw new functions.https.HttpsError('internal', 'Failed to initialize admin');
     }
   });
+
+// =============================================================================
+// CONTRACT MANAGEMENT FUNCTIONS
+// =============================================================================
+
+const contractFunctions = require('./src/api/contracts');
+exports.createContract = contractFunctions.createContract;
+exports.signContract = contractFunctions.signContract;
+exports.completeContract = contractFunctions.completeContract;
+exports.getContracts = contractFunctions.getContracts;
+exports.getContract = contractFunctions.getContract;
+exports.getContractByBid = contractFunctions.getContractByBid;
+
+// =============================================================================
+// WALLET MANAGEMENT FUNCTIONS
+// =============================================================================
+
+const walletFunctions = require('./src/api/wallet');
+exports.createPlatformFeeOrder = walletFunctions.createPlatformFeeOrder;
+exports.createTopUpOrder = walletFunctions.createTopUpOrder;
+exports.getGcashConfig = walletFunctions.getGcashConfig;
+
+// =============================================================================
+// SHIPMENT MANAGEMENT FUNCTIONS
+// =============================================================================
+
+const shipmentFunctions = require('./src/api/shipments');
+exports.updateShipmentLocation = shipmentFunctions.updateShipmentLocation;
+exports.updateShipmentStatus = shipmentFunctions.updateShipmentStatus;
+
+// =============================================================================
+// RATING FUNCTIONS
+// =============================================================================
+
+const ratingFunctions = require('./src/api/ratings');
+exports.submitRating = ratingFunctions.submitRating;
+exports.getPendingRatings = ratingFunctions.getPendingRatings;
+
+// =============================================================================
+// ADMIN FUNCTIONS
+// =============================================================================
+
+const adminFunctions = require('./src/api/admin');
+exports.adminGetDashboardStats = adminFunctions.adminGetDashboardStats;
+exports.adminGetPendingPayments = adminFunctions.adminGetPendingPayments;
+exports.adminGetUsers = adminFunctions.adminGetUsers;
+exports.adminSuspendUser = adminFunctions.adminSuspendUser;
+exports.adminActivateUser = adminFunctions.adminActivateUser;
+exports.adminVerifyUser = adminFunctions.adminVerifyUser;
+exports.adminToggleAdmin = adminFunctions.adminToggleAdmin;
+exports.adminGetFinancialSummary = adminFunctions.adminGetFinancialSummary;
+exports.adminResolveDispute = adminFunctions.adminResolveDispute;
+exports.adminGetContracts = adminFunctions.adminGetContracts;
+
+// =============================================================================
+// ROUTE OPTIMIZATION FUNCTIONS
+// =============================================================================
+
+const listingFunctions = require('./src/api/listings');
+exports.findBackloadOpportunities = listingFunctions.findBackloadOpportunities;
+exports.getPopularRoutes = listingFunctions.getPopularRoutes;
+
+// =============================================================================
+// FIRESTORE TRIGGERS
+// =============================================================================
+
+const bidTriggers = require('./src/triggers/bidTriggers');
+exports.onBidCreated = bidTriggers.onBidCreated;
+exports.onBidStatusChanged = bidTriggers.onBidStatusChanged;
+
+const shipmentTriggers = require('./src/triggers/shipmentTriggers');
+exports.onShipmentLocationUpdate = shipmentTriggers.onShipmentLocationUpdate;
+exports.onShipmentStatusChanged = shipmentTriggers.onShipmentStatusChanged;
+
+const ratingTriggers = require('./src/triggers/ratingTriggers');
+exports.onRatingCreated = ratingTriggers.onRatingCreated;

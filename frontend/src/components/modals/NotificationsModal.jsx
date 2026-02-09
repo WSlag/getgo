@@ -29,7 +29,7 @@ const notificationColors = {
   default: 'linear-gradient(to bottom right, #9ca3af, #4b5563)',
 };
 
-const filterTabs = ['All', 'Bids', 'Messages', 'Shipments'];
+const filterTabs = ['All', 'Bids', 'Contracts', 'Messages', 'Shipments'];
 
 export function NotificationsModal({
   open,
@@ -39,6 +39,7 @@ export function NotificationsModal({
   onMarkAsRead,
   onMarkAllAsRead,
   currentUserId,
+  onOpenContract,
 }) {
   const [activeFilter, setActiveFilter] = useState('All');
 
@@ -47,6 +48,7 @@ export function NotificationsModal({
 
     const filterMap = {
       'Bids': ['bid', 'bid_accepted', 'bid_rejected', 'new_bid'],
+      'Contracts': ['contract', 'contract_ready', 'contract_created', 'contract_signed'],
       'Messages': ['message', 'chat', 'new_message'],
       'Shipments': ['shipment', 'delivery', 'tracking', 'pickup', 'delivered'],
     };
@@ -60,8 +62,20 @@ export function NotificationsModal({
   }, [notifications]);
 
   const handleNotificationClick = (notification) => {
+    // Mark as read
     if (!notification.read && !notification.isRead && onMarkAsRead) {
       onMarkAsRead(currentUserId, notification.id);
+    }
+
+    // Handle contract notifications - navigate to contract modal
+    if (
+      (notification.type === 'CONTRACT_READY' ||
+       notification.type === 'CONTRACT_CREATED') &&
+      notification.data?.contractId &&
+      onOpenContract
+    ) {
+      onClose(); // Close notifications modal
+      onOpenContract(notification.data.contractId); // Open contract modal
     }
   };
 

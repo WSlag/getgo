@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Truck, Calendar, Star, Edit, User, Loader2, MessageSquare, Check, X, FileText } from 'lucide-react';
+import { MapPin, Clock, Navigation, Truck, Calendar, Star, Edit, User, Loader2, MessageSquare, Check, X, FileText, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
@@ -26,6 +26,7 @@ export function TruckDetailsModal({
   onAcceptBid,
   onRejectBid,
   onCreateContract,
+  onReopenListing,
   darkMode = false,
 }) {
   const isMobile = !useMediaQuery('(min-width: 640px)');
@@ -86,22 +87,37 @@ export function TruckDetailsModal({
   // Status badge styles
   const statusStyles = {
     available: 'bg-gradient-to-br from-green-400 to-green-600 text-white shadow-lg',
+    open: 'bg-gradient-to-br from-green-400 to-green-600 text-white shadow-lg',
+    waiting: 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg',
+    negotiating: 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white shadow-lg',
     'in-transit': 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg',
+    'in-progress': 'bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg',
     booked: 'bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg',
+    delivered: 'bg-gradient-to-br from-purple-400 to-purple-600 text-white shadow-lg',
     offline: 'bg-gradient-to-br from-gray-400 to-gray-600 text-white shadow-lg',
   };
 
   const statusLabels = {
     available: 'AVAILABLE',
+    open: 'OPEN',
+    waiting: 'WAITING',
+    negotiating: 'NEGOTIATING',
     'in-transit': 'IN TRANSIT',
+    'in-progress': 'IN PROGRESS',
     booked: 'BOOKED',
+    delivered: 'DELIVERED',
     offline: 'OFFLINE',
   };
 
   const gradientColors = {
     available: 'bg-gradient-to-r from-purple-400 to-purple-600',
+    open: 'bg-gradient-to-r from-orange-400 to-orange-600',
+    waiting: 'bg-gradient-to-r from-yellow-400 to-orange-500',
+    negotiating: 'bg-gradient-to-r from-yellow-400 to-yellow-600',
     'in-transit': 'bg-gradient-to-r from-orange-400 to-orange-600',
+    'in-progress': 'bg-gradient-to-r from-blue-400 to-blue-600',
     booked: 'bg-gradient-to-r from-blue-400 to-blue-600',
+    delivered: 'bg-gradient-to-r from-purple-400 to-purple-600',
     offline: 'bg-gradient-to-r from-gray-400 to-gray-600',
   };
 
@@ -462,7 +478,7 @@ export function TruckDetailsModal({
 
         {/* Action Buttons */}
         <div className="flex gap-3 pt-3">
-          {!isOwner && currentRole === 'shipper' && (
+          {!isOwner && currentRole === 'shipper' && (truck.status === 'open' || truck.status === 'waiting' || truck.status === 'available') && (
             <Button
               variant="gradient"
               className="flex-1"
@@ -471,10 +487,20 @@ export function TruckDetailsModal({
               Book Now
             </Button>
           )}
+          {isOwner && truck.status === 'negotiating' && (
+            <Button
+              variant="outline"
+              className="flex-1 gap-2 border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+              onClick={() => onReopenListing?.(truck.id, 'truck')}
+            >
+              <RotateCcw className="size-4" />
+              Reopen for Booking
+            </Button>
+          )}
           <Button
             variant="ghost"
             onClick={onClose}
-            className={cn(!isOwner && currentRole === 'shipper' ? '' : 'flex-1')}
+            className={cn(!isOwner && currentRole === 'shipper' && truck.status !== 'negotiating' ? '' : 'flex-1')}
           >
             Close
           </Button>

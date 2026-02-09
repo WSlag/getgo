@@ -2,7 +2,7 @@
 
 > **Philippine Trucking Backload Marketplace** - A two-way platform connecting shippers with cargo to truckers with available truck space.
 
-**Last Updated:** February 6, 2026
+**Last Updated:** February 9, 2026
 
 ---
 
@@ -14,12 +14,14 @@
 | Frontend UI | ✅ Operational |
 | Authentication | ✅ Complete |
 | Real-time Features | ✅ Complete |
-| Contract System | ✅ Complete |
+| Contract System | ✅ Complete (Firestore-based) |
 | Rating System | ✅ Complete |
 | Shipment Tracking | ✅ Complete |
-| Wallet & Payments | ✅ Complete |
+| Wallet & Payments | ⚠️ Deprecated (Direct GCash) |
+| GCash Direct Payment | ✅ Complete |
 | Admin Dashboard | ✅ Complete |
 | Payment Verification | ✅ Complete |
+| Cloud Functions (API) | ✅ Complete |
 
 ---
 
@@ -28,7 +30,7 @@
 ### Backend
 - **Runtime:** Node.js
 - **Framework:** Express.js
-- **Database:** SQLite + Sequelize ORM
+- **Database:** Firebase Firestore (primary) + SQLite + Sequelize ORM (legacy)
 - **Authentication:** JWT + Firebase Admin SDK
 - **Real-time:** Socket.io
 - **Security:** bcryptjs, CORS
@@ -75,6 +77,10 @@
 - [x] Truck details modal
 - [x] Photo upload for listings
 - [x] Contact masking (revealed after contract signing)
+- [x] Street address fields for pickup & delivery (optional, with city)
+- [x] Full address composition (street + city)
+- [x] Listing reopen functionality
+- [x] Bid status validation (prevent bidding on closed listings)
 
 ### Bidding System
 - [x] Place bids on listings
@@ -86,30 +92,26 @@
 - [x] Open chat from bid listings
 - [x] Wallet balance verification for truckers
 
-### Wallet & Payments
-- [x] Wallet balance management
-- [x] Top-up functionality (6 methods: GCash, Maya, GrabPay, Bank Transfer, 7-Eleven, Cebuana)
+### Payments (Direct GCash)
 - [x] GCash QR code payment flow
 - [x] GCash screenshot verification system
+- [x] GCashPaymentModal component (replaces WalletModal + PlatformFeeModal)
 - [x] Payment order creation with expiry (30 min)
 - [x] Daily submission limits
-- [x] Processing fees per method
-- [x] Payout requests
-- [x] Transaction history with pagination
 - [x] Platform fee calculation (5%)
-- [x] Platform fee payment before contract generation
-- [x] Minimum balance enforcement (₱500 for truckers)
-- [x] Wallet accessible to all roles (shipper + trucker) from header
-- [x] Wallet → Platform Fee return flow (top-up then auto-return to fee payment)
-- [x] Pre-filled top-up amount when opened from platform fee modal
-- [x] WalletModal component
+- [x] Platform fee payment via GCash screenshot (direct, no wallet)
+- [x] Auto-contract creation on approved platform fee payment
 - [x] PaymentUploadModal component
 - [x] PaymentStatusModal component
-- [x] PlatformFeeModal component
+- [x] ~~WalletModal~~ (removed - direct GCash payment)
+- [x] ~~PlatformFeeModal~~ (removed - merged into GCash flow)
+- [x] ~~useWallet hook~~ (removed)
 
 ### Contract Management
 - [x] Contract creation from accepted bids
-- [x] Platform fee payment modal (required before contract)
+- [x] Platform fee payment via GCash (required before contract)
+- [x] Auto-contract creation from approved fee (Cloud Function)
+- [x] Contracts stored in Firestore (migrated from SQLite)
 - [x] Digital signature tracking (both parties)
 - [x] Contract status flow (draft → signed → completed)
 - [x] Contact reveal after signing
@@ -120,6 +122,11 @@
 - [x] IP address tracking for signatures
 - [x] Liability acknowledgment
 - [x] Declared cargo value tracking
+- [x] ContractsView page (dedicated contracts list)
+- [x] Contracts navigation in sidebar and mobile nav
+- [x] Firestore Timestamp handling in ContractModal
+- [x] Street address display in contract pickup/delivery
+- [x] Contract participant ID tracking (participantIds array)
 - [ ] Contract PDF export
 
 ### Rating & Review System
@@ -138,9 +145,13 @@
 - [x] Progress calculation (Haversine)
 - [x] Status transitions (picked_up → in_transit → delivered)
 - [x] Public tracking by tracking number (no auth required)
-- [x] TrackingView with map
+- [x] TrackingView with map (enhanced with fullscreen support)
 - [x] Socket.io real-time updates
-- [x] City coordinate lookup
+- [x] City coordinate lookup with fallback coordinates
+- [x] Active shipments section on HomeView with status cards
+- [x] Live tracking from home page (click to track)
+- [x] Coordinate validation and error handling in TrackingMap
+- [x] City-based coordinate fallback for missing lat/lng
 - [ ] Push notifications for status changes
 
 ### Route Optimizer
@@ -182,8 +193,8 @@
 
 ### UI/UX
 - [x] Responsive mobile design
-- [x] Bottom navigation (mobile)
-- [x] Sidebar navigation (desktop)
+- [x] Bottom navigation (mobile) with Contracts tab
+- [x] Sidebar navigation (desktop) with My Contracts link
 - [x] Dark/Light theme toggle
 - [x] PWA support (offline, install prompt)
 - [x] Service worker updates
@@ -192,6 +203,11 @@
 - [x] Custom PesoIcon (₱) component replacing DollarSign across the app
 - [x] Responsive desktop/mobile spacing in admin dashboard (useMediaQuery)
 - [x] Responsive dialog bottom sheet padding (mobile vs desktop)
+- [x] Wallet button removed from header (direct GCash payment model)
+- [x] BidsView dedicated page
+- [x] ContractsView dedicated page
+- [x] Improved mobile bottom nav layout (Bids, Post, Contracts, Chat)
+- [x] Street address display in bid and cargo detail modals
 
 ### Admin Dashboard
 - [x] Admin authentication and role verification
@@ -256,6 +272,25 @@
 
 ---
 
+## 🚀 Pre-Deployment Checklist
+
+> **Complete these before deploying to production:**
+
+- [ ] **Deploy Backend API** to a hosting platform (Railway, Render, Google Cloud Run, or Fly.io)
+- [ ] **Update frontend environment variables** with production backend URL:
+  - `VITE_API_URL=https://<your-backend-url>/api`
+  - `VITE_SOCKET_URL=https://<your-backend-url>`
+  - `VITE_GCASH_QR_URL=<your-gcash-qr-code-image-url>`
+- [ ] **Configure backend environment variables** on hosting platform (copy from `backend/.env`)
+- [ ] **Deploy frontend** to Vercel, Netlify, or Firebase Hosting
+- [ ] **Deploy Firebase Cloud Functions** (`firebase deploy --only functions`) for OCR payment verification
+- [ ] **Verify Firestore indexes** are built (`firebase deploy --only firestore:indexes`)
+- [ ] **Set up GCash merchant account** and update `GCASH_ACCOUNT_NUMBER` / `GCASH_ACCOUNT_NAME` in backend env
+- [ ] **Enable CORS** on backend for production frontend domain
+- [ ] **Set up SSL** (most platforms provide this automatically)
+
+---
+
 ## 📋 Planned Features
 
 ### High Priority
@@ -285,7 +320,8 @@
 ### Commit History
 | Commit | Description | Date |
 |--------|-------------|------|
-| `pending` | UI polish: PesoIcon, wallet return flow, responsive admin spacing | Feb 6, 2026 |
+| `pending` | Migrate to direct GCash payment, Firestore contracts, street addresses, shipment tracking on home, Cloud Functions API | Feb 9, 2026 |
+| `90ceac6` | Add PesoIcon, wallet return flow, responsive admin spacing | Feb 6, 2026 |
 | `f20c88d` | Add admin dashboard, payment verification, wallet enhancements | Feb 6, 2026 |
 | `d6c358b` | Add My Bids modal with chat integration and profile enhancements | Feb 5, 2026 |
 | `fc43c07` | Add contracts, ratings, shipments features with chat and route optimization | Feb 5, 2026 |
@@ -307,7 +343,7 @@ backend/src/
 │   ├── auth.js               # Authentication endpoints
 │   ├── listings.js           # Cargo & truck listings
 │   ├── bids.js               # Bidding system
-│   ├── wallet.js             # Wallet & payments (GCash verification)
+│   ├── wallet.js             # Wallet (deprecated) & GCash order mgmt
 │   ├── contracts.js          # Contract management
 │   ├── shipments.js          # Shipment tracking
 │   ├── ratings.js            # Rating system
@@ -325,8 +361,10 @@ frontend/src/
 ├── App.jsx                   # Main routing
 ├── GetGoApp.jsx              # Main UI container
 ├── views/
-│   ├── HomeView.jsx          # Marketplace home
-│   ├── TrackingView.jsx      # Shipment tracking
+│   ├── HomeView.jsx          # Marketplace home (+ shipment tracking)
+│   ├── BidsView.jsx          # Dedicated bids page ✨
+│   ├── ContractsView.jsx     # Dedicated contracts page ✨
+│   ├── TrackingView.jsx      # Shipment tracking (enhanced)
 │   ├── AdminPaymentsView.jsx # Payment verification
 │   └── admin/                # Admin dashboard views ✨
 │       ├── AdminDashboard.jsx
@@ -352,10 +390,9 @@ frontend/src/
 │   │   ├── ChatModal.jsx
 │   │   ├── MyBidsModal.jsx
 │   │   ├── RouteOptimizerModal.jsx
-│   │   ├── WalletModal.jsx         ✨
+│   │   ├── GCashPaymentModal.jsx   ✨ (replaces WalletModal + PlatformFeeModal)
 │   │   ├── PaymentUploadModal.jsx  ✨
 │   │   ├── PaymentStatusModal.jsx  ✨
-│   │   ├── PlatformFeeModal.jsx    ✨
 │   │   └── NotificationsModal.jsx  ✨
 │   ├── admin/                      ✨
 │   │   ├── AdminDashboard.jsx
@@ -389,7 +426,6 @@ frontend/src/
 │   ├── useChat.js
 │   ├── useNotifications.js
 │   ├── useSocket.js
-│   ├── useWallet.js
 │   ├── useModals.js
 │   ├── useTheme.js
 │   ├── useMarketplace.js
@@ -403,7 +439,8 @@ frontend/src/
 │   ├── routingService.js     # Route calculations
 │   └── socketService.js      # Socket.io client
 ├── utils/
-│   └── messageUtils.js       # Chat message sanitization
+│   ├── messageUtils.js       # Chat message sanitization
+│   └── addressHelpers.js     # Address composition utilities ✨
 ├── assets/                   # Static assets ✨
 └── contexts/AuthContext.jsx  # Auth state management
 ```
@@ -411,8 +448,22 @@ frontend/src/
 ### Cloud Functions
 ```
 functions/                    # Firebase Cloud Functions ✨
-├── index.js                  # Function exports
-└── package.json
+├── index.js                  # Function exports (payment processing)
+├── package.json
+└── src/
+    ├── api/                  # Cloud Function API endpoints ✨
+    │   ├── admin.js
+    │   ├── contracts.js
+    │   ├── listings.js
+    │   ├── ratings.js
+    │   ├── shipments.js
+    │   └── wallet.js
+    ├── services/
+    │   └── contractCreation.js  # Auto-contract from approved fees ✨
+    └── triggers/             # Firestore triggers ✨
+        ├── bidTriggers.js
+        ├── ratingTriggers.js
+        └── shipmentTriggers.js
 ```
 
 ---
@@ -425,8 +476,9 @@ functions/                    # Firebase Cloud Functions ✨
 | `ShipperProfile` | Business name, membership tier, transaction count |
 | `TruckerProfile` | License, rating, badge level, trip count |
 | `BrokerProfile` | Referral code, commission rate |
-| `Wallet` | User balance management |
-| `WalletTransaction` | Top-ups, fees, payouts, refunds |
+| `Wallet` | User balance management (deprecated) |
+| `WalletTransaction` | Top-ups, fees, payouts, refunds (deprecated) |
+| `PlatformFee` | GCash platform fee payments (Firestore) ✨ |
 | `PaymentOrder` | GCash payment orders with expiry ✨ |
 | `PaymentSubmission` | Screenshot submissions for verification ✨ |
 | `Vehicle` | Trucker's vehicles (plate, capacity) |
@@ -473,12 +525,13 @@ Run `npm run seed` in backend to populate:
 ## 📌 Notes
 
 - **Contact Masking:** Phone/email hidden until contract is signed
-- **Platform Fee:** 5% of agreed freight price, paid before contract generation
-- **Payment Model:** Direct payment from Shipper to Trucker (no escrow)
+- **Platform Fee:** 5% of agreed freight price, paid via GCash screenshot before contract auto-creation
+- **Payment Model:** Direct GCash payment (wallet system deprecated)
 - **Payment Verification:** GCash screenshot upload with OCR and fraud detection
-- **Minimum Balance:** ₱500 required for truckers to bid
+- **Auto-Contract:** Contract automatically created by Cloud Function when platform fee payment is approved
 - **Badge Levels:** STARTER → ACTIVE → VERIFIED → PRO → ELITE
 - **Membership Tiers:** NEW → BRONZE → SILVER → GOLD → PLATINUM → DIAMOND
+- **Street Addresses:** Optional pickup/delivery street addresses complement city-level routing
 
 ## 🔄 Transaction Flow
 
@@ -486,26 +539,27 @@ Run `npm run seed` in backend to populate:
 1. OPEN - Listing posted
 2. BID PLACED - Counter-party submits bid
 3. BID ACCEPTED - Listing owner accepts (status: NEGOTIATING)
-4. PAY PLATFORM FEE - 5% fee from wallet before contract
-5. CONTRACT CREATED - Contract generated for signing
-6. SIGNED - Both parties sign, shipment tracking begins
-7. IN_TRANSIT - Trucker updates location, shipper pays directly
-8. DELIVERED - Shipper confirms delivery
-9. COMPLETED - Both parties rate each other
+4. PAY PLATFORM FEE - 5% fee paid via GCash screenshot upload
+5. FEE VERIFIED - Admin approves screenshot → Contract auto-created (Cloud Function)
+6. CONTRACT CREATED - Contract generated for signing in Firestore
+7. SIGNED - Both parties sign, shipment tracking begins
+8. IN_TRANSIT - Trucker updates location, shipper pays directly
+9. DELIVERED - Shipper confirms delivery
+10. COMPLETED - Both parties rate each other
 ```
 
-## 💰 Payment Verification Flow (GCash)
+## 💰 Platform Fee Payment Flow (GCash Direct)
 
 ```
-1. User selects GCash top-up amount
-2. System creates PaymentOrder (30 min expiry)
-3. User shown GCash QR code
+1. Bid is accepted → listing owner opens GCash payment modal
+2. System creates PaymentOrder with type='platform_fee' (30 min expiry)
+3. User shown GCash QR code with exact fee amount
 4. User pays and takes screenshot
 5. User uploads screenshot via PaymentUploadModal
-6. System extracts OCR data and analyzes image
-7. Admin reviews in PaymentsView
-8. Admin approves/rejects with fraud scoring
-9. Wallet credited on approval
+6. Cloud Function extracts OCR data and analyzes image
+7. Auto-approved or flagged for manual admin review
+8. On approval → Contract auto-created via createContractFromApprovedFee()
+9. Both parties notified, contract ready for signing
 ```
 
 ---

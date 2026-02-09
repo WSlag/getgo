@@ -84,6 +84,18 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
   const [routeData, setRouteData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Validate that shipment has required coordinate data
+  const hasValidCoordinates =
+    shipment?.originCoords?.lat && shipment?.originCoords?.lng &&
+    shipment?.destCoords?.lat && shipment?.destCoords?.lng &&
+    shipment?.currentLocation?.lat && shipment?.currentLocation?.lng &&
+    typeof shipment.originCoords.lat === 'number' &&
+    typeof shipment.originCoords.lng === 'number' &&
+    typeof shipment.destCoords.lat === 'number' &&
+    typeof shipment.destCoords.lng === 'number' &&
+    typeof shipment.currentLocation.lat === 'number' &&
+    typeof shipment.currentLocation.lng === 'number';
+
   const statusColors = {
     picked_up: { color: '#3b82f6', label: 'Picked Up', pulse: true },
     in_transit: { color: '#f59e0b', label: 'In Transit', pulse: true },
@@ -94,6 +106,13 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
 
   // Fetch route on mount
   useEffect(() => {
+    // Skip loading route if coordinates are invalid
+    if (!hasValidCoordinates) {
+      setLoading(false);
+      setRouteData(null);
+      return;
+    }
+
     const loadRoute = async () => {
       setLoading(true);
       try {
@@ -117,7 +136,7 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
     };
 
     loadRoute();
-  }, [shipment.originCoords, shipment.destCoords]);
+  }, [shipment.originCoords, shipment.destCoords, hasValidCoordinates]);
 
   // Calculate completed vs remaining route based on progress
   const getRouteSegments = () => {
@@ -184,6 +203,43 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
     [shipment.currentLocation.lat, shipment.currentLocation.lng],
     [shipment.destCoords.lat, shipment.destCoords.lng]
   ];
+
+  // Show error message if coordinates are invalid
+  if (!hasValidCoordinates) {
+    const ErrorContent = () => (
+      <div className={`${theme.bgCard} rounded-xl border ${theme.border} p-6 text-center`}>
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
+          <MapPinned className="w-8 h-8 text-red-600 dark:text-red-400" />
+        </div>
+        <h3 className={`text-lg font-semibold ${theme.text} mb-2`}>
+          Location Data Unavailable
+        </h3>
+        <p className={theme.textSecondary}>
+          This shipment is missing coordinate information and cannot be tracked on the map.
+          Please contact support if this issue persists.
+        </p>
+        {showFull && (
+          <button
+            onClick={onClose}
+            className="mt-4 px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition"
+          >
+            Close
+          </button>
+        )}
+      </div>
+    );
+
+    if (showFull) {
+      return (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="max-w-md w-full">
+            <ErrorContent />
+          </div>
+        </div>
+      );
+    }
+    return <ErrorContent />;
+  }
 
   // Full screen tracking view
   if (showFull) {

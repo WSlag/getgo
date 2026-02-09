@@ -49,7 +49,9 @@ export function ContractModal({
 
   const bid = contract.Bid || contract.bid;
   const listing = bid?.CargoListing || bid?.TruckListing || bid?.cargoListing || bid?.truckListing;
-  const isCargo = !!(bid?.CargoListing || bid?.cargoListing);
+
+  // Use contract's direct fields for reliability
+  const isCargo = contract.listingType === 'cargo';
 
   // Determine participants
   const listingOwner = isCargo
@@ -58,8 +60,9 @@ export function ContractModal({
   const bidder = bid?.bidder;
 
   // Determine current user's role in this contract
-  const isListingOwner = currentUser?.id === listing?.userId;
-  const isBidder = currentUser?.id === bid?.bidderId;
+  // Use contract's direct fields for reliability
+  const isListingOwner = currentUser?.id === contract.listingOwnerId;
+  const isBidder = currentUser?.id === contract.bidderId;
 
   // For cargo listing: shipper=listing owner, trucker=bidder
   // For truck listing: trucker=listing owner, shipper=bidder
@@ -72,6 +75,22 @@ export function ContractModal({
   const hasUserSigned = isShipper ? !!contract.shipperSignature : !!contract.truckerSignature;
   const otherPartySigned = isShipper ? !!contract.truckerSignature : !!contract.shipperSignature;
   const fullyExecuted = contract.status === 'signed' || contract.status === 'completed' || contract.status === 'in_transit';
+
+  // Debug logging (can be removed after verification)
+  console.log('ContractModal Debug:', {
+    contractId: contract.id,
+    currentUserId: currentUser?.id,
+    listingOwnerId: contract.listingOwnerId,
+    bidderId: contract.bidderId,
+    isCargo,
+    isListingOwner,
+    isBidder,
+    isShipper,
+    hasUserSigned,
+    otherPartySigned,
+    shipperSig: contract.shipperSignature,
+    truckerSig: contract.truckerSignature,
+  });
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -89,13 +108,37 @@ export function ContractModal({
 
   const formatDateTime = (dateStr) => {
     if (!dateStr) return '---';
-    return new Date(dateStr).toLocaleString('en-PH', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    try {
+      let date;
+      // Handle Firestore Timestamp objects (direct from Firestore)
+      if (dateStr.toDate && typeof dateStr.toDate === 'function') {
+        date = dateStr.toDate();
+      }
+      // Handle Firestore Timestamp objects (from Cloud Functions - serialized as {_seconds, _nanoseconds})
+      else if (dateStr._seconds !== undefined) {
+        date = new Date(dateStr._seconds * 1000);
+      }
+      // Handle ISO strings or timestamps
+      else {
+        date = new Date(dateStr);
+      }
+
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date:', dateStr);
+        return '---';
+      }
+
+      return date.toLocaleString('en-PH', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error, dateStr);
+      return '---';
+    }
   };
 
   const statusStyles = {
@@ -168,17 +211,27 @@ export function ContractModal({
           <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-100 dark:bg-gray-800/60">
             <div className="flex items-center gap-2 flex-1">
               <MapPin className="size-5 text-green-500" />
-              <div>
+              <div className="flex-1">
                 <p className="text-xs text-gray-500">Pickup</p>
-                <span className="font-medium text-gray-900 dark:text-white">{contract.pickupAddress || listing?.origin}</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {contract.pickupAddress || listing?.origin}
+                </span>
+                {contract.pickupStreetAddress && (
+                  <p className="text-xs text-gray-500 mt-0.5">{contract.pickupCity}</p>
+                )}
               </div>
             </div>
             <span className="text-gray-400">→</span>
             <div className="flex items-center gap-2 flex-1">
               <MapPin className="size-5 text-red-500" />
-              <div>
+              <div className="flex-1">
                 <p className="text-xs text-gray-500">Delivery</p>
-                <span className="font-medium text-gray-900 dark:text-white">{contract.deliveryAddress || listing?.destination}</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {contract.deliveryAddress || listing?.destination}
+                </span>
+                {contract.deliveryStreetAddress && (
+                  <p className="text-xs text-gray-500 mt-0.5">{contract.deliveryCity}</p>
+                )}
               </div>
             </div>
           </div>

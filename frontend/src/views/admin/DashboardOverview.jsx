@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import { StatCard, StatCardSkeleton } from '@/components/admin/StatCard';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -105,6 +106,7 @@ export function DashboardOverview({ badges, onNavigate }) {
 
   const quickActions = [
     { label: 'Review Payments', count: badges?.pendingPayments || 0, section: 'payments', icon: CreditCard, color: 'from-blue-400 to-blue-600' },
+    { label: 'Verify Contracts', section: 'contractVerification', icon: ShieldCheck, color: 'from-indigo-400 to-indigo-600' },
     { label: 'Manage Users', section: 'users', icon: Users, color: 'from-green-400 to-green-600' },
     { label: 'View Contracts', section: 'contracts', icon: FileText, color: 'from-purple-400 to-purple-600' },
     { label: 'Track Shipments', section: 'shipments', icon: Truck, color: 'from-orange-400 to-orange-600' },
@@ -188,7 +190,7 @@ export function DashboardOverview({ badges, onNavigate }) {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Quick Actions
           </h2>
-          <div className="grid grid-cols-2" style={{ gap: isDesktop ? '16px' : '12px' }}>
+          <div className="grid grid-cols-2 lg:grid-cols-3" style={{ gap: isDesktop ? '16px' : '12px' }}>
             {quickActions.map((action) => {
               const Icon = action.icon;
               return (

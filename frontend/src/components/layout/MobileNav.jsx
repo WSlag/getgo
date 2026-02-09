@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Package, MessageSquare, TrendingUp, User, Plus, Bell, ClipboardList, Map } from 'lucide-react';
+import { Home, Package, MessageSquare, TrendingUp, User, Plus, Bell, ClipboardList, Map, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -10,26 +10,27 @@ export function MobileNav({
   unreadMessages = 0,
   unreadNotifications = 0,
   unreadBids = 0,
+  pendingContractsCount = 0,
   currentRole = 'shipper', // 'shipper' or 'trucker'
   className,
 }) {
   // Account-specific navigation items
-  // Shipper: Home, Bookings, Post, Chat, Track
-  // Trucker: Home, My Bids, Post, Chat, Routes
+  // Shipper: Home, Bids, Contracts, Post, Chat
+  // Trucker: Home, Bids, Contracts, Post, Chat
   const shipperNavItems = [
     { id: 'home', label: 'Home', icon: Home },
-    { id: 'bids', label: 'Bookings', icon: ClipboardList, badge: unreadBids },
+    { id: 'bids', label: 'Bids', icon: ClipboardList, badge: unreadBids },
     { id: 'post', label: 'Post', icon: Plus, isAction: true },
+    { id: 'contracts', label: 'Contracts', icon: FileText, badge: pendingContractsCount },
     { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadMessages },
-    { id: 'tracking', label: 'Track', icon: TrendingUp },
   ];
 
   const truckerNavItems = [
     { id: 'home', label: 'Home', icon: Home },
-    { id: 'bids', label: 'My Bids', icon: Package, badge: unreadBids },
+    { id: 'bids', label: 'Bids', icon: Package, badge: unreadBids },
     { id: 'post', label: 'Post', icon: Plus, isAction: true },
+    { id: 'contracts', label: 'Contracts', icon: FileText, badge: pendingContractsCount },
     { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadMessages },
-    { id: 'tracking', label: 'Routes', icon: Map },
   ];
 
   const navItems = currentRole === 'trucker' ? truckerNavItems : shipperNavItems;
@@ -41,7 +42,7 @@ export function MobileNav({
         className
       )}
     >
-      <div className="flex items-center justify-around py-2">
+      <div className="flex items-center justify-around" style={{ paddingTop: '8px', paddingBottom: '8px' }}>
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -52,12 +53,13 @@ export function MobileNav({
               <button
                 key={item.id}
                 onClick={onPostClick}
-                className="relative -mt-6 flex flex-col items-center justify-center group"
+                className="relative flex flex-col items-center justify-center group"
+                style={{ marginTop: '-18px' }}
               >
                 <div className="size-14 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/40 hover:shadow-xl hover:shadow-orange-500/50 hover:scale-105 active:scale-95 transition-all duration-300">
                   <Icon className="size-6 text-white group-hover:rotate-90 transition-transform duration-300" />
                 </div>
-                <span className="text-[10px] font-medium text-orange-600 dark:text-orange-400 mt-1">
+                <span className="text-[10px] font-medium text-orange-600 dark:text-orange-400" style={{ marginTop: '4px' }}>
                   {item.label}
                 </span>
               </button>
@@ -69,11 +71,12 @@ export function MobileNav({
               key={item.id}
               onClick={() => onTabChange?.(item.id)}
               className={cn(
-                "flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all duration-300 relative hover:scale-105 active:scale-95",
+                "flex flex-col items-center justify-center rounded-xl transition-all duration-300 relative hover:scale-105 active:scale-95",
                 isActive
                   ? "text-orange-600 dark:text-orange-400"
                   : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               )}
+              style={{ padding: '8px 12px' }}
             >
               <div className="relative">
                 <Icon className={cn("size-5 mb-1 transition-transform duration-300", isActive && "scale-110")} />

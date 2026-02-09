@@ -18,6 +18,7 @@ import { DisputesManagement } from './DisputesManagement';
 import { ReferralManagement } from './ReferralManagement';
 import { RatingsManagement } from './RatingsManagement';
 import { SystemSettings } from './SystemSettings';
+import { ContractVerificationView } from '../ContractVerificationView';
 
 import api from '@/services/api';
 
@@ -26,6 +27,7 @@ const sectionTitles = {
   users: { title: 'User Management', subtitle: 'Manage all platform users' },
   listings: { title: 'Listings Management', subtitle: 'Monitor and moderate cargo/truck listings' },
   contracts: { title: 'Contracts', subtitle: 'View and manage all contracts' },
+  contractVerification: { title: 'Contract Verification', subtitle: 'Verify that contracts are being created after payment approval' },
   shipments: { title: 'Shipments', subtitle: 'Track active shipments' },
   payments: { title: 'Payment Review', subtitle: 'Review and verify GCash payment submissions' },
   financial: { title: 'Financial Overview', subtitle: 'Platform revenue and transactions' },
@@ -108,6 +110,8 @@ export function AdminDashboard({ onBackToApp }) {
         return <ListingsManagement />;
       case 'contracts':
         return <ContractsView />;
+      case 'contractVerification':
+        return <ContractVerificationView darkMode={darkMode} />;
       case 'shipments':
         return <ShipmentsView />;
       case 'payments':
