@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Bell, User, Moon, Sun, Wallet } from 'lucide-react';
+import { Home, TrendingUp, Bell, User, Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Logo } from '@/components/shared/Logo';
@@ -11,10 +11,8 @@ export function Header({
   onToggleDarkMode,
   unreadNotifications = 0,
   userInitial = 'U',
-  walletBalance,
   currentRole = 'shipper',
   onLogout,
-  onWalletClick,
   onNotificationClick,
   onProfileClick,
   onEditProfile,
@@ -79,18 +77,7 @@ export function Header({
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
-            {/* Wallet - Trucker only */}
-            {walletBalance !== undefined && (
-              <button
-                onClick={onWalletClick}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm"
-              >
-                <Wallet className="size-4 text-green-600" />
-                <span className="font-semibold text-sm text-green-600">
-                  ₱{walletBalance?.toLocaleString() || '0'}
-                </span>
-              </button>
-            )}
+            {/* Wallet removed - using direct GCash payment */}
 
             {/* Dark Mode Toggle */}
             <button

@@ -1,6 +1,24 @@
-import { auth } from '../firebase';
+import { auth, functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+/**
+ * Call a Cloud Function
+ * @param {string} name - Function name
+ * @param {Object} data - Data to pass to function
+ * @returns {Promise<any>} Function result
+ */
+async function callFunction(name, data = {}) {
+  const fn = httpsCallable(functions, name);
+  try {
+    const result = await fn(data);
+    return result.data;
+  } catch (error) {
+    console.error(`Cloud Function ${name} error:`, error);
+    throw new Error(error.message || 'Function call failed');
+  }
+}
 
 /**
  * API Client with Firebase Authentication
@@ -173,8 +191,8 @@ const api = {
 
   // Route Optimization / Backload Finder
   optimize: {
-    findBackload: (params) => get(`/listings/optimize/backload${params ? `?${new URLSearchParams(params)}` : ''}`),
-    getPopularRoutes: () => get('/listings/optimize/popular-routes'),
+    findBackload: (params) => callFunction('findBackloadOpportunities', params || {}),
+    getPopularRoutes: () => callFunction('getPopularRoutes', {}),
   },
 
   bids: {
@@ -185,18 +203,15 @@ const api = {
   },
 
   wallet: {
-    getBalance: () => get('/wallet'),
-    getTransactions: () => get('/wallet/transactions'),
-    topUp: (data) => post('/wallet/topup', data),
-    payout: (data) => post('/wallet/payout', data),
-    payPlatformFee: (bidId, amount) => post('/wallet/pay-platform-fee', { bidId, amount }),
-    getFeeStatus: (bidId) => get(`/wallet/fee-status/${bidId}`),
-    getPaymentMethods: () => get('/wallet/payment-methods'),
-    // GCash Payment Flow
-    createTopUpOrder: (data) => post('/wallet/create-topup-order', data),
+    // Platform fee payment via GCash
+    createPlatformFeeOrder: (data) => callFunction('createPlatformFeeOrder', data),
+    // GCash order management
+    createTopUpOrder: (data) => callFunction('createTopUpOrder', data),
     getOrder: (orderId) => get(`/wallet/order/${orderId}`),
     getPendingOrders: () => get('/wallet/pending-orders'),
-    getGcashConfig: () => get('/wallet/gcash-config'),
+    getGcashConfig: () => callFunction('getGcashConfig', {}),
+    // Legacy wallet functions removed:
+    // - getBalance, getTransactions, topUp, payout, payPlatformFee, getFeeStatus, getPaymentMethods
   },
 
   chat: {
@@ -207,20 +222,20 @@ const api = {
   },
 
   contracts: {
-    getAll: (params) => get(`/contracts${params ? `?${new URLSearchParams(params)}` : ''}`),
-    getById: (id) => get(`/contracts/${id}`),
-    getByBid: (bidId) => get(`/contracts/bid/${bidId}`),
-    create: (data) => post('/contracts', data),
-    sign: (id) => put(`/contracts/${id}/sign`, {}),
-    complete: (id) => put(`/contracts/${id}/complete`, {}),
+    getAll: (params) => callFunction('getContracts', params || {}),
+    getById: (id) => callFunction('getContract', { contractId: id }),
+    getByBid: (bidId) => callFunction('getContractByBid', { bidId }),
+    create: (data) => callFunction('createContract', data),
+    sign: (id) => callFunction('signContract', { contractId: id }),
+    complete: (id) => callFunction('completeContract', { contractId: id }),
   },
 
   ratings: {
     getForUser: (userId, params) => get(`/ratings/user/${userId}${params ? `?${new URLSearchParams(params)}` : ''}`),
     getForContract: (contractId) => get(`/ratings/contract/${contractId}`),
-    getPending: () => get('/ratings/pending'),
+    getPending: () => callFunction('getPendingRatings', {}),
     getMyRatings: () => get('/ratings/my-ratings'),
-    submit: (data) => post('/ratings', data),
+    submit: (data) => callFunction('submitRating', data),
   },
 
   // Shipment Tracking
@@ -228,37 +243,37 @@ const api = {
     getAll: (params) => get(`/shipments${params ? `?${new URLSearchParams(params)}` : ''}`),
     getById: (id) => get(`/shipments/${id}`),
     track: (trackingNumber) => get(`/shipments/track/${trackingNumber}`),
-    updateLocation: (id, data) => put(`/shipments/${id}/location`, data),
-    updateStatus: (id, status) => put(`/shipments/${id}/status`, { status }),
+    updateLocation: (id, data) => callFunction('updateShipmentLocation', { shipmentId: id, ...data }),
+    updateStatus: (id, status) => callFunction('updateShipmentStatus', { shipmentId: id, status }),
   },
 
   // Admin Endpoints
   admin: {
     // Dashboard
-    getDashboardStats: () => get('/admin/dashboard/stats'),
+    getDashboardStats: () => callFunction('adminGetDashboardStats', {}),
 
     // Payments
-    getPendingPayments: (params) => get(`/admin/payments/pending${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getPendingPayments: (params) => callFunction('adminGetPendingPayments', params || {}),
     getPayments: (params) => get(`/admin/payments${params ? `?${new URLSearchParams(params)}` : ''}`),
-    getPaymentStats: () => get('/admin/payments/stats'),
+    getPaymentStats: () => callFunction('getPaymentStats', {}),
     getPaymentDetails: (submissionId) => get(`/admin/payments/${submissionId}`),
-    approvePayment: (submissionId, data) => post(`/admin/payments/${submissionId}/approve`, data),
-    rejectPayment: (submissionId, data) => post(`/admin/payments/${submissionId}/reject`, data),
+    approvePayment: (submissionId, data) => callFunction('adminApprovePayment', { submissionId, ...data }),
+    rejectPayment: (submissionId, data) => callFunction('adminRejectPayment', { submissionId, ...data }),
 
     // Users
-    getUsers: (params) => get(`/admin/users${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getUsers: (params) => callFunction('adminGetUsers', params || {}),
     getUserDetails: (userId) => get(`/admin/users/${userId}`),
-    suspendUser: (userId, data) => post(`/admin/users/${userId}/suspend`, data),
-    activateUser: (userId) => post(`/admin/users/${userId}/activate`, {}),
-    verifyUser: (userId) => post(`/admin/users/${userId}/verify`, {}),
-    toggleAdmin: (userId, grant) => post(`/admin/users/${userId}/admin`, { grant }),
+    suspendUser: (userId, data) => callFunction('adminSuspendUser', { userId, ...data }),
+    activateUser: (userId) => callFunction('adminActivateUser', { userId }),
+    verifyUser: (userId) => callFunction('adminVerifyUser', { userId }),
+    toggleAdmin: (userId, grant) => callFunction('adminToggleAdmin', { userId, grant }),
 
     // Listings
     getListings: (params) => get(`/admin/listings${params ? `?${new URLSearchParams(params)}` : ''}`),
     deactivateListing: (listingId, data) => post(`/admin/listings/${listingId}/deactivate`, data),
 
     // Contracts
-    getContracts: (params) => get(`/admin/contracts${params ? `?${new URLSearchParams(params)}` : ''}`),
+    getContracts: (params) => callFunction('adminGetContracts', params || {}),
     getContractDetails: (contractId) => get(`/admin/contracts/${contractId}`),
 
     // Shipments
@@ -266,13 +281,13 @@ const api = {
     getActiveShipments: () => get('/admin/shipments/active'),
 
     // Financial
-    getFinancialSummary: () => get('/admin/financial/summary'),
+    getFinancialSummary: () => callFunction('adminGetFinancialSummary', {}),
     getTransactions: (params) => get(`/admin/financial/transactions${params ? `?${new URLSearchParams(params)}` : ''}`),
 
     // Disputes
     getDisputes: (params) => get(`/admin/disputes${params ? `?${new URLSearchParams(params)}` : ''}`),
     getDisputeDetails: (disputeId) => get(`/admin/disputes/${disputeId}`),
-    resolveDispute: (disputeId, data) => post(`/admin/disputes/${disputeId}/resolve`, data),
+    resolveDispute: (disputeId, data) => callFunction('adminResolveDispute', { disputeId, ...data }),
 
     // Referrals/Brokers
     getBrokers: (params) => get(`/admin/referrals/brokers${params ? `?${new URLSearchParams(params)}` : ''}`),

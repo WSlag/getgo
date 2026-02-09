@@ -55,8 +55,13 @@ export function FinancialOverview() {
   const fetchFinancialData = async () => {
     setLoading(true);
     try {
-      // Fetch payment stats
-      const paymentStats = await api.admin.getPaymentStats();
+      // Fetch payment stats (non-blocking — don't let this break revenue calc)
+      let paymentStats = null;
+      try {
+        paymentStats = await api.admin.getPaymentStats();
+      } catch (e) {
+        console.warn('Could not fetch payment stats:', e);
+      }
 
       // Calculate revenue from approved payments
       const now = new Date();
@@ -80,11 +85,12 @@ export function FinancialOverview() {
 
       paymentsSnapshot.forEach(doc => {
         const data = doc.data();
-        const amount = data.orderAmount || 0;
+        const amount = data.orderAmount || data.amount || 0;
         const platformFee = amount * 0.05; // 5% platform fee
         totalRevenue += platformFee;
 
-        const resolvedAt = data.resolvedAt?.toDate?.() || new Date(data.resolvedAt);
+        const resolvedAt = data.resolvedAt?.toDate?.() || (data.resolvedAt ? new Date(data.resolvedAt) : null);
+        if (!resolvedAt || isNaN(resolvedAt.getTime())) return;
         if (resolvedAt >= today) todayRevenue += platformFee;
         if (resolvedAt >= weekAgo) weekRevenue += platformFee;
         if (resolvedAt >= monthAgo) monthRevenue += platformFee;

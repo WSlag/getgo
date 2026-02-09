@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { PesoIcon } from '@/components/ui/PesoIcon';
 import {
   Dialog,
-  DialogContent,
+  DialogBottomSheet,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useMyBids } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export function MyBidsModal({
   open,
@@ -56,23 +57,32 @@ export function MyBidsModal({
   const description = isTrucker
     ? 'View and manage your cargo bids'
     : 'View and manage your truck bookings';
+  const isMobile = useMediaQuery('(max-width: 1023px)');
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto backdrop-blur-sm">
+      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" style={{ padding: isMobile ? '16px 24px' : undefined }}>
         <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              "size-12 rounded-xl flex items-center justify-center shadow-lg",
-              isTrucker
-                ? "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/30"
-                : "bg-gradient-to-br from-violet-400 to-violet-600 shadow-violet-500/30"
-            )}>
-              <FileText className="size-6 text-white" />
+          <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
+            <div style={{
+              width: isMobile ? '40px' : '48px',
+              height: isMobile ? '40px' : '48px',
+              borderRadius: '12px',
+              background: isTrucker
+                ? 'linear-gradient(to bottom right, #34d399, #10b981)'
+                : 'linear-gradient(to bottom right, #a78bfa, #8b5cf6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: isTrucker
+                ? '0 10px 15px -3px rgba(16, 185, 129, 0.3)'
+                : '0 10px 15px -3px rgba(139, 92, 246, 0.3)'
+            }}>
+              <FileText style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px', color: '#fff' }} />
             </div>
             <div>
-              <DialogTitle className="text-xl">{title}</DialogTitle>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <DialogTitle style={{ fontSize: isMobile ? '16px' : '20px' }}>{title}</DialogTitle>
+              <p style={{ fontSize: isMobile ? '11px' : '14px', color: '#6b7280' }}>
                 {description}
               </p>
             </div>
@@ -199,12 +209,12 @@ export function MyBidsModal({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 pt-4">
-          <Button variant="ghost" onClick={onClose} className="flex-1">
+        <div style={{ paddingTop: isMobile ? '12px' : '16px' }}>
+          <Button variant="ghost" onClick={onClose} className="w-full">
             Close
           </Button>
         </div>
-      </DialogContent>
+      </DialogBottomSheet>
     </Dialog>
   );
 }

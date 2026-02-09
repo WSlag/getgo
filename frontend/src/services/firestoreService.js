@@ -90,6 +90,8 @@ export const createCargoListing = async (userId, userProfile, data) => {
     originLng: originCoords.lng,
     destLat: destCoords.lat,
     destLng: destCoords.lng,
+    originStreetAddress: data.originStreetAddress || '',
+    destinationStreetAddress: data.destinationStreetAddress || '',
     cargoType: data.cargoType,
     weight: parseFloat(data.weight) || 0,
     weightUnit: data.weightUnit || 'tons',
@@ -140,6 +142,8 @@ export const createTruckListing = async (userId, userProfile, truckerProfile, da
     originLng: originCoords.lng,
     destLat: destCoords.lat,
     destLng: destCoords.lng,
+    originStreetAddress: data.originStreetAddress || '',
+    destinationStreetAddress: data.destinationStreetAddress || '',
     vehicleType: data.vehicleType,
     capacity: parseFloat(data.capacity) || 0,
     capacityUnit: data.capacityUnit || 'tons',
@@ -310,6 +314,39 @@ export const rejectBid = async (bidId, bid, listing, listingType) => {
 export const withdrawBid = async (bidId) => {
   const bidRef = doc(db, 'bids', bidId);
   await updateDoc(bidRef, { status: 'withdrawn', updatedAt: serverTimestamp() });
+};
+
+export const reopenListing = async (listingId, listingType) => {
+  const batch = writeBatch(db);
+
+  // Update listing status back to open
+  const listingRef = listingType === 'cargo'
+    ? doc(db, 'cargoListings', listingId)
+    : doc(db, 'truckListings', listingId);
+
+  batch.update(listingRef, {
+    status: 'open',
+    updatedAt: serverTimestamp()
+  });
+
+  // Reject all accepted bids (if any) for this listing
+  const bidsQuery = query(
+    collection(db, 'bids'),
+    where('listingId', '==', listingId),
+    where('listingType', '==', listingType),
+    where('status', '==', 'accepted')
+  );
+
+  const bidsSnapshot = await getDocs(bidsQuery);
+  bidsSnapshot.forEach((bidDoc) => {
+    const bidRef = doc(db, 'bids', bidDoc.id);
+    batch.update(bidRef, {
+      status: 'rejected',
+      updatedAt: serverTimestamp()
+    });
+  });
+
+  await batch.commit();
 };
 
 // ============================================================
@@ -693,6 +730,7 @@ export const createPaymentSubmission = async (data) => {
 
   const submissionData = {
     orderId: data.orderId,
+    bidId: data.bidId || null, // NEW: Link to bid for platform fee payments
     userId,
     screenshotUrl: data.screenshotUrl,
     status: 'pending',

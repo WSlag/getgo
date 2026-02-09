@@ -241,11 +241,18 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500 flex items-center gap-1.5">
-                    <User className="size-4" /> User ID:
+                    <User className="size-4" /> User:
                   </span>
-                  <span className="font-mono text-gray-700 dark:text-gray-300 text-xs">
-                    {submission.userId?.slice(0, 12)}...
-                  </span>
+                  <div className="text-right">
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {submission.userName || 'Unknown User'}
+                    </div>
+                    {submission.userEmail && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {submission.userEmail}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500 flex items-center gap-1.5">
@@ -447,7 +454,7 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
 }
 
 // Main AdminPaymentsView component
-export function AdminPaymentsView({ darkMode = false, className }) {
+export function AdminPaymentsView({ darkMode = false, className, onVerifyContracts }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const [submissions, setSubmissions] = useState([]);
   const [stats, setStats] = useState(null);
@@ -581,15 +588,28 @@ export function AdminPaymentsView({ darkMode = false, className }) {
             </p>
           )}
         </div>
-        <Button
-          onClick={() => { fetchSubmissions(); fetchStats(); }}
-          variant="outline"
-          size={isMobile ? "sm" : "default"}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {onVerifyContracts && (
+            <Button
+              onClick={onVerifyContracts}
+              variant="default"
+              size={isMobile ? "sm" : "default"}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700"
+            >
+              <FileText className="size-4" />
+              Verify Contracts
+            </Button>
+          )}
+          <Button
+            onClick={() => { fetchSubmissions(); fetchStats(); }}
+            variant="outline"
+            size={isMobile ? "sm" : "default"}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -816,6 +836,9 @@ export function AdminPaymentsView({ darkMode = false, className }) {
                     Submission
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    User
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     Amount
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
@@ -853,8 +876,20 @@ export function AdminPaymentsView({ darkMode = false, className }) {
                       </div>
                     </td>
                     <td className="px-4 py-3">
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white text-sm">
+                          {submission.userName || 'Unknown'}
+                        </p>
+                        {submission.userEmail && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {submission.userEmail}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
                       <span className="font-semibold text-gray-900 dark:text-white">
-                        PHP {formatPrice(submission.orderAmount)}
+                        PHP {formatPrice(submission.orderAmount || 0)}
                       </span>
                     </td>
                     <td className="px-4 py-3">

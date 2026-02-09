@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MapPin, Package, Truck, Clock, Navigation, Radio, ChevronRight, MapPinned } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import TrackingMap from '@/components/maps/TrackingMap';
 import api from '@/services/api';
 import { getCoordinates, getCityNames } from '@/utils/cityCoordinates';
@@ -16,6 +17,7 @@ export function TrackingView({
   className,
   onLocationUpdate = null, // Socket callback for instant notifications
 }) {
+  const isMobile = useMediaQuery('(max-width: 1023px)');
   const [selectedShipment, setSelectedShipment] = useState(null);
   const [showFullMap, setShowFullMap] = useState(false);
   const [updatingLocation, setUpdatingLocation] = useState(null);
@@ -84,11 +86,21 @@ export function TrackingView({
         {/* Status Bar */}
         <div className={cn("h-1.5", status.color)} />
 
-        <div className="p-4">
+        <div style={{ padding: isMobile ? '16px' : '24px' }}>
           {/* Header */}
-          <div className="flex items-start justify-between mb-4">
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            marginBottom: isMobile ? '16px' : '20px'
+          }}>
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '6px'
+              }}>
                 <span className={cn("px-2 py-1 rounded-full text-xs font-medium", status.color, "text-white")}>
                   {status.label}
                 </span>
@@ -107,8 +119,16 @@ export function TrackingView({
           </div>
 
           {/* Route */}
-          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-            <div className="flex items-center gap-2 flex-1">
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: isMobile ? '8px' : '12px',
+            marginBottom: isMobile ? '16px' : '20px',
+            padding: isMobile ? '12px' : '14px',
+            backgroundColor: darkMode ? 'rgba(31, 41, 55, 0.5)' : 'rgb(249, 250, 251)',
+            borderRadius: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
               <div className="size-8 rounded-full bg-green-500 flex items-center justify-center">
                 <MapPin className="size-4 text-white" />
               </div>
@@ -120,7 +140,7 @@ export function TrackingView({
 
             <Navigation className="size-4 text-orange-500" />
 
-            <div className="flex items-center gap-2 flex-1">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
               <div className="size-8 rounded-full bg-red-500 flex items-center justify-center">
                 <MapPin className="size-4 text-white" />
               </div>
@@ -132,7 +152,16 @@ export function TrackingView({
           </div>
 
           {/* Current Location */}
-          <div className="flex items-center gap-2 mb-4 p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-100 dark:border-orange-800/30">
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: isMobile ? '16px' : '20px',
+            padding: '10px',
+            backgroundColor: darkMode ? 'rgba(234, 88, 12, 0.1)' : 'rgb(255, 247, 237)',
+            borderRadius: '8px',
+            border: darkMode ? '1px solid rgba(234, 88, 12, 0.3)' : '1px solid rgb(254, 215, 170)'
+          }}>
             <Radio className="size-4 text-orange-500 animate-pulse" />
             <span className="text-sm text-orange-700 dark:text-orange-300">
               Current: <strong>{shipment.currentLocation?.name || 'Unknown'}</strong>
@@ -141,8 +170,12 @@ export function TrackingView({
           </div>
 
           {/* Progress Bar */}
-          <div className="mb-4">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
+          <div style={{ marginBottom: isMobile ? '16px' : '20px' }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '6px'
+            }} className="text-xs text-gray-500">
               <span>{shipment.origin}</span>
               <span>{shipment.destination}</span>
             </div>
@@ -156,8 +189,18 @@ export function TrackingView({
 
           {/* Trucker Location Update */}
           {isTrucker && shipment.status !== 'delivered' && (
-            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/30">
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
+            <div style={{
+              marginBottom: isMobile ? '16px' : '20px',
+              padding: isMobile ? '12px' : '14px',
+              backgroundColor: darkMode ? 'rgba(59, 130, 246, 0.1)' : 'rgb(239, 246, 255)',
+              borderRadius: '12px',
+              border: darkMode ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgb(191, 219, 254)'
+            }}>
+              <p style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                marginBottom: '10px'
+              }} className="text-blue-700 dark:text-blue-300">
                 Update Current Location
               </p>
               <select
@@ -177,7 +220,7 @@ export function TrackingView({
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-2">
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={() => {
                 setSelectedShipment(shipment);
@@ -195,14 +238,23 @@ export function TrackingView({
   };
 
   return (
-    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: '32px 40px' }}>
+    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '16px' : '24px' }}>
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+      <div style={{ marginBottom: isMobile ? '24px' : '32px' }}>
+        <h1 style={{
+          fontWeight: 'bold',
+          color: darkMode ? '#fff' : '#111827',
+          fontSize: isMobile ? '20px' : '24px',
+          marginBottom: '8px',
+          lineHeight: '1.2'
+        }}>
           Shipment Tracking
         </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          <span className="font-semibold text-orange-500">
+        <p style={{
+          color: darkMode ? '#9ca3af' : '#6b7280',
+          fontSize: isMobile ? '14px' : '16px'
+        }}>
+          <span style={{ fontWeight: '600', color: '#f97316' }}>
             {activeShipments.length} active
           </span>
           {' '}{activeShipments.length === 1 ? 'shipment' : 'shipments'} in progress
@@ -214,15 +266,30 @@ export function TrackingView({
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent" />
         </div>
       ) : activeShipments.length > 0 || deliveredShipments.length > 0 ? (
-        <div className="space-y-8">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '24px' : '32px' }}>
           {/* Active Shipments */}
           {activeShipments.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <Radio className="size-5 text-orange-500 animate-pulse" />
-                Active Shipments
-              </h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: isMobile ? '12px' : '16px'
+              }}>
+                <Radio className="text-orange-500 animate-pulse" style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px' }} />
+                <h2 style={{
+                  fontWeight: '600',
+                  color: darkMode ? '#fff' : '#111827',
+                  fontSize: isMobile ? '16px' : '18px'
+                }}>
+                  Active Shipments
+                </h2>
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
+                gap: isMobile ? '12px' : '24px'
+              }}>
                 {activeShipments.map((shipment) => (
                   <ShipmentCard key={shipment.id} shipment={shipment} />
                 ))}
@@ -233,11 +300,26 @@ export function TrackingView({
           {/* Delivered Shipments */}
           {deliveredShipments.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <Package className="size-5 text-green-500" />
-                Delivered
-              </h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: isMobile ? '12px' : '16px'
+              }}>
+                <Package className="text-green-500" style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px' }} />
+                <h2 style={{
+                  fontWeight: '600',
+                  color: darkMode ? '#fff' : '#111827',
+                  fontSize: isMobile ? '16px' : '18px'
+                }}>
+                  Delivered
+                </h2>
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
+                gap: isMobile ? '12px' : '24px'
+              }}>
                 {deliveredShipments.map((shipment) => (
                   <ShipmentCard key={shipment.id} shipment={shipment} />
                 ))}

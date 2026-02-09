@@ -13,6 +13,12 @@ const routeCache = new Map();
  * Generate cache key for a route
  */
 const getCacheKey = (origin, destination) => {
+  // Validate coordinates exist
+  if (!origin || !destination ||
+      typeof origin.lat !== 'number' || typeof origin.lng !== 'number' ||
+      typeof destination.lat !== 'number' || typeof destination.lng !== 'number') {
+    throw new Error('Invalid coordinates provided to getCacheKey');
+  }
   return `${origin.lat.toFixed(4)},${origin.lng.toFixed(4)}-${destination.lat.toFixed(4)},${destination.lng.toFixed(4)}`;
 };
 
@@ -65,6 +71,13 @@ const decodePolyline = (encoded) => {
  * @returns {Promise<Object>} Route data with coordinates, distance, and duration
  */
 export const fetchRoute = async (origin, destination) => {
+  // Validate coordinates
+  if (!origin || !destination ||
+      typeof origin.lat !== 'number' || typeof origin.lng !== 'number' ||
+      typeof destination.lat !== 'number' || typeof destination.lng !== 'number') {
+    throw new Error('Invalid coordinates: origin and destination must have valid lat/lng numbers');
+  }
+
   // Check cache first
   const cacheKey = getCacheKey(origin, destination);
   if (routeCache.has(cacheKey)) {

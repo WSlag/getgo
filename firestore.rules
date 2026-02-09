@@ -36,29 +36,29 @@ service cloud.firestore {
 
       // Broker Profile subcollection (including nested referrals and commissions)
       match /brokerProfile/{docId} {
-        allow read: if isOwner(uid);
+        allow read: if isOwner(uid) || isAdmin();
         allow write: if isOwner(uid);
 
         match /referrals/{refId} {
-          allow read: if isOwner(uid);
+          allow read: if isOwner(uid) || isAdmin();
           allow write: if isOwner(uid);
         }
 
         match /commissions/{commId} {
-          allow read: if isOwner(uid);
+          allow read: if isOwner(uid) || isAdmin();
           allow write: if isOwner(uid);
         }
       }
 
       // Wallet subcollection
       match /wallet/{docId} {
-        allow read: if isOwner(uid);
+        allow read: if isOwner(uid) || isAdmin();
         allow write: if isOwner(uid);
       }
 
       // Wallet Transactions subcollection
       match /walletTransactions/{txId} {
-        allow read: if isOwner(uid);
+        allow read: if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid);
         allow update: if false;
         allow delete: if false;
@@ -84,7 +84,11 @@ service cloud.firestore {
     match /cargoListings/{listingId} {
       allow read: if true;
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAuth() && resource.data.userId == request.auth.uid;
+      // Allow owner to update, OR allow authenticated users to increment bidCount only
+      allow update: if isAuth() && (
+        resource.data.userId == request.auth.uid ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bidCount', 'updatedAt']))
+      );
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
 
@@ -92,7 +96,11 @@ service cloud.firestore {
     match /truckListings/{listingId} {
       allow read: if true;
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAuth() && resource.data.userId == request.auth.uid;
+      // Allow owner to update, OR allow authenticated users to increment bidCount only
+      allow update: if isAuth() && (
+        resource.data.userId == request.auth.uid ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bidCount', 'updatedAt']))
+      );
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
 
@@ -157,7 +165,7 @@ service cloud.firestore {
     // Payment Orders - Users can read their own orders
     // Only backend/Cloud Functions can create and update
     match /orders/{orderId} {
-      allow read: if isAuth() && resource.data.userId == request.auth.uid;
+      allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if false; // Only backend creates orders
       allow update: if false; // Only Cloud Functions update
       allow delete: if false;
@@ -192,6 +200,12 @@ service cloud.firestore {
     match /fraudLogs/{logId} {
       allow read: if isAdmin();
       allow write: if false; // Only Cloud Functions can write
+    }
+
+    // Platform Fees - Backend only (tracked via Admin SDK)
+    match /platformFees/{feeId} {
+      allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false; // Only backend creates
     }
   }
 }

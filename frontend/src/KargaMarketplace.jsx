@@ -8,7 +8,7 @@ import { useCargoListings } from './hooks/useCargoListings';
 import { useTruckListings } from './hooks/useTruckListings';
 import { useBidsForListing } from './hooks/useBids';
 import { useChat } from './hooks/useChat';
-import { useWallet } from './hooks/useWallet';
+// Wallet removed - using direct GCash payment
 import { useNotifications } from './hooks/useNotifications';
 import { useShipments } from './hooks/useShipments';
 import * as firestoreService from './services/firestoreService';
@@ -304,7 +304,7 @@ export default function KargaMarketplace() {
   const { listings: firebaseCargoListings, loading: cargoLoading } = useCargoListings({ status: 'open' });
   const { listings: firebaseTruckListings, loading: truckLoading } = useTruckListings({ status: 'open' });
   const { notifications: firebaseNotifications, unreadCount: firebaseUnreadCount } = useNotifications(authUser?.uid);
-  const { balance: firebaseWalletBalance, transactions: firebaseWalletTransactions } = useWallet(authUser?.uid);
+  // Wallet removed - using direct GCash payment
   const { activeShipments: firebaseActiveShipments } = useShipments(authUser?.uid);
 
   const [darkMode, setDarkMode] = useState(false);
@@ -325,13 +325,7 @@ export default function KargaMarketplace() {
   const userRating = truckerProfile?.rating || 0;
   const userTrips = truckerProfile?.totalTrips || 0;
 
-  // Wallet System - use Firebase with fallback
-  const walletBalance = firebaseWalletBalance || 0;
-  const walletTransactions = firebaseWalletTransactions.length > 0 ? firebaseWalletTransactions : [];
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const [showTopUpModal, setShowTopUpModal] = useState(false);
-  const [topUpAmount, setTopUpAmount] = useState('');
-  const [topUpMethod, setTopUpMethod] = useState('gcash');
+  // Wallet removed - using direct GCash payment for platform fees
   
   // Broker/Earnings System State - use Firebase data
   const [demoBroker, setDemoBroker] = useState(false);
@@ -1038,325 +1032,11 @@ export default function KargaMarketplace() {
     );
   };
 
-  // Wallet Modal Component
-  const WalletModal = () => {
-    const pendingFees = walletTransactions.filter(t => t.type === 'fee' && t.status === 'pending').reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    const availableBalance = walletBalance - pendingFees;
-    
-    return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-        <div className={`${theme.bgCard} rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl`}>
-          <div className={`sticky top-0 ${theme.bgCard} p-4 border-b ${theme.borderLight} flex justify-between items-center`}>
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center">
-                <PesoIcon size={20} className="text-white" />
-              </div>
-              <div>
-                <h2 className={`text-lg font-bold ${theme.text}`}>My Wallet</h2>
-                <p className={`text-xs ${theme.textMuted}`}>Trucker Wallet System</p>
-              </div>
-            </div>
-            <button onClick={() => setShowWalletModal(false)} className={`${theme.bgSecondary} p-2 rounded-full`}>
-              <X size={20} className={theme.textSecondary} />
-            </button>
-          </div>
-          
-          <div className="p-4 space-y-4">
-            {/* Balance Card */}
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-5 text-white">
-              <p className="text-green-100 text-sm">Available Balance</p>
-              <p className="text-4xl font-bold mt-1">₱{walletBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
-              {pendingFees > 0 && (
-                <p className="text-green-200 text-xs mt-2">₱{pendingFees.toFixed(2)} pending fees</p>
-              )}
-              <div className="flex gap-2 mt-4">
-                <button 
-                  onClick={() => { setShowWalletModal(false); setShowTopUpModal(true); }}
-                  className="flex-1 bg-white/20 hover:bg-white/30 py-2 rounded-xl font-medium text-sm backdrop-blur transition"
-                >
-                  + Top Up
-                </button>
-                <button className="flex-1 bg-white/20 hover:bg-white/30 py-2 rounded-xl font-medium text-sm backdrop-blur transition">
-                  Withdraw
-                </button>
-              </div>
-            </div>
-            
-            {/* Minimum Balance Warning */}
-            {walletBalance < MINIMUM_WALLET_BALANCE && (
-              <div className={`${darkMode ? 'bg-red-900/30 border-red-800' : 'bg-red-50 border-red-200'} border rounded-xl p-3 flex items-start gap-3`}>
-                <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
-                  <X size={16} className="text-white" />
-                </div>
-                <div>
-                  <p className={`font-semibold ${darkMode ? 'text-red-400' : 'text-red-700'}`}>Low Balance!</p>
-                  <p className={`text-sm ${darkMode ? 'text-red-300' : 'text-red-600'}`}>
-                    Minimum ₱{MINIMUM_WALLET_BALANCE} required to accept jobs. Top up now to continue.
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            {/* How It Works */}
-            <div className={`${theme.bgSecondary} rounded-xl p-4`}>
-              <p className={`font-semibold ${theme.text} mb-3`}>💡 How Platform Fees Work</p>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-start gap-2">
-                  <span className="w-5 h-5 bg-amber-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">1</span>
-                  <p className={theme.textSecondary}>You accept a job worth ₱18,000</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-5 h-5 bg-amber-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
-                  <p className={theme.textSecondary}>Platform fee (3%) = ₱540 is held from wallet</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-5 h-5 bg-amber-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">3</span>
-                  <p className={theme.textSecondary}>You deliver & collect ₱18,000 cash from shipper</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">✓</span>
-                  <p className={theme.textSecondary}>Fee confirmed, you keep ₱17,460 net earnings!</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Transaction History */}
-            <div>
-              <p className={`font-semibold ${theme.text} mb-3`}>Recent Transactions</p>
-              <div className="space-y-2">
-                {walletTransactions.map(tx => (
-                  <div key={tx.id} className={`${theme.bgSecondary} rounded-xl p-3 flex justify-between items-center`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        tx.type === 'topup' 
-                          ? (darkMode ? 'bg-green-900/50' : 'bg-green-100') 
-                          : (darkMode ? 'bg-red-900/50' : 'bg-red-100')
-                      }`}>
-                        {tx.type === 'topup' ? (
-                          <TrendingUp size={18} className="text-green-500" />
-                        ) : (
-                          <TrendingDown size={18} className="text-red-500" />
-                        )}
-                      </div>
-                      <div>
-                        <p className={`font-medium ${theme.text}`}>
-                          {tx.type === 'topup' ? `Top Up via ${tx.method}` : tx.description}
-                        </p>
-                        <p className={`text-xs ${theme.textMuted}`}>{tx.date}</p>
-                      </div>
-                    </div>
-                    <p className={`font-bold ${tx.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {tx.amount > 0 ? '+' : ''}₱{Math.abs(tx.amount).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // Wallet Modal Component REMOVED - Using direct GCash payment
+  // (300+ lines of inline modal component removed)
 
-  // Top Up Modal Component
-  const TopUpModal = () => {
-    const [step, setStep] = useState(1); // 1: Select amount, 2: Select method, 3: Processing, 4: Success
-    const [processing, setProcessing] = useState(false);
-    
-    const quickAmounts = [500, 1000, 2000, 5000];
-    const selectedMethod = paymentMethods[topUpMethod];
-    const totalAmount = parseFloat(topUpAmount || 0) + (selectedMethod?.fee || 0);
-    
-    const handleTopUp = async () => {
-      if (!topUpAmount || parseFloat(topUpAmount) < 100 || !authUser) return;
-
-      setProcessing(true);
-      setStep(3);
-
-      try {
-        const amount = parseFloat(topUpAmount);
-        const reference = `${topUpMethod.toUpperCase()}-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
-
-        // Use Firebase to update wallet
-        await firestoreService.topUpWallet(authUser.uid, amount, selectedMethod.name, reference);
-
-        setProcessing(false);
-        setStep(4);
-      } catch (error) {
-        console.error('Top up error:', error);
-        alert('Failed to process top up. Please try again.');
-        setProcessing(false);
-        setStep(1);
-      }
-    };
-    
-    const resetAndClose = () => {
-      setShowTopUpModal(false);
-      setTopUpAmount('');
-      setTopUpMethod('gcash');
-      setStep(1);
-    };
-    
-    return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-        <div className={`${theme.bgCard} rounded-2xl w-full max-w-md shadow-2xl`}>
-          <div className={`p-4 border-b ${theme.borderLight} flex justify-between items-center`}>
-            <h2 className={`text-xl font-bold ${theme.text}`}>
-              {step === 1 && '💰 Top Up Wallet'}
-              {step === 2 && '💳 Select Payment'}
-              {step === 3 && '⏳ Processing...'}
-              {step === 4 && '✅ Success!'}
-            </h2>
-            <button onClick={resetAndClose} className={`${theme.bgSecondary} p-2 rounded-full`}>
-              <X size={20} className={theme.textSecondary} />
-            </button>
-          </div>
-          
-          <div className="p-4">
-            {/* Step 1: Select Amount */}
-            {step === 1 && (
-              <div className="space-y-4">
-                <div>
-                  <label className={`block text-sm ${theme.textSecondary} mb-2 font-medium`}>Enter Amount</label>
-                  <div className="relative">
-                    <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold ${theme.textMuted}`}>₱</span>
-                    <input 
-                      type="number" 
-                      value={topUpAmount} 
-                      onChange={e => setTopUpAmount(e.target.value)}
-                      placeholder="0.00"
-                      className={`w-full ${theme.input} border rounded-xl pl-12 pr-4 py-4 text-2xl font-bold text-right`}
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-4 gap-2">
-                  {quickAmounts.map(amt => (
-                    <button 
-                      key={amt}
-                      onClick={() => setTopUpAmount(amt.toString())}
-                      className={`py-2 rounded-xl font-medium text-sm transition ${
-                        topUpAmount === amt.toString()
-                          ? 'bg-amber-500 text-white'
-                          : `${theme.bgSecondary} ${theme.textSecondary} hover:bg-amber-100 dark:hover:bg-amber-900/30`
-                      }`}
-                    >
-                      ₱{amt.toLocaleString()}
-                    </button>
-                  ))}
-                </div>
-                
-                <p className={`text-xs ${theme.textMuted} text-center`}>Minimum top-up: ₱100</p>
-                
-                <button 
-                  onClick={() => setStep(2)}
-                  disabled={!topUpAmount || parseFloat(topUpAmount) < 100}
-                  className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-3 rounded-xl font-bold shadow-lg disabled:opacity-50"
-                >
-                  Continue
-                </button>
-              </div>
-            )}
-            
-            {/* Step 2: Select Payment Method */}
-            {step === 2 && (
-              <div className="space-y-4">
-                <div className={`${darkMode ? 'bg-amber-900/20' : 'bg-amber-50'} rounded-xl p-4 text-center`}>
-                  <p className={`text-sm ${theme.textMuted}`}>Amount to Top Up</p>
-                  <p className="text-3xl font-bold text-amber-500">₱{parseFloat(topUpAmount).toLocaleString()}</p>
-                </div>
-                
-                <p className={`font-medium ${theme.text}`}>Select Payment Method</p>
-                
-                <div className="space-y-2">
-                  {Object.entries(paymentMethods).map(([key, method]) => (
-                    <button
-                      key={key}
-                      onClick={() => setTopUpMethod(key)}
-                      className={`w-full p-4 rounded-xl border-2 flex items-center justify-between transition ${
-                        topUpMethod === key
-                          ? 'border-amber-500 bg-amber-500/10'
-                          : `${theme.border} ${theme.bgSecondary}`
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{method.icon}</span>
-                        <div className="text-left">
-                          <p className={`font-medium ${theme.text}`}>{method.name}</p>
-                          {method.fee > 0 && <p className={`text-xs ${theme.textMuted}`}>+₱{method.fee} fee</p>}
-                        </div>
-                      </div>
-                      {topUpMethod === key && (
-                        <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center">
-                          <Check size={14} className="text-white" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-                
-                {selectedMethod?.fee > 0 && (
-                  <div className={`${theme.bgSecondary} rounded-xl p-3 flex justify-between`}>
-                    <span className={theme.textSecondary}>Total to Pay</span>
-                    <span className={`font-bold ${theme.text}`}>₱{totalAmount.toLocaleString()}</span>
-                  </div>
-                )}
-                
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => setStep(1)}
-                    className={`flex-1 ${theme.bgSecondary} ${theme.text} py-3 rounded-xl font-medium`}
-                  >
-                    Back
-                  </button>
-                  <button 
-                    onClick={handleTopUp}
-                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-bold shadow-lg"
-                  >
-                    Pay ₱{totalAmount.toLocaleString()}
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {/* Step 3: Processing */}
-            {step === 3 && (
-              <div className="py-12 text-center">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center animate-pulse">
-                  <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-                <p className={`text-lg font-semibold ${theme.text}`}>Processing Payment...</p>
-                <p className={`text-sm ${theme.textMuted} mt-2`}>Please wait while we confirm your payment</p>
-              </div>
-            )}
-            
-            {/* Step 4: Success */}
-            {step === 4 && (
-              <div className="py-8 text-center">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                  <Check size={40} className="text-green-500" />
-                </div>
-                <p className={`text-xl font-bold ${theme.text}`}>Top Up Successful!</p>
-                <p className={`text-sm ${theme.textMuted} mt-2`}>₱{parseFloat(topUpAmount).toLocaleString()} has been added to your wallet</p>
-                
-                <div className={`${theme.bgSecondary} rounded-xl p-4 mt-6`}>
-                  <p className={`text-sm ${theme.textMuted}`}>New Balance</p>
-                  <p className="text-3xl font-bold text-green-500">₱{walletBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
-                </div>
-                
-                <button 
-                  onClick={resetAndClose}
-                  className="w-full mt-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white py-3 rounded-xl font-bold shadow-lg"
-                >
-                  Done
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // Top Up Modal Component REMOVED - Using direct GCash payment
+  // (200+ lines of inline modal component removed)
 
   // Earnings/Broker Modal Component
   const EarningsModal = () => {
@@ -2185,12 +1865,12 @@ export default function KargaMarketplace() {
 
               <section>
                 <h3 className={`font-bold ${theme.text} mb-2`}>4. Platform Fees</h3>
-                <p>KARGA Connect charges a platform fee of 5% on completed transactions. This fee is deducted from the wallet balance upon contract signing.</p>
+                <p>KARGA Connect charges a platform fee of 5% on completed transactions. This fee is paid via GCash when creating the contract.</p>
               </section>
 
               <section>
-                <h3 className={`font-bold ${theme.text} mb-2`}>5. Wallet & Payments</h3>
-                <p>Users must maintain sufficient wallet balance for transactions. Top-up via GCash, Maya, or bank transfer. Withdrawals are processed within 24-48 hours.</p>
+                <h3 className={`font-bold ${theme.text} mb-2`}>5. Payments</h3>
+                <p>Platform fees are paid directly via GCash screenshot upload. Payments are verified automatically or reviewed by admins within minutes.</p>
               </section>
 
               <section>
@@ -2397,41 +2077,12 @@ export default function KargaMarketplace() {
     return Math.round(amount * PLATFORM_FEE_RATE);
   };
 
-  // Check if trucker has sufficient wallet balance
-  const checkWalletBalance = (jobAmount) => {
-    const requiredFee = calculatePlatformFee(jobAmount);
-    return walletBalance >= requiredFee;
-  };
-
-  // Deduct platform fee from wallet
-  const deductPlatformFee = (jobAmount, description) => {
-    const fee = calculatePlatformFee(jobAmount);
-    setWalletBalance(prev => prev - fee);
-    setWalletTransactions(prev => [{
-      id: `W${Date.now()}`,
-      type: 'fee',
-      amount: -fee,
-      description: description,
-      date: new Date().toISOString().split('T')[0],
-      status: 'completed',
-      contractId: `KC-${Date.now().toString().slice(-8)}`
-    }, ...prev]);
-    return fee;
-  };
+  // Wallet balance checks REMOVED - Using direct GCash payment for platform fees
 
   const handleBid = async () => {
     if (!bidAmount || !selectedListing || !authUser || !userProfile) return;
 
-    // For truckers bidding on cargo, check wallet balance
-    if (userRole === 'trucker' && selectedListing.type === 'cargo') {
-      const fee = calculatePlatformFee(parseFloat(bidAmount));
-      if (walletBalance < fee) {
-        alert(`Insufficient wallet balance! You need at least ₱${fee} to cover the platform fee (3% of ₱${parseFloat(bidAmount).toLocaleString()}). Please top up your wallet.`);
-        setShowBidModal(false);
-        setShowTopUpModal(true);
-        return;
-      }
-    }
+    // Wallet balance check REMOVED - Platform fee paid via GCash after bid acceptance
 
     try {
       const bidderProfile = {
@@ -2946,21 +2597,8 @@ export default function KargaMarketplace() {
             </nav>
 
             <div className="flex items-center gap-2">
-              {/* Wallet Button - Truckers Only */}
-              {userRole === 'trucker' && (
-                <button 
-                  onClick={() => setShowWalletModal(true)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full ${
-                    walletBalance < MINIMUM_WALLET_BALANCE 
-                      ? 'bg-red-500 text-white animate-pulse' 
-                      : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
-                  } shadow-sm`}
-                >
-                  <PesoIcon size={14} />
-                  <span className="font-bold text-sm">₱{walletBalance.toLocaleString()}</span>
-                </button>
-              )}
-              
+              {/* Wallet Button REMOVED - Using direct GCash payment */}
+
               {/* Dark Mode Toggle */}
               <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full ${theme.bgSecondary} transition-colors`}>
                 {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className={theme.textSecondary} />}
@@ -3163,9 +2801,9 @@ export default function KargaMarketplace() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {activeMarket === 'cargo' ? (
-                  cargoListings.map(cargo => <ListingCard key={cargo.id} listing={cargo} canBid={userRole === 'trucker'} />)
+                  cargoListings.map(cargo => <ListingCard key={cargo.id} listing={cargo} canBid={userRole === 'trucker' && (cargo.status === 'open' || cargo.status === 'waiting')} />)
                 ) : (
-                  truckListings.map(truck => <ListingCard key={truck.id} listing={truck} canBid={userRole === 'shipper'} />)
+                  truckListings.map(truck => <ListingCard key={truck.id} listing={truck} canBid={userRole === 'shipper' && (truck.status === 'open' || truck.status === 'waiting')} />)
                 )}
               </div>
             </>
@@ -3489,20 +3127,9 @@ export default function KargaMarketplace() {
                 </div>
               )}
 
-              <button onClick={handleBid} disabled={!bidAmount || (userRole === 'trucker' && selectedListing.type === 'cargo' && walletBalance < Math.round(parseFloat(bidAmount || 0) * PLATFORM_FEE_RATE))} className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-bold shadow-lg disabled:opacity-50">
-                {userRole === 'trucker' && selectedListing.type === 'cargo' && walletBalance < Math.round(parseFloat(bidAmount || 0) * PLATFORM_FEE_RATE) 
-                  ? 'Top Up Wallet First' 
-                  : 'Submit Bid'}
+              <button onClick={handleBid} disabled={!bidAmount} className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-bold shadow-lg disabled:opacity-50">
+                Submit Bid
               </button>
-              
-              {userRole === 'trucker' && walletBalance < MINIMUM_WALLET_BALANCE && (
-                <button 
-                  onClick={() => { setShowBidModal(false); setShowTopUpModal(true); }}
-                  className={`w-full mt-2 ${theme.bgSecondary} ${theme.text} py-2 rounded-xl font-medium text-sm`}
-                >
-                  + Top Up Wallet
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -3655,9 +3282,7 @@ export default function KargaMarketplace() {
       {/* Route Optimizer Modal */}
       {showRouteOptimizer && <RouteOptimizerModal />}
       
-      {/* Wallet Modals */}
-      {showWalletModal && <WalletModal />}
-      {showTopUpModal && <TopUpModal />}
+      {/* Wallet Modals REMOVED - Using direct GCash payment */}
       {showEarningsModal && <EarningsModal />}
 
       {/* Profile Action Modals */}

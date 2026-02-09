@@ -47,6 +47,7 @@ export function CargoCard({
   const statusStyles = {
     open: 'bg-gradient-to-br from-green-400 to-green-600 text-white shadow-lg',
     waiting: 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg',
+    negotiating: 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white shadow-lg',
     'in-progress': 'bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg',
     delivered: 'bg-gradient-to-br from-purple-400 to-purple-600 text-white shadow-lg',
   };
@@ -55,6 +56,7 @@ export function CargoCard({
   const gradientColors = {
     open: 'bg-gradient-to-r from-orange-400 to-orange-600',
     waiting: 'bg-gradient-to-r from-yellow-400 to-orange-500',
+    negotiating: 'bg-gradient-to-r from-yellow-400 to-yellow-600',
     'in-progress': 'bg-gradient-to-r from-blue-400 to-blue-600',
     delivered: 'bg-gradient-to-r from-purple-400 to-purple-600',
   };
@@ -111,7 +113,7 @@ export function CargoCard({
         {/* Gradient Accent Bar */}
         <div className={cn("h-1", currentGradient)} />
 
-        <div className="p-4">
+        <div style={{ padding: '16px 20px' }}>
           {/* Row 1: Status Badge + Price */}
           <div className="flex items-center justify-between mb-2">
             <Badge
@@ -119,7 +121,7 @@ export function CargoCard({
             >
               {status === 'negotiating' ? 'NEGOTIATING' : status.toUpperCase()}
             </Badge>
-            <div className={cn("rounded-lg px-3 py-1", currentGradient)}>
+            <div className={cn("rounded-lg", currentGradient)} style={{ padding: '4px 14px' }}>
               <span className="text-sm font-bold text-white">{formatPrice(displayPrice)}</span>
             </div>
           </div>
