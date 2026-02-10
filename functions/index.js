@@ -260,10 +260,11 @@ async function approvePayment(submission, order, submissionId) {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Update contract to mark platform fee as paid (contract already exists from bid acceptance)
+    // Update contract to mark platform fee as paid and change status to draft
     try {
       if (order.contractId) {
         await db.collection('contracts').doc(order.contractId).update({
+          status: 'draft', // Change from pending_payment to draft
           platformFeePaid: true,
           platformFeeStatus: 'paid',
           platformFeePaidAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -320,7 +321,7 @@ async function approvePayment(submission, order, submissionId) {
           await db.collection(`users/${submission.userId}/notifications`).doc().set({
             type: 'PAYMENT_VERIFIED',
             title: 'Platform Fee Paid ✅',
-            message: `Your platform fee payment has been verified for Contract #${contract.contractNumber}.`,
+            message: `Your platform fee payment has been verified for Contract #${contract.contractNumber}. The contract is now ready for signing.`,
             data: {
               submissionId,
               contractId: order.contractId,
@@ -330,7 +331,23 @@ async function approvePayment(submission, order, submissionId) {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
-          console.log(`Contract ${order.contractId} platform fee marked as paid`);
+          // Send notification to listing owner that payment is complete and contract ready
+          const listingOwnerId = contract.listingOwnerId;
+          if (listingOwnerId && listingOwnerId !== submission.userId) {
+            await db.collection(`users/${listingOwnerId}/notifications`).doc().set({
+              type: 'CONTRACT_READY',
+              title: 'Contract Ready for Signing',
+              message: `Contract #${contract.contractNumber} platform fee has been paid. Please review and sign the contract.`,
+              data: {
+                contractId: order.contractId,
+                bidId: order.bidId,
+              },
+              isRead: false,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+
+          console.log(`Contract ${order.contractId} platform fee marked as paid and status changed to draft`);
         }
       } else {
         console.warn('No contractId found in order - this should not happen with new flow');

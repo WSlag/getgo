@@ -2,7 +2,7 @@
 
 > **Philippine Trucking Backload Marketplace** - A two-way platform connecting shippers with cargo to truckers with available truck space.
 
-**Last Updated:** February 9, 2026
+**Last Updated:** February 10, 2026
 
 ---
 
@@ -110,11 +110,11 @@
 ### Contract Management
 - [x] Contract creation from accepted bids
 - [x] Platform fee payment via GCash (required before contract)
-- [x] Contract auto-created on bid acceptance (with platformFeePaid: false)
-- [x] Platform fee marked as paid when trucker's payment approved
+- [x] Contract auto-created on bid acceptance (with pending_payment status)
+- [x] Contract status flow (pending_payment → draft → signed → completed)
+- [x] Platform fee marked as paid when trucker's payment approved (status: pending_payment → draft)
 - [x] Contracts stored in Firestore (migrated from SQLite)
 - [x] Digital signature tracking (both parties)
-- [x] Contract status flow (draft → signed → completed)
 - [x] Contact reveal after signing
 - [x] Create Contract button in listing detail modals
 - [x] Full contract terms display (Philippine law compliant)
@@ -130,10 +130,14 @@
 - [x] Contract participant ID tracking (participantIds array)
 - [x] Contract role detection using direct fields (listingType, listingOwnerId, bidderId)
 - [x] Pay Platform Fee button for truckers in contract modal
+- [x] Pending payment banner in contract modal (shows payment required message)
 - [x] Account suspension for unpaid platform fees
 - [x] Auto-unsuspension when fees are paid
 - [x] Outstanding platform fees tracking per user
 - [x] Mobile-responsive contract modal with DialogBottomSheet
+- [x] View Contract button in cargo/truck details modal (for truckers with existing contract)
+- [x] View Contract button in chat modal (when contract exists for the bid)
+- [x] Contract lookup by bidId API endpoint
 - [ ] Contract PDF export
 
 ### Rating & Review System
@@ -182,6 +186,9 @@
 - [x] Message sanitization utility
 - [x] Unread message count
 - [x] Mark messages as read
+- [x] ChatView dedicated page (full conversations list)
+- [x] useConversations hook for managing chat threads
+- [x] View Contract button in chat modal (when contract exists)
 - [ ] Read receipts
 - [ ] Typing indicators
 
@@ -213,14 +220,17 @@
 - [x] Custom PesoIcon (₱) component replacing DollarSign across the app
 - [x] Responsive desktop/mobile spacing in admin dashboard (useMediaQuery)
 - [x] Responsive dialog bottom sheet padding (mobile vs desktop)
+- [x] DialogBottomSheet with fixed footer support (non-scrollable action buttons)
 - [x] Wallet button removed from header (direct GCash payment model)
 - [x] BidsView dedicated page
 - [x] ContractsView dedicated page
+- [x] ChatView dedicated page with conversations list
 - [x] Improved mobile bottom nav layout (Bids, Post, Contracts, Chat)
 - [x] Street address display in bid and cargo detail modals
 - [x] Account suspension banner for unpaid platform fees
+- [x] Mobile-optimized BidModal with improved responsive design
 - [x] Mobile-optimized ContractModal with proper icon sizing
-- [x] Enhanced NotificationsModal with better formatting
+- [x] Enhanced NotificationsModal with better contract notification handling
 - [x] TruckDetailsModal improvements with better layout
 - [x] React Router DOM navigation enhancements
 
@@ -330,7 +340,45 @@
 
 ---
 
-## 🎉 Latest Improvements (Feb 9, 2026)
+## 🎉 Latest Improvements (Feb 10, 2026)
+
+### Chat System Enhancement
+- **New ChatView page**: Dedicated page for viewing all conversations with active chats
+- **useConversations hook**: Custom hook for managing chat threads and conversation data
+- **View Contract from Chat**: Added "View Contract" button in chat modal when contract exists for the bid
+- **Better contract navigation**: Seamless navigation from chat to contract modal
+
+### Contract Workflow Improvements
+- **New contract status**: Added `pending_payment` status for contracts awaiting platform fee payment
+- **Status transition flow**: pending_payment → draft (after payment) → signed → completed
+- **Pending payment banner**: Visual indicator in contract modal showing payment required message
+- **Differentiated views**: Truckers see "Pay Platform Fee" button, shippers see "Awaiting Payment" message
+- **View Contract from listing**: Added "View Contract" button in cargo/truck details modal for truckers with existing contracts
+- **Contract lookup by bid**: New API endpoint to fetch contract by bidId for easy navigation
+
+### UI/UX Enhancements
+- **Improved BidModal**: Complete responsive redesign with DialogBottomSheet and fixed footer
+- **Better mobile spacing**: Optimized padding and margins for mobile vs desktop in all modals
+- **Fixed footer support**: DialogBottomSheet now supports non-scrollable action buttons
+- **Enhanced CargoDetailsModal**: Added contract lookup and "View Contract" button for truckers
+- **Improved NotificationsModal**: Better handling of all contract-related notification types
+
+### Cloud Functions Updates
+- **Contract status management**: Contracts created with `pending_payment` status, updated to `draft` after payment approval
+- **Enhanced notifications**: Separate notifications for payment required, payment verified, and contract ready
+- **Dual notifications**: Both parties notified appropriately based on contract payment status
+- **Better notification messages**: More descriptive messages for contract creation and payment stages
+
+### Bug Fixes
+- ✅ Fixed modal scroll issues on mobile (fixed footer support)
+- ✅ Fixed contract creation flow (now creates contract immediately with pending_payment status)
+- ✅ Fixed notification handling for contract-related events
+- ✅ Fixed spacing and layout issues in BidModal on mobile devices
+- ✅ Improved contract discovery from cargo/truck listings and chat
+
+---
+
+## 🎉 Previous Improvements (Feb 9, 2026)
 
 ### Contract Signing Flow Fixes
 - **Fixed contract role detection**: Now uses direct contract fields (`listingType`, `listingOwnerId`, `bidderId`) instead of nested bid/listing objects
@@ -375,7 +423,9 @@
 ### Commit History
 | Commit | Description | Date |
 |--------|-------------|------|
-| `pending` | Fix contract signing flow, payment processing, mobile UI improvements, and route optimizer enhancements | Feb 9, 2026 |
+| `pending` | Add ChatView, improve contract workflow with pending_payment status, enhance UI/UX | Feb 10, 2026 |
+| `443299c` | Improve CargoDetailsModal UI with hideCloseButton prop | Feb 9, 2026 |
+| `11270ca` | Fix contract signing flow, payment processing, mobile UI improvements | Feb 9, 2026 |
 | `0a44225` | Migrate to direct GCash payment, Firestore contracts, and enhanced tracking | Feb 9, 2026 |
 | `90ceac6` | Add PesoIcon, wallet return flow, responsive admin spacing | Feb 6, 2026 |
 | `f20c88d` | Add admin dashboard, payment verification, wallet enhancements | Feb 6, 2026 |
@@ -383,8 +433,6 @@
 | `fc43c07` | Add contracts, ratings, shipments features with chat and route optimization | Feb 5, 2026 |
 | `148e1ea` | Add authentication system with user profiles and Firebase configuration | Recent |
 | `8f660fb` | Add search bar to home view and update login screen styling | Recent |
-| `587ad38` | Add PWA enhancements and mobile UI improvements | Recent |
-| `fd63ad8` | Add real-time notifications, interactive maps, and listing detail modals | Recent |
 
 ---
 
@@ -598,12 +646,12 @@ Run `npm run seed` in backend to populate:
 1. OPEN - Listing posted
 2. BID PLACED - Counter-party submits bid
 3. BID ACCEPTED - Listing owner accepts (status: NEGOTIATING)
-   ↓ Contract auto-created (platformFeePaid: false)
+   ↓ Contract auto-created (status: pending_payment, platformFeePaid: false)
 4. PAY PLATFORM FEE - Trucker pays 5% fee via GCash screenshot upload
-5. FEE VERIFIED - Admin approves screenshot → Contract marked as paid
-   ↓ Account unsuspended if applicable
+5. FEE VERIFIED - Admin approves screenshot → Contract status: pending_payment → draft
+   ↓ Contract.platformFeePaid = true, account unsuspended if applicable
 6. SIGNING - Both parties sign contract (trucker first, then shipper)
-7. SIGNED - Both signatures collected, shipment tracking begins
+7. SIGNED - Both signatures collected (status: signed), shipment tracking begins
 8. IN_TRANSIT - Trucker updates location, shipper pays directly
 9. DELIVERED - Shipper confirms delivery
 10. COMPLETED - Both parties rate each other
@@ -613,20 +661,23 @@ Run `npm run seed` in backend to populate:
 
 ```
 1. Bid is accepted by listing owner
-2. Contract auto-created immediately (platformFeePaid: false)
-3. Trucker notified to pay platform fee
-4. Trucker opens contract → clicks "Pay Platform Fee" button
-5. System creates PaymentOrder with type='platform_fee' (30 min expiry)
-6. Trucker shown GCash QR code with exact fee amount
-7. Trucker pays and takes screenshot
-8. Trucker uploads screenshot via PaymentUploadModal
-9. Cloud Function extracts OCR data and analyzes image
-10. Auto-approved or flagged for manual admin review
-11. On approval → Contract.platformFeePaid = true, status updated
-12. User's outstanding fees reduced, account unsuspended if applicable
-13. Both parties notified, contract ready for signing
-14. Trucker signs first, then shipper signs
-15. After both signatures → Shipment created, tracking begins
+2. Contract auto-created immediately (status: pending_payment, platformFeePaid: false)
+3. Trucker notified to pay platform fee (PLATFORM_FEE_REQUIRED notification)
+4. Shipper notified that contract is pending payment (CONTRACT_PENDING_PAYMENT notification)
+5. Trucker opens contract → sees pending payment banner with "Pay Platform Fee" button
+6. Trucker clicks button → System creates PaymentOrder with type='platform_fee' (30 min expiry)
+7. Trucker shown GCash QR code with exact fee amount
+8. Trucker pays and takes screenshot
+9. Trucker uploads screenshot via PaymentUploadModal
+10. Cloud Function extracts OCR data and analyzes image
+11. Auto-approved or flagged for manual admin review
+12. On approval → Contract.status = 'draft', Contract.platformFeePaid = true
+13. User's outstanding fees reduced, account unsuspended if applicable
+14. Trucker gets PAYMENT_VERIFIED notification
+15. Shipper gets CONTRACT_READY notification
+16. Both parties can now sign contract
+17. Trucker signs first, then shipper signs
+18. After both signatures → Contract.status = 'signed', Shipment created, tracking begins
 ```
 
 ---

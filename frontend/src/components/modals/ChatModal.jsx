@@ -15,16 +15,20 @@ import { useChat } from '@/hooks/useChat';
 import { sendChatMessage } from '@/services/firestoreService';
 import socketService from '@/services/socketService';
 import { sanitizeMessage } from '@/utils/messageUtils';
+import api from '@/services/api';
 
 export function ChatModal({
   open,
   onClose,
   data,
   currentUser,
+  onOpenContract,
 }) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
+  const [contractId, setContractId] = useState(null);
+  const [loadingContract, setLoadingContract] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -65,6 +69,31 @@ export function ChatModal({
     ? (listing?.shipper || listing?.userName || 'Shipper')
     : (listing?.trucker || listing?.userName || 'Trucker');
   const otherPartyId = listing?.userId;
+
+  // Fetch contract for this bid when modal opens
+  useEffect(() => {
+    const fetchContract = async () => {
+      if (!bidId || !open) {
+        setContractId(null);
+        return;
+      }
+
+      try {
+        setLoadingContract(true);
+        const response = await api.contracts.getByBid(bidId);
+        if (response.contract) {
+          setContractId(response.contract.id);
+        }
+      } catch (error) {
+        // Contract doesn't exist yet - this is normal
+        setContractId(null);
+      } finally {
+        setLoadingContract(false);
+      }
+    };
+
+    fetchContract();
+  }, [bidId, open]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -256,7 +285,7 @@ export function ChatModal({
           background: 'linear-gradient(to bottom right, #f9fafb, #f3f4f6)',
           borderRadius: '12px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: contractId ? '12px' : '0' }}>
             <div>
               <p style={{ fontWeight: '600', color: '#111827' }}>
                 {isCargo ? listing.cargoType || 'Cargo' : listing.vehicleType || 'Truck'}
@@ -279,6 +308,30 @@ export function ChatModal({
               {bid?.price ? `Bid: ${formatPrice(bid.price)}` : formatPrice(listing.askingPrice || listing.price)}
             </div>
           </div>
+
+          {/* View Contract Button */}
+          {contractId && onOpenContract && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onClose();
+                onOpenContract(contractId);
+              }}
+              className="w-full gap-2 border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+            >
+              <FileText className="size-4" />
+              View Contract
+            </Button>
+          )}
+
+          {/* Loading state */}
+          {loadingContract && !contractId && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '8px' }}>
+              <Loader2 style={{ width: '16px', height: '16px', color: '#9ca3af', animation: 'spin 1s linear infinite' }} />
+              <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '6px' }}>Checking for contract...</span>
+            </div>
+          )}
         </div>
 
         {/* Messages Container */}

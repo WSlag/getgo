@@ -68,7 +68,7 @@ export function NotificationsModal({
       onMarkAsRead(currentUserId, notification.id);
     }
 
-    // Handle platform fee payment notifications
+    // Handle platform fee payment notifications (priority - show payment modal)
     if (
       (notification.type === 'PLATFORM_FEE_OUTSTANDING' ||
        notification.type === 'PLATFORM_FEE_REMINDER' ||
@@ -81,10 +81,20 @@ export function NotificationsModal({
       return;
     }
 
-    // Handle contract notifications - navigate to contract modal
+    // Handle all contract-related notifications - navigate to contract modal
+    const contractNotificationTypes = [
+      'CONTRACT_READY',
+      'CONTRACT_CREATED',
+      'CONTRACT_SIGNED',
+      'SHIPMENT_UPDATE',
+      'contract',
+      'contract_ready',
+      'contract_created',
+      'contract_signed'
+    ];
+
     if (
-      (notification.type === 'CONTRACT_READY' ||
-       notification.type === 'CONTRACT_CREATED') &&
+      contractNotificationTypes.includes(notification.type) &&
       notification.data?.contractId &&
       onOpenContract
     ) {
