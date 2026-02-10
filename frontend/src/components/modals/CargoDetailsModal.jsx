@@ -14,6 +14,7 @@ import { RouteMap } from '@/components/maps';
 import { useBidsForListing } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import api from '@/services/api';
 
 export function CargoDetailsModal({
   open,
@@ -28,10 +29,14 @@ export function CargoDetailsModal({
   onRejectBid,
   onCreateContract,
   onReopenListing,
+  onOpenContract,
+  userBidId,
   darkMode = false,
 }) {
   const [processingBidId, setProcessingBidId] = React.useState(null);
   const [processingAction, setProcessingAction] = React.useState(null);
+  const [contractId, setContractId] = React.useState(null);
+  const [loadingContract, setLoadingContract] = React.useState(false);
   const isMobile = useMediaQuery('(max-width: 1023px)');
 
   const handleAcceptBid = async (bid) => {
@@ -57,6 +62,32 @@ export function CargoDetailsModal({
       setProcessingAction(null);
     }
   };
+
+  // Fetch contract for trucker's bid when they view the modal
+  React.useEffect(() => {
+    const fetchContractForBid = async () => {
+      if (!open || currentRole !== 'trucker' || !userBidId) {
+        setContractId(null);
+        return;
+      }
+
+      try {
+        setLoadingContract(true);
+        const response = await api.contracts.getByBid(userBidId);
+        if (response.contract) {
+          setContractId(response.contract.id);
+        }
+      } catch (error) {
+        // Contract doesn't exist yet - this is normal
+        setContractId(null);
+      } finally {
+        setLoadingContract(false);
+      }
+    };
+
+    fetchContractForBid();
+  }, [open, currentRole, userBidId]);
+
   // Fetch bids for this cargo when owner views the modal
   const { bids: fetchedBids, loading: bidsLoading } = useBidsForListing(
     isOwner && open ? cargo?.id : null,
@@ -125,6 +156,7 @@ export function CargoDetailsModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" hideCloseButton>
+        <div className="px-6 py-4">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
@@ -491,6 +523,30 @@ export function CargoDetailsModal({
               )}
             </div>
           ) : null}
+
+          {/* View Contract Button - Only for truckers with contract */}
+          {currentRole === 'trucker' && contractId && onOpenContract && (
+            <Button
+              variant="gradient"
+              onClick={() => {
+                onClose();
+                onOpenContract(contractId);
+              }}
+              className="w-full gap-2 mb-3"
+            >
+              <FileText className="size-4" />
+              View Contract
+            </Button>
+          )}
+
+          {/* Loading state for contract check */}
+          {currentRole === 'trucker' && loadingContract && !contractId && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+              <Loader2 style={{ width: '16px', height: '16px', color: '#9ca3af', animation: 'spin 1s linear infinite' }} />
+              <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '6px' }}>Checking for contract...</span>
+            </div>
+          )}
+
           <Button
             variant="ghost"
             onClick={onClose}
@@ -498,6 +554,7 @@ export function CargoDetailsModal({
           >
             Close
           </Button>
+        </div>
         </div>
       </DialogBottomSheet>
     </Dialog>

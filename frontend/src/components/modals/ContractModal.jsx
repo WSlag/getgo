@@ -146,6 +146,7 @@ export function ContractModal({
   };
 
   const statusStyles = {
+    pending_payment: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
     draft: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
     signed: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
     in_transit: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -215,6 +216,56 @@ export function ContractModal({
             </p>
           </div>
         </div>
+
+        {/* Pending Payment Banner */}
+        {contract.status === 'pending_payment' && (
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+            {isTrucker ? (
+              // Trucker view: show payment button
+              <div className="rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-900/20 border-2 border-orange-300 dark:border-orange-700" style={{ padding: isMobile ? '14px' : '16px' }}>
+                <div className="flex items-start" style={{ gap: isMobile ? '10px' : '12px' }}>
+                  <div className="rounded-full bg-orange-500" style={{ padding: isMobile ? '8px' : '10px' }}>
+                    <AlertCircle style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#fff' }} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 'bold', color: '#ea580c', marginBottom: isMobile ? '4px' : '6px' }}>
+                      Platform Fee Payment Required
+                    </h4>
+                    <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#9a3412', lineHeight: '1.5', marginBottom: isMobile ? '10px' : '12px' }}>
+                      To activate this contract and proceed with signing, please pay the 5% platform service fee of <strong>{formatPrice(contract.platformFee)}</strong>.
+                    </p>
+                    <Button
+                      variant="default"
+                      size={isMobile ? "sm" : "default"}
+                      onClick={() => onPayPlatformFee?.({ contractId: contract.id, bidId: contract.bidId, platformFee: contract.platformFee })}
+                      className="gap-2 bg-orange-600 hover:bg-orange-700"
+                    >
+                      <PesoIcon className="size-4" />
+                      Pay Platform Fee ({formatPrice(contract.platformFee)})
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // Shipper view: show waiting message
+              <div className="rounded-xl bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/30 dark:to-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-700" style={{ padding: isMobile ? '14px' : '16px' }}>
+                <div className="flex items-start" style={{ gap: isMobile ? '10px' : '12px' }}>
+                  <div className="rounded-full bg-yellow-500" style={{ padding: isMobile ? '8px' : '10px' }}>
+                    <Clock style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#fff' }} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 'bold', color: '#d97706', marginBottom: isMobile ? '4px' : '6px' }}>
+                      Awaiting Platform Fee Payment
+                    </h4>
+                    <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#92400e', lineHeight: '1.5' }}>
+                      Waiting for {truckerInfo?.name || 'the trucker'} to pay the platform fee of <strong>{formatPrice(contract.platformFee)}</strong>. You'll be notified when the contract is ready for signing.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Route Info */}
         <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
@@ -613,6 +664,18 @@ export function ContractModal({
 
         {/* Action Buttons */}
         <DialogFooter style={{ gap: isMobile ? '8px' : '12px', paddingTop: isMobile ? '12px' : '16px' }}>
+          {contract.status === 'pending_payment' && isTrucker && (
+            <Button
+              variant="default"
+              size={isMobile ? "default" : "lg"}
+              onClick={() => onPayPlatformFee?.({ contractId: contract.id, bidId: contract.bidId, platformFee: contract.platformFee })}
+              className="gap-2 flex-1 bg-orange-600 hover:bg-orange-700"
+            >
+              <PesoIcon className="size-4" />
+              Pay Platform Fee ({formatPrice(contract.platformFee)})
+            </Button>
+          )}
+
           {contract.status === 'draft' && !hasUserSigned && (
             <Button
               variant={confirmSign ? "destructive" : "gradient"}

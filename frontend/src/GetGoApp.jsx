@@ -31,6 +31,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useCargoListings } from './hooks/useCargoListings';
 import { useTruckListings } from './hooks/useTruckListings';
 import { useNotifications } from './hooks/useNotifications';
+import { useMyBids } from './hooks/useBids';
 // Wallet removed - using direct GCash payment
 import { useShipments } from './hooks/useShipments';
 import { useTheme } from './hooks/useTheme';
@@ -51,6 +52,7 @@ import { AdminPaymentsView } from '@/views/AdminPaymentsView';
 import { ContractVerificationView } from '@/views/ContractVerificationView';
 import { ContractsView } from '@/views/ContractsView';
 import { BidsView } from '@/views/BidsView';
+import { ChatView } from '@/views/ChatView';
 import { ProfilePage } from '@/components/profile/ProfilePage';
 import { AdminDashboard } from '@/views/admin/AdminDashboard';
 
@@ -80,6 +82,7 @@ export default function GetGoApp() {
   const { listings: firebaseCargoListings, loading: cargoLoading } = useCargoListings();
   const { listings: firebaseTruckListings, loading: truckLoading } = useTruckListings();
   const { notifications: firebaseNotifications, unreadCount: firebaseUnreadCount } = useNotifications(authUser?.uid);
+  const { bids: myBids } = useMyBids(authUser?.uid);
   // Wallet removed - using direct GCash payment for platform fees
   const { activeShipments: firebaseActiveShipments } = useShipments(authUser?.uid);
 
@@ -186,6 +189,25 @@ export default function GetGoApp() {
     return () => clearInterval(interval);
   }, [isAdmin]);
 
+  // Load contracts function (can be called manually to refresh)
+  const loadContracts = async () => {
+    if (!authUser?.uid) {
+      setContracts([]);
+      return;
+    }
+
+    setContractsLoading(true);
+    try {
+      const response = await api.contracts.getAll();
+      setContracts(response.contracts || []);
+    } catch (error) {
+      console.error('Error fetching contracts:', error);
+      setContracts([]);
+    } finally {
+      setContractsLoading(false);
+    }
+  };
+
   // Fetch contracts for current user
   useEffect(() => {
     if (!authUser?.uid) {
@@ -193,22 +215,9 @@ export default function GetGoApp() {
       return;
     }
 
-    const fetchContracts = async () => {
-      setContractsLoading(true);
-      try {
-        const response = await api.contracts.getAll();
-        setContracts(response.contracts || []);
-      } catch (error) {
-        console.error('Error fetching contracts:', error);
-        setContracts([]);
-      } finally {
-        setContractsLoading(false);
-      }
-    };
-
-    fetchContracts();
+    loadContracts();
     // Refresh every 30 seconds
-    const interval = setInterval(fetchContracts, 30000);
+    const interval = setInterval(loadContracts, 30000);
     return () => clearInterval(interval);
   }, [authUser?.uid]);
 
@@ -457,13 +466,63 @@ export default function GetGoApp() {
 
   // Contract Creation Flow Handlers
   const handleCreateContract = async (bid, listing) => {
-    const platformFee = Math.round(bid.price * 0.05); // 5%
+    try {
+      setContractLoading(true);
 
-    // Store bid/listing for after payment
-    setPendingContractData({ bid, listing, platformFee });
+      // Determine listing type and platform fee payer (trucker)
+      const isCargo = !!listing.cargoType || listing.type === 'cargo';
+      const truckerUserId = isCargo ? bid.bidderId : listing.userId;
+      const currentUserId = authUser?.uid;
 
-    // Open platform fee payment modal
-    openModal('platformFee', { bid, listing, platformFee });
+      // Create contract via API (will be in pending_payment status if fee not paid)
+      const response = await api.contracts.create({
+        bidId: bid.id,
+        // Add any additional contract data here if needed
+      });
+
+      const contract = response.contract;
+
+      // Check if current user is the trucker (fee payer)
+      if (truckerUserId === currentUserId) {
+        // Rare case: trucker is creating the contract (e.g., truck listing)
+        // Open payment modal immediately
+        showToast({
+          type: 'info',
+          title: 'Platform Fee Required',
+          message: 'Please pay the platform fee to activate your contract.',
+        });
+
+        const platformFee = contract.platformFee || Math.round(bid.price * 0.05);
+        openModal('platformFee', { bid, listing, platformFee, contract });
+      } else {
+        // Normal case: shipper is creating contract, trucker needs to pay
+        showToast({
+          type: 'success',
+          title: 'Contract Created',
+          message: 'Contract created successfully. Waiting for trucker to pay platform fee.',
+        });
+
+        // Close the details modal and refresh contracts
+        closeModal('cargoDetails');
+        closeModal('truckDetails');
+
+        // Navigate to contracts view
+        setActiveTab('contracts');
+      }
+
+      // Refresh contracts list
+      await loadContracts();
+
+    } catch (error) {
+      console.error('Error creating contract:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: error.message || 'Failed to create contract',
+      });
+    } finally {
+      setContractLoading(false);
+    }
   };
 
   // Handler: Open platform fee payment modal for truckers
@@ -721,13 +780,23 @@ export default function GetGoApp() {
           </main>
         )}
 
-        {activeTab === 'chat' && (
+        {activeTab === 'chat' && authUser && (
+          <ChatView
+            currentUser={authUser}
+            onOpenChat={(bid, listing, type) => {
+              openModal('chat', { bid, listing, type, bidId: bid.id });
+            }}
+            darkMode={darkMode}
+          />
+        )}
+
+        {activeTab === 'chat' && !authUser && (
           <main className="flex-1 p-4 lg:p-8">
             <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-4">
               Messages
             </h2>
             <p className="text-gray-600 dark:text-gray-400">
-              View your conversations here. (Integration pending)
+              Please sign in to view your conversations.
             </p>
           </main>
         )}
@@ -944,6 +1013,14 @@ export default function GetGoApp() {
           closeModal('cargoDetails');
           handleCreateContract(bid, listing);
         }}
+        onOpenContract={handleOpenContract}
+        userBidId={(() => {
+          const cargo = getModalData('cargoDetails');
+          if (!cargo || !authUser || userRole !== 'trucker') return null;
+          // Find user's bid for this cargo from myBids
+          const userBid = myBids.find(bid => bid.cargoListingId === cargo.id);
+          return userBid?.id || null;
+        })()}
         darkMode={darkMode}
       />
 
@@ -979,6 +1056,7 @@ export default function GetGoApp() {
         onClose={() => closeModal('chat')}
         data={getModalData('chat')}
         currentUser={authUser}
+        onOpenContract={handleOpenContract}
       />
 
       {/* Route Optimizer Modal */}

@@ -121,13 +121,10 @@ exports.createContract = functions.region('asia-southeast1').https.onCall(async 
     .limit(1)
     .get();
 
-  if (feeSnap.empty) {
-    throw new functions.https.HttpsError(
-      'failed-precondition',
-      'Platform fee must be paid before creating contract',
-      { requiresPayment: true, platformFee, bidId }
-    );
-  }
+  const isPlatformFeePaid = !feeSnap.empty;
+
+  // Determine who is the trucker (platform fee payer)
+  const platformFeePayerId = isCargo ? bid.bidderId : listingOwnerId;
 
   // Build default terms
   const defaultTerms = `
@@ -196,7 +193,9 @@ By signing, both parties agree to these terms.
     vehiclePlateNumber: isCargo ? '' : (listing.plateNumber || ''),
     terms: terms || defaultTerms,
     liabilityAcknowledged: liabilityAcknowledged || false,
-    status: 'draft',
+    status: isPlatformFeePaid ? 'draft' : 'pending_payment',
+    platformFeePaid: isPlatformFeePaid,
+    platformFeePayerId,
     listingType: isCargo ? 'cargo' : 'truck',
     listingId: listing.id,
     listingOwnerId,
@@ -228,15 +227,38 @@ By signing, both parties agree to these terms.
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // Create notification for bidder
-  await db.collection(`users/${bid.bidderId}/notifications`).doc().set({
-    type: 'CONTRACT_READY',
-    title: 'Contract Ready for Signing',
-    message: `Contract #${contractNumber} is ready for your signature. Please review the terms and sign to proceed.`,
-    data: { contractId: contractRef.id, bidId },
-    isRead: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  // Create notifications for both parties
+  if (isPlatformFeePaid) {
+    // If paid, notify both parties contract is ready to sign
+    await db.collection(`users/${bid.bidderId}/notifications`).doc().set({
+      type: 'CONTRACT_READY',
+      title: 'Contract Ready for Signing',
+      message: `Contract #${contractNumber} is ready for your signature. Please review the terms and sign to proceed.`,
+      data: { contractId: contractRef.id, bidId },
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } else {
+    // If not paid, notify trucker to pay platform fee
+    await db.collection(`users/${platformFeePayerId}/notifications`).doc().set({
+      type: 'PLATFORM_FEE_REQUIRED',
+      title: 'Platform Fee Payment Required',
+      message: `Contract #${contractNumber} created. Please pay ₱${platformFee.toLocaleString()} platform fee to proceed.`,
+      data: { contractId: contractRef.id, bidId, platformFee },
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Notify listing owner that contract is waiting for payment
+    await db.collection(`users/${listingOwnerId}/notifications`).doc().set({
+      type: 'CONTRACT_PENDING_PAYMENT',
+      title: 'Contract Created',
+      message: `Contract #${contractNumber} created. Waiting for trucker to pay platform fee.`,
+      data: { contractId: contractRef.id, bidId },
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
 
   return {
     message: 'Contract created successfully',
