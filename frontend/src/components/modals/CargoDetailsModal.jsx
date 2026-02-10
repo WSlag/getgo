@@ -124,7 +124,7 @@ export function CargoDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" style={{ padding: isMobile ? '16px 24px' : undefined }}>
+      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" hideCloseButton>
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
