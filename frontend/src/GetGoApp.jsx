@@ -22,6 +22,10 @@ import {
   markAllNotificationsRead,
 } from './services/firestoreService';
 
+// Firebase
+import { getDoc, doc } from 'firebase/firestore';
+import { db } from './firebase';
+
 // Hooks
 import { useAuth } from './contexts/AuthContext';
 import { useCargoListings } from './hooks/useCargoListings';
@@ -131,6 +135,7 @@ export default function GetGoApp() {
   // Contracts state
   const [contracts, setContracts] = useState([]);
   const [contractsLoading, setContractsLoading] = useState(false);
+  const [contractFilter, setContractFilter] = useState('all');
 
   // Toast notification state for real-time events
   const [toasts, setToasts] = useState([]);
@@ -214,6 +219,12 @@ export default function GetGoApp() {
   const activeShipments = firebaseActiveShipments || [];
   const unreadNotifications = firebaseUnreadCount || 0;
   // Wallet removed - no balance tracking
+
+  // Create currentUser object for suspension banner and other features
+  const currentUser = authUser && userProfile ? {
+    id: authUser.uid,
+    ...userProfile
+  } : null;
 
   // Counts for sidebar
   const openCargoCount = cargoListings.filter(c => c.status === 'open').length;
@@ -385,11 +396,12 @@ export default function GetGoApp() {
       showToast({
         type: 'bid-accepted',
         title: 'Bid Accepted',
-        message: `You accepted ${bid.bidderName || 'the bid'} for ₱${bid.price?.toLocaleString()}`,
+        message: `Bid accepted. Contract will be created automatically. The trucker will be notified to pay the platform fee.`,
       });
       // Close modal - data will refresh via Firestore real-time updates
       closeModal('cargoDetails');
       closeModal('truckDetails');
+      // Do NOT open payment modal - trucker will pay
     } catch (error) {
       console.error('Error accepting bid:', error);
       showToast({
@@ -454,20 +466,53 @@ export default function GetGoApp() {
     openModal('platformFee', { bid, listing, platformFee });
   };
 
+  // Handler: Open platform fee payment modal for truckers
+  const handlePayPlatformFee = async (data) => {
+    // Data can be: { bidId, contractId } or { bid, listing, platformFee }
+    if (data.contractId && !data.bid) {
+      // Fetch contract and bid data
+      try {
+        const contractDoc = await getDoc(doc(db, 'contracts', data.contractId));
+        if (!contractDoc.exists()) {
+          showToast({ type: 'error', message: 'Contract not found' });
+          return;
+        }
+
+        const contract = { id: contractDoc.id, ...contractDoc.data() };
+        const bidDoc = await getDoc(doc(db, 'bids', contract.bidId));
+
+        if (!bidDoc.exists()) {
+          showToast({ type: 'error', message: 'Bid not found' });
+          return;
+        }
+
+        const bid = { id: bidDoc.id, ...bidDoc.data() };
+        const platformFee = contract.platformFee;
+
+        openModal('platformFee', { bid, contract, platformFee });
+      } catch (error) {
+        console.error('Error loading payment data:', error);
+        showToast({ type: 'error', message: 'Failed to load payment information' });
+      }
+    } else {
+      // Full data already provided
+      openModal('platformFee', data);
+    }
+  };
+
   // Handler: Contract created after GCash payment approved
   const handleContractCreated = (data) => {
     closeModal('platformFee');
     setPendingContractData(null);
 
     showToast({
-      type: 'bid-accepted',
-      title: 'Contract Created!',
-      message: 'Your payment has been verified and the contract has been created.',
+      type: 'success',
+      title: 'Payment Verified!',
+      message: 'Your platform fee payment has been verified.',
     });
 
-    // Note: Contract is created server-side after payment approval
-    // User will see it in their contracts list via real-time updates
-    setActiveTab('home'); // Or wherever contracts are shown
+    // Contract already exists, just marked as paid
+    setActiveTab('home');
   };
 
   // Handler: Sign contract
@@ -619,6 +664,12 @@ export default function GetGoApp() {
             onTrackLive={(shipment) => {
               setActiveTab('tracking');
             }}
+            onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
+            currentUser={currentUser}
+            onNavigateToContracts={(filter) => {
+              setContractFilter(filter || 'all');
+              setActiveTab('contracts');
+            }}
           />
         )}
 
@@ -686,6 +737,7 @@ export default function GetGoApp() {
             darkMode={darkMode}
             currentUser={{ id: authUser?.uid, ...userProfile }}
             onOpenContract={handleOpenContract}
+            initialFilter={contractFilter}
           />
         )}
 
@@ -968,6 +1020,7 @@ export default function GetGoApp() {
         currentUser={{ id: authUser?.uid, ...userProfile }}
         onSign={handleSignContract}
         onComplete={handleCompleteContract}
+        onPayPlatformFee={handlePayPlatformFee}
         loading={contractLoading}
       />
 
@@ -981,6 +1034,7 @@ export default function GetGoApp() {
         onMarkAllAsRead={markAllNotificationsRead}
         currentUserId={authUser?.uid}
         onOpenContract={handleOpenContract}
+        onPayPlatformFee={handlePayPlatformFee}
       />
 
       {/* Wallet Modal removed - using direct GCash payment */}

@@ -110,7 +110,8 @@
 ### Contract Management
 - [x] Contract creation from accepted bids
 - [x] Platform fee payment via GCash (required before contract)
-- [x] Auto-contract creation from approved fee (Cloud Function)
+- [x] Contract auto-created on bid acceptance (with platformFeePaid: false)
+- [x] Platform fee marked as paid when trucker's payment approved
 - [x] Contracts stored in Firestore (migrated from SQLite)
 - [x] Digital signature tracking (both parties)
 - [x] Contract status flow (draft → signed → completed)
@@ -124,9 +125,15 @@
 - [x] Declared cargo value tracking
 - [x] ContractsView page (dedicated contracts list)
 - [x] Contracts navigation in sidebar and mobile nav
-- [x] Firestore Timestamp handling in ContractModal
+- [x] Firestore Timestamp handling in ContractModal (all formats supported)
 - [x] Street address display in contract pickup/delivery
 - [x] Contract participant ID tracking (participantIds array)
+- [x] Contract role detection using direct fields (listingType, listingOwnerId, bidderId)
+- [x] Pay Platform Fee button for truckers in contract modal
+- [x] Account suspension for unpaid platform fees
+- [x] Auto-unsuspension when fees are paid
+- [x] Outstanding platform fees tracking per user
+- [x] Mobile-responsive contract modal with DialogBottomSheet
 - [ ] Contract PDF export
 
 ### Rating & Review System
@@ -160,6 +167,9 @@
 - [x] Popular routes display
 - [x] Search filtering (cargo/trucks/both)
 - [x] Compatibility scoring
+- [x] Mobile-responsive UI with proper spacing
+- [x] Improved listing cards with proper route display
+- [x] Contact button integration for matched opportunities
 - [ ] Integration with Google Maps Directions API
 
 ### Chat System
@@ -208,6 +218,11 @@
 - [x] ContractsView dedicated page
 - [x] Improved mobile bottom nav layout (Bids, Post, Contracts, Chat)
 - [x] Street address display in bid and cargo detail modals
+- [x] Account suspension banner for unpaid platform fees
+- [x] Mobile-optimized ContractModal with proper icon sizing
+- [x] Enhanced NotificationsModal with better formatting
+- [x] TruckDetailsModal improvements with better layout
+- [x] React Router DOM navigation enhancements
 
 ### Admin Dashboard
 - [x] Admin authentication and role verification
@@ -315,12 +330,53 @@
 
 ---
 
+## 🎉 Latest Improvements (Feb 9, 2026)
+
+### Contract Signing Flow Fixes
+- **Fixed contract role detection**: Now uses direct contract fields (`listingType`, `listingOwnerId`, `bidderId`) instead of nested bid/listing objects
+- **Fixed signature button visibility**: Shippers and truckers now see correct "Sign Contract" button instead of "Waiting for other party"
+- **Fixed timestamp display**: Supports all Firestore timestamp formats (direct, serialized, ISO strings) - no more "Invalid Date"
+- **Enhanced mobile UI**: ContractModal now uses DialogBottomSheet with responsive padding and icon sizing
+
+### Payment Processing Improvements
+- **New flow**: Contract created immediately on bid acceptance (platformFeePaid: false)
+- **Trucker pays first**: Trucker must pay platform fee before signing
+- **Account suspension**: Users suspended if fees unpaid, auto-unsuspended when paid
+- **Outstanding fees tracking**: System tracks unpaid fees per user with contract ID array
+- **Fixed CORS issues**: Cloud Functions properly exported (`createPlatformFeeOrder`)
+- **Fixed admin API**: Admin dashboard now receives correct payment submission format
+
+### UI/UX Enhancements
+- **Account suspension banner**: Users see warning banner if account suspended for unpaid fees
+- **Pay Platform Fee button**: Added to contract modal for truckers to easily pay outstanding fees
+- **Route Optimizer mobile**: Better responsive layout with proper spacing and card design
+- **TruckDetailsModal improvements**: Enhanced layout and mobile responsiveness
+- **NotificationsModal**: Better formatting and timestamp display
+- **React Router DOM**: Added for enhanced navigation (v7.13.0)
+
+### Cloud Functions Updates
+- **Payment approval flow**: Now updates existing contract instead of creating new one
+- **Unsuspension logic**: Automatically reactivates accounts when all fees paid
+- **Improved notifications**: Better messaging for payment verification and fee reminders
+- **Contract creation triggers**: Bid acceptance now creates contract with pending fee status
+
+### Bug Fixes
+- ✅ Fixed shipper unable to sign contracts
+- ✅ Fixed "Invalid Date" in signature timestamps
+- ✅ Fixed payment submissions not showing in admin dashboard
+- ✅ Fixed CORS errors on Cloud Function endpoints
+- ✅ Fixed contract list signature status display
+- ✅ Fixed role detection inconsistencies
+
+---
+
 ## 📝 Recent Updates (Changelog)
 
 ### Commit History
 | Commit | Description | Date |
 |--------|-------------|------|
-| `pending` | Migrate to direct GCash payment, Firestore contracts, street addresses, shipment tracking on home, Cloud Functions API | Feb 9, 2026 |
+| `pending` | Fix contract signing flow, payment processing, mobile UI improvements, and route optimizer enhancements | Feb 9, 2026 |
+| `0a44225` | Migrate to direct GCash payment, Firestore contracts, and enhanced tracking | Feb 9, 2026 |
 | `90ceac6` | Add PesoIcon, wallet return flow, responsive admin spacing | Feb 6, 2026 |
 | `f20c88d` | Add admin dashboard, payment verification, wallet enhancements | Feb 6, 2026 |
 | `d6c358b` | Add My Bids modal with chat integration and profile enhancements | Feb 5, 2026 |
@@ -525,13 +581,16 @@ Run `npm run seed` in backend to populate:
 ## 📌 Notes
 
 - **Contact Masking:** Phone/email hidden until contract is signed
-- **Platform Fee:** 5% of agreed freight price, paid via GCash screenshot before contract auto-creation
+- **Platform Fee:** 5% of agreed freight price, paid by trucker via GCash screenshot
 - **Payment Model:** Direct GCash payment (wallet system deprecated)
 - **Payment Verification:** GCash screenshot upload with OCR and fraud detection
-- **Auto-Contract:** Contract automatically created by Cloud Function when platform fee payment is approved
+- **Contract Flow:** Contract created on bid acceptance, marked as paid when fee approved
+- **Account Suspension:** Users suspended if platform fees unpaid, auto-unsuspended when paid
+- **Outstanding Fees:** Tracked per user with array of contract IDs requiring payment
 - **Badge Levels:** STARTER → ACTIVE → VERIFIED → PRO → ELITE
 - **Membership Tiers:** NEW → BRONZE → SILVER → GOLD → PLATINUM → DIAMOND
 - **Street Addresses:** Optional pickup/delivery street addresses complement city-level routing
+- **Timestamp Handling:** Supports Firestore Timestamps (direct and serialized), ISO strings, and JS timestamps
 
 ## 🔄 Transaction Flow
 
@@ -539,27 +598,35 @@ Run `npm run seed` in backend to populate:
 1. OPEN - Listing posted
 2. BID PLACED - Counter-party submits bid
 3. BID ACCEPTED - Listing owner accepts (status: NEGOTIATING)
-4. PAY PLATFORM FEE - 5% fee paid via GCash screenshot upload
-5. FEE VERIFIED - Admin approves screenshot → Contract auto-created (Cloud Function)
-6. CONTRACT CREATED - Contract generated for signing in Firestore
-7. SIGNED - Both parties sign, shipment tracking begins
+   ↓ Contract auto-created (platformFeePaid: false)
+4. PAY PLATFORM FEE - Trucker pays 5% fee via GCash screenshot upload
+5. FEE VERIFIED - Admin approves screenshot → Contract marked as paid
+   ↓ Account unsuspended if applicable
+6. SIGNING - Both parties sign contract (trucker first, then shipper)
+7. SIGNED - Both signatures collected, shipment tracking begins
 8. IN_TRANSIT - Trucker updates location, shipper pays directly
 9. DELIVERED - Shipper confirms delivery
 10. COMPLETED - Both parties rate each other
 ```
 
-## 💰 Platform Fee Payment Flow (GCash Direct)
+## 💰 Platform Fee Payment Flow (GCash Direct) - UPDATED
 
 ```
-1. Bid is accepted → listing owner opens GCash payment modal
-2. System creates PaymentOrder with type='platform_fee' (30 min expiry)
-3. User shown GCash QR code with exact fee amount
-4. User pays and takes screenshot
-5. User uploads screenshot via PaymentUploadModal
-6. Cloud Function extracts OCR data and analyzes image
-7. Auto-approved or flagged for manual admin review
-8. On approval → Contract auto-created via createContractFromApprovedFee()
-9. Both parties notified, contract ready for signing
+1. Bid is accepted by listing owner
+2. Contract auto-created immediately (platformFeePaid: false)
+3. Trucker notified to pay platform fee
+4. Trucker opens contract → clicks "Pay Platform Fee" button
+5. System creates PaymentOrder with type='platform_fee' (30 min expiry)
+6. Trucker shown GCash QR code with exact fee amount
+7. Trucker pays and takes screenshot
+8. Trucker uploads screenshot via PaymentUploadModal
+9. Cloud Function extracts OCR data and analyzes image
+10. Auto-approved or flagged for manual admin review
+11. On approval → Contract.platformFeePaid = true, status updated
+12. User's outstanding fees reduced, account unsuspended if applicable
+13. Both parties notified, contract ready for signing
+14. Trucker signs first, then shipper signs
+15. After both signatures → Shipment created, tracking begins
 ```
 
 ---

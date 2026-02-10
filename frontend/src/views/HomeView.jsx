@@ -1,8 +1,9 @@
-import { Filter, X, Radio, MapPin, Navigation, MapPinned } from 'lucide-react';
+import { Filter, X, Radio, MapPin, Navigation, MapPinned, Route, ChevronRight, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CargoCard } from '@/components/cargo/CargoCard';
 import { TruckCard } from '@/components/truck/TruckCard';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { Button } from '@/components/ui/button';
 
 export function HomeView({
   activeMarket = 'cargo',
@@ -26,6 +27,9 @@ export function HomeView({
   className,
   activeShipments = [],
   onTrackLive,
+  onRouteOptimizerClick,
+  currentUser = null,
+  onNavigateToContracts,
 }) {
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
@@ -48,6 +52,30 @@ export function HomeView({
 
   return (
     <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '20px' : '24px', paddingBottom: isMobile ? '100px' : '24px' }}>
+      {/* Suspension Banner */}
+      {currentUser?.accountStatus === 'suspended' && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white p-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <AlertCircle className="size-5 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="font-semibold text-sm">Account Suspended</p>
+                <p className="text-xs opacity-90 truncate">
+                  Outstanding fees: ₱{(currentUser.outstandingPlatformFees || 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => onNavigateToContracts?.('unpaid_fees')}
+              className="bg-white text-red-600 hover:bg-gray-100 flex-shrink-0"
+              size="sm"
+            >
+              Pay Fees
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Market Switcher - only visible on mobile */}
       <div className="lg:hidden flex gap-2" style={{ marginBottom: '16px' }}>
         <button
@@ -392,6 +420,59 @@ export function HomeView({
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Route Optimizer Card - Mobile only, Trucker only */}
+      {currentRole === 'trucker' && onRouteOptimizerClick && (
+        <div className="lg:hidden" style={{ marginBottom: isMobile ? '24px' : '32px' }}>
+          <button
+            onClick={onRouteOptimizerClick}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px',
+              backgroundColor: darkMode ? '#1f1b2e' : '#fff',
+              borderRadius: '14px',
+              border: `1.5px dashed ${darkMode ? '#7c3aed' : '#8b5cf6'}`,
+              padding: '16px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 8px rgba(139, 92, 246, 0.12)',
+              textAlign: 'left',
+            }}
+          >
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #f3e8ff, #ede9fe)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Route style={{ width: '20px', height: '20px', color: '#8b5cf6' }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                fontWeight: '700',
+                fontSize: '14px',
+                color: darkMode ? '#fff' : '#111827',
+                marginBottom: '2px',
+              }}>
+                Route Optimizer
+              </p>
+              <p style={{
+                fontSize: '12px',
+                color: darkMode ? '#9ca3af' : '#6b7280',
+              }}>
+                Find backloads &amp; optimize your route
+              </p>
+            </div>
+            <ChevronRight style={{ width: '20px', height: '20px', color: '#8b5cf6', flexShrink: 0 }} />
+          </button>
         </div>
       )}
 

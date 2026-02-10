@@ -260,31 +260,88 @@ async function approvePayment(submission, order, submissionId) {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Auto-create contract from approved fee payment
+    // Update contract to mark platform fee as paid (contract already exists from bid acceptance)
     try {
-      const contract = await createContractFromApprovedFee(order.bidId, submission.userId);
-      console.log(`Contract created successfully: ${contract.contractNumber} (ID: ${contract.id})`);
+      if (order.contractId) {
+        await db.collection('contracts').doc(order.contractId).update({
+          platformFeePaid: true,
+          platformFeeStatus: 'paid',
+          platformFeePaidAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
 
-      // Send notification to user about contract creation
-      await db.collection(`users/${submission.userId}/notifications`).doc().set({
-        type: 'CONTRACT_CREATED',
-        title: 'Payment Verified & Contract Created!',
-        message: `Your payment has been verified and contract #${contract.contractNumber} has been created. Please review and sign to proceed.`,
-        data: {
-          submissionId,
-          contractId: contract.id,
-          bidId: order.bidId,
-        },
-        isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+        // Get contract to find payer
+        const contractDoc = await db.collection('contracts').doc(order.contractId).get();
+        if (contractDoc.exists) {
+          const contract = contractDoc.data();
+          const platformFeePayerId = contract.platformFeePayerId;
+
+          // Update user's outstanding fees
+          await db.collection('users').doc(platformFeePayerId).update({
+            outstandingPlatformFees: admin.firestore.FieldValue.increment(-order.amount),
+            outstandingFeeContracts: admin.firestore.FieldValue.arrayRemove(order.contractId),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // Check if should unsuspend account
+          const userDoc = await db.collection('users').doc(platformFeePayerId).get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+
+            if (
+              userData.accountStatus === 'suspended' &&
+              userData.suspensionReason === 'unpaid_platform_fees' &&
+              (userData.outstandingPlatformFees - order.amount) <= 0
+            ) {
+              // Unsuspend automatically
+              await db.collection('users').doc(platformFeePayerId).update({
+                accountStatus: 'active',
+                suspensionReason: null,
+                suspendedAt: null,
+                unsuspendedAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+
+              // Notify unsuspension
+              await db.collection(`users/${platformFeePayerId}/notifications`).doc().set({
+                type: 'ACCOUNT_UNSUSPENDED',
+                title: 'Account Reactivated ✅',
+                message: 'Your account has been reactivated. All platform fees have been paid.',
+                data: { contractId: order.contractId },
+                isRead: false,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+
+              console.log(`Account unsuspended for user ${platformFeePayerId}`);
+            }
+          }
+
+          // Send notification to trucker about payment confirmation
+          await db.collection(`users/${submission.userId}/notifications`).doc().set({
+            type: 'PAYMENT_VERIFIED',
+            title: 'Platform Fee Paid ✅',
+            message: `Your platform fee payment has been verified for Contract #${contract.contractNumber}.`,
+            data: {
+              submissionId,
+              contractId: order.contractId,
+              bidId: order.bidId,
+            },
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          console.log(`Contract ${order.contractId} platform fee marked as paid`);
+        }
+      } else {
+        console.warn('No contractId found in order - this should not happen with new flow');
+      }
     } catch (error) {
-      console.error('Error creating contract from approved fee:', error);
+      console.error('Error updating contract payment status:', error);
       // Notify user of error
       await db.collection(`users/${submission.userId}/notifications`).doc().set({
         type: 'PAYMENT_STATUS',
         title: 'Payment Verified',
-        message: 'Your payment has been verified, but there was an issue creating the contract. Our team will assist you.',
+        message: 'Your payment has been verified, but there was an issue updating the contract. Our team will assist you.',
         data: { submissionId, error: error.message },
         isRead: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -787,6 +844,7 @@ exports.adminToggleAdmin = adminFunctions.adminToggleAdmin;
 exports.adminGetFinancialSummary = adminFunctions.adminGetFinancialSummary;
 exports.adminResolveDispute = adminFunctions.adminResolveDispute;
 exports.adminGetContracts = adminFunctions.adminGetContracts;
+exports.adminGetOutstandingFees = adminFunctions.adminGetOutstandingFees;
 
 // =============================================================================
 // ROUTE OPTIMIZATION FUNCTIONS
@@ -803,6 +861,7 @@ exports.getPopularRoutes = listingFunctions.getPopularRoutes;
 const bidTriggers = require('./src/triggers/bidTriggers');
 exports.onBidCreated = bidTriggers.onBidCreated;
 exports.onBidStatusChanged = bidTriggers.onBidStatusChanged;
+exports.onBidAccepted = bidTriggers.onBidAccepted;
 
 const shipmentTriggers = require('./src/triggers/shipmentTriggers');
 exports.onShipmentLocationUpdate = shipmentTriggers.onShipmentLocationUpdate;
@@ -810,3 +869,10 @@ exports.onShipmentStatusChanged = shipmentTriggers.onShipmentStatusChanged;
 
 const ratingTriggers = require('./src/triggers/ratingTriggers');
 exports.onRatingCreated = ratingTriggers.onRatingCreated;
+
+// =============================================================================
+// SCHEDULED FUNCTIONS
+// =============================================================================
+
+const platformFeeReminders = require('./src/scheduled/platformFeeReminders');
+exports.sendPlatformFeeReminders = platformFeeReminders.sendPlatformFeeReminders;
