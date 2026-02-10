@@ -29,7 +29,7 @@ export function TruckDetailsModal({
   onReopenListing,
   darkMode = false,
 }) {
-  const isMobile = !useMediaQuery('(min-width: 640px)');
+  const isMobile = useMediaQuery('(max-width: 1023px)');
   const [processingBidId, setProcessingBidId] = React.useState(null);
   const [processingAction, setProcessingAction] = React.useState(null);
 
@@ -141,16 +141,25 @@ export function TruckDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm">
+      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" hideCloseButton>
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="size-12 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                <Truck className="size-6 text-white" />
+            <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
+              <div style={{
+                width: isMobile ? '40px' : '48px',
+                height: isMobile ? '40px' : '48px',
+                borderRadius: '12px',
+                background: 'linear-gradient(to bottom right, #a78bfa, #8b5cf6)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 10px 15px -3px rgba(139, 92, 246, 0.3)'
+              }}>
+                <Truck style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px', color: '#fff' }} />
               </div>
               <div>
-                <DialogTitle className="text-xl">Truck Details</DialogTitle>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <DialogTitle style={{ fontSize: isMobile ? '16px' : '20px' }}>Truck Details</DialogTitle>
+                <p style={{ fontSize: isMobile ? '11px' : '14px', color: '#6b7280' }}>
                   Posted {formatTimeAgo(truck.postedAt)}
                 </p>
               </div>
@@ -170,36 +179,48 @@ export function TruckDetailsModal({
         </DialogHeader>
 
         {/* Status and Price Header */}
-        <div className="flex items-center justify-between py-4 mt-1 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <Badge className={cn("uppercase tracking-wide", statusStyles[truck.status] || statusStyles.available)} style={{ padding: '6px 12px', fontSize: '11px' }}>
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="flex items-center" style={{ gap: isMobile ? '6px' : '12px' }}>
+            <Badge className={cn("uppercase tracking-wide", statusStyles[truck.status] || statusStyles.available)} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '9px' : '11px' }}>
               {statusLabels[truck.status] || 'AVAILABLE'}
             </Badge>
             {truck.vehicleType && (
-              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '6px 12px', fontSize: '11px' }}>
+              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '9px' : '11px' }}>
                 {truck.vehicleType}
               </Badge>
             )}
           </div>
-          <div className={cn("rounded-xl shadow-lg", currentGradient)} style={{ padding: '12px 20px' }}>
-            <p className="text-2xl font-bold text-white">{formatPrice(truck.askingRate)}</p>
+          <div className={cn("rounded-xl shadow-lg", currentGradient)} style={{ padding: isMobile ? '8px 16px' : '12px 20px' }}>
+            <p style={{ fontSize: isMobile ? '18px' : '24px', fontWeight: 'bold', color: '#fff' }}>{formatPrice(truck.askingRate)}</p>
           </div>
         </div>
 
         {/* Trucker Info */}
-        <div className="py-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-4">
-            <div className="size-14 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xl font-bold shadow-lg">
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="flex items-center" style={{ gap: isMobile ? '12px' : '16px' }}>
+            <div style={{
+              width: isMobile ? '48px' : '56px',
+              height: isMobile ? '48px' : '56px',
+              borderRadius: '50%',
+              background: 'linear-gradient(to bottom right, #60a5fa, #2563eb)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: isMobile ? '18px' : '20px',
+              fontWeight: 'bold',
+              boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)'
+            }}>
               {truck.trucker?.[0]?.toUpperCase() || 'T'}
             </div>
             <div>
-              <h3 className="font-bold text-lg text-gray-900 dark:text-white">
+              <h3 style={{ fontSize: isMobile ? '15px' : '18px', fontWeight: 'bold', color: darkMode ? '#fff' : '#111827' }}>
                 {truck.trucker}
               </h3>
-              <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px', fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>
                 {truck.truckerRating > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Star className="size-4 text-yellow-500 fill-yellow-500" />
+                  <div className="flex items-center" style={{ gap: '4px' }}>
+                    <Star style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#eab308', fill: '#eab308' }} />
                     <span>{truck.truckerRating.toFixed(1)}</span>
                   </div>
                 )}
@@ -215,91 +236,123 @@ export function TruckDetailsModal({
         </div>
 
         {/* Route Section */}
-        <div className="py-4 border-b border-gray-200 dark:border-gray-700">
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Route</h4>
-          <div className="flex items-center rounded-xl bg-gray-100 dark:bg-gray-800/60" style={{ gap: '12px', padding: '16px' }}>
-            <div className="flex items-center gap-2 flex-1">
-              <div className="size-10 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center shadow-lg shadow-green-500/30">
-                <MapPin className="size-5 text-white" />
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Route</h4>
+          <div className="flex items-center rounded-xl bg-gray-100 dark:bg-gray-800/60" style={{ gap: isMobile ? '8px' : '12px', padding: isMobile ? '12px' : '16px' }}>
+            <div className="flex items-center flex-1" style={{ gap: isMobile ? '6px' : '8px', minWidth: 0 }}>
+              <div style={{
+                width: isMobile ? '32px' : '40px',
+                height: isMobile ? '32px' : '40px',
+                borderRadius: '50%',
+                background: 'linear-gradient(to bottom right, #4ade80, #16a34a)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 10px 15px -3px rgba(22, 163, 74, 0.3)',
+                flexShrink: 0
+              }}>
+                <MapPin style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px', color: '#fff' }} />
               </div>
-              <div>
-                <p className="text-xs text-gray-500">From</p>
-                <p className="font-medium text-gray-900 dark:text-white">{truck.origin}</p>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>From</p>
+                <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{truck.origin}</p>
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-1 px-4">
-              <Navigation className="size-5 text-purple-500" />
-              <div className="h-0.5 w-16 bg-gradient-to-r from-purple-400 to-purple-600 rounded-full" />
+            <div className="flex flex-col items-center" style={{ gap: '4px', padding: isMobile ? '0 8px' : '0 16px', flexShrink: 0 }}>
+              <Navigation style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px', color: '#a78bfa' }} />
+              <div style={{ height: '2px', width: isMobile ? '48px' : '64px', background: 'linear-gradient(to right, #a78bfa, #8b5cf6)', borderRadius: '9999px' }} />
             </div>
 
-            <div className="flex items-center gap-2 flex-1">
-              <div className="size-10 rounded-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shadow-lg shadow-red-500/30">
-                <MapPin className="size-5 text-white" />
+            <div className="flex items-center flex-1" style={{ gap: isMobile ? '6px' : '8px', minWidth: 0 }}>
+              <div style={{
+                width: isMobile ? '32px' : '40px',
+                height: isMobile ? '32px' : '40px',
+                borderRadius: '50%',
+                background: 'linear-gradient(to bottom right, #f87171, #dc2626)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 10px 15px -3px rgba(220, 38, 38, 0.3)',
+                flexShrink: 0
+              }}>
+                <MapPin style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px', color: '#fff' }} />
               </div>
-              <div>
-                <p className="text-xs text-gray-500">To</p>
-                <p className="font-medium text-gray-900 dark:text-white">{truck.destination}</p>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>To</p>
+                <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{truck.destination}</p>
               </div>
             </div>
           </div>
 
           {/* Distance & Time */}
-          <div className="flex items-center gap-6 mt-3 text-sm text-gray-600 dark:text-gray-400">
-            {truck.distance && (
-              <div className="flex items-center gap-1.5">
-                <Navigation className="size-4 text-blue-500" />
-                <span>{truck.distance}</span>
-              </div>
-            )}
-            {truck.estimatedTime && (
-              <div className="flex items-center gap-1.5">
-                <Clock className="size-4 text-purple-500" />
-                <span>{truck.estimatedTime}</span>
-              </div>
-            )}
-          </div>
+          {(truck.distance || truck.estimatedTime) && (
+            <div className="flex items-center" style={{ gap: isMobile ? '16px' : '24px', marginTop: isMobile ? '8px' : '12px', fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>
+              {truck.distance && (
+                <div className="flex items-center" style={{ gap: '6px' }}>
+                  <Navigation style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#3b82f6' }} />
+                  <span>{truck.distance}</span>
+                </div>
+              )}
+              {truck.estimatedTime && (
+                <div className="flex items-center" style={{ gap: '6px' }}>
+                  <Clock style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#a78bfa' }} />
+                  <span>{truck.estimatedTime}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Truck Details */}
-        <div className="py-4 border-b border-gray-200 dark:border-gray-700">
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Truck Details</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '12px' : '16px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Truck Details</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '10px' : '16px' }}>
             {truck.vehicleType && (
-              <div className="flex items-center gap-2">
-                <Truck className="size-5 text-purple-500" />
+              <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
+                <Truck style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#a78bfa', flexShrink: 0 }} />
                 <div>
-                  <p className="text-xs text-gray-500">Vehicle Type</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{truck.vehicleType}</p>
+                  <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Vehicle Type</p>
+                  <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{truck.vehicleType}</p>
                 </div>
               </div>
             )}
             {truck.capacity && (
-              <div className="flex items-center gap-2">
-                <Truck className="size-5 text-blue-500" />
+              <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
+                <Truck style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#3b82f6', flexShrink: 0 }} />
                 <div>
-                  <p className="text-xs text-gray-500">Capacity</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{truck.capacity}</p>
+                  <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Capacity</p>
+                  <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{truck.capacity}</p>
                 </div>
               </div>
             )}
             {truck.plateNumber && (
-              <div className="flex items-center gap-2">
-                <div className="size-5 flex items-center justify-center text-green-500 font-bold text-xs">
+              <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
+                <div style={{
+                  width: isMobile ? '18px' : '20px',
+                  height: isMobile ? '18px' : '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#10b981',
+                  fontWeight: 'bold',
+                  fontSize: isMobile ? '11px' : '12px',
+                  flexShrink: 0
+                }}>
                   #
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Plate Number</p>
-                  <p className="font-medium font-mono text-gray-900 dark:text-white">{truck.plateNumber}</p>
+                  <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Plate Number</p>
+                  <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', fontFamily: 'monospace', color: darkMode ? '#fff' : '#111827' }}>{truck.plateNumber}</p>
                 </div>
               </div>
             )}
             {truck.availableDate && (
-              <div className="flex items-center gap-2">
-                <Calendar className="size-5 text-green-500" />
+              <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
+                <Calendar style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#10b981', flexShrink: 0 }} />
                 <div>
-                  <p className="text-xs text-gray-500">Available Date</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{truck.availableDate}</p>
+                  <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Available Date</p>
+                  <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{truck.availableDate}</p>
                 </div>
               </div>
             )}
@@ -308,21 +361,22 @@ export function TruckDetailsModal({
 
         {/* Description */}
         {truck.description && (
-          <div className="py-4 border-b border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</h4>
-            <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{truck.description}</p>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+            <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '6px' : '8px' }}>Description</h4>
+            <p style={{ fontSize: isMobile ? '13px' : '14px', color: '#6b7280', lineHeight: '1.6' }}>{truck.description}</p>
           </div>
         )}
 
         {/* Photos */}
         {truckPhotos.length > 0 && (
-          <div className="py-4 border-b border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Photos</h4>
-            <div className="flex gap-3 flex-wrap">
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+            <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Photos</h4>
+            <div className="flex flex-wrap" style={{ gap: isMobile ? '8px' : '12px' }}>
               {truckPhotos.map((photo, idx) => (
                 <div
                   key={idx}
-                  className="relative size-24 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700"
+                  className="relative rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700"
+                  style={{ width: isMobile ? '80px' : '96px', height: isMobile ? '80px' : '96px' }}
                 >
                   <img
                     src={photo}
@@ -340,60 +394,72 @@ export function TruckDetailsModal({
 
         {/* Map Preview */}
         {truck.originCoords && truck.destCoords && (
-          <div className="py-4 border-b border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Route Map</h4>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+            <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Route Map</h4>
             <RouteMap
               origin={truck.origin}
               destination={truck.destination}
               originCoords={truck.originCoords}
               destCoords={truck.destCoords}
               darkMode={darkMode}
-              height="200px"
+              height={isMobile ? '160px' : '200px'}
             />
           </div>
         )}
 
         {/* Bookings Section - Only for owner */}
         {isOwner && (
-          <div className="py-4 border-b border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+            <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>
               Booking Requests {!bidsLoading && `(${bookings.length})`}
             </h4>
             {bidsLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="size-6 text-purple-500 animate-spin" />
-                <span className="ml-2 text-sm text-gray-500">Loading requests...</span>
+              <div className="flex items-center justify-center" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+                <Loader2 style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px', color: '#a78bfa' }} className="animate-spin" />
+                <span style={{ marginLeft: '8px', fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>Loading requests...</span>
               </div>
             ) : bookings.length > 0 ? (
-              <div className="space-y-3">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '12px' }}>
                 {bookings.map((booking, idx) => (
                   <div
                     key={booking.id || idx}
-                    className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700"
+                    className="rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700"
+                    style={{ padding: isMobile ? '12px' : '16px' }}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold">
+                    <div className="flex items-center justify-between" style={{ marginBottom: isMobile ? '6px' : '8px' }}>
+                      <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
+                        <div style={{
+                          width: isMobile ? '36px' : '40px',
+                          height: isMobile ? '36px' : '40px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(to bottom right, #fb923c, #ea580c)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          fontWeight: 'bold',
+                          fontSize: isMobile ? '14px' : '16px'
+                        }}>
                           {booking.shipper?.[0]?.toUpperCase() || 'S'}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{booking.shipper}</p>
+                          <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{booking.shipper}</p>
                           {booking.cargoType && (
-                            <p className="text-sm text-gray-500">{booking.cargoType}</p>
+                            <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>{booking.cargoType}</p>
                           )}
                         </div>
                       </div>
-                      <div className="text-right flex items-center gap-2">
-                        <p className="font-bold text-lg text-green-600 dark:text-green-400">
+                      <div className="text-right flex items-center" style={{ gap: isMobile ? '4px' : '8px' }}>
+                        <p style={{ fontSize: isMobile ? '15px' : '18px', fontWeight: 'bold', color: '#10b981' }}>
                           {formatPrice(booking.amount)}
                         </p>
                         {booking.status === 'accepted' && (
-                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '9px' : '10px' }}>
                             Accepted
                           </Badge>
                         )}
                         {booking.status === 'rejected' && (
-                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '9px' : '10px' }}>
                             Rejected
                           </Badge>
                         )}
@@ -401,20 +467,20 @@ export function TruckDetailsModal({
                     </div>
                     {/* Booking Message - Sanitized */}
                     {booking.message && (
-                      <div className="mt-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/30">
-                        <div className="flex items-start gap-2">
-                          <MessageSquare className="size-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                          <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+                      <div className="rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/30" style={{ marginTop: isMobile ? '6px' : '8px', padding: isMobile ? '8px' : '12px' }}>
+                        <div className="flex items-start" style={{ gap: isMobile ? '4px' : '8px' }}>
+                          <MessageSquare style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#a78bfa', marginTop: '2px', flexShrink: 0 }} />
+                          <p style={{ fontSize: isMobile ? '12px' : '13px', color: darkMode ? '#d1d5db' : '#374151', fontStyle: 'italic' }}>
                             "{sanitizeMessage(booking.message)}"
                           </p>
                         </div>
                       </div>
                     )}
                     {/* Action Buttons */}
-                    <div className="flex gap-2 mt-3">
+                    <div className="flex" style={{ gap: isMobile ? '6px' : '8px', marginTop: isMobile ? '8px' : '12px' }}>
                       <Button
                         variant="outline"
-                        size="sm"
+                        size={isMobile ? "sm" : "default"}
                         className="flex-1 gap-2"
                         onClick={() => onOpenChat?.(booking._original, truck)}
                       >
@@ -425,7 +491,7 @@ export function TruckDetailsModal({
                         <>
                           <Button
                             variant="outline"
-                            size="sm"
+                            size={isMobile ? "sm" : "default"}
                             className="gap-1 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
                             onClick={() => handleAcceptBid(booking._original)}
                             disabled={processingBidId === booking.id}
@@ -439,7 +505,7 @@ export function TruckDetailsModal({
                           </Button>
                           <Button
                             variant="outline"
-                            size="sm"
+                            size={isMobile ? "sm" : "default"}
                             className="gap-1 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                             onClick={() => handleRejectBid(booking._original)}
                             disabled={processingBidId === booking.id}
@@ -456,7 +522,7 @@ export function TruckDetailsModal({
                       {booking.status === 'accepted' && (
                         <Button
                           variant="gradient"
-                          size="sm"
+                          size={isMobile ? "sm" : "default"}
                           className="flex-1 gap-2"
                           onClick={() => onCreateContract?.(booking._original, truck)}
                         >
@@ -469,7 +535,7 @@ export function TruckDetailsModal({
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+              <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#6b7280', textAlign: 'center', paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
                 No booking requests yet
               </p>
             )}
@@ -477,10 +543,11 @@ export function TruckDetailsModal({
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-3 pt-3">
+        <div className="flex" style={{ gap: isMobile ? '8px' : '12px', paddingTop: isMobile ? '8px' : '12px' }}>
           {!isOwner && currentRole === 'shipper' && (truck.status === 'open' || truck.status === 'waiting' || truck.status === 'available') && (
             <Button
               variant="gradient"
+              size={isMobile ? "default" : "lg"}
               className="flex-1"
               onClick={() => onBook?.(truck)}
             >
@@ -490,6 +557,7 @@ export function TruckDetailsModal({
           {isOwner && truck.status === 'negotiating' && (
             <Button
               variant="outline"
+              size={isMobile ? "default" : "lg"}
               className="flex-1 gap-2 border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
               onClick={() => onReopenListing?.(truck.id, 'truck')}
             >
@@ -499,8 +567,9 @@ export function TruckDetailsModal({
           )}
           <Button
             variant="ghost"
+            size={isMobile ? "default" : "lg"}
             onClick={onClose}
-            className={cn(!isOwner && currentRole === 'shipper' && truck.status !== 'negotiating' ? '' : 'flex-1')}
+            className="w-full"
           >
             Close
           </Button>

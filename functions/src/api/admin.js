@@ -434,3 +434,92 @@ exports.adminGetContracts = functions.region('asia-southeast1').https.onCall(asy
 
   return { contracts, total: contracts.length };
 });
+
+/**
+ * Get Outstanding Platform Fees Report
+ * Returns all contracts with unpaid platform fees, enriched with trucker data
+ */
+exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const { limit = 100 } = data || {};
+  const db = admin.firestore();
+
+  // Query contracts with unpaid platform fees
+  const unpaidContracts = await db.collection('contracts')
+    .where('platformFeePaid', '==', false)
+    .orderBy('platformFeeDueDate', 'asc')
+    .limit(limit)
+    .get();
+
+  console.log(`Found ${unpaidContracts.size} contracts with unpaid platform fees`);
+
+  // Enrich contracts with trucker data
+  const contracts = await Promise.all(unpaidContracts.docs.map(async (doc) => {
+    const contract = { id: doc.id, ...doc.data() };
+
+    // Fetch trucker (platform fee payer) data
+    if (contract.platformFeePayerId) {
+      try {
+        const truckerDoc = await db.collection('users').doc(contract.platformFeePayerId).get();
+        if (truckerDoc.exists) {
+          const truckerData = truckerDoc.data();
+          contract.truckerName = truckerData.displayName || truckerData.name || 'Unknown';
+          contract.truckerEmail = truckerData.email;
+          contract.truckerPhone = truckerData.phone;
+          contract.truckerAccountStatus = truckerData.accountStatus || 'active';
+          contract.truckerOutstandingTotal = truckerData.outstandingPlatformFees || 0;
+        }
+      } catch (error) {
+        console.error('Error fetching trucker data:', error);
+      }
+    }
+
+    // Calculate days overdue
+    if (contract.platformFeeDueDate) {
+      const dueDate = contract.platformFeeDueDate.toDate();
+      const now = new Date();
+      const daysOverdue = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
+      contract.daysOverdue = daysOverdue;
+      contract.isOverdue = daysOverdue > 0;
+    }
+
+    return contract;
+  }));
+
+  // Calculate totals
+  const totalOutstanding = contracts.reduce((sum, c) => sum + (c.platformFee || 0), 0);
+  const overdueCount = contracts.filter(c => c.platformFeeStatus === 'overdue').length;
+  const suspendedCount = contracts.filter(c => c.truckerAccountStatus === 'suspended').length;
+
+  // Get suspended users summary
+  const suspendedUsers = await db.collection('users')
+    .where('accountStatus', '==', 'suspended')
+    .where('suspensionReason', '==', 'unpaid_platform_fees')
+    .get();
+
+  const suspendedUsersList = suspendedUsers.docs.map(doc => {
+    const user = { id: doc.id, ...doc.data() };
+    return {
+      userId: user.id,
+      name: user.displayName || user.name || 'Unknown',
+      email: user.email,
+      phone: user.phone,
+      outstandingFees: user.outstandingPlatformFees || 0,
+      suspendedAt: user.suspendedAt,
+      contractIds: user.outstandingFeeContracts || [],
+    };
+  });
+
+  return {
+    contracts,
+    summary: {
+      totalContracts: contracts.length,
+      totalOutstanding,
+      overdueCount,
+      suspendedCount,
+      suspendedUsers: suspendedUsersList.length,
+    },
+    suspendedUsers: suspendedUsersList,
+  };
+});

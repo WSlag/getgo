@@ -61,9 +61,13 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
     throw new functions.https.HttpsError('failed-precondition', 'Bid must be accepted before paying platform fee');
   }
 
-  // Verify the user is the listing owner
-  if (bid.listingOwnerId !== userId) {
-    throw new functions.https.HttpsError('permission-denied', 'Only the listing owner can pay the platform fee');
+  // Determine who is the trucker (platform fee payer)
+  const isCargo = !!bid.cargoListingId;
+  const truckerUserId = isCargo ? bid.bidderId : bid.listingOwnerId;
+
+  // Verify the user is the trucker
+  if (truckerUserId !== userId) {
+    throw new functions.https.HttpsError('permission-denied', 'Only the trucker can pay the platform fee');
   }
 
   // Calculate platform fee
@@ -91,6 +95,23 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
     listingId = bid.truckListingId;
   }
 
+  // Fetch contract for this bid (should exist from bid acceptance)
+  const contractSnap = await db.collection('contracts')
+    .where('bidId', '==', bidId)
+    .limit(1)
+    .get();
+
+  let contractId = null;
+  if (!contractSnap.empty) {
+    contractId = contractSnap.docs[0].id;
+
+    // Update contract with order reference
+    await db.collection('contracts').doc(contractId).update({
+      platformFeeOrderId: orderId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
   // Create order
   const orderId = generateOrderId();
   const expiresAt = new Date(Date.now() + GCASH_CONFIG.orderExpiryMinutes * 60 * 1000);
@@ -101,7 +122,8 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
     type: 'platform_fee',
     bidId,
     listingId,
-    listingOwnerId: userId,
+    contractId,  // NEW: Link to contract
+    listingOwnerId: bid.listingOwnerId,
     amount: platformFee,
     method: 'gcash',
     status: 'awaiting_upload',

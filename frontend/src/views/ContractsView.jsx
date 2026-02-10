@@ -71,11 +71,11 @@ const statusConfig = {
   },
 };
 
-export function ContractsView({ darkMode, currentUser, onOpenContract }) {
+export function ContractsView({ darkMode, currentUser, onOpenContract, initialFilter = 'all' }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatus, setFilterStatus] = useState(initialFilter);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch contracts
@@ -99,7 +99,12 @@ export function ContractsView({ darkMode, currentUser, onOpenContract }) {
   const filteredContracts = useMemo(() => {
     return contracts.filter((contract) => {
       // Status filter
-      if (filterStatus !== 'all' && contract.status !== filterStatus) {
+      if (filterStatus === 'unpaid_fees') {
+        // Show contracts with unpaid platform fees
+        if (contract.platformFeePaid !== false) {
+          return false;
+        }
+      } else if (filterStatus !== 'all' && contract.status !== filterStatus) {
         return false;
       }
 
@@ -126,6 +131,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract }) {
       signed: contracts.filter((c) => c.status === 'signed').length,
       in_transit: contracts.filter((c) => c.status === 'in_transit').length,
       completed: contracts.filter((c) => c.status === 'completed').length,
+      unpaid_fees: contracts.filter((c) => c.platformFeePaid === false).length,
     };
   }, [contracts]);
 
@@ -239,6 +245,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract }) {
           }} className="text-gray-500 flex-shrink-0" />
           {[
             { value: 'all', label: 'All', count: contractCounts.all },
+            { value: 'unpaid_fees', label: 'Unpaid Fees', count: contractCounts.unpaid_fees },
             { value: 'draft', label: 'Pending', count: contractCounts.draft },
             { value: 'signed', label: 'Active', count: contractCounts.signed },
             { value: 'in_transit', label: 'In Transit', count: contractCounts.in_transit },
@@ -463,6 +470,21 @@ export function ContractsView({ darkMode, currentUser, onOpenContract }) {
                       >
                         <PenTool className="size-3" />
                         <span className="text-xs font-medium">{signatureStatus.label}</span>
+                      </div>
+                    )}
+
+                    {/* Platform Fee Status Badge */}
+                    {!contract.platformFeePaid && (
+                      <div
+                        className={cn(
+                          'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium',
+                          contract.platformFeeStatus === 'overdue'
+                            ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+                            : 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
+                        )}
+                      >
+                        <AlertCircle className="size-3" />
+                        {contract.platformFeeStatus === 'overdue' ? 'Fee Overdue' : 'Fee Unpaid'}
                       </div>
                     )}
 

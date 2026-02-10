@@ -49,7 +49,7 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 // Bottom Sheet variant - slides up from bottom on mobile
 const DialogBottomSheet = React.forwardRef(
-  ({ className, children, ...props }, ref) => (
+  ({ className, children, hideCloseButton = false, ...props }, ref) => (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
@@ -60,27 +60,30 @@ const DialogBottomSheet = React.forwardRef(
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-          "rounded-t-3xl max-h-[90vh] overflow-y-auto",
+          "rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden",
           "max-w-[500px] mx-auto",
           // Desktop: Center modal
           "lg:inset-auto lg:left-[50%] lg:top-[50%] lg:translate-x-[-50%] lg:translate-y-[-50%]",
           "lg:max-w-2xl lg:rounded-2xl lg:border lg:data-[state=closed]:slide-out-to-top-[48%] lg:data-[state=open]:slide-in-from-top-[48%]",
           "lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=open]:slide-in-from-left-1/2",
           "lg:data-[state=closed]:zoom-out-95 lg:data-[state=open]:zoom-in-95",
-          "px-5 py-4 lg:p-7",
           className
         )}
         {...props}
       >
         {/* Drag Handle for mobile */}
-        <div className="lg:hidden flex justify-center pb-2">
+        <div className="lg:hidden flex justify-center pb-2 flex-shrink-0 px-6 pt-4">
           <div className="w-12 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600" />
         </div>
-        {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 lg:right-6 lg:top-6 rounded-xl p-2 opacity-70 ring-offset-background transition-all hover:opacity-100 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-          <X className="size-4" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
+        <div className="overflow-y-auto flex-1 px-6 pb-6 lg:px-8 lg:pb-8 lg:pt-8">
+          {children}
+        </div>
+        {!hideCloseButton && (
+          <DialogPrimitive.Close className="absolute right-4 top-4 lg:right-6 lg:top-6 rounded-xl p-2 opacity-70 ring-offset-background transition-all hover:opacity-100 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10">
+            <X className="size-4" />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        )}
       </DialogPrimitive.Content>
     </DialogPortal>
   )

@@ -46,13 +46,17 @@ async function getFirestoreBidData(bidId) {
 /**
  * Create Contract from Approved Platform Fee Payment
  * Called when a platform fee payment is approved (auto or admin)
+ * OR when bid is accepted (with skipPaymentCheck flag)
  *
  * @param {string} bidId - The bid ID
- * @param {string} userId - User ID (listing owner who paid the fee)
+ * @param {string} userId - User ID (listing owner)
  * @param {object} options - Optional contract data overrides
+ * @param {boolean} options.skipPaymentCheck - Skip payment verification (for deferred payment)
+ * @param {boolean} options.createPlatformFeeDebt - Create outstanding platform fee debt
  * @returns {Promise<object>} - Created contract data
  */
 async function createContractFromApprovedFee(bidId, userId, options = {}) {
+  const { skipPaymentCheck = false, createPlatformFeeDebt = false } = options;
   const db = admin.firestore();
 
   // Fetch bid and listing from Firestore
@@ -109,7 +113,7 @@ The Trucker agrees to transport cargo from ${listing.origin} to ${listing.destin
 
 3. PAYMENT TERMS
 - Freight Rate: PHP ${Number(bid.price).toLocaleString()}
-- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - PAID
+- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - Payable by Trucker within 3 days
 - Payment Method: Direct payment from Shipper to Trucker
 - Payment Schedule: As agreed between parties (COD, advance, or partial)
 
@@ -133,6 +137,13 @@ By signing, both parties agree to these terms.
   const contractNumber = generateContractNumber();
   const participantIds = [listingOwnerId, bid.bidderId];
 
+  // Calculate platform fee due date (3 days from now)
+  const platformFeeDueDate = new Date();
+  platformFeeDueDate.setDate(platformFeeDueDate.getDate() + 3);
+
+  // Determine who owes the platform fee (trucker)
+  const platformFeePayerId = isCargo ? bid.bidderId : listingOwnerId;
+
   // Create contract in Firestore
   const contractRef = db.collection('contracts').doc();
   const contractData = {
@@ -140,6 +151,16 @@ By signing, both parties agree to these terms.
     contractNumber,
     agreedPrice: bid.price,
     platformFee,
+
+    // Platform fee tracking fields
+    platformFeePaid: createPlatformFeeDebt ? false : true,
+    platformFeeStatus: createPlatformFeeDebt ? 'outstanding' : 'paid',
+    platformFeeDueDate: admin.firestore.Timestamp.fromDate(platformFeeDueDate),
+    platformFeeOrderId: null,
+    platformFeePaidAt: createPlatformFeeDebt ? null : admin.firestore.FieldValue.serverTimestamp(),
+    platformFeeReminders: [],
+    platformFeePayerId,
+
     declaredCargoValue,
     pickupDate: options.pickupDate || listing.pickupDate || listing.availableDate || null,
     pickupAddress: listing.origin,
@@ -172,6 +193,15 @@ By signing, both parties agree to these terms.
   };
 
   await contractRef.set(contractData);
+
+  // Track outstanding fees if creating platform fee debt
+  if (createPlatformFeeDebt) {
+    await db.collection('users').doc(platformFeePayerId).update({
+      outstandingPlatformFees: admin.firestore.FieldValue.increment(platformFee),
+      outstandingFeeContracts: admin.firestore.FieldValue.arrayUnion(contractRef.id),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
 
   // Update listing status
   const listingCollection = isCargo ? 'cargoListings' : 'truckListings';

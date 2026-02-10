@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Dialog,
-  DialogContent,
+  DialogBottomSheet,
   DialogHeader,
   DialogTitle,
   DialogDescription,
@@ -10,13 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Route,
-  MapPin,
   Truck,
   Package,
-  Navigation,
   TrendingUp,
   Loader2,
   Search,
@@ -25,12 +22,14 @@ import {
 } from 'lucide-react';
 import { useRouteOptimizer } from '@/hooks/useRouteOptimizer';
 import { formatCurrency } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
-export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDestination }) {
+export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDestination, darkMode = false }) {
   const [origin, setOrigin] = useState(initialOrigin || '');
   const [destination, setDestination] = useState(initialDestination || '');
   const [maxDetour, setMaxDetour] = useState('50');
   const [searchType, setSearchType] = useState('both');
+  const isMobile = useMediaQuery('(max-width: 1023px)');
 
   const {
     backloadResults,
@@ -76,54 +75,57 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" hideCloseButton>
         <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white">
-              <Route className="w-5 h-5" />
+          <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
+            <div style={{
+              width: isMobile ? '40px' : '48px',
+              height: isMobile ? '40px' : '48px',
+              borderRadius: '12px',
+              background: 'linear-gradient(to bottom right, #10b981, #059669)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 10px 15px -3px rgba(16, 185, 129, 0.3)'
+            }}>
+              <Route style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px', color: '#fff' }} />
             </div>
             <div>
-              <DialogTitle>Route Optimizer</DialogTitle>
-              <DialogDescription>Find backload opportunities along your route</DialogDescription>
+              <DialogTitle style={{ fontSize: isMobile ? '16px' : '20px' }}>Route Optimizer</DialogTitle>
+              <DialogDescription style={{ fontSize: isMobile ? '11px' : '14px' }}>Find backload opportunities along your route</DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-          {/* Search Form */}
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+        {/* Search Form */}
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '10px' : '12px' }}>
               <div>
-                <Label htmlFor="origin" className="text-xs">Origin</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
-                  <Input
-                    id="origin"
-                    value={origin}
-                    onChange={(e) => setOrigin(e.target.value)}
-                    placeholder="e.g., Davao City"
-                    className="pl-9"
-                  />
-                </div>
+                <Label htmlFor="origin" style={{ fontSize: isMobile ? '11px' : '12px', marginBottom: '4px', display: 'block' }}>Origin</Label>
+                <Input
+                  id="origin"
+                  value={origin}
+                  onChange={(e) => setOrigin(e.target.value)}
+                  placeholder="e.g., Davao City"
+                  style={{ fontSize: isMobile ? '13px' : '14px' }}
+                />
               </div>
               <div>
-                <Label htmlFor="destination" className="text-xs">Destination (optional)</Label>
-                <div className="relative">
-                  <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />
-                  <Input
-                    id="destination"
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                    placeholder="e.g., Cebu City"
-                    className="pl-9"
-                  />
-                </div>
+                <Label htmlFor="destination" style={{ fontSize: isMobile ? '11px' : '12px', marginBottom: '4px', display: 'block' }}>Destination (optional)</Label>
+                <Input
+                  id="destination"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                  placeholder="e.g., Cebu City"
+                  style={{ fontSize: isMobile ? '13px' : '14px' }}
+                />
               </div>
             </div>
 
-            <div className="flex items-end gap-3">
-              <div className="flex-1">
-                <Label htmlFor="maxDetour" className="text-xs">Max Detour (km)</Label>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '10px' : '12px' }}>
+              <div>
+                <Label htmlFor="maxDetour" style={{ fontSize: isMobile ? '11px' : '12px', marginBottom: '4px', display: 'block' }}>Max Detour (km)</Label>
                 <Input
                   id="maxDetour"
                   type="number"
@@ -131,11 +133,12 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
                   onChange={(e) => setMaxDetour(e.target.value)}
                   min="10"
                   max="200"
+                  style={{ fontSize: isMobile ? '13px' : '14px' }}
                 />
               </div>
-              <div className="flex-1">
-                <Label className="text-xs">Search Type</Label>
-                <div className="flex gap-1">
+              <div>
+                <Label style={{ fontSize: isMobile ? '11px' : '12px', marginBottom: '4px', display: 'block' }}>Search Type</Label>
+                <div className="flex" style={{ gap: isMobile ? '4px' : '6px' }}>
                   {[
                     { value: 'both', label: 'Both' },
                     { value: 'cargo', label: 'Cargo' },
@@ -144,39 +147,47 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
                     <Button
                       key={type.value}
                       variant={searchType === type.value ? 'default' : 'outline'}
-                      size="sm"
+                      size={isMobile ? "sm" : "default"}
                       onClick={() => setSearchType(type.value)}
                       className="flex-1"
+                      style={{ fontSize: isMobile ? '11px' : '12px' }}
                     >
                       {type.label}
                     </Button>
                   ))}
                 </div>
               </div>
-              <Button
-                onClick={handleSearch}
-                disabled={loading || !origin.trim()}
-                className="bg-gradient-to-r from-green-500 to-emerald-600"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                <span className="ml-2">Search</span>
-              </Button>
+            </div>
+
+            <Button
+              onClick={handleSearch}
+              disabled={loading || !origin.trim()}
+              size={isMobile ? "default" : "lg"}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 w-full"
+              style={{ gap: '6px' }}
+            >
+              {loading ? <Loader2 style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} className="animate-spin" /> : <Search style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} />}
+              <span>Search</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+            <div className="rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400" style={{ padding: isMobile ? '12px' : '16px', fontSize: isMobile ? '12px' : '14px' }}>
+              {error}
             </div>
           </div>
+        )}
 
-          {/* Results or Popular Routes */}
-          <ScrollArea className="flex-1">
-            {error && (
-              <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-
-            {backloadResults ? (
-              <div className="space-y-4">
+        {/* Results or Popular Routes */}
+        <div style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          {backloadResults ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
                 {/* Summary */}
-                <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg">
-                  <p className="text-sm font-medium text-green-700 dark:text-green-300">
+                <div className="rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20" style={{ padding: isMobile ? '10px 12px' : '12px 16px' }}>
+                  <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '500', color: '#047857' }} className="dark:text-green-300">
                     Found {backloadResults.totalMatches} backload opportunities within {backloadResults.maxDetourKm}km
                   </p>
                 </div>
@@ -184,30 +195,31 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
                 {/* Recommendations */}
                 {backloadResults.recommendations?.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                      <Star className="w-4 h-4 text-yellow-500" />
+                    <h4 className="flex items-center" style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', marginBottom: isMobile ? '6px' : '8px', gap: '6px' }}>
+                      <Star style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#eab308' }} />
                       Top Recommendations
                     </h4>
-                    <div className="space-y-2">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '6px' : '8px' }}>
                       {backloadResults.recommendations.map((rec, idx) => (
                         <div
                           key={rec.id}
-                          className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800"
+                          className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800"
+                          style={{ padding: isMobile ? '10px' : '12px' }}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-between" style={{ marginBottom: isMobile ? '4px' : '6px' }}>
+                            <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px', minWidth: 0, flex: 1 }}>
                               {rec.type === 'cargo' ? (
-                                <Package className="w-4 h-4 text-blue-500" />
+                                <Package style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#3b82f6', flexShrink: 0 }} />
                               ) : (
-                                <Truck className="w-4 h-4 text-purple-500" />
+                                <Truck style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#a78bfa', flexShrink: 0 }} />
                               )}
-                              <span className="font-medium text-sm">{rec.route}</span>
+                              <span style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rec.route}</span>
                             </div>
-                            <Badge variant="outline" className="text-green-600 border-green-300">
+                            <Badge variant="outline" className="text-green-600 border-green-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '10px' : '11px', flexShrink: 0 }}>
                               {formatCurrency(rec.price)}
                             </Badge>
                           </div>
-                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                          <div className="flex items-center text-muted-foreground" style={{ gap: isMobile ? '6px' : '8px', fontSize: isMobile ? '10px' : '11px', flexWrap: 'wrap' }}>
                             <span>{rec.originDistance}km from origin</span>
                             {rec.destDistance !== null && (
                               <>
@@ -227,26 +239,27 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
                 {/* Cargo Results */}
                 {backloadResults.cargo?.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                      <Package className="w-4 h-4 text-blue-500" />
+                    <h4 className="flex items-center" style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', marginBottom: isMobile ? '6px' : '8px', gap: '6px' }}>
+                      <Package style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#3b82f6' }} />
                       Available Cargo ({backloadResults.cargo.length})
                     </h4>
-                    <div className="space-y-2">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '6px' : '8px' }}>
                       {backloadResults.cargo.slice(0, 5).map((cargo) => (
                         <div
                           key={cargo.id}
-                          className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg"
+                          className="rounded-lg bg-blue-50 dark:bg-blue-900/20"
+                          style={{ padding: isMobile ? '10px' : '12px' }}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-sm">
-                              {cargo.origin} <ArrowRight className="inline w-3 h-3" /> {cargo.destination}
+                          <div className="flex items-center justify-between" style={{ marginBottom: isMobile ? '4px' : '6px' }}>
+                            <span style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {cargo.origin} <ArrowRight style={{ width: isMobile ? '12px' : '14px', height: isMobile ? '12px' : '14px', display: 'inline', verticalAlign: 'middle' }} /> {cargo.destination}
                             </span>
-                            <Badge>{formatCurrency(cargo.askingPrice)}</Badge>
+                            <Badge style={{ fontSize: isMobile ? '10px' : '11px', padding: isMobile ? '2px 6px' : '4px 8px', flexShrink: 0 }}>{formatCurrency(cargo.askingPrice)}</Badge>
                           </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
+                          <div className="text-muted-foreground" style={{ fontSize: isMobile ? '10px' : '11px', marginBottom: '4px' }}>
                             {cargo.cargoType} • {cargo.weight} {cargo.weightUnit} • {cargo.routeDistance}km route
                           </div>
-                          <div className="mt-1 text-xs text-green-600">
+                          <div className="text-green-600" style={{ fontSize: isMobile ? '10px' : '11px' }}>
                             {cargo.originDistance}km detour from your origin
                           </div>
                         </div>
@@ -258,26 +271,27 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
                 {/* Truck Results */}
                 {backloadResults.trucks?.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-purple-500" />
+                    <h4 className="flex items-center" style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', marginBottom: isMobile ? '6px' : '8px', gap: '6px' }}>
+                      <Truck style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#a78bfa' }} />
                       Available Trucks ({backloadResults.trucks.length})
                     </h4>
-                    <div className="space-y-2">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '6px' : '8px' }}>
                       {backloadResults.trucks.slice(0, 5).map((truck) => (
                         <div
                           key={truck.id}
-                          className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg"
+                          className="rounded-lg bg-purple-50 dark:bg-purple-900/20"
+                          style={{ padding: isMobile ? '10px' : '12px' }}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-sm">
-                              {truck.origin} <ArrowRight className="inline w-3 h-3" /> {truck.destination}
+                          <div className="flex items-center justify-between" style={{ marginBottom: isMobile ? '4px' : '6px' }}>
+                            <span style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {truck.origin} <ArrowRight style={{ width: isMobile ? '12px' : '14px', height: isMobile ? '12px' : '14px', display: 'inline', verticalAlign: 'middle' }} /> {truck.destination}
                             </span>
-                            <Badge>{formatCurrency(truck.askingPrice)}</Badge>
+                            <Badge style={{ fontSize: isMobile ? '10px' : '11px', padding: isMobile ? '2px 6px' : '4px 8px', flexShrink: 0 }}>{formatCurrency(truck.askingPrice)}</Badge>
                           </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
+                          <div className="text-muted-foreground" style={{ fontSize: isMobile ? '10px' : '11px', marginBottom: '4px' }}>
                             {truck.vehicleType} • {truck.capacity} {truck.capacityUnit} • {truck.routeDistance}km route
                           </div>
-                          <div className="mt-1 text-xs text-green-600">
+                          <div className="text-green-600" style={{ fontSize: isMobile ? '10px' : '11px' }}>
                             {truck.originDistance}km detour from your origin
                           </div>
                         </div>
@@ -287,51 +301,51 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
                 )}
 
                 {backloadResults.totalMatches === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Route className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>No backload opportunities found</p>
-                    <p className="text-sm">Try increasing the max detour distance</p>
+                  <div className="text-center text-muted-foreground" style={{ paddingTop: isMobile ? '24px' : '32px', paddingBottom: isMobile ? '24px' : '32px' }}>
+                    <Route style={{ width: isMobile ? '40px' : '48px', height: isMobile ? '40px' : '48px', margin: '0 auto 8px', opacity: 0.5 }} />
+                    <p style={{ fontSize: isMobile ? '13px' : '14px', marginBottom: '4px' }}>No backload opportunities found</p>
+                    <p style={{ fontSize: isMobile ? '12px' : '13px' }}>Try increasing the max detour distance</p>
                   </div>
                 )}
               </div>
             ) : (
               /* Popular Routes */
               <div>
-                <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-orange-500" />
+                <h4 className="flex items-center" style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', marginBottom: isMobile ? '8px' : '12px', gap: '6px' }}>
+                  <TrendingUp style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#f97316' }} />
                   Popular Routes
                 </h4>
                 {popularRoutes.length > 0 ? (
-                  <div className="space-y-2">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '6px' : '8px' }}>
                     {popularRoutes.map((route, idx) => (
                       <button
                         key={idx}
                         onClick={() => handlePopularRouteClick(route)}
-                        className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                        className="w-full bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                        style={{ padding: isMobile ? '10px' : '12px' }}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">
-                            {route.origin} <ArrowRight className="inline w-3 h-3" /> {route.destination}
+                        <div className="flex items-center justify-between" style={{ marginBottom: isMobile ? '4px' : '6px' }}>
+                          <span style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {route.origin} <ArrowRight style={{ width: isMobile ? '12px' : '14px', height: isMobile ? '12px' : '14px', display: 'inline', verticalAlign: 'middle' }} /> {route.destination}
                           </span>
-                          <Badge variant="secondary">{route.count} listings</Badge>
+                          <Badge variant="secondary" style={{ fontSize: isMobile ? '10px' : '11px', padding: isMobile ? '2px 6px' : '4px 8px', flexShrink: 0 }}>{route.count} listings</Badge>
                         </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
+                        <div className="text-muted-foreground" style={{ fontSize: isMobile ? '10px' : '11px' }}>
                           {route.distance}km distance
                         </div>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>Loading popular routes...</p>
+                  <div className="text-center text-muted-foreground" style={{ paddingTop: isMobile ? '24px' : '32px', paddingBottom: isMobile ? '24px' : '32px' }}>
+                    <TrendingUp style={{ width: isMobile ? '40px' : '48px', height: isMobile ? '40px' : '48px', margin: '0 auto 8px', opacity: 0.5 }} />
+                    <p style={{ fontSize: isMobile ? '13px' : '14px' }}>Loading popular routes...</p>
                   </div>
                 )}
               </div>
             )}
-          </ScrollArea>
         </div>
-      </DialogContent>
+      </DialogBottomSheet>
     </Dialog>
   );
 }

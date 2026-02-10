@@ -84,7 +84,7 @@ exports.onBidStatusChanged = functions.region('asia-southeast1').firestore
       await db.collection(`users/${after.listingOwnerId}/notifications`).doc().set({
         type: 'BID_ACCEPTED',
         title: 'Bid Accepted',
-        message: `You accepted ${bidderName}'s bid of ₱${after.price.toLocaleString()}. Please pay the platform fee to proceed.`,
+        message: `You accepted ${bidderName}'s bid of ₱${after.price.toLocaleString()}. Contract is being created.`,
         data: {
           bidId,
           listingId: after.listingId,
@@ -107,6 +107,65 @@ exports.onBidStatusChanged = functions.region('asia-southeast1').firestore
         isRead: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+    }
+
+    return null;
+  });
+
+/**
+ * Create contract immediately when bid is accepted
+ * No payment blocking - contract created right away
+ */
+exports.onBidAccepted = functions.region('asia-southeast1').firestore
+  .document('bids/{bidId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const bidId = context.params.bidId;
+
+    // Only trigger when status changes to 'accepted'
+    if (before.status !== 'accepted' && after.status === 'accepted') {
+      const { createContractFromApprovedFee } = require('../services/contractCreation');
+
+      try {
+        // Create contract immediately with platform fee debt tracking
+        const contract = await createContractFromApprovedFee(
+          bidId,
+          after.listingOwnerId,
+          {
+            skipPaymentCheck: true,           // NEW FLAG
+            createPlatformFeeDebt: true       // NEW FLAG
+          }
+        );
+
+        // Calculate due date (3 days from now)
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 3);
+
+        // Notify trucker about outstanding platform fee
+        await admin.firestore()
+          .collection(`users/${after.bidderId}/notifications`)
+          .doc()
+          .set({
+            type: 'PLATFORM_FEE_OUTSTANDING',
+            title: 'Contract Created - Platform Fee Required',
+            message: `Contract #${contract.contractNumber} is ready. Pay platform fee of ₱${contract.platformFee.toLocaleString()} within 3 days to avoid suspension.`,
+            data: {
+              contractId: contract.id,
+              bidId,
+              platformFee: contract.platformFee,
+              dueDate: dueDate.toISOString(),
+              actionRequired: 'PAY_PLATFORM_FEE',
+            },
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+        console.log(`Contract ${contract.id} created with outstanding platform fee for trucker ${after.bidderId}`);
+      } catch (error) {
+        console.error('Error creating contract on bid acceptance:', error);
+        // Don't fail the bid acceptance if contract creation fails
+      }
     }
 
     return null;

@@ -40,6 +40,7 @@ export function NotificationsModal({
   onMarkAllAsRead,
   currentUserId,
   onOpenContract,
+  onPayPlatformFee,
 }) {
   const [activeFilter, setActiveFilter] = useState('All');
 
@@ -65,6 +66,19 @@ export function NotificationsModal({
     // Mark as read
     if (!notification.read && !notification.isRead && onMarkAsRead) {
       onMarkAsRead(currentUserId, notification.id);
+    }
+
+    // Handle platform fee payment notifications
+    if (
+      (notification.type === 'PLATFORM_FEE_OUTSTANDING' ||
+       notification.type === 'PLATFORM_FEE_REMINDER' ||
+       notification.type === 'ACCOUNT_SUSPENDED') &&
+      notification.data?.contractId &&
+      onPayPlatformFee
+    ) {
+      onClose(); // Close notifications modal
+      onPayPlatformFee({ contractId: notification.data.contractId }); // Open payment modal
+      return;
     }
 
     // Handle contract notifications - navigate to contract modal
