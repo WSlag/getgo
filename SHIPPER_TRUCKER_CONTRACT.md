@@ -74,17 +74,16 @@ NOW, THEREFORE, for and in consideration of the foregoing premises and the mutua
 | Description | Amount (PHP) |
 |-------------|--------------|
 | Agreed Freight Rate | [AGREED_PRICE] |
-| Platform Service Fee (5%) | [PLATFORM_FEE] |
-| **Total Shipper Pays** | **[TOTAL_AMOUNT]** |
-| **Net Trucker Receives** | **[NET_AMOUNT]** |
+| Platform Service Fee (5%, paid by Trucker via GCash) | [PLATFORM_FEE] |
+| **Total Shipper Pays to Trucker** | **[AGREED_PRICE]** |
+| **Net Trucker Retains After Platform Fee** | **[NET_AMOUNT]** |
 
 ### 3.2 Payment Terms
-1. **Escrow Deposit**: Shipper shall deposit the Total Amount into the Karga escrow account prior to cargo pickup.
-2. **Release of Funds**: Funds shall be released to the Trucker upon:
-   - Successful delivery of cargo to destination
-   - Shipper confirmation of receipt, OR
-   - Automatic release 48 hours after delivery confirmation by Trucker (if Shipper does not dispute)
-3. **Disputes**: If Shipper disputes delivery, funds remain in escrow pending resolution.
+1. **Platform Fee Payment**: Trucker shall pay the Platform Service Fee to Karga via GCash before contract activation/signing completion.
+2. **Freight Payment Method**: Shipper shall pay the Agreed Freight Rate directly to the Trucker via GCash or another mutually agreed direct method.
+3. **Freight Payment Schedule**: The parties shall agree in writing whether payment is COD, advance, or partial.
+4. **No Platform Fund Custody**: The parties acknowledge that Karga does not hold freight funds for this transaction.
+5. **Proof of Payment**: Each party shall retain reference numbers, screenshots, and timestamps for all payments.
 
 ### 3.3 Additional Charges
 The following may incur additional charges (to be agreed separately):
@@ -139,7 +138,7 @@ The Shipper agrees to:
 2. Ensure cargo is ready for loading at the agreed pickup time
 3. Provide accurate delivery address and contact information
 4. Confirm receipt of cargo upon delivery
-5. Pay the agreed contract price through the Karga platform
+5. Pay the agreed freight amount directly to the Trucker through the agreed payment method
 
 ### 5.3 Prohibited Actions
 The Shipper shall NOT:
@@ -154,36 +153,38 @@ The Shipper shall NOT:
 
 ### 6.1 Trucker's Liability
 The Trucker shall be liable for:
-1. **Loss or Damage**: Full value of cargo lost, damaged, or destroyed while in Trucker's custody, up to the DECLARED VALUE in Article II
-2. **Delay**: Reasonable damages resulting from unreasonable delay, unless caused by force majeure
-3. **Negligence**: Any damage resulting from Trucker's negligence or willful misconduct
+1. **Scope of Custody**: Cargo loss, shortage, or damage occurring from pickup turnover (signed waybill/hand-over) until confirmed delivery
+2. **Loss or Damage**: Direct and documented physical loss, shortage, or damage while cargo is in Trucker's custody, subject to the liability cap in Clause 6.3
+3. **Delay**: Reasonable direct damages resulting from unreasonable delay, unless caused by force majeure
+4. **Negligence**: Any damage resulting from Trucker's negligence or willful misconduct
 
-### 6.2 Liability Limitations
-The Trucker shall NOT be liable for loss, damage, or delay caused by:
+### 6.2 Liability Exclusions
+The Trucker shall NOT be liable for loss, damage, or delay solely caused by:
 1. **Force Majeure**: Natural disasters (typhoon, earthquake, flood), war, civil unrest, government action
 2. **Shipper's Fault**: Improper packaging, inaccurate declaration, failure to disclose hazardous nature
 3. **Inherent Defect**: Natural deterioration, inherent vice, or defect in the cargo
 4. **Public Authority**: Seizure or detention by government authorities due to Shipper's cargo
 
-### 6.3 Declared Value Limitation
+### 6.3 Maximum Liability Cap
+1. **Declared Value Rule**: The Trucker's maximum liability for loss/damage is limited to the **Declared Value** stated in Article II.
+2. **Undeclared Value Rule**: If no value is declared, the default maximum liability is **PHP 100,000**.
+3. **Higher-Value Cargo**: For cargo exceeding PHP 100,000, Shipper is encouraged to declare full value before pickup and consider appropriate cargo insurance.
+4. **Acknowledgment**: By signing this Contract, both parties acknowledge and accept this liability framework.
 
-> **IMPORTANT NOTICE TO SHIPPER**
->
-> The Trucker's maximum liability for loss, damage, or destruction of cargo is LIMITED to the **Declared Value** stated in Article II of this Contract.
->
-> If no value is declared, the default maximum liability is **PHP 100,000**.
->
-> For cargo exceeding PHP 100,000 in value, Shipper MUST declare the full value to ensure adequate coverage.
->
-> By signing this Contract, Shipper acknowledges and accepts this limitation.
+### 6.4 Cap Does Not Apply (Unlimited Liability Scenarios)
+The liability cap in Clause 6.3 may not apply in cases of:
+1. **Gross Negligence**
+2. **Willful Misconduct**
+3. **Fraud or Theft/Pilferage**
+4. **Illegal Acts**
 
-### 6.4 Claims Procedure
+### 6.5 Claims Procedure
 1. **Visible Damage**: Report immediately upon delivery, note on proof of delivery
-2. **Hidden Damage**: Report within 24 hours of delivery with photographic evidence
+2. **Hidden Damage**: Report within 48 hours of delivery with photographic evidence
 3. **Filing Deadline**: Formal claims must be filed within 15 days of delivery
 4. **Documentation Required**: Photos, receipts, proof of value, delivery documents
 
-### 6.5 Shipper's Indemnification
+### 6.6 Shipper's Indemnification
 The Shipper shall indemnify and hold harmless the Trucker from any claims arising from:
 1. Inaccurate cargo declaration
 2. Illegal or prohibited contents
@@ -401,7 +402,7 @@ Key provisions include:
 | Platform Fee | PHP [PLATFORM_FEE] (5%) |
 | Trucker Receives | PHP [NET_AMOUNT] |
 | Max Liability | PHP [DECLARED_VALUE] or 100,000 (default) |
-| Payment | Escrow via Karga |
+| Payment | Direct shipper-to-trucker payment (GCash or agreed method); platform fee paid by trucker via GCash |
 | Dispute Resolution | Negotiation → Mediation → Arbitration |
 | Governing Law | Republic of the Philippines |
 

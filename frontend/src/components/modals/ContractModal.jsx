@@ -175,7 +175,11 @@ export function ContractModal({
     onClose?.();
   };
 
-  const declaredValue = contract.declaredCargoValue || 100000;
+  const hasDeclaredCargoValue = Number(contract.declaredCargoValue) > 0;
+  const liabilityCap = hasDeclaredCargoValue ? Number(contract.declaredCargoValue) : 100000;
+  const liabilityCapLabel = hasDeclaredCargoValue
+    ? `Declared Value of ${formatPrice(liabilityCap)}`
+    : `default cap of ${formatPrice(liabilityCap)} (no declared value)`;
   const netAmount = Number(contract.agreedPrice) - Number(contract.platformFee);
 
   return (
@@ -331,8 +335,10 @@ export function ContractModal({
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{contract.vehicleType || listing?.vehicleNeeded || listing?.vehicleType || '---'}</p>
             </div>
             <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20" style={{ padding: isMobile ? '10px' : '12px' }}>
-              <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#ea580c' }}>Declared Value (Max Liability)</p>
-              <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: 'bold', color: '#c2410c' }}>{formatPrice(declaredValue)}</p>
+              <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#ea580c' }}>
+                {hasDeclaredCargoValue ? 'Declared Value (Max Liability)' : 'Default Liability Cap (No Declared Value)'}
+              </p>
+              <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: 'bold', color: '#c2410c' }}>{formatPrice(liabilityCap)}</p>
             </div>
           </div>
           {contract.cargoDescription && (
@@ -478,7 +484,7 @@ export function ContractModal({
           </div>
           <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#6b7280', marginTop: isMobile ? '6px' : '8px' }} className="flex items-center" style={{ gap: '4px' }}>
             <Shield style={{ width: '12px', height: '12px' }} />
-            Payment held in escrow until delivery confirmation
+            Platform service fee is paid by the trucker via GCash. Freight payment is settled directly between shipper and trucker.
           </p>
         </div>
 
@@ -558,8 +564,8 @@ export function ContractModal({
                 <div>
                   <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', color: '#c2410c' }}>Liability Limitation</p>
                   <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#c2410c', marginTop: '4px' }}>
-                    Maximum trucker liability for loss/damage is limited to the <strong>Declared Value of {formatPrice(declaredValue)}</strong>.
-                    Trucker exercises extraordinary diligence per Philippine Civil Code.
+                    Maximum trucker liability for loss/damage is limited to the <strong>{liabilityCapLabel}</strong>.
+                    For cargo above PHP 100,000, full value declaration before pickup is recommended.
                   </p>
                 </div>
               </div>
@@ -569,9 +575,9 @@ export function ContractModal({
             <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
               <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '4px' : '6px' }}>Liability Exceptions</p>
               <ul style={{ fontSize: isMobile ? '10px' : '11px', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <li>• Force majeure (natural disasters, war, government action)</li>
-                <li>• Shipper's fault (improper packaging, inaccurate declaration)</li>
-                <li>• Inherent defect or natural deterioration of goods</li>
+                <li>- Cap may not apply to gross negligence, willful misconduct, fraud, theft, or illegal acts.</li>
+                <li>- Carrier is not liable for force majeure, shipper fault, or inherent defect of goods.</li>
+                <li>- Claims cover direct and documented loss, supported by delivery records and proof of value.</li>
               </ul>
             </div>
 
@@ -660,7 +666,7 @@ export function ContractModal({
                     className="mt-1 rounded border-yellow-400"
                   />
                   <span style={{ fontSize: isMobile ? '11px' : '12px', color: '#92400e' }}>
-                    I acknowledge that the maximum liability for cargo loss/damage is limited to <strong>{formatPrice(declaredValue)}</strong> and I have read and agree to all contract terms.
+                    I acknowledge that maximum liability is based on <strong>{liabilityCapLabel}</strong>, with exceptions for gross negligence, willful misconduct, fraud, theft, and illegal acts.
                   </span>
                 </label>
               </div>
@@ -732,3 +738,4 @@ export function ContractModal({
 }
 
 export default ContractModal;
+
