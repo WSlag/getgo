@@ -8,6 +8,7 @@
 const vision = require('@google-cloud/vision');
 const { extractAllData } = require('../utils/gcashPatterns');
 const { THRESHOLDS } = require('../config/thresholds');
+const { isTrustedPaymentScreenshotUrl } = require('../utils/storageUrl');
 
 // Initialize Vision client (uses Application Default Credentials)
 const visionClient = new vision.ImageAnnotatorClient();
@@ -17,8 +18,18 @@ const visionClient = new vision.ImageAnnotatorClient();
  * @param {string} imageUrl - Firebase Storage URL or GCS URL of the image
  * @returns {Promise<Object>} - Extracted payment data with confidence score
  */
-async function processScreenshot(imageUrl) {
+async function processScreenshot(imageUrl, expectedUserId = null) {
   try {
+    if (!isTrustedPaymentScreenshotUrl(imageUrl, expectedUserId)) {
+      return {
+        success: false,
+        error: 'Untrusted screenshot URL',
+        confidence: 0,
+        rawText: '',
+        extractedData: null
+      };
+    }
+
     // Use DOCUMENT_TEXT_DETECTION for better accuracy on receipts
     const [result] = await visionClient.documentTextDetection(imageUrl);
 

@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { Bid, CargoListing, TruckListing, User, TruckerProfile, ShipperProfile, ChatMessage, Wallet, WalletTransaction, Notification, Contract } from '../models/index.js';
+import admin from 'firebase-admin';
+import { db } from '../config/firestore.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 // Helper function to mask contact info
@@ -33,30 +34,39 @@ const maskContactInfo = (user, showContact = false) => {
 const hasSignedContract = async (userId1, userId2) => {
   if (!userId1 || !userId2) return false;
 
-  const { Op } = await import('sequelize');
-  const contracts = await Contract.findAll({
-    where: { status: { [Op.in]: ['signed', 'completed'] } },
-    include: [
-      {
-        model: Bid,
-        include: [
-          { model: CargoListing },
-          { model: TruckListing },
-        ],
-      },
-    ],
-  });
+  // Query Firestore for signed/completed contracts
+  const contractsSnapshot = await db.collection('contracts')
+    .where('status', 'in', ['signed', 'completed'])
+    .get();
 
-  return contracts.some((contract) => {
-    const bid = contract.Bid;
-    if (!bid) return false;
+  // Check each contract to see if both users are involved
+  for (const contractDoc of contractsSnapshot.docs) {
+    const contract = contractDoc.data();
 
-    const listing = bid.CargoListing || bid.TruckListing;
-    if (!listing) return false;
+    // Get the associated bid
+    const bidDoc = await db.collection('bids').doc(contract.bidId).get();
+    if (!bidDoc.exists) continue;
 
+    const bid = bidDoc.data();
+
+    // Get the associated listing
+    const listingId = bid.cargoListingId || bid.truckListingId;
+    const listingCollection = bid.cargoListingId ? 'cargoListings' : 'truckListings';
+    if (!listingId) continue;
+
+    const listingDoc = await db.collection(listingCollection).doc(listingId).get();
+    if (!listingDoc.exists) continue;
+
+    const listing = listingDoc.data();
+
+    // Check if both users are involved in this contract
     const involvedUsers = [listing.userId, bid.bidderId];
-    return involvedUsers.includes(userId1) && involvedUsers.includes(userId2);
-  });
+    if (involvedUsers.includes(userId1) && involvedUsers.includes(userId2)) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 const router = Router();
@@ -66,84 +76,139 @@ const PLATFORM_FEE_RATE = parseFloat(process.env.PLATFORM_FEE_RATE) || 0.03;
 // Get bids for a listing
 router.get('/listing/:listingType/:listingId', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user.uid;
     const { listingType, listingId } = req.params;
 
-    const where = listingType === 'cargo'
-      ? { cargoListingId: listingId }
-      : { truckListingId: listingId };
-
-    const bids = await Bid.findAll({
-      where,
-      include: [
-        {
-          model: User,
-          as: 'bidder',
-          attributes: ['id', 'name', 'phone', 'email', 'facebookUrl'],
-          include: [
-            { model: TruckerProfile, as: 'truckerProfile' },
-            { model: ShipperProfile, as: 'shipperProfile' },
-          ],
-        },
-        {
-          model: ChatMessage,
-          as: 'chatHistory',
-          include: [{ model: User, as: 'sender', attributes: ['id', 'name'] }],
-        },
-      ],
-      order: [['createdAt', 'DESC']],
-    });
+    // Query bids from Firestore
+    const fieldName = listingType === 'cargo' ? 'cargoListingId' : 'truckListingId';
+    const bidsSnapshot = await db.collection('bids')
+      .where(fieldName, '==', listingId)
+      .get();
 
     // Get the listing to find its owner
-    const listing = listingType === 'cargo'
-      ? await CargoListing.findByPk(listingId)
-      : await TruckListing.findByPk(listingId);
+    const listingCollection = listingType === 'cargo' ? 'cargoListings' : 'truckListings';
+    const listingDoc = await db.collection(listingCollection).doc(listingId).get();
+    if (!listingDoc.exists) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    const listing = { id: listingDoc.id, ...listingDoc.data() };
+    const isListingOwner = listing.userId === userId;
 
-    // Apply contact masking to bidders
-    const maskedBids = await Promise.all(
-      bids.map(async (bid) => {
-        const bidJson = bid.toJSON();
-        // Listing owner can see bidder contacts only if there's a signed contract
-        const canSeeContact = req.user.id === bidJson.bidder?.id ||
-          (listing && listing.userId === req.user.id && await hasSignedContract(req.user.id, bidJson.bidder?.id));
-
-        if (bidJson.bidder) {
-          bidJson.bidder = maskContactInfo(bidJson.bidder, canSeeContact);
+    // Process bids and apply contact masking
+    const bidsData = await Promise.all(
+      bidsSnapshot.docs.map(async (bidDoc) => {
+        const bid = { id: bidDoc.id, ...bidDoc.data() };
+        if (!isListingOwner && bid.bidderId !== userId) {
+          return null;
         }
-        return bidJson;
+
+        // Get bidder user data
+        const bidderDoc = await db.collection('users').doc(bid.bidderId).get();
+        const bidder = bidderDoc.exists ? { id: bidderDoc.id, ...bidderDoc.data() } : null;
+
+        // Get chat messages for this bid
+        let chatHistory = [];
+        if (isListingOwner || bid.bidderId === userId) {
+          const messagesSnapshot = await db.collection('bids')
+            .doc(bidDoc.id)
+            .collection('messages')
+            .orderBy('createdAt', 'asc')
+            .get();
+
+          chatHistory = messagesSnapshot.docs.map(msgDoc => ({
+            id: msgDoc.id,
+            ...msgDoc.data()
+          }));
+        }
+
+        // Listing owner can see bidder contacts only if there's a signed contract
+        const canSeeContact = userId === bid.bidderId ||
+          (isListingOwner && await hasSignedContract(userId, bid.bidderId));
+
+        return {
+          ...bid,
+          bidder: bidder ? maskContactInfo(bidder, canSeeContact) : null,
+          chatHistory,
+          createdAt: bid.createdAt?.toDate?.() || null,
+          updatedAt: bid.updatedAt?.toDate?.() || null,
+        };
       })
     );
+    const visibleBids = bidsData.filter(Boolean);
 
-    res.json({ bids: maskedBids });
+    // Sort by createdAt descending
+    visibleBids.sort((a, b) => {
+      const dateA = a.createdAt || new Date(0);
+      const dateB = b.createdAt || new Date(0);
+      return dateB - dateA;
+    });
+
+    res.json({ bids: visibleBids });
   } catch (error) {
     console.error('Get bids error:', error);
     res.status(500).json({ error: 'Failed to get bids' });
   }
 });
 
-// Get my bids
+// NOTE: This endpoint is UNUSED - Frontend queries Firestore directly via useBids.js hook
+// Keeping for backward compatibility, but can be removed in future cleanup
+// See: frontend/src/hooks/useBids.js line 67-70
 router.get('/my-bids', authenticateToken, async (req, res) => {
   try {
-    const bids = await Bid.findAll({
-      where: { bidderId: req.user.id },
-      include: [
-        {
-          model: CargoListing,
-          include: [{ model: User, as: 'shipper', attributes: ['id', 'name'] }],
-        },
-        {
-          model: TruckListing,
-          include: [{ model: User, as: 'trucker', attributes: ['id', 'name'] }],
-        },
-        {
-          model: ChatMessage,
-          as: 'chatHistory',
-          order: [['createdAt', 'ASC']],
-        },
-      ],
-      order: [['createdAt', 'DESC']],
+    const userId = req.user.uid;
+
+    // Query bids from Firestore
+    const bidsSnapshot = await db.collection('bids')
+      .where('bidderId', '==', userId)
+      .get();
+
+    const bidsData = await Promise.all(
+      bidsSnapshot.docs.map(async (bidDoc) => {
+        const bid = { id: bidDoc.id, ...bidDoc.data() };
+
+        // Get associated listing data
+        const listingId = bid.cargoListingId || bid.truckListingId;
+        const listingCollection = bid.cargoListingId ? 'cargoListings' : 'truckListings';
+
+        let listing = null;
+        if (listingId) {
+          const listingDoc = await db.collection(listingCollection).doc(listingId).get();
+          if (listingDoc.exists) {
+            listing = { id: listingDoc.id, ...listingDoc.data() };
+          }
+        }
+
+        // Get chat messages
+        const messagesSnapshot = await db.collection('bids')
+          .doc(bidDoc.id)
+          .collection('messages')
+          .orderBy('createdAt', 'asc')
+          .get();
+
+        const chatHistory = messagesSnapshot.docs.map(msgDoc => ({
+          id: msgDoc.id,
+          ...msgDoc.data()
+        }));
+
+        return {
+          ...bid,
+          CargoListing: bid.cargoListingId ? listing : null,
+          TruckListing: bid.truckListingId ? listing : null,
+          chatHistory,
+          createdAt: bid.createdAt?.toDate?.() || null,
+          updatedAt: bid.updatedAt?.toDate?.() || null,
+        };
+      })
+    );
+
+    // Sort by createdAt descending
+    bidsData.sort((a, b) => {
+      const dateA = a.createdAt || new Date(0);
+      const dateB = b.createdAt || new Date(0);
+      return dateB - dateA;
     });
 
-    res.json({ bids });
+    res.json({ bids: bidsData });
   } catch (error) {
     console.error('Get my bids error:', error);
     res.status(500).json({ error: 'Failed to get your bids' });
@@ -153,6 +218,7 @@ router.get('/my-bids', authenticateToken, async (req, res) => {
 // Create a bid
 router.post('/', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user.uid;
     const {
       listingType,
       listingId,
@@ -167,29 +233,28 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     // Check listing exists
-    let listing;
-    if (listingType === 'cargo') {
-      listing = await CargoListing.findByPk(listingId);
-    } else {
-      listing = await TruckListing.findByPk(listingId);
-    }
+    const listingCollection = listingType === 'cargo' ? 'cargoListings' : 'truckListings';
+    const listingDoc = await db.collection(listingCollection).doc(listingId).get();
 
-    if (!listing) {
+    if (!listingDoc.exists) {
       return res.status(404).json({ error: 'Listing not found' });
     }
+
+    const listing = { id: listingDoc.id, ...listingDoc.data() };
 
     if (listing.status !== 'open') {
       return res.status(400).json({ error: 'Listing is no longer accepting bids' });
     }
 
     // Check if user is not bidding on their own listing
-    if (listing.userId === req.user.id) {
+    if (listing.userId === userId) {
       return res.status(400).json({ error: 'Cannot bid on your own listing' });
     }
 
     // For truckers bidding on cargo, check wallet balance
     if (listingType === 'cargo') {
-      const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
+      const walletDoc = await db.collection('users').doc(userId).collection('wallet').doc('main').get();
+      const wallet = walletDoc.exists ? walletDoc.data() : null;
       const requiredFee = Math.round(price * PLATFORM_FEE_RATE);
 
       if (!wallet || wallet.balance < requiredFee) {
@@ -201,12 +266,17 @@ router.post('/', authenticateToken, async (req, res) => {
       }
     }
 
-    // Create bid
+    // Create bid in Firestore
+    const bidRef = db.collection('bids').doc();
     const bidData = {
-      bidderId: req.user.id,
+      bidderId: userId,
+      listingOwnerId: listing.userId,
       listingType,
       price,
-      message,
+      message: message || '',
+      status: 'pending',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
     if (listingType === 'cargo') {
@@ -217,20 +287,26 @@ router.post('/', authenticateToken, async (req, res) => {
       bidData.cargoWeight = cargoWeight;
     }
 
-    const bid = await Bid.create(bidData);
+    await bidRef.set(bidData);
 
     // Create notification for listing owner
-    await Notification.create({
-      userId: listing.userId,
+    await db.collection('users').doc(listing.userId).collection('notifications').doc().set({
       type: 'NEW_BID',
       title: 'New Bid Received!',
       message: `New bid of ₱${price.toLocaleString()} on your ${listing.origin} → ${listing.destination} listing`,
-      data: { bidId: bid.id, listingId, listingType, price },
+      data: { bidId: bidRef.id, listingId, listingType, price },
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     res.status(201).json({
       message: 'Bid placed successfully',
-      bid,
+      bid: {
+        id: bidRef.id,
+        ...bidData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
     });
   } catch (error) {
     console.error('Create bid error:', error);
@@ -241,19 +317,31 @@ router.post('/', authenticateToken, async (req, res) => {
 // Accept a bid
 router.put('/:id/accept', authenticateToken, async (req, res) => {
   try {
-    const bid = await Bid.findByPk(req.params.id, {
-      include: [
-        { model: CargoListing },
-        { model: TruckListing },
-      ],
-    });
+    const userId = req.user.uid;
+    const bidId = req.params.id;
 
-    if (!bid) {
+    // Get bid from Firestore
+    const bidDoc = await db.collection('bids').doc(bidId).get();
+
+    if (!bidDoc.exists) {
       return res.status(404).json({ error: 'Bid not found' });
     }
 
-    const listing = bid.CargoListing || bid.TruckListing;
-    if (listing.userId !== req.user.id) {
+    const bid = { id: bidDoc.id, ...bidDoc.data() };
+
+    // Get the associated listing
+    const listingId = bid.cargoListingId || bid.truckListingId;
+    const listingCollection = bid.cargoListingId ? 'cargoListings' : 'truckListings';
+    const listingDoc = await db.collection(listingCollection).doc(listingId).get();
+
+    if (!listingDoc.exists) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    const listing = { id: listingDoc.id, ...listingDoc.data() };
+
+    // 🔒 AUTHORIZATION: Verify user is listing owner
+    if (listing.userId !== userId) {
       return res.status(403).json({ error: 'Not authorized to accept this bid' });
     }
 
@@ -262,36 +350,52 @@ router.put('/:id/accept', authenticateToken, async (req, res) => {
     }
 
     // Update bid status
-    await bid.update({ status: 'accepted' });
+    await bidDoc.ref.update({
+      status: 'accepted',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
     // Update listing status
-    await listing.update({ status: 'negotiating' });
+    await listingDoc.ref.update({
+      status: 'negotiating',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
-    // Reject other bids
-    const listingIdField = bid.cargoListingId ? 'cargoListingId' : 'truckListingId';
-    await Bid.update(
-      { status: 'rejected' },
-      {
-        where: {
-          [listingIdField]: listing.id,
-          id: { [require('sequelize').Op.ne]: bid.id },
-          status: 'pending',
-        },
+    // Reject other bids on this listing
+    const fieldName = bid.cargoListingId ? 'cargoListingId' : 'truckListingId';
+    const otherBidsSnapshot = await db.collection('bids')
+      .where(fieldName, '==', listingId)
+      .where('status', '==', 'pending')
+      .get();
+
+    const batch = db.batch();
+    otherBidsSnapshot.docs.forEach(doc => {
+      if (doc.id !== bidId) {
+        batch.update(doc.ref, {
+          status: 'rejected',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
       }
-    );
+    });
+    await batch.commit();
 
     // Create notification for bidder
-    await Notification.create({
-      userId: bid.bidderId,
+    await db.collection('users').doc(bid.bidderId).collection('notifications').doc().set({
       type: 'BID_ACCEPTED',
       title: 'Bid Accepted!',
       message: `Your bid of ₱${bid.price.toLocaleString()} on ${listing.origin} → ${listing.destination} was accepted`,
-      data: { bidId: bid.id },
+      data: { bidId: bidId },
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     res.json({
       message: 'Bid accepted successfully',
-      bid,
+      bid: {
+        ...bid,
+        status: 'accepted',
+        updatedAt: new Date(),
+      },
     });
   } catch (error) {
     console.error('Accept bid error:', error);
@@ -302,36 +406,57 @@ router.put('/:id/accept', authenticateToken, async (req, res) => {
 // Reject a bid
 router.put('/:id/reject', authenticateToken, async (req, res) => {
   try {
-    const bid = await Bid.findByPk(req.params.id, {
-      include: [
-        { model: CargoListing },
-        { model: TruckListing },
-      ],
-    });
+    const userId = req.user.uid;
+    const bidId = req.params.id;
 
-    if (!bid) {
+    // Get bid from Firestore
+    const bidDoc = await db.collection('bids').doc(bidId).get();
+
+    if (!bidDoc.exists) {
       return res.status(404).json({ error: 'Bid not found' });
     }
 
-    const listing = bid.CargoListing || bid.TruckListing;
-    if (listing.userId !== req.user.id) {
+    const bid = { id: bidDoc.id, ...bidDoc.data() };
+
+    // Get the associated listing
+    const listingId = bid.cargoListingId || bid.truckListingId;
+    const listingCollection = bid.cargoListingId ? 'cargoListings' : 'truckListings';
+    const listingDoc = await db.collection(listingCollection).doc(listingId).get();
+
+    if (!listingDoc.exists) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    const listing = { id: listingDoc.id, ...listingDoc.data() };
+
+    // 🔒 AUTHORIZATION: Verify user is listing owner
+    if (listing.userId !== userId) {
       return res.status(403).json({ error: 'Not authorized to reject this bid' });
     }
 
-    await bid.update({ status: 'rejected' });
+    // Update bid status
+    await bidDoc.ref.update({
+      status: 'rejected',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
     // Create notification for bidder
-    await Notification.create({
-      userId: bid.bidderId,
+    await db.collection('users').doc(bid.bidderId).collection('notifications').doc().set({
       type: 'BID_REJECTED',
       title: 'Bid Declined',
       message: `Your bid on ${listing.origin} → ${listing.destination} was declined`,
-      data: { bidId: bid.id },
+      data: { bidId: bidId },
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     res.json({
       message: 'Bid rejected successfully',
-      bid,
+      bid: {
+        ...bid,
+        status: 'rejected',
+        updatedAt: new Date(),
+      },
     });
   } catch (error) {
     console.error('Reject bid error:', error);
@@ -342,13 +467,20 @@ router.put('/:id/reject', authenticateToken, async (req, res) => {
 // Withdraw a bid
 router.put('/:id/withdraw', authenticateToken, async (req, res) => {
   try {
-    const bid = await Bid.findByPk(req.params.id);
+    const userId = req.user.uid;
+    const bidId = req.params.id;
 
-    if (!bid) {
+    // Get bid from Firestore
+    const bidDoc = await db.collection('bids').doc(bidId).get();
+
+    if (!bidDoc.exists) {
       return res.status(404).json({ error: 'Bid not found' });
     }
 
-    if (bid.bidderId !== req.user.id) {
+    const bid = { id: bidDoc.id, ...bidDoc.data() };
+
+    // 🔒 AUTHORIZATION: Verify user is the bidder
+    if (bid.bidderId !== userId) {
       return res.status(403).json({ error: 'Not authorized to withdraw this bid' });
     }
 
@@ -356,11 +488,19 @@ router.put('/:id/withdraw', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Can only withdraw pending bids' });
     }
 
-    await bid.update({ status: 'withdrawn' });
+    // Update bid status
+    await bidDoc.ref.update({
+      status: 'withdrawn',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
     res.json({
       message: 'Bid withdrawn successfully',
-      bid,
+      bid: {
+        ...bid,
+        status: 'withdrawn',
+        updatedAt: new Date(),
+      },
     });
   } catch (error) {
     console.error('Withdraw bid error:', error);

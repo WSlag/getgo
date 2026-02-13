@@ -144,6 +144,14 @@
         { "fieldPath": "bidId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "data.contractId", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

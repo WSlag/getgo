@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contract Creation Verification Tool</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #1a202c;
+      margin-bottom: 8px;
+      font-size: 28px;
+    }
+    .subtitle {
+      color: #718096;
+      margin-bottom: 32px;
+    }
+    .section {
+      margin-bottom: 32px;
+      padding: 24px;
+      background: #f7fafc;
+      border-radius: 12px;
+      border-left: 4px solid #667eea;
+    }
+    .section h2 {
+      color: #2d3748;
+      margin-bottom: 16px;
+      font-size: 20px;
+    }
+    .result-box {
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border: 1px solid #e2e8f0;
+    }
+    .success {
+      border-left: 4px solid #48bb78;
+      background: #f0fff4;
+    }
+    .error {
+      border-left: 4px solid #f56565;
+      background: #fff5f5;
+    }
+    .warning {
+      border-left: 4px solid #ed8936;
+      background: #fffaf0;
+    }
+    .info {
+      border-left: 4px solid #4299e1;
+      background: #ebf8ff;
+    }
+    .label {
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 4px;
+    }
+    .value {
+      color: #1a202c;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 14px;
+    }
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button:hover {
+      background: #5a67d8;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      background: #cbd5e0;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #718096;
+    }
+    .spinner {
+      border: 3px solid #e2e8f0;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+    .badge.green { background: #c6f6d5; color: #22543d; }
+    .badge.red { background: #fed7d7; color: #742a2a; }
+    .badge.yellow { background: #feebc8; color: #7c2d12; }
+    .badge.blue { background: #bee3f8; color: #2c5282; }
+    pre {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      border: 2px solid #e2e8f0;
+    }
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .stat-label {
+      color: #718096;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Contract Creation Verification</h1>
+    <p class="subtitle">Verify that contracts are being automatically created after admin payment approval</p>
+
+    <button id="runCheck" onclick="runVerification()">Run Verification Check</button>
+
+    <div id="loading" class="loading" style="display: none;">
+      <div class="spinner"></div>
+      <p>Checking Firestore data...</p>
+    </div>
+
+    <div id="results" style="display: none;">
+      <!-- Results will be inserted here -->
+    </div>
+  </div>
+
+  <script>
+    // Initialize Firebase (use your config)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCyF0iOJCpLcPGXqZ3TU0QpBXU9xH4AZSE",
+      authDomain: "karga-getgo.firebaseapp.com",
+      projectId: "karga-getgo",
+      storageBucket: "karga-getgo.firebasestorage.app",
+      messagingSenderId: "783816293187",
+      appId: "1:783816293187:web:bbc9e2e7d7e1c1a82bfe82"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    async function runVerification() {
+      const button = document.getElementById('runCheck');
+      const loading = document.getElementById('loading');
+      const results = document.getElementById('results');
+
+      button.disabled = true;
+      loading.style.display = 'block';
+      results.style.display = 'none';
+      results.innerHTML = '';
+
+      try {
+        // Get recent approved payments
+        const paymentsSnapshot = await db.collection('paymentSubmissions')
+          .where('status', '==', 'approved')
+          .orderBy('resolvedAt', 'desc')
+          .limit(5)
+          .get();
+
+        if (paymentsSnapshot.empty) {
+          results.innerHTML = '<div class="section warning"><h2>No approved payments found</h2><p>There are no approved payments in the system yet.</p></div>';
+          results.style.display = 'block';
+          loading.style.display = 'none';
+          button.disabled = false;
+          return;
+        }
+
+        let html = '<div class="stats">';
+        html += `<div class="stat-card"><div class="stat-value">${paymentsSnapshot.size}</div><div class="stat-label">Approved Payments</div></div>`;
+
+        let platformFeeCount = 0;
+        let contractsCreated = 0;
+        let contractsFailed = 0;
+
+        // Check each payment
+        for (const paymentDoc of paymentsSnapshot.docs) {
+          const payment = paymentDoc.data();
+          const paymentId = paymentDoc.id;
+
+          // Get order
+          const orderDoc = await db.collection('orders').doc(payment.orderId).get();
+          if (!orderDoc.exists) continue;
+
+          const order = orderDoc.data();
+
+          if (order.type === 'platform_fee') {
+            platformFeeCount++;
+
+            // Check if contract exists
+            const contractsSnapshot = await db.collection('contracts')
+              .where('bidId', '==', order.bidId)
+              .get();
+
+            if (!contractsSnapshot.empty) {
+              contractsCreated++;
+            } else {
+              contractsFailed++;
+            }
+          }
+        }
+
+        html += `<div class="stat-card"><div class="stat-value">${platformFeeCount}</div><div class="stat-label">Platform Fee Payments</div></div>`;
+        html += `<div class="stat-card"><div class="stat-value ${contractsCreated > 0 ? '' : 'style="color: #f56565;"'}">${contractsCreated}</div><div class="stat-label">Contracts Created ✅</div></div>`;
+        html += `<div class="stat-card"><div class="stat-value ${contractsFailed > 0 ? 'style="color: #f56565;"' : ''}">${contractsFailed}</div><div class="stat-label">Contracts Failed ❌</div></div>`;
+        html += '</div>';
+
+        // Detailed results
+        for (const paymentDoc of paymentsSnapshot.docs) {
+          const payment = paymentDoc.data();
+          const paymentId = paymentDoc.id;
+
+          html += '<div class="section">';
+          html += `<h2>💳 Payment: ${paymentId.substring(0, 12)}...</h2>`;
+
+          // Get order
+          const orderDoc = await db.collection('orders').doc(payment.orderId).get();
+          if (!orderDoc.exists) {
+            html += '<div class="result-box error"><p>❌ Order not found</p></div>';
+            html += '</div>';
+            continue;
+          }
+
+          const order = orderDoc.data();
+
+          html += '<div class="result-box info">';
+          html += `<div class="label">Order Type</div>`;
+          html += `<div class="value">${order.type}<span class="badge ${order.type === 'platform_fee' ? 'blue' : 'yellow'}">${order.type}</span></div>`;
+          html += `<div class="label" style="margin-top: 12px;">Amount</div>`;
+          html += `<div class="value">PHP ${order.amount?.toLocaleString()}</div>`;
+          html += `<div class="label" style="margin-top: 12px;">Resolved At</div>`;
+          html += `<div class="value">${payment.resolvedAt?.toDate().toLocaleString()}</div>`;
+          html += '</div>';
+
+          if (order.type !== 'platform_fee') {
+            html += '<div class="result-box warning">';
+            html += `<p>ℹ️ This is a <strong>${order.type}</strong> payment. Contracts are only created for <strong>platform_fee</strong> payments.</p>`;
+            html += '</div>';
+            html += '</div>';
+            continue;
+          }
+
+          // Check platform fee record
+          const platformFeeSnapshot = await db.collection('platformFees')
+            .where('submissionId', '==', paymentId)
+            .get();
+
+          if (platformFeeSnapshot.empty) {
+            html += '<div class="result-box error"><p>❌ Platform fee NOT recorded</p></div>';
+          } else {
+            html += '<div class="result-box success"><p>✅ Platform fee recorded</p></div>';
+          }
+
+          // Check contract
+          if (!order.bidId) {
+            html += '<div class="result-box error"><p>❌ No bidId in order - cannot create contract</p></div>';
+            html += '</div>';
+            continue;
+          }
+
+          const contractsSnapshot = await db.collection('contracts')
+            .where('bidId', '==', order.bidId)
+            .get();
+
+          if (contractsSnapshot.empty) {
+            html += '<div class="result-box error">';
+            html += `<p><strong>❌ CONTRACT NOT CREATED</strong></p>`;
+            html += `<p style="margin-top: 8px;">Bid ID: <code>${order.bidId}</code></p>`;
+
+            // Check bid status
+            const bidDoc = await db.collection('bids').doc(order.bidId).get();
+            if (bidDoc.exists) {
+              const bid = bidDoc.data();
+              html += `<p style="margin-top: 8px;">Bid Status: <span class="badge ${bid.status === 'accepted' || bid.status === 'contracted' ? 'green' : 'red'}">${bid.status}</span></p>`;
+
+              if (bid.status !== 'accepted' && bid.status !== 'contracted') {
+                html += `<p style="margin-top: 8px; color: #c53030;"><strong>⚠️ ISSUE: Bid status must be "accepted" or "contracted"</strong></p>`;
+              }
+
+              // Check listing
+              const listingId = bid.cargoListingId || bid.truckListingId;
+              const listingCollection = bid.cargoListingId ? 'cargoListings' : 'truckListings';
+
+              if (listingId) {
+                const listingDoc = await db.collection(listingCollection).doc(listingId).get();
+                if (!listingDoc.exists) {
+                  html += `<p style="margin-top: 8px; color: #c53030;"><strong>⚠️ ISSUE: Listing not found</strong></p>`;
+                } else {
+                  const listing = listingDoc.data();
+                  if (listing.userId !== payment.userId) {
+                    html += `<p style="margin-top: 8px; color: #c53030;"><strong>⚠️ ISSUE: User ID mismatch (payer ≠ listing owner)</strong></p>`;
+                  }
+                }
+              }
+            } else {
+              html += `<p style="margin-top: 8px; color: #c53030;"><strong>⚠️ ISSUE: Bid not found</strong></p>`;
+            }
+
+            html += '</div>';
+          } else {
+            const contract = contractsSnapshot.docs[0].data();
+            html += '<div class="result-box success">';
+            html += `<p><strong>✅ CONTRACT CREATED SUCCESSFULLY!</strong></p>`;
+            html += `<p style="margin-top: 8px;">Contract Number: <code>${contract.contractNumber}</code></p>`;
+            html += `<p>Status: <span class="badge ${contract.status === 'draft' ? 'blue' : 'green'}">${contract.status}</span></p>`;
+            html += `<p>Agreed Price: PHP ${contract.agreedPrice?.toLocaleString()}</p>`;
+            html += `<p>Platform Fee: PHP ${contract.platformFee?.toLocaleString()}</p>`;
+            html += `<p>Created: ${contract.createdAt?.toDate().toLocaleString()}</p>`;
+            html += '</div>';
+          }
+
+          html += '</div>';
+        }
+
+        results.innerHTML = html;
+        results.style.display = 'block';
+
+      } catch (error) {
+        results.innerHTML = `<div class="section error"><h2>Error</h2><p>${error.message}</p><pre>${error.stack}</pre></div>`;
+        results.style.display = 'block';
+        console.error('Verification error:', error);
+      } finally {
+        loading.style.display = 'none';
+        button.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

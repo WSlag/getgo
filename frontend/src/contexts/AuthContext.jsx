@@ -278,9 +278,21 @@ export function AuthProvider({ children }) {
   const switchRole = async (newRole) => {
     try {
       if (!authUser || !userProfile) throw new Error('Not authenticated');
+      const token = await authUser.getIdToken();
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+      const response = await fetch(`${apiBaseUrl}/auth/switch-role`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ role: newRole }),
+      });
 
-      const userRef = doc(db, 'users', authUser.uid);
-      await setDoc(userRef, { role: newRole, updatedAt: serverTimestamp() }, { merge: true });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Failed to switch role');
+      }
 
       // Create role profile if it doesn't exist
       if (newRole === 'shipper') {

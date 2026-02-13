@@ -64,6 +64,7 @@ import AuthModal from '@/components/auth/AuthModal';
 
 // API
 import api from './services/api';
+import { guestCargoListings, guestTruckListings, guestActiveShipments } from '@/data/guestMarketplaceData';
 
 export default function GetGoApp() {
   // Firebase Auth
@@ -221,11 +222,12 @@ export default function GetGoApp() {
     return () => clearInterval(interval);
   }, [authUser?.uid]);
 
-  // Use Firebase data directly - no sample data fallback
+  // Use anonymized preview data for non-auth users to keep Home vibrant and conversion-focused.
   const userRole = currentRole || 'shipper';
-  const cargoListings = firebaseCargoListings;
-  const truckListings = firebaseTruckListings;
-  const activeShipments = firebaseActiveShipments || [];
+  const isGuestUser = !authUser;
+  const cargoListings = isGuestUser ? guestCargoListings : firebaseCargoListings;
+  const truckListings = isGuestUser ? guestTruckListings : firebaseTruckListings;
+  const activeShipments = isGuestUser ? guestActiveShipments : (firebaseActiveShipments || []);
   const unreadNotifications = firebaseUnreadCount || 0;
   // Wallet removed - no balance tracking
 
@@ -234,6 +236,17 @@ export default function GetGoApp() {
     id: authUser.uid,
     ...userProfile
   } : null;
+  const isAccountSuspended = currentUser?.accountStatus === 'suspended' || currentUser?.isActive === false;
+
+  const handleSuspendedAction = () => {
+    showToast({
+      type: 'error',
+      title: 'Account Suspended',
+      message: 'Pay your outstanding platform fees to resume bidding and booking.',
+    });
+    setContractFilter('unpaid_fees');
+    setActiveTab('contracts');
+  };
 
   // Counts for sidebar
   const openCargoCount = cargoListings.filter(c => c.status === 'open').length;
@@ -258,7 +271,9 @@ export default function GetGoApp() {
   });
 
   const filteredTruckListings = truckListings.filter(truck => {
-    const truckStatus = truck.status === 'available' ? 'open' : truck.status;
+    const truckStatus = truck.status === 'available'
+      ? 'open'
+      : (truck.status === 'in-transit' ? 'waiting' : truck.status);
     if (filterStatus !== 'all' && truckStatus !== filterStatus) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -290,6 +305,11 @@ export default function GetGoApp() {
   };
 
   const handleViewCargoDetails = (cargo) => {
+    if (!authUser) {
+      requireAuth(() => openModal('cargoDetails', cargo), 'Sign in to view full listing details');
+      return;
+    }
+
     // Route based on ownership and role
     if (isCargoOwner(cargo)) {
       // Owner views their cargo details
@@ -304,6 +324,11 @@ export default function GetGoApp() {
   };
 
   const handleViewTruckDetails = (truck) => {
+    if (!authUser) {
+      requireAuth(() => openModal('truckDetails', truck), 'Sign in to view full listing details');
+      return;
+    }
+
     // Route based on ownership and role
     if (isTruckOwner(truck)) {
       // Owner views their truck details
@@ -318,11 +343,23 @@ export default function GetGoApp() {
   };
 
   const handleBidCargo = (cargo) => {
-    requireAuth(() => openModal('bid', cargo), 'Sign in to place a bid');
+    requireAuth(() => {
+      if (isAccountSuspended) {
+        handleSuspendedAction();
+        return;
+      }
+      openModal('bid', cargo);
+    }, 'Sign in to place a bid');
   };
 
   const handleBookTruck = (truck) => {
-    requireAuth(() => openModal('bid', truck), 'Sign in to book a truck');
+    requireAuth(() => {
+      if (isAccountSuspended) {
+        handleSuspendedAction();
+        return;
+      }
+      openModal('bid', truck);
+    }, 'Sign in to book a truck');
   };
 
   // Edit handlers
@@ -345,6 +382,11 @@ export default function GetGoApp() {
   };
 
   const handleViewMap = (listing) => {
+    if (!authUser) {
+      requireAuth(() => openModal('map', listing), 'Sign in to view full route map');
+      return;
+    }
+
     openModal('map', listing);
   };
 
@@ -395,6 +437,15 @@ export default function GetGoApp() {
 
   const handleBackFromAdmin = () => {
     setShowAdminDashboard(false);
+  };
+
+  const handleTrackLive = () => {
+    if (!authUser) {
+      requireAuth(() => setActiveTab('tracking'), 'Sign in to track shipments live');
+      return;
+    }
+
+    setActiveTab('tracking');
   };
 
   // Accept/Reject bid handlers
@@ -702,6 +753,7 @@ export default function GetGoApp() {
         {activeTab === 'home' && (
           <HomeView
             activeMarket={activeMarket}
+            isGuestPreview={isGuestUser}
             onMarketChange={setActiveMarket}
             cargoListings={filteredCargoListings}
             truckListings={filteredTruckListings}
@@ -720,9 +772,7 @@ export default function GetGoApp() {
             currentUserId={authUser?.uid}
             darkMode={darkMode}
             activeShipments={activeShipments.filter(s => s.status !== 'delivered')}
-            onTrackLive={(shipment) => {
-              setActiveTab('tracking');
-            }}
+            onTrackLive={handleTrackLive}
             onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
             currentUser={currentUser}
             onNavigateToContracts={(filter) => {
@@ -900,11 +950,18 @@ export default function GetGoApp() {
         onClose={() => closeModal('bid')}
         listing={getModalData('bid')}
         currentRole={userRole}
+        isSuspended={isAccountSuspended}
         loading={bidLoading}
         onSubmit={async (data) => {
           const listing = getModalData('bid');
           if (!authUser?.uid || !userProfile || !listing) {
             console.error('Missing required data for bid');
+            return;
+          }
+
+          if (isAccountSuspended) {
+            closeModal('bid');
+            handleSuspendedAction();
             return;
           }
 
@@ -974,6 +1031,11 @@ export default function GetGoApp() {
               message: error.message,
               stack: error.stack,
             });
+            if (error.code === 'permission-denied' && isAccountSuspended) {
+              closeModal('bid');
+              handleSuspendedAction();
+              return;
+            }
             alert(`Failed to place bid: ${error.message || 'Unknown error'}`);
           } finally {
             setBidLoading(false);
@@ -1000,7 +1062,7 @@ export default function GetGoApp() {
         onEdit={handleEditCargo}
         onBid={(cargo) => {
           closeModal('cargoDetails');
-          openModal('bid', cargo);
+          handleBidCargo(cargo);
         }}
         onOpenChat={(bid, listing) => {
           closeModal('cargoDetails');
@@ -1034,7 +1096,7 @@ export default function GetGoApp() {
         onEdit={handleEditTruck}
         onBook={(truck) => {
           closeModal('truckDetails');
-          openModal('bid', truck);
+          handleBookTruck(truck);
         }}
         onOpenChat={(bid, listing) => {
           closeModal('truckDetails');

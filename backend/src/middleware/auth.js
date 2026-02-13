@@ -60,22 +60,3 @@ export const requireRole = (...roles) => {
     next();
   };
 };
-
-// Legacy JWT functions (kept for backwards compatibility during migration)
-// These are deprecated and will be removed
-import jwt from 'jsonwebtoken';
-const JWT_SECRET = process.env.JWT_SECRET || 'karga-connect-secret-key';
-
-export const generateToken = (user) => {
-  console.warn('generateToken is deprecated. Use Firebase tokens instead.');
-  return jwt.sign(
-    {
-      id: user.id,
-      phone: user.phone,
-      role: user.role,
-      name: user.name
-    },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-};

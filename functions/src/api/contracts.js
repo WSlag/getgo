@@ -439,11 +439,24 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
     throw new functions.https.HttpsError('permission-denied', 'Only the listing owner can mark the contract as complete');
   }
 
-  // Update contract status
-  await db.collection('contracts').doc(contractId).update({
+  // Update contract status.
+  // For deferred platform fees, start reminder/suspension window only after completion.
+  const completionUpdates = {
     status: 'completed',
+    completedAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  };
+
+  if (!contract.platformFeePaid) {
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 3);
+    completionUpdates.platformFeeStatus = 'outstanding';
+    completionUpdates.platformFeeDueDate = admin.firestore.Timestamp.fromDate(dueDate);
+    completionUpdates.platformFeeBillingStartedAt = admin.firestore.FieldValue.serverTimestamp();
+    completionUpdates.platformFeeReminders = [];
+  }
+
+  await db.collection('contracts').doc(contractId).update(completionUpdates);
 
   // Update shipment
   const shipmentSnap = await db.collection('shipments')
@@ -481,6 +494,31 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
       isRead: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+  }
+
+  // If fee is still unpaid, notify payer with due date after completion.
+  if (!contract.platformFeePaid && contract.platformFee > 0) {
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 3);
+    const feePayerId = contract.platformFeePayerId
+      || (contract.listingType === 'cargo' ? contract.bidderId : contract.listingOwnerId);
+
+    if (feePayerId) {
+      await db.collection(`users/${feePayerId}/notifications`).doc().set({
+        type: 'PLATFORM_FEE_OUTSTANDING',
+        title: 'Platform Fee Due After Delivery',
+        message: `Contract #${contract.contractNumber} is completed. Please pay platform fee of ₱${contract.platformFee.toLocaleString()} by ${dueDate.toLocaleDateString()}.`,
+        data: {
+          contractId,
+          bidId: contract.bidId,
+          platformFee: contract.platformFee,
+          dueDate: dueDate.toISOString(),
+          actionRequired: 'PAY_PLATFORM_FEE',
+        },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   return {
@@ -567,6 +605,7 @@ exports.getContractByBid = functions.region('asia-southeast1').https.onCall(asyn
   }
 
   const { bidId } = data;
+  const userId = context.auth.uid;
 
   if (!bidId) {
     throw new functions.https.HttpsError('invalid-argument', 'Bid ID is required');
@@ -584,6 +623,11 @@ exports.getContractByBid = functions.region('asia-southeast1').https.onCall(asyn
 
   const contractDoc = contractSnap.docs[0];
   const contract = { id: contractDoc.id, ...contractDoc.data() };
+
+  // Enforce participant-level access for bid-based contract lookups
+  if (!contract.participantIds || !contract.participantIds.includes(userId)) {
+    throw new functions.https.HttpsError('permission-denied', 'Not authorized to view this contract');
+  }
 
   // Fetch associated shipment
   const shipmentSnap = await db.collection('shipments')

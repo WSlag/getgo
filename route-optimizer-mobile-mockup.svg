@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="812" viewBox="0 0 375 812">
+  <defs>
+    <linearGradient id="orangeGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="purpleGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.1"/>
+    </filter>
+    <filter id="glowShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#8b5cf6" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Phone Frame -->
+  <rect width="375" height="812" rx="40" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+
+  <!-- Status Bar -->
+  <rect x="0" y="0" width="375" height="44" rx="40" fill="#fff"/>
+  <text x="187" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#111">9:41</text>
+
+  <!-- Header -->
+  <rect x="0" y="44" width="375" height="56" fill="#fff"/>
+  <circle cx="32" cy="72" r="16" fill="#ea580c"/>
+  <text x="52" y="68" font-family="Arial, sans-serif" font-size="16" font-weight="800" fill="#ea580c">Get</text>
+  <text x="76" y="68" font-family="Arial, sans-serif" font-size="16" font-weight="800" fill="#111">Go</text>
+  <text x="52" y="82" font-family="Arial, sans-serif" font-size="8" fill="#6b7280" letter-spacing="1">YOUR CARGO MARKETPLACE</text>
+  <circle cx="325" cy="72" r="4" fill="#6b7280"/>
+  <circle cx="355" cy="72" r="16" fill="#10b981"/>
+  <text x="355" y="77" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#fff">J</text>
+
+  <!-- Market Switcher -->
+  <rect x="20" y="112" width="163" height="40" rx="20" fill="url(#orangeGrad)"/>
+  <text x="101" y="137" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#fff">Cargo</text>
+  <rect x="192" y="112" width="163" height="40" rx="20" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="273" y="137" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="500" fill="#6b7280">Trucks</text>
+
+  <!-- Search Bar -->
+  <rect x="20" y="164" width="335" height="44" rx="22" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="44" y="191" font-family="Arial, sans-serif" font-size="13" fill="#9ca3af">Search by shipper, route, or cargo...</text>
+
+  <!-- Shipment Tracking Section -->
+  <text x="20" y="236" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111">Shipment Tracking</text>
+  <text x="20" y="254" font-family="Arial, sans-serif" font-size="12" fill="#6b7280"><tspan fill="#f97316" font-weight="600">1 active</tspan> shipment in progress</text>
+
+  <!-- Shipment Card (Condensed) -->
+  <rect x="20" y="266" width="335" height="120" rx="12" fill="#fff" filter="url(#shadow)"/>
+  <rect x="20" y="266" width="335" height="4" rx="2" fill="#3b82f6"/>
+  <rect x="32" y="280" width="56" height="20" rx="10" fill="#3b82f6"/>
+  <text x="60" y="294" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="500" fill="#fff">Picked Up</text>
+  <text x="96" y="294" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">#TRK-6SHG7EMK</text>
+  <text x="32" y="318" font-family="Arial, sans-serif" font-size="13" font-weight="600" fill="#111">Davao City</text>
+  <text x="145" y="318" font-family="Arial, sans-serif" font-size="12" fill="#f97316">-></text>
+  <text x="175" y="318" font-family="Arial, sans-serif" font-size="13" font-weight="600" fill="#111">Manila</text>
+  <!-- Track Live Button -->
+  <rect x="32" y="338" width="311" height="36" rx="10" fill="url(#orangeGrad)"/>
+  <text x="187" y="361" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="500" fill="#fff">Track Live</text>
+
+  <!-- ============================================ -->
+  <!-- ROUTE OPTIMIZER CARD - NEW ADDITION -->
+  <!-- ============================================ -->
+
+  <!-- Highlight Arrow pointing to new card -->
+  <rect x="12" y="396" width="351" height="8" rx="0" fill="none"/>
+
+  <!-- Annotation Label -->
+  <rect x="90" y="393" width="195" height="22" rx="11" fill="#7c3aed" opacity="0.9"/>
+  <text x="187" y="408" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" fill="#fff">NEW - Route Optimizer Card</text>
+
+  <!-- Route Optimizer Card -->
+  <rect x="20" y="420" width="335" height="88" rx="14" fill="#fff" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="6 3" filter="url(#glowShadow)"/>
+
+  <!-- Purple accent bar on left -->
+  <rect x="20" y="420" width="5" height="88" rx="3" fill="url(#purpleGrad)"/>
+
+  <!-- Route icon circle -->
+  <circle cx="52" cy="452" r="18" fill="#f3e8ff"/>
+  <!-- Route icon (simplified) -->
+  <path d="M44 446 L52 442 L60 446 M44 458 L52 462 L60 458" stroke="#8b5cf6" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="48" cy="452" r="2" fill="#8b5cf6"/>
+  <circle cx="56" cy="452" r="2" fill="#8b5cf6"/>
+
+  <!-- Text content -->
+  <text x="80" y="444" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#111">Route Optimizer</text>
+  <text x="80" y="460" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">Find backloads &amp; optimize your route</text>
+
+  <!-- CTA Button -->
+  <rect x="80" y="472" width="120" height="28" rx="14" fill="url(#purpleGrad)"/>
+  <text x="140" y="490" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" fill="#fff">Optimize Now</text>
+
+  <!-- Arrow indicator -->
+  <text x="330" y="460" font-family="Arial, sans-serif" font-size="18" fill="#8b5cf6">></text>
+
+  <!-- ============================================ -->
+  <!-- Available Cargo Section -->
+  <!-- ============================================ -->
+  <text x="20" y="540" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111">Available Cargo</text>
+  <text x="20" y="558" font-family="Arial, sans-serif" font-size="12" fill="#6b7280"><tspan fill="#f97316" font-weight="600">4 cargo listings</tspan> available</text>
+
+  <!-- Filter Pills -->
+  <rect x="20" y="568" width="48" height="30" rx="15" fill="url(#orangeGrad)"/>
+  <text x="44" y="588" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="500" fill="#fff">All</text>
+  <rect x="76" y="568" width="56" height="30" rx="15" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="104" y="588" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="500" fill="#6b7280">Open</text>
+  <rect x="140" y="568" width="68" height="30" rx="15" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="174" y="588" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="500" fill="#6b7280">Waiting</text>
+
+  <!-- Cargo Card Preview -->
+  <rect x="20" y="610" width="335" height="100" rx="12" fill="#fff" filter="url(#shadow)"/>
+  <rect x="20" y="610" width="335" height="4" rx="2" fill="#f97316"/>
+  <rect x="32" y="624" width="68" height="18" rx="4" fill="#fef3c7"/>
+  <text x="66" y="637" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="600" fill="#d97706">IN_TRANSIT</text>
+  <rect x="270" y="620" width="73" height="26" rx="6" fill="#f97316"/>
+  <text x="306" y="638" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#fff">P80,000</text>
+  <text x="32" y="660" font-family="Arial, sans-serif" font-size="13" font-weight="600" fill="#111">Juan Cruz</text>
+  <text x="112" y="660" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">5 tons</text>
+  <text x="32" y="680" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">Davao City -> Manila</text>
+  <text x="32" y="698" font-family="Arial, sans-serif" font-size="10" fill="#9ca3af">Furniture</text>
+
+  <!-- Bottom Navigation Bar -->
+  <rect x="0" y="740" width="375" height="72" fill="#fff" filter="url(#shadow)"/>
+  <line x1="0" y1="740" x2="375" y2="740" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- Home (active) -->
+  <rect x="25" y="752" width="12" height="12" rx="2" fill="none" stroke="#f97316" stroke-width="2"/>
+  <text x="31" y="780" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#f97316">Home</text>
+  <circle cx="31" cy="786" r="3" fill="#f97316"/>
+
+  <!-- Bids -->
+  <rect x="102" y="752" width="12" height="12" rx="2" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="108" y="780" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#9ca3af">Bids</text>
+
+  <!-- Post (center FAB) -->
+  <circle cx="187" cy="740" r="28" fill="url(#orangeGrad)"/>
+  <line x1="177" y1="740" x2="197" y2="740" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="187" y1="730" x2="187" y2="750" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+  <text x="187" y="784" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#f97316">Post</text>
+
+  <!-- Contracts -->
+  <rect x="254" y="752" width="12" height="14" rx="2" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="260" y="780" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#9ca3af">Contracts</text>
+
+  <!-- Chat -->
+  <rect x="330" y="752" width="14" height="12" rx="6" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="337" y="780" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#9ca3af">Chat</text>
+</svg>

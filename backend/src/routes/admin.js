@@ -7,7 +7,7 @@ const router = Router();
 // Middleware to check admin role
 const requireAdmin = async (req, res, next) => {
   try {
-    const userId = req.user.uid || req.user.id;
+    const userId = req.user.uid;
     const db = admin.firestore?.();
 
     if (!db) {
@@ -347,7 +347,7 @@ router.post('/payments/:submissionId/approve', authenticateToken, requireAdmin, 
   try {
     const { submissionId } = req.params;
     const { notes } = req.body;
-    const adminId = req.user.uid || req.user.id;
+    const adminId = req.user.uid;
     const db = admin.firestore();
 
     // Get submission
@@ -465,7 +465,7 @@ router.post('/payments/:submissionId/reject', authenticateToken, requireAdmin, a
   try {
     const { submissionId } = req.params;
     const { reason, notes } = req.body;
-    const adminId = req.user.uid || req.user.id;
+    const adminId = req.user.uid;
     const db = admin.firestore();
 
     if (!reason) {
@@ -808,7 +808,7 @@ router.post('/users/:userId/suspend', authenticateToken, requireAdmin, async (re
   try {
     const { userId } = req.params;
     const { reason } = req.body;
-    const adminId = req.user.uid || req.user.id;
+    const adminId = req.user.uid;
     const db = admin.firestore();
 
     const userRef = db.collection('users').doc(userId);
@@ -884,7 +884,7 @@ router.post('/users/:userId/activate', authenticateToken, requireAdmin, async (r
 router.post('/users/:userId/verify', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
-    const adminId = req.user.uid || req.user.id;
+    const adminId = req.user.uid;
     const db = admin.firestore();
 
     const userRef = db.collection('users').doc(userId);
@@ -922,7 +922,7 @@ router.post('/users/:userId/admin', authenticateToken, requireAdmin, async (req,
   try {
     const { userId } = req.params;
     const { grant } = req.body;
-    const adminId = req.user.uid || req.user.id;
+    const adminId = req.user.uid;
     const db = admin.firestore();
 
     // Prevent self-demotion
@@ -943,6 +943,21 @@ router.post('/users/:userId/admin', authenticateToken, requireAdmin, async (req,
       previousRole: grant ? userDoc.data().role : null,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // Keep Firebase Auth custom claims in sync with Firestore role flags
+    try {
+      const userRecord = await admin.auth().getUser(userId);
+      const existingClaims = userRecord.customClaims || {};
+      await admin.auth().setCustomUserClaims(userId, {
+        ...existingClaims,
+        admin: !!grant,
+      });
+    } catch (claimError) {
+      console.error('Failed to sync admin custom claim:', claimError);
+      return res.status(500).json({
+        error: 'Admin role updated in Firestore but failed to sync auth claims',
+      });
+    }
 
     res.json({
       success: true,
@@ -1023,7 +1038,7 @@ router.post('/listings/:listingId/deactivate', authenticateToken, requireAdmin, 
   try {
     const { listingId } = req.params;
     const { type, reason } = req.body;
-    const adminId = req.user.uid || req.user.id;
+    const adminId = req.user.uid;
     const db = admin.firestore();
 
     const collection = type === 'truck' ? 'truckListings' : 'cargoListings';
@@ -1597,7 +1612,7 @@ router.post('/disputes/:disputeId/resolve', authenticateToken, requireAdmin, asy
   try {
     const { disputeId } = req.params;
     const { resolution, favor, notes, refundAmount } = req.body;
-    const adminId = req.user.uid || req.user.id;
+    const adminId = req.user.uid;
     const db = admin.firestore();
 
     const disputeRef = db.collection('disputes').doc(disputeId);
@@ -1732,7 +1747,7 @@ router.post('/referrals/:brokerId/tier', authenticateToken, requireAdmin, async 
   try {
     const { brokerId } = req.params;
     const { tier } = req.body;
-    const adminId = req.user.uid || req.user.id;
+    const adminId = req.user.uid;
     const db = admin.firestore();
 
     const brokerRef = db.collection('brokers').doc(brokerId);
@@ -1835,7 +1850,7 @@ router.delete('/ratings/:ratingId', authenticateToken, requireAdmin, async (req,
   try {
     const { ratingId } = req.params;
     const { reason } = req.body;
-    const adminId = req.user.uid || req.user.id;
+    const adminId = req.user.uid;
     const db = admin.firestore();
 
     const ratingRef = db.collection('ratings').doc(ratingId);
@@ -1941,7 +1956,7 @@ router.get('/settings', authenticateToken, requireAdmin, async (req, res) => {
 router.put('/settings', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { settings } = req.body;
-    const adminId = req.user.uid || req.user.id;
+    const adminId = req.user.uid;
     const db = admin.firestore();
 
     await db.collection('settings').doc('platform').set(

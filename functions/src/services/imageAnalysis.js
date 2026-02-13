@@ -9,14 +9,19 @@
 
 const sharp = require('sharp');
 const axios = require('axios');
+const { isTrustedPaymentScreenshotUrl } = require('../utils/storageUrl');
 
 /**
  * Analyze an image from a URL
  * @param {string} imageUrl - URL of the image to analyze
  * @returns {Promise<Object>} - Analysis results
  */
-async function analyzeImage(imageUrl) {
+async function analyzeImage(imageUrl, expectedUserId = null) {
   try {
+    if (!isTrustedPaymentScreenshotUrl(imageUrl, expectedUserId)) {
+      throw new Error('Untrusted screenshot URL');
+    }
+
     // Download image
     const response = await axios.get(imageUrl, {
       responseType: 'arraybuffer',

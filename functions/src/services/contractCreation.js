@@ -6,6 +6,25 @@
 const admin = require('firebase-admin');
 
 const PLATFORM_FEE_RATE = 0.05; // 5%
+const UNVERIFIED_OUTSTANDING_CAP = 2000;
+const NEW_ACCOUNT_OUTSTANDING_CAP = 3000;
+const STANDARD_OUTSTANDING_CAP = 5000;
+const NEW_ACCOUNT_DAYS = 30;
+
+function resolveOutstandingCap(userData = {}) {
+  const createdAt = userData.createdAt?.toDate ? userData.createdAt.toDate() : null;
+  const accountAgeDays = createdAt
+    ? Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+  const isNewAccount = accountAgeDays < NEW_ACCOUNT_DAYS;
+  const isVerified = userData.isVerified === true;
+
+  let cap = STANDARD_OUTSTANDING_CAP;
+  if (!isVerified) cap = Math.min(cap, UNVERIFIED_OUTSTANDING_CAP);
+  if (isNewAccount) cap = Math.min(cap, NEW_ACCOUNT_OUTSTANDING_CAP);
+
+  return { cap, isVerified, isNewAccount, accountAgeDays };
+}
 
 // Helper: Generate unique contract number
 function generateContractNumber() {
@@ -56,7 +75,7 @@ async function getFirestoreBidData(bidId) {
  * @returns {Promise<object>} - Created contract data
  */
 async function createContractFromApprovedFee(bidId, userId, options = {}) {
-  const { skipPaymentCheck = false, createPlatformFeeDebt = false } = options;
+  const { skipPaymentCheck: _skipPaymentCheck = false, createPlatformFeeDebt = false } = options;
   const db = admin.firestore();
 
   // Fetch bid and listing from Firestore
@@ -113,7 +132,7 @@ The Trucker agrees to transport cargo from ${listing.origin} to ${listing.destin
 
 3. PAYMENT TERMS
 - Freight Rate: PHP ${Number(bid.price).toLocaleString()}
-- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - Payable by Trucker within 3 days
+- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - Payable by Trucker within 3 days after delivery completion
 - Payment Method: Direct payment from Shipper to Trucker
 - Payment Schedule: As agreed between parties (COD, advance, or partial)
 
@@ -137,12 +156,31 @@ By signing, both parties agree to these terms.
   const contractNumber = generateContractNumber();
   const participantIds = [listingOwnerId, bid.bidderId];
 
-  // Calculate platform fee due date (3 days from now)
-  const platformFeeDueDate = new Date();
-  platformFeeDueDate.setDate(platformFeeDueDate.getDate() + 3);
-
   // Determine who owes the platform fee (trucker)
   const platformFeePayerId = isCargo ? bid.bidderId : listingOwnerId;
+
+  let capProfile = null;
+  let currentOutstanding = 0;
+  if (createPlatformFeeDebt) {
+    const payerDoc = await db.collection('users').doc(platformFeePayerId).get();
+    if (!payerDoc.exists) {
+      throw new Error('Platform fee payer not found');
+    }
+
+    const payer = payerDoc.data() || {};
+    if (payer.accountStatus === 'suspended' || payer.isActive === false) {
+      throw new Error('Platform fee payer account is restricted');
+    }
+
+    currentOutstanding = Number(payer.outstandingPlatformFees || 0);
+    capProfile = resolveOutstandingCap(payer);
+    const projectedOutstanding = currentOutstanding + platformFee;
+    if (projectedOutstanding > capProfile.cap) {
+      throw new Error(
+        `Outstanding platform fee cap exceeded (${projectedOutstanding} > ${capProfile.cap})`
+      );
+    }
+  }
 
   // Create contract in Firestore
   const contractRef = db.collection('contracts').doc();
@@ -155,11 +193,14 @@ By signing, both parties agree to these terms.
     // Platform fee tracking fields
     platformFeePaid: createPlatformFeeDebt ? false : true,
     platformFeeStatus: createPlatformFeeDebt ? 'outstanding' : 'paid',
-    platformFeeDueDate: admin.firestore.Timestamp.fromDate(platformFeeDueDate),
+    platformFeeDueDate: null,
+    platformFeeBillingStartedAt: null,
     platformFeeOrderId: null,
     platformFeePaidAt: createPlatformFeeDebt ? null : admin.firestore.FieldValue.serverTimestamp(),
     platformFeeReminders: [],
     platformFeePayerId,
+    platformFeeDebtCap: capProfile?.cap || STANDARD_OUTSTANDING_CAP,
+    platformFeeOutstandingAtCreation: createPlatformFeeDebt ? currentOutstanding : 0,
 
     declaredCargoValue,
     pickupDate: options.pickupDate || listing.pickupDate || listing.availableDate || null,

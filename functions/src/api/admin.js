@@ -296,6 +296,13 @@ exports.adminToggleAdmin = functions.region('asia-southeast1').https.onCall(asyn
 
   const db = admin.firestore();
 
+  // Get current user state for audit logging
+  const userDoc = await db.collection('users').doc(userId).get();
+  if (!userDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'User not found');
+  }
+  const previousData = userDoc.data();
+
   if (grant) {
     // Grant admin
     await db.collection('users').doc(userId).update({
@@ -320,12 +327,18 @@ exports.adminToggleAdmin = functions.region('asia-southeast1').https.onCall(asyn
     await admin.auth().setCustomUserClaims(userId, { admin: false });
   }
 
-  // Log admin action
+  // Enhanced audit logging with context
   await db.collection('adminLogs').add({
     action: grant ? 'GRANT_ADMIN' : 'REVOKE_ADMIN',
     targetUserId: userId,
     performedBy: context.auth.uid,
     performedAt: admin.firestore.FieldValue.serverTimestamp(),
+    ipAddress: context.rawRequest?.ip || null,
+    userAgent: context.rawRequest?.headers['user-agent'] || null,
+    previousRole: previousData.role || null,
+    previousIsAdmin: previousData.isAdmin || false,
+    newRole: grant ? 'admin' : 'shipper',
+    newIsAdmin: grant,
   });
 
   return { message: grant ? 'Admin privileges granted' : 'Admin privileges revoked' };
@@ -521,5 +534,160 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
       suspendedUsers: suspendedUsersList.length,
     },
     suspendedUsers: suspendedUsersList,
+  };
+});
+
+/**
+ * Weekly Marketplace KPI Trends (Growth + Collections)
+ */
+exports.adminGetMarketplaceKpis = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const db = admin.firestore();
+  const weeks = Math.min(Math.max(Number(data?.weeks || 8), 1), 26);
+
+  const startOfWeek = (input) => {
+    const d = new Date(input);
+    d.setHours(0, 0, 0, 0);
+    const day = (d.getDay() + 6) % 7; // Monday = 0
+    d.setDate(d.getDate() - day);
+    return d;
+  };
+
+  const toDate = (value) => {
+    if (!value) return null;
+    if (value.toDate && typeof value.toDate === 'function') return value.toDate();
+    if (value.seconds) return new Date(value.seconds * 1000);
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const now = new Date();
+  const currentWeekStart = startOfWeek(now);
+  const firstWeekStart = new Date(currentWeekStart);
+  firstWeekStart.setDate(firstWeekStart.getDate() - ((weeks - 1) * 7));
+
+  const bucketByKey = new Map();
+  for (let i = 0; i < weeks; i++) {
+    const weekStart = new Date(firstWeekStart);
+    weekStart.setDate(firstWeekStart.getDate() + (i * 7));
+    const key = weekStart.toISOString().slice(0, 10);
+    bucketByKey.set(key, {
+      weekStart: key,
+      contractsCreated: 0,
+      contractsCompleted: 0,
+      feesBilled: 0,
+      feesCollected: 0,
+      overdueContracts: 0,
+      disputesOpened: 0,
+      unpaidSuspensions: 0,
+    });
+  }
+
+  const getBucket = (date) => {
+    if (!date) return null;
+    const key = startOfWeek(date).toISOString().slice(0, 10);
+    return bucketByKey.get(key) || null;
+  };
+
+  const [contractsSnap, feesSnap, disputesSnap, suspendedUsersSnap] = await Promise.all([
+    db.collection('contracts')
+      .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(firstWeekStart))
+      .get(),
+    db.collection('platformFees')
+      .where('status', '==', 'completed')
+      .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(firstWeekStart))
+      .get(),
+    db.collection('disputes')
+      .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(firstWeekStart))
+      .get(),
+    db.collection('users')
+      .where('suspendedAt', '>=', admin.firestore.Timestamp.fromDate(firstWeekStart))
+      .get(),
+  ]);
+
+  const completedByTrucker = new Map();
+
+  contractsSnap.docs.forEach((doc) => {
+    const contract = doc.data();
+
+    const createdBucket = getBucket(toDate(contract.createdAt));
+    if (createdBucket) {
+      createdBucket.contractsCreated += 1;
+      createdBucket.feesBilled += Number(contract.platformFee || 0);
+    }
+
+    if (contract.status === 'completed') {
+      const completedBucket = getBucket(toDate(contract.completedAt) || toDate(contract.updatedAt));
+      if (completedBucket) completedBucket.contractsCompleted += 1;
+
+      const truckerId = contract.listingType === 'cargo' ? contract.bidderId : contract.listingOwnerId;
+      if (truckerId) {
+        completedByTrucker.set(truckerId, (completedByTrucker.get(truckerId) || 0) + 1);
+      }
+    }
+
+    if (contract.platformFeeStatus === 'overdue') {
+      const overdueBucket = getBucket(toDate(contract.overdueAt) || toDate(contract.updatedAt));
+      if (overdueBucket) overdueBucket.overdueContracts += 1;
+    }
+  });
+
+  feesSnap.docs.forEach((doc) => {
+    const fee = doc.data();
+    const feeBucket = getBucket(toDate(fee.createdAt));
+    if (feeBucket) feeBucket.feesCollected += Number(fee.amount || 0);
+  });
+
+  disputesSnap.docs.forEach((doc) => {
+    const dispute = doc.data();
+    const disputeBucket = getBucket(toDate(dispute.createdAt));
+    if (disputeBucket) disputeBucket.disputesOpened += 1;
+  });
+
+  suspendedUsersSnap.docs.forEach((doc) => {
+    const user = doc.data();
+    if (user.suspensionReason !== 'unpaid_platform_fees') return;
+    const suspensionBucket = getBucket(toDate(user.suspendedAt));
+    if (suspensionBucket) suspensionBucket.unpaidSuspensions += 1;
+  });
+
+  const weekly = Array.from(bucketByKey.values());
+  const totals = weekly.reduce((acc, row) => {
+    acc.contractsCreated += row.contractsCreated;
+    acc.contractsCompleted += row.contractsCompleted;
+    acc.feesBilled += row.feesBilled;
+    acc.feesCollected += row.feesCollected;
+    acc.overdueContracts += row.overdueContracts;
+    acc.disputesOpened += row.disputesOpened;
+    acc.unpaidSuspensions += row.unpaidSuspensions;
+    return acc;
+  }, {
+    contractsCreated: 0,
+    contractsCompleted: 0,
+    feesBilled: 0,
+    feesCollected: 0,
+    overdueContracts: 0,
+    disputesOpened: 0,
+    unpaidSuspensions: 0,
+  });
+
+  const activeTruckers = Array.from(completedByTrucker.values()).filter((count) => count >= 1).length;
+  const repeatTruckers = Array.from(completedByTrucker.values()).filter((count) => count >= 2).length;
+
+  const summary = {
+    ...totals,
+    feeRecoveryRate: totals.feesBilled > 0 ? Number(((totals.feesCollected / totals.feesBilled) * 100).toFixed(1)) : 0,
+    disputeRate: totals.contractsCompleted > 0 ? Number(((totals.disputesOpened / totals.contractsCompleted) * 100).toFixed(1)) : 0,
+    suspensionRate: totals.contractsCreated > 0 ? Number(((totals.unpaidSuspensions / totals.contractsCreated) * 100).toFixed(1)) : 0,
+    repeatTruckerRate: activeTruckers > 0 ? Number(((repeatTruckers / activeTruckers) * 100).toFixed(1)) : 0,
+  };
+
+  return {
+    weeks,
+    from: firstWeekStart.toISOString(),
+    to: now.toISOString(),
+    weekly,
+    summary,
   };
 });

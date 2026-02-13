@@ -1,7 +1,19 @@
 import { io } from 'socket.io-client';
+import { auth } from '../firebase';
 
 // Socket.io client configuration
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const SOCKET_URL = (() => {
+  if (import.meta.env.VITE_SOCKET_URL) {
+    return import.meta.env.VITE_SOCKET_URL;
+  }
+
+  try {
+    return new URL(API_BASE_URL).origin;
+  } catch {
+    return 'http://localhost:3001';
+  }
+})();
 
 class SocketService {
   constructor() {
@@ -10,15 +22,36 @@ class SocketService {
     this.listeners = new Map();
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
+    this.lastAuthRefreshAt = 0;
+  }
+
+  async getAuthPayload(forceRefresh = false) {
+    let token = null;
+
+    try {
+      token = await auth.currentUser?.getIdToken?.(forceRefresh);
+    } catch (error) {
+      console.warn('Failed to get Firebase auth token for socket:', error?.message || error);
+    }
+
+    return {
+      token,
+      userId: this.userId || null,
+    };
   }
 
   /**
    * Initialize socket connection
    * @param {string} userId - The user's ID to join their room
    */
-  connect(userId) {
-    if (this.socket?.connected && this.userId === userId) {
-      console.log('Socket already connected for user:', userId);
+  async connect(userId) {
+    if (this.socket && this.userId === userId) {
+      if (this.socket.connected || this.socket.active) {
+        console.log('Socket already active for user:', userId);
+        return;
+      }
+
+      this.socket.connect();
       return;
     }
 
@@ -28,9 +61,13 @@ class SocketService {
     }
 
     this.userId = userId;
-
     this.socket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
+      // Start with polling, then upgrade to websocket to avoid initial browser websocket errors.
+      transports: ['polling', 'websocket'],
+      auth: async (cb) => {
+        const payload = await this.getAuthPayload(false);
+        cb(payload);
+      },
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,
       reconnectionDelay: 1000,
@@ -44,9 +81,6 @@ class SocketService {
     this.socket.on('connect', () => {
       console.log('Socket connected:', this.socket.id);
       this.reconnectAttempts = 0;
-      if (this.userId) {
-        this.socket.emit('join', this.userId);
-      }
     });
   }
 
@@ -58,24 +92,31 @@ class SocketService {
       console.log('Socket disconnected:', reason);
     });
 
-    this.socket.on('connect_error', () => {
+    this.socket.on('connect_error', async (error) => {
       this.reconnectAttempts++;
+      const errorMessage = error?.message || 'Unknown socket connection error';
 
       // Only log first error to reduce console noise
       if (this.reconnectAttempts === 1) {
-        console.warn(`Socket server unavailable (${SOCKET_URL}) - real-time features disabled`);
+        console.warn(`Socket connect error (${SOCKET_URL}): ${errorMessage}`);
       }
 
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.info('Running in offline mode. Start backend server for real-time features.');
+        console.info('Socket reconnection limit reached; app will continue in offline mode.');
+      }
+
+      // Token refresh for auth-related failures, throttled to avoid loops.
+      if (errorMessage.toLowerCase().includes('unauthorized')) {
+        const now = Date.now();
+        if (now - this.lastAuthRefreshAt > 5000) {
+          this.lastAuthRefreshAt = now;
+          await this.getAuthPayload(true);
+        }
       }
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
       console.log('Socket reconnected after', attemptNumber, 'attempts');
-      if (this.userId) {
-        this.socket.emit('join', this.userId);
-      }
     });
   }
 
@@ -88,6 +129,7 @@ class SocketService {
       this.socket = null;
       this.userId = null;
       this.listeners.clear();
+      this.lastAuthRefreshAt = 0;
     }
   }
 

@@ -12,25 +12,125 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == userId;
     }
 
+    // Helper: is the requesting user an admin?
+    function isAdmin() {
+      return isAuth() && (
+        request.auth.token.admin == true ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
+    }
+
+    // Helper: block restricted marketplace actions for suspended users
+    function isAccountActive() {
+      return isAuth()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isActive', true) == true
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'active') != 'suspended';
+    }
+
+    // Helper: verify an order belongs to the caller
+    function isOwnOrder(orderId) {
+      return isAuth()
+        && orderId is string
+        && exists(/databases/$(database)/documents/orders/$(orderId))
+        && get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid;
+    }
+
+    // Helper: restrict screenshot URLs to trusted Firebase Storage payment paths
+    function isTrustedPaymentScreenshotUrl(url, userId) {
+      return url is string
+        && (
+          url.matches('^https://firebasestorage.googleapis.com/.*') ||
+          url.matches('^https://storage.googleapis.com/.*')
+        )
+        && (
+          url.matches('.*payments%2F' + userId + '%2F.*') ||
+          url.matches('.*/payments/' + userId + '/.*')
+        );
+    }
+
+    // Helper: is the requesting user part of a bid?
+    function isBidParticipant(bidId) {
+      return isAuth() && (
+        get(/databases/$(database)/documents/bids/$(bidId)).data.bidderId == request.auth.uid ||
+        get(/databases/$(database)/documents/bids/$(bidId)).data.listingOwnerId == request.auth.uid
+      );
+    }
+
+    // Helper: identify which user will owe platform fee for a bid
+    function feePayerIdForBid(bidData) {
+      return bidData.cargoListingId != null ? bidData.bidderId : bidData.listingOwnerId;
+    }
+
+    // Helper: dynamic outstanding fee cap by trust level
+    function outstandingCapForUser(userId) {
+      let userData = get(/databases/$(database)/documents/users/$(userId)).data;
+      let createdAt = userData.get('createdAt', request.time);
+      let isNewAccount = request.time < createdAt + duration.value(30, 'd');
+      let isVerified = userData.get('isVerified', false) == true;
+      return !isVerified ? 2000 : (isNewAccount ? 3000 : 5000);
+    }
+
+    // Helper: enforce debt cap before allowing bid acceptance
+    function canTakePlatformFeeDebt(bidData) {
+      let payerId = feePayerIdForBid(bidData);
+      let payerData = get(/databases/$(database)/documents/users/$(payerId)).data;
+      let projectedOutstanding = payerData.get('outstandingPlatformFees', 0) + (bidData.price * 0.05);
+      return payerData.get('isActive', true) == true
+        && payerData.get('accountStatus', 'active') != 'suspended'
+        && projectedOutstanding <= outstandingCapForUser(payerId);
+    }
+
+    function isBidAcceptanceTransition(oldData, newData) {
+      return oldData.status != 'accepted' && newData.status == 'accepted';
+    }
+
     // Users collection
     match /users/{uid} {
-      allow read: if isAuth();
-      allow create: if isOwner(uid);
-      // SECURITY: Prevent privilege escalation - users cannot modify isAdmin or role fields
-      allow update: if isOwner(uid) &&
-        request.resource.data.isAdmin == resource.data.isAdmin &&
-        request.resource.data.role == resource.data.role;
+      // Only owners/admins can read full user documents (contains sensitive fields)
+      allow read: if isOwner(uid) || isAdmin();
+
+      // Users can create their own document but cannot set admin privileges
+      allow create: if isOwner(uid)
+        && request.resource.data.get('isAdmin', false) == false
+        && request.resource.data.get('role', 'shipper') in ['shipper', 'trucker', 'broker']
+        && request.resource.data.keys().hasOnly([
+          'phone',
+          'email',
+          'name',
+          'role',
+          'profileImage',
+          'facebookUrl',
+          'isVerified',
+          'isActive',
+          'createdAt',
+          'updatedAt'
+        ]);
+
+      // Prevent privilege/account state tampering from clients
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name',
+          'email',
+          'profileImage',
+          'facebookUrl',
+          'updatedAt'
+        ])
+        && request.resource.data.isAdmin == resource.data.isAdmin
+        && request.resource.data.role == resource.data.role;
+
       allow delete: if false;
 
       // Shipper Profile subcollection
       match /shipperProfile/{docId} {
-        allow read: if isAuth();
+        allow read: if isOwner(uid) || isAdmin();
         allow write: if isOwner(uid);
       }
 
       // Trucker Profile subcollection
       match /truckerProfile/{docId} {
-        allow read: if isAuth();
+        allow read: if isOwner(uid) || isAdmin();
         allow write: if isOwner(uid);
       }
 
@@ -53,21 +153,24 @@ service cloud.firestore {
       // Wallet subcollection
       match /wallet/{docId} {
         allow read: if isOwner(uid) || isAdmin();
-        allow write: if isOwner(uid);
+        // Only allow one-time wallet bootstrap with zero balance
+        allow create: if isOwner(uid)
+          && docId == 'main'
+          && request.resource.data.balance == 0
+          && request.resource.data.keys().hasOnly(['balance', 'createdAt', 'updatedAt']);
+        allow update, delete: if false;
       }
 
       // Wallet Transactions subcollection
       match /walletTransactions/{txId} {
         allow read: if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid);
-        allow update: if false;
-        allow delete: if false;
+        allow create, update, delete: if false;
       }
 
       // Notifications subcollection
       match /notifications/{notifId} {
         allow read: if isOwner(uid);
-        allow create: if isAuth();
+        allow create: if isOwner(uid);
         allow update: if isOwner(uid);
         allow delete: if isOwner(uid);
       }
@@ -106,19 +209,39 @@ service cloud.firestore {
 
     // Bids
     match /bids/{bidId} {
-      allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.bidderId == request.auth.uid;
+      allow read: if isAuth() && (
+        resource.data.bidderId == request.auth.uid ||
+        resource.data.listingOwnerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAccountActive() && request.resource.data.bidderId == request.auth.uid;
       allow update: if isAuth() && (
         resource.data.bidderId == request.auth.uid ||
-        resource.data.listingOwnerId == request.auth.uid
+        (
+          resource.data.listingOwnerId == request.auth.uid
+          // Prevent tampering with core bid economics/participants during owner updates.
+          && request.resource.data.bidderId == resource.data.bidderId
+          && request.resource.data.listingOwnerId == resource.data.listingOwnerId
+          && request.resource.data.price == resource.data.price
+          && request.resource.data.cargoListingId == resource.data.cargoListingId
+          && request.resource.data.truckListingId == resource.data.truckListingId
+          // Before acceptance, ensure projected platform-fee debt is within cap.
+          && (
+            !isBidAcceptanceTransition(resource.data, request.resource.data) ||
+            canTakePlatformFeeDebt(request.resource.data)
+          )
+        )
       );
       allow delete: if false;
 
       // Chat messages within a bid
       match /messages/{msgId} {
-        allow read: if isAuth();
-        allow create: if isAuth() && request.resource.data.senderId == request.auth.uid;
-        allow update: if isAuth();
+        allow read: if isBidParticipant(bidId) || isAdmin();
+        allow create: if isBidParticipant(bidId) && request.resource.data.senderId == request.auth.uid;
+        allow update: if (isBidParticipant(bidId) || isAdmin()) &&
+          request.resource.data.senderId == resource.data.senderId &&
+          request.resource.data.message == resource.data.message &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'updatedAt']);
         allow delete: if false;
       }
     }
@@ -129,9 +252,8 @@ service cloud.firestore {
         request.auth.uid in resource.data.participantIds ||
         isAdmin()
       );
-      allow create: if isAuth() && request.auth.uid in request.resource.data.participantIds;
-      allow update: if isAuth() && request.auth.uid in resource.data.participantIds;
-      allow delete: if false;
+      // Client-side writes disabled: only trusted backend/Cloud Functions via Admin SDK
+      allow create, update, delete: if false;
     }
 
     // Shipments
@@ -140,9 +262,8 @@ service cloud.firestore {
         request.auth.uid in resource.data.participantIds ||
         isAdmin()
       );
-      allow create: if isAuth() && request.auth.uid in request.resource.data.participantIds;
-      allow update: if isAuth() && request.auth.uid in resource.data.participantIds;
-      allow delete: if false;
+      // Client-side writes disabled: only trusted backend/Cloud Functions via Admin SDK
+      allow create, update, delete: if false;
     }
 
     // Ratings
@@ -156,11 +277,6 @@ service cloud.firestore {
     // ============================================================
     // PAYMENT VERIFICATION SYSTEM
     // ============================================================
-
-    // Helper: Check if user is admin
-    function isAdmin() {
-      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
 
     // Payment Orders - Users can read their own orders
     // Only backend/Cloud Functions can create and update
@@ -179,7 +295,23 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isAuth()
+        && request.resource.data.keys().hasOnly([
+          'orderId',
+          'bidId',
+          'userId',
+          'screenshotUrl',
+          'status',
+          'ocrStatus',
+          'uploadedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.orderId is string
+        && request.resource.data.screenshotUrl is string
         && request.resource.data.userId == request.auth.uid
+        && isOwnOrder(request.resource.data.orderId)
+        && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.status in ['awaiting_upload', 'processing']
+        && isTrustedPaymentScreenshotUrl(request.resource.data.screenshotUrl, request.auth.uid)
         && request.resource.data.status == 'pending'
         && request.resource.data.ocrStatus == 'pending';
       allow update: if false; // Only Cloud Functions can update

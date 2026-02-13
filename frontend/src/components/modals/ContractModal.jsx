@@ -459,16 +459,22 @@ export function ContractModal({
               <span style={{ color: '#6b7280' }}>Agreed Freight Rate</span>
               <span style={{ fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{formatPrice(contract.agreedPrice)}</span>
             </div>
-            <div className="flex justify-between" style={{ fontSize: isMobile ? '12px' : '13px', marginBottom: isMobile ? '6px' : '8px' }}>
-              <span style={{ color: '#6b7280' }}>Platform Service Fee (5%)</span>
-              <span style={{ fontWeight: '500', color: '#dc2626' }}>-{formatPrice(contract.platformFee)}</span>
-            </div>
-            <div className="border-t border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '6px' : '8px', marginTop: isMobile ? '6px' : '8px' }}>
-              <div className="flex justify-between" style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: 'bold' }}>
-                <span style={{ color: darkMode ? '#fff' : '#111827' }}>Net to Trucker</span>
-                <span style={{ color: '#10b981' }}>{formatPrice(netAmount)}</span>
+            {/* Platform Service Fee - Only visible to Trucker */}
+            {isTrucker && (
+              <div className="flex justify-between" style={{ fontSize: isMobile ? '12px' : '13px', marginBottom: isMobile ? '6px' : '8px' }}>
+                <span style={{ color: '#6b7280' }}>Platform Service Fee (5%)</span>
+                <span style={{ fontWeight: '500', color: '#dc2626' }}>-{formatPrice(contract.platformFee)}</span>
               </div>
-            </div>
+            )}
+            {/* Net to Trucker - Only visible to Trucker */}
+            {isTrucker && (
+              <div className="border-t border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '6px' : '8px', marginTop: isMobile ? '6px' : '8px' }}>
+                <div className="flex justify-between" style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: 'bold' }}>
+                  <span style={{ color: darkMode ? '#fff' : '#111827' }}>Net to Trucker</span>
+                  <span style={{ color: '#10b981' }}>{formatPrice(netAmount)}</span>
+                </div>
+              </div>
+            )}
           </div>
           <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#6b7280', marginTop: isMobile ? '6px' : '8px' }} className="flex items-center" style={{ gap: '4px' }}>
             <Shield style={{ width: '12px', height: '12px' }} />

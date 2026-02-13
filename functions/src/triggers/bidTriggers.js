@@ -138,23 +138,18 @@ exports.onBidAccepted = functions.region('asia-southeast1').firestore
           }
         );
 
-        // Calculate due date (3 days from now)
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 3);
-
-        // Notify trucker about outstanding platform fee
+        // Notify trucker about outstanding platform fee policy
         await admin.firestore()
           .collection(`users/${after.bidderId}/notifications`)
           .doc()
           .set({
             type: 'PLATFORM_FEE_OUTSTANDING',
             title: 'Contract Created - Platform Fee Required',
-            message: `Contract #${contract.contractNumber} is ready. Pay platform fee of ₱${contract.platformFee.toLocaleString()} within 3 days to avoid suspension.`,
+            message: `Contract #${contract.contractNumber} is ready. Platform fee of PHP ${contract.platformFee.toLocaleString()} will be due after delivery completion.`,
             data: {
               contractId: contract.id,
               bidId,
               platformFee: contract.platformFee,
-              dueDate: dueDate.toISOString(),
               actionRequired: 'PAY_PLATFORM_FEE',
             },
             isRead: false,
@@ -164,7 +159,17 @@ exports.onBidAccepted = functions.region('asia-southeast1').firestore
         console.log(`Contract ${contract.id} created with outstanding platform fee for trucker ${after.bidderId}`);
       } catch (error) {
         console.error('Error creating contract on bid acceptance:', error);
-        // Don't fail the bid acceptance if contract creation fails
+        await admin.firestore()
+          .collection(`users/${after.listingOwnerId}/notifications`)
+          .doc()
+          .set({
+            type: 'CONTRACT_CREATION_FAILED',
+            title: 'Contract Creation Blocked',
+            message: 'Contract was not created. The fee payer reached the outstanding fee limit or has account restrictions.',
+            data: { bidId, listingId: after.listingId },
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
       }
     }
 

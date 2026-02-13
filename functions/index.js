@@ -22,6 +22,7 @@ const {
   createFraudLog
 } = require('./src/services/fraud');
 const { createContractFromApprovedFee } = require('./src/services/contractCreation');
+const { isTrustedPaymentScreenshotUrl } = require('./src/utils/storageUrl');
 
 const db = admin.firestore();
 
@@ -58,6 +59,16 @@ exports.processPaymentSubmission = functions
       }
       const order = orderDoc.data();
 
+      // Security: enforce order ownership before processing any uploaded screenshot
+      if (order.userId !== submission.userId) {
+        throw new Error('Order ownership mismatch');
+      }
+
+      // Security: reject untrusted screenshot URLs (SSRF defense)
+      if (!isTrustedPaymentScreenshotUrl(submission.screenshotUrl, submission.userId)) {
+        throw new Error('Untrusted screenshot URL');
+      }
+
       // Check if order is expired
       if (order.expiresAt && order.expiresAt.toDate() < new Date()) {
         await handleExpiredOrder(snap.ref, submissionId, submission.userId);
@@ -66,7 +77,7 @@ exports.processPaymentSubmission = functions
 
       // Step 3: Analyze image (get hash, dimensions, EXIF)
       console.log('Analyzing image...');
-      const imageAnalysis = await analyzeImage(submission.screenshotUrl);
+      const imageAnalysis = await analyzeImage(submission.screenshotUrl, submission.userId);
 
       if (!imageAnalysis.success) {
         console.warn('Image analysis failed:', imageAnalysis.error);
@@ -82,7 +93,7 @@ exports.processPaymentSubmission = functions
 
       // Step 5: Run OCR
       console.log('Running OCR...');
-      const ocrResults = await processScreenshot(submission.screenshotUrl);
+      const ocrResults = await processScreenshot(submission.screenshotUrl, submission.userId);
 
       if (!ocrResults.success) {
         await handleOCRFailure(snap.ref, submissionId, submission.userId, ocrResults.error);
@@ -260,21 +271,28 @@ async function approvePayment(submission, order, submissionId) {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Update contract to mark platform fee as paid and change status to draft
+    // Update contract to mark platform fee as paid.
+    // Keep lifecycle state for deferred-fee contracts (e.g. signed/completed),
+    // only promoting pending_payment -> draft.
     try {
       if (order.contractId) {
-        await db.collection('contracts').doc(order.contractId).update({
-          status: 'draft', // Change from pending_payment to draft
-          platformFeePaid: true,
-          platformFeeStatus: 'paid',
-          platformFeePaidAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        const contractRef = db.collection('contracts').doc(order.contractId);
+        const contractDoc = await contractRef.get();
 
-        // Get contract to find payer
-        const contractDoc = await db.collection('contracts').doc(order.contractId).get();
         if (contractDoc.exists) {
           const contract = contractDoc.data();
+          const currentStatus = contract.status || 'draft';
+          const nextStatus = currentStatus === 'pending_payment' ? 'draft' : currentStatus;
+          const humanStatus = nextStatus.replace(/_/g, ' ');
+
+          await contractRef.update({
+            status: nextStatus,
+            platformFeePaid: true,
+            platformFeeStatus: 'paid',
+            platformFeePaidAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
           const platformFeePayerId = contract.platformFeePayerId;
 
           // Update user's outstanding fees
@@ -306,7 +324,7 @@ async function approvePayment(submission, order, submissionId) {
               // Notify unsuspension
               await db.collection(`users/${platformFeePayerId}/notifications`).doc().set({
                 type: 'ACCOUNT_UNSUSPENDED',
-                title: 'Account Reactivated ✅',
+                title: 'Account Reactivated',
                 message: 'Your account has been reactivated. All platform fees have been paid.',
                 data: { contractId: order.contractId },
                 isRead: false,
@@ -317,11 +335,13 @@ async function approvePayment(submission, order, submissionId) {
             }
           }
 
-          // Send notification to trucker about payment confirmation
+          // Notify payer
           await db.collection(`users/${submission.userId}/notifications`).doc().set({
             type: 'PAYMENT_VERIFIED',
-            title: 'Platform Fee Paid ✅',
-            message: `Your platform fee payment has been verified for Contract #${contract.contractNumber}. The contract is now ready for signing.`,
+            title: 'Platform Fee Paid',
+            message: nextStatus === 'draft'
+              ? `Your platform fee payment has been verified for Contract #${contract.contractNumber}. The contract is ready for signing.`
+              : `Your platform fee payment has been verified for Contract #${contract.contractNumber}. Contract status remains ${humanStatus}.`,
             data: {
               submissionId,
               contractId: order.contractId,
@@ -331,13 +351,15 @@ async function approvePayment(submission, order, submissionId) {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
-          // Send notification to listing owner that payment is complete and contract ready
+          // Notify counterparty
           const listingOwnerId = contract.listingOwnerId;
           if (listingOwnerId && listingOwnerId !== submission.userId) {
             await db.collection(`users/${listingOwnerId}/notifications`).doc().set({
               type: 'CONTRACT_READY',
-              title: 'Contract Ready for Signing',
-              message: `Contract #${contract.contractNumber} platform fee has been paid. Please review and sign the contract.`,
+              title: nextStatus === 'draft' ? 'Contract Ready for Signing' : 'Platform Fee Settled',
+              message: nextStatus === 'draft'
+                ? `Contract #${contract.contractNumber} platform fee has been paid. Please review and sign the contract.`
+                : `Contract #${contract.contractNumber} platform fee has been paid. Contract status remains ${humanStatus}.`,
               data: {
                 contractId: order.contractId,
                 bidId: order.bidId,
@@ -347,7 +369,7 @@ async function approvePayment(submission, order, submissionId) {
             });
           }
 
-          console.log(`Contract ${order.contractId} platform fee marked as paid and status changed to draft`);
+          console.log(`Contract ${order.contractId} platform fee marked as paid (status: ${nextStatus})`);
         }
       } else {
         console.warn('No contractId found in order - this should not happen with new flow');
@@ -710,7 +732,7 @@ exports.setAdminRole = functions
       // Update Firestore document (bypasses security rules since this is server-side)
       await db.collection('users').doc(targetUserId).update({
         isAdmin: isAdmin,
-        role: isAdmin ? 'admin' : (targetDoc.data().role === 'admin' ? 'user' : targetDoc.data().role),
+        role: isAdmin ? 'admin' : (targetDoc.data().role === 'admin' ? 'shipper' : targetDoc.data().role),
         adminGrantedBy: context.auth.uid,
         adminGrantedAt: admin.firestore.FieldValue.serverTimestamp()
       });
@@ -753,6 +775,22 @@ exports.initializeFirstAdmin = functions
       throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
     }
 
+    const configuredBootstrapKey = process.env.INIT_ADMIN_KEY;
+    const providedBootstrapKey = data?.bootstrapKey;
+    if (!configuredBootstrapKey) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'First-admin bootstrap is disabled. Set INIT_ADMIN_KEY to enable it temporarily.'
+      );
+    }
+
+    if (providedBootstrapKey !== configuredBootstrapKey) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Invalid bootstrap key'
+      );
+    }
+
     // Check if any admins already exist
     const existingAdmins = await db.collection('users')
       .where('role', '==', 'admin')
@@ -783,7 +821,8 @@ exports.initializeFirstAdmin = functions
         isAdmin: true,
         role: 'admin',
         adminGrantedAt: admin.firestore.FieldValue.serverTimestamp(),
-        adminGrantedBy: 'SYSTEM_INIT'
+        adminGrantedBy: 'SYSTEM_INIT',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
       // Set Firebase Custom Claims
@@ -807,6 +846,120 @@ exports.initializeFirstAdmin = functions
       console.error('Error initializing first admin:', error);
       throw new functions.https.HttpsError('internal', 'Failed to initialize admin');
     }
+  });
+
+// =============================================================================
+// SECURITY MONITORING FUNCTIONS
+// =============================================================================
+
+/**
+ * Security Monitor: Detect privilege escalation on user creation
+ * This is a defense-in-depth measure in case Firestore rules are misconfigured
+ */
+exports.validateUserCreation = functions
+  .region('asia-southeast1')
+  .firestore.document('users/{userId}')
+  .onCreate(async (snap, context) => {
+    const userData = snap.data();
+    const userId = context.params.userId;
+
+    // Check for unauthorized admin privileges
+    const hasUnauthorizedAdmin = userData.isAdmin === true || userData.role === 'admin';
+
+    if (hasUnauthorizedAdmin) {
+      console.error(`🚨 SECURITY ALERT: Unauthorized admin privilege escalation detected for user ${userId}`);
+
+      // Immediately revoke admin privileges
+      await snap.ref.update({
+        isAdmin: false,
+        role: 'shipper', // Reset to default
+        securityFlagReason: 'Unauthorized admin privilege attempt during creation',
+        securityFlaggedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Log security incident
+      await db.collection('securityIncidents').add({
+        type: 'PRIVILEGE_ESCALATION_ATTEMPT',
+        userId,
+        attemptedPrivileges: {
+          isAdmin: userData.isAdmin,
+          role: userData.role
+        },
+        detectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        remediationAction: 'Privileges auto-revoked, account disabled'
+      });
+
+      // Auto-disable account pending investigation
+      await admin.auth().updateUser(userId, { disabled: true });
+
+      console.log(`✅ Remediation complete: Admin privileges revoked and account disabled for user ${userId}`);
+    }
+  });
+
+/**
+ * Scheduled Security Audit: Check for unauthorized admin accounts
+ * Runs daily at 2 AM Manila time
+ */
+exports.auditAdminAccounts = functions
+  .region('asia-southeast1')
+  .pubsub.schedule('0 2 * * *')
+  .timeZone('Asia/Manila')
+  .onRun(async (context) => {
+    console.log('🔍 Starting daily admin account audit...');
+
+    // Get all admin users
+    const adminsByRole = await db.collection('users')
+      .where('role', '==', 'admin')
+      .get();
+
+    const adminsByFlag = await db.collection('users')
+      .where('isAdmin', '==', true)
+      .get();
+
+    // Combine and deduplicate
+    const adminIds = new Set([
+      ...adminsByRole.docs.map(doc => doc.id),
+      ...adminsByFlag.docs.map(doc => doc.id)
+    ]);
+
+    console.log(`Found ${adminIds.size} admin accounts`);
+
+    // Check each admin for authorization trail
+    const unauthorizedAdmins = [];
+
+    for (const adminId of adminIds) {
+      const adminDoc = await db.collection('users').doc(adminId).get();
+      const adminData = adminDoc.data();
+
+      // Check if admin was properly granted (has adminGrantedBy field)
+      if (!adminData.adminGrantedBy && !adminData.adminGrantedAt) {
+        unauthorizedAdmins.push({
+          userId: adminId,
+          email: adminData.email,
+          phone: adminData.phone,
+          createdAt: adminData.createdAt,
+          reason: 'Missing admin grant audit trail'
+        });
+      }
+    }
+
+    if (unauthorizedAdmins.length > 0) {
+      console.error(`🚨 SECURITY ALERT: Found ${unauthorizedAdmins.length} unauthorized admin accounts`);
+
+      // Log incident
+      await db.collection('securityIncidents').add({
+        type: 'UNAUTHORIZED_ADMIN_ACCOUNTS_DETECTED',
+        count: unauthorizedAdmins.length,
+        accounts: unauthorizedAdmins,
+        detectedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // TODO: Send notification to legitimate admins
+    } else {
+      console.log('✅ Admin account audit passed - all accounts properly authorized');
+    }
+
+    return null;
   });
 
 // =============================================================================
@@ -862,6 +1015,7 @@ exports.adminGetFinancialSummary = adminFunctions.adminGetFinancialSummary;
 exports.adminResolveDispute = adminFunctions.adminResolveDispute;
 exports.adminGetContracts = adminFunctions.adminGetContracts;
 exports.adminGetOutstandingFees = adminFunctions.adminGetOutstandingFees;
+exports.adminGetMarketplaceKpis = adminFunctions.adminGetMarketplaceKpis;
 
 // =============================================================================
 // ROUTE OPTIMIZATION FUNCTIONS

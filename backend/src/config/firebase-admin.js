@@ -1,10 +1,6 @@
 import admin from 'firebase-admin';
 import { readFileSync, existsSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { resolve } from 'path';
 
 // Initialize Firebase Admin SDK
 let firebaseApp = null;
@@ -15,23 +11,26 @@ const initializeFirebaseAdmin = () => {
   }
 
   try {
-    // Option 1: Use service account JSON file
-    const serviceAccountPath = join(__dirname, '../../serviceAccountKey.json');
-
-    if (existsSync(serviceAccountPath)) {
-      const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
-      firebaseApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-      console.log('Firebase Admin initialized with service account file');
-    }
-    // Option 2: Use environment variable with JSON content
-    else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    // Option 1: Use environment variable with JSON content
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
       firebaseApp = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });
-      console.log('Firebase Admin initialized with environment variable');
+      console.log('Firebase Admin initialized with FIREBASE_SERVICE_ACCOUNT');
+    }
+    // Option 2: Use explicit file path from environment variable
+    else if (process.env.FIREBASE_SERVICE_ACCOUNT_FILE) {
+      const serviceAccountPath = resolve(process.env.FIREBASE_SERVICE_ACCOUNT_FILE);
+      if (!existsSync(serviceAccountPath)) {
+        throw new Error('FIREBASE_SERVICE_ACCOUNT_FILE does not exist');
+      }
+
+      const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+      firebaseApp = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+      console.log('Firebase Admin initialized with FIREBASE_SERVICE_ACCOUNT_FILE');
     }
     // Option 3: Use individual environment variables
     else if (process.env.FIREBASE_PROJECT_ID) {
@@ -44,13 +43,16 @@ const initializeFirebaseAdmin = () => {
       });
       console.log('Firebase Admin initialized with individual env variables');
     }
-    // Option 4: Use Application Default Credentials (for Google Cloud environments)
-    else {
-      console.warn('⚠️  No Firebase credentials found. Firebase Admin features will be disabled.');
-      console.warn('   To enable Firebase Admin:');
-      console.warn('   1. Download service account key from Firebase Console');
-      console.warn('   2. Save as backend/serviceAccountKey.json');
-      console.warn('   3. Or set FIREBASE_SERVICE_ACCOUNT environment variable');
+    // Option 4: Use ADC (Google Cloud runtime) if available
+    else if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.K_SERVICE || process.env.FUNCTION_TARGET) {
+      firebaseApp = admin.initializeApp();
+      console.log('Firebase Admin initialized with Application Default Credentials');
+    } else {
+      console.warn('No Firebase credentials found. Firebase Admin features will be disabled.');
+      console.warn('To enable Firebase Admin:');
+      console.warn('1. Set FIREBASE_SERVICE_ACCOUNT (JSON)');
+      console.warn('2. Or set FIREBASE_SERVICE_ACCOUNT_FILE to an absolute path');
+      console.warn('3. Or set FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY');
       return null;
     }
 
@@ -66,7 +68,6 @@ export const verifyFirebaseToken = async (idToken) => {
   if (!firebaseApp) {
     const result = initializeFirebaseAdmin();
     if (!result) {
-      // Firebase Admin not configured, return error
       return {
         valid: false,
         error: 'Firebase Admin not configured. Please add service account credentials.'
@@ -106,13 +107,6 @@ export const getFirebaseUser = async (uid) => {
     return null;
   }
 };
-
-// Initialize on import (will warn if no credentials found)
-try {
-  initializeFirebaseAdmin();
-} catch (error) {
-  console.error('Firebase Admin initialization error:', error.message);
-}
 
 export { admin };
 export default admin;

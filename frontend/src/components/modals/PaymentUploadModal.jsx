@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -129,9 +130,9 @@ export function PaymentUploadModal({
             </div>
             <div>
               <DialogTitle style={{ fontSize: '20px' }}>Upload Screenshot</DialogTitle>
-              <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '2px' }}>
+              <DialogDescription style={{ fontSize: '14px', color: '#6b7280', marginTop: '2px' }}>
                 GCash payment receipt
-              </p>
+              </DialogDescription>
             </div>
           </div>
         </DialogHeader>

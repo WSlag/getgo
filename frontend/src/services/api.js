@@ -197,7 +197,7 @@ const api = {
 
   bids: {
     create: (data) => post('/bids', data),
-    getMyBids: () => get('/bids/my'),
+    getMyBids: () => get('/bids/my-bids'),
     accept: (bidId) => put(`/bids/${bidId}/accept`, {}),
     reject: (bidId) => put(`/bids/${bidId}/reject`, {}),
   },
@@ -282,6 +282,7 @@ const api = {
 
     // Financial
     getFinancialSummary: () => callFunction('adminGetFinancialSummary', {}),
+    getMarketplaceKpis: (params) => callFunction('adminGetMarketplaceKpis', params || {}),
     getTransactions: (params) => get(`/admin/financial/transactions${params ? `?${new URLSearchParams(params)}` : ''}`),
 
     // Disputes

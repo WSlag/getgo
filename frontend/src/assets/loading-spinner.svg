@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="spinnerGradient" x1="16" y1="16" x2="104" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FB923C"/>
+      <stop offset="1" stop-color="#EA580C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Base track -->
+  <circle cx="60" cy="60" r="44" fill="none" stroke="#E5E7EB" stroke-width="10"/>
+
+  <!-- Animated ring -->
+  <circle
+    cx="60"
+    cy="60"
+    r="44"
+    fill="none"
+    stroke="url(#spinnerGradient)"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-dasharray="207"
+    stroke-dashoffset="145"
+    transform="rotate(-90 60 60)"
+  >
+    <animateTransform
+      attributeName="transform"
+      type="rotate"
+      values="-90 60 60;270 60 60"
+      dur="0.95s"
+      repeatCount="indefinite"
+    />
+    <animate
+      attributeName="stroke-dashoffset"
+      values="145;55;145"
+      dur="1.4s"
+      repeatCount="indefinite"
+    />
+  </circle>
+</svg>
