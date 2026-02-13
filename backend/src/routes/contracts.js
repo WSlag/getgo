@@ -220,14 +220,17 @@ The Trucker agrees to transport cargo from:
   Delivery: ${composeFullAddress(listing.destination, listing.destinationStreetAddress)}
 
 2. CARGO LIABILITY
-- Maximum liability: PHP ${(declaredCargoValue || 100000).toLocaleString()} (Declared Value)
-- Trucker exercises extraordinary diligence per Philippine Civil Code
-- Exceptions: Force majeure, shipper's fault, inherent defect
+- Maximum liability cap: Declared Value stated in this contract
+- If no declared value is provided, default maximum liability is PHP 100,000
+- Cap may not apply in cases of gross negligence, willful misconduct, fraud, theft, or illegal acts
+- Trucker is not liable for force majeure, shipper's fault, or inherent defect of cargo
+- Claims cover direct and documented loss, supported by delivery records and proof of value
+- For higher-value cargo, full value declaration before pickup is recommended
 
 3. PAYMENT TERMS
 - Freight Rate: PHP ${Number(bid.price).toLocaleString()}
-- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - PAID
-- Payment Method: Direct payment from Shipper to Trucker
+- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - PAID BY TRUCKER VIA GCASH
+- Freight Payment Method: Direct payment from Shipper to Trucker via GCash or another mutually agreed method
 - Payment Schedule: As agreed between parties (COD, advance, or partial)
 
 4. OBLIGATIONS
