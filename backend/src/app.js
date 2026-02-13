@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import dotenv from 'dotenv';
+import { verifyFirebaseToken } from './config/firebase-admin.js';
 
 // Load environment variables
 dotenv.config();
@@ -29,6 +30,7 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
 // Socket.io setup
 const io = new Server(httpServer, {
@@ -36,6 +38,61 @@ const io = new Server(httpServer, {
     origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
+});
+
+const extractSocketToken = (socket) => {
+  const authToken = socket.handshake?.auth?.token;
+  if (authToken) return authToken;
+
+  const authHeader = socket.handshake?.headers?.authorization;
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+
+  return null;
+};
+
+// Require Firebase auth token for all socket connections
+io.use(async (socket, next) => {
+  try {
+    const token = extractSocketToken(socket);
+    const fallbackUserId = socket.handshake?.auth?.userId;
+
+    if (token) {
+      const result = await verifyFirebaseToken(token);
+      if (result.valid) {
+        socket.user = {
+          uid: result.uid,
+          phone: result.phone,
+          email: result.email,
+        };
+        return next();
+      }
+
+      // Local development fallback when Firebase Admin is not configured.
+      if (
+        isDevelopment &&
+        fallbackUserId &&
+        typeof result?.error === 'string' &&
+        result.error.includes('Firebase Admin not configured')
+      ) {
+        socket.user = { uid: fallbackUserId };
+        return next();
+      }
+
+      return next(new Error('Unauthorized: invalid token'));
+    }
+
+    // Local development fallback when token is temporarily unavailable.
+    if (isDevelopment && fallbackUserId) {
+      socket.user = { uid: fallbackUserId };
+      return next();
+    }
+
+    return next(new Error('Unauthorized: missing token'));
+  } catch (error) {
+    return next(new Error('Unauthorized'));
+  }
 });
 
 // Middleware
@@ -92,13 +149,17 @@ app.get('/api', (req, res) => {
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+  const userId = socket.user?.uid;
+  if (!userId) {
+    socket.disconnect(true);
+    return;
+  }
 
-  // Join user-specific room
-  socket.on('join', (userId) => {
-    socket.join(`user:${userId}`);
-    console.log(`User ${userId} joined their room`);
-  });
+  socket.join(`user:${userId}`);
+  console.log('Client connected:', socket.id, 'user:', userId);
+
+  // Backward-compatible no-op. Users are auto-joined to their own room from auth token.
+  socket.on('join', () => {});
 
   // Join listing room for real-time bid updates
   socket.on('join-listing', (listingId) => {
@@ -113,6 +174,10 @@ io.on('connection', (socket) => {
 
   // Handle new bid (broadcast to listing room and notify owner)
   socket.on('new-bid', (data) => {
+    if (!data || data.bidderId !== userId || !data.listingId) {
+      return;
+    }
+
     // Broadcast to anyone watching this listing
     io.to(`listing:${data.listingId}`).emit('bid-received', data);
 
@@ -132,6 +197,10 @@ io.on('connection', (socket) => {
 
   // Handle bid accepted notification
   socket.on('bid-accepted', (data) => {
+    if (!data || data.ownerId !== userId) {
+      return;
+    }
+
     // Notify the bidder that their bid was accepted
     if (data.bidderId) {
       io.to(`user:${data.bidderId}`).emit('bid-accepted', data);
@@ -148,11 +217,19 @@ io.on('connection', (socket) => {
 
   // Handle new chat message
   socket.on('chat-message', (data) => {
+    if (!data || data.senderId !== userId || !data.recipientId) {
+      return;
+    }
+
     io.to(`user:${data.recipientId}`).emit('new-message', data);
   });
 
   // Handle shipment update
   socket.on('shipment-update', (data) => {
+    if (!data || data.truckerId !== userId || !data.shipperId) {
+      return;
+    }
+
     io.to(`user:${data.shipperId}`).emit('tracking-update', data);
   });
 

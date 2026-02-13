@@ -569,6 +569,7 @@ router.put('/:id/complete', authenticateToken, async (req, res) => {
 // Get contract by bid ID
 router.get('/bid/:bidId', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user.uid;
     const db = admin.firestore();
     const contractSnap = await db.collection('contracts')
       .where('bidId', '==', req.params.bidId)
@@ -581,6 +582,11 @@ router.get('/bid/:bidId', authenticateToken, async (req, res) => {
 
     const contractDoc = contractSnap.docs[0];
     const contract = { id: contractDoc.id, ...contractDoc.data() };
+
+    // Enforce participant-level access for bid-based contract lookups
+    if (!contract.participantIds || !contract.participantIds.includes(userId)) {
+      return res.status(403).json({ error: 'Not authorized to view this contract' });
+    }
 
     // Fetch associated shipment
     const shipmentSnap = await db.collection('shipments')

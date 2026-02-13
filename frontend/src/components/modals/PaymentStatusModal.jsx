@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useOrderSubmission, usePaymentOrder, getStatusDisplay } from '@/hooks/usePaymentSubmission';
@@ -137,6 +138,9 @@ export function PaymentStatusModal({
           <DialogTitle style={{ textAlign: 'center', fontSize: '20px' }}>
             Payment Status
           </DialogTitle>
+          <DialogDescription style={{ textAlign: 'center' }}>
+            Track your payment verification progress.
+          </DialogDescription>
         </DialogHeader>
 
         <div style={{ textAlign: 'center', padding: '24px 0' }}>

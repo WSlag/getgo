@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
@@ -195,9 +196,9 @@ export function NotificationsModal({
                     </span>
                   )}
                 </DialogTitle>
-                <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '2px' }}>
+                <DialogDescription style={{ fontSize: '14px', color: '#6b7280', marginTop: '2px' }}>
                   Stay updated on your activity
-                </p>
+                </DialogDescription>
               </div>
             </div>
             {unreadCount > 0 && (

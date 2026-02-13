@@ -49,7 +49,7 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
 
   const db = admin.firestore();
 
-  // Validate bid exists and is accepted
+  // Validate bid exists
   const bidDoc = await db.collection('bids').doc(bidId).get();
   if (!bidDoc.exists) {
     throw new functions.https.HttpsError('not-found', 'Bid not found');
@@ -57,21 +57,43 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
 
   const bid = { id: bidDoc.id, ...bidDoc.data() };
 
-  if (bid.status !== 'accepted') {
-    throw new functions.https.HttpsError('failed-precondition', 'Bid must be accepted before paying platform fee');
+  // Fetch contract for this bid (contract is normally created at bid acceptance)
+  const contractSnap = await db.collection('contracts')
+    .where('bidId', '==', bidId)
+    .limit(1)
+    .get();
+
+  const contractDoc = contractSnap.empty ? null : contractSnap.docs[0];
+  const contract = contractDoc ? { id: contractDoc.id, ...contractDoc.data() } : null;
+
+  // Backward compatibility: allow payment from accepted/contracted bids even if contract is missing
+  if (!contract && bid.status !== 'accepted' && bid.status !== 'contracted') {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Platform fee can only be paid for accepted/contracted bids'
+    );
+  }
+
+  // Fast path when contract already marked as paid
+  if (contract?.platformFeePaid) {
+    throw new functions.https.HttpsError(
+      'already-exists',
+      'Platform fee already paid for this contract'
+    );
   }
 
   // Determine who is the trucker (platform fee payer)
-  const isCargo = !!bid.cargoListingId;
+  const isCargo = contract ? contract.listingType === 'cargo' : !!bid.cargoListingId;
   const truckerUserId = isCargo ? bid.bidderId : bid.listingOwnerId;
+  const expectedPayerId = contract?.platformFeePayerId || truckerUserId;
 
   // Verify the user is the trucker
-  if (truckerUserId !== userId) {
+  if (expectedPayerId !== userId) {
     throw new functions.https.HttpsError('permission-denied', 'Only the trucker can pay the platform fee');
   }
 
-  // Calculate platform fee
-  const platformFee = Math.round(bid.price * PLATFORM_FEE_RATE);
+  // Use contract fee when available to avoid pricing drift
+  const platformFee = contract?.platformFee || Math.round(bid.price * PLATFORM_FEE_RATE);
 
   // Check if fee already paid
   const existingFeeSnap = await db.collection('platformFees')
@@ -95,26 +117,19 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
     listingId = bid.truckListingId;
   }
 
-  // Fetch contract for this bid (should exist from bid acceptance)
-  const contractSnap = await db.collection('contracts')
-    .where('bidId', '==', bidId)
-    .limit(1)
-    .get();
+  // Create order
+  const orderId = generateOrderId();
+  const expiresAt = new Date(Date.now() + GCASH_CONFIG.orderExpiryMinutes * 60 * 1000);
 
-  let contractId = null;
-  if (!contractSnap.empty) {
-    contractId = contractSnap.docs[0].id;
+  let contractId = contract?.id || null;
+  if (contractId) {
 
     // Update contract with order reference
     await db.collection('contracts').doc(contractId).update({
       platformFeeOrderId: orderId,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+      });
   }
-
-  // Create order
-  const orderId = generateOrderId();
-  const expiresAt = new Date(Date.now() + GCASH_CONFIG.orderExpiryMinutes * 60 * 1000);
 
   const orderData = {
     orderId,

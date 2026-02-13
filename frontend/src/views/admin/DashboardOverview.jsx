@@ -7,7 +7,6 @@ import {
   CreditCard,
   AlertTriangle,
   TrendingUp,
-  ArrowRight,
   FileText,
   CheckCircle2,
   Clock,
@@ -17,7 +16,7 @@ import {
 import { StatCard, StatCardSkeleton } from '@/components/admin/StatCard';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import api from '@/services/api';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/firebase';
 
 export function DashboardOverview({ badges, onNavigate }) {
@@ -25,6 +24,7 @@ export function DashboardOverview({ badges, onNavigate }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [kpiSummary, setKpiSummary] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -35,6 +35,7 @@ export function DashboardOverview({ badges, onNavigate }) {
     try {
       // Fetch payment stats
       const paymentStats = await api.admin.getPaymentStats();
+      const marketplaceKpis = await api.admin.getMarketplaceKpis({ weeks: 8 });
 
       // Fetch user count from Firestore
       const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -88,6 +89,7 @@ export function DashboardOverview({ badges, onNavigate }) {
         rejectedToday: paymentStats?.stats?.rejectedToday || 0,
         totalAmountToday: paymentStats?.stats?.totalAmountToday || 0,
       });
+      setKpiSummary(marketplaceKpis?.summary || null);
 
       // Mock recent activity (TODO: implement real activity feed)
       setRecentActivity([
@@ -158,6 +160,38 @@ export function DashboardOverview({ badges, onNavigate }) {
             />
           </>
         )}
+      </div>
+
+      {/* KPI Snapshot */}
+      <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
+        <StatCard
+          title="Fee Recovery (8w)"
+          value={`${(kpiSummary?.feeRecoveryRate || 0).toFixed(1)}%`}
+          subtitle={`₱${(kpiSummary?.feesCollected || 0).toLocaleString()} collected`}
+          icon={TrendingUp}
+          iconColor="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+        />
+        <StatCard
+          title="Overdue Fees (8w)"
+          value={kpiSummary?.overdueContracts || 0}
+          subtitle={`${(kpiSummary?.suspensionRate || 0).toFixed(1)}% suspension rate`}
+          icon={AlertTriangle}
+          iconColor="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
+        />
+        <StatCard
+          title="Repeat Truckers (8w)"
+          value={`${(kpiSummary?.repeatTruckerRate || 0).toFixed(1)}%`}
+          subtitle={`${kpiSummary?.contractsCompleted || 0} completed contracts`}
+          icon={Truck}
+          iconColor="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
+        />
+        <StatCard
+          title="Dispute Rate (8w)"
+          value={`${(kpiSummary?.disputeRate || 0).toFixed(1)}%`}
+          subtitle={`${kpiSummary?.disputesOpened || 0} disputes opened`}
+          icon={ShieldCheck}
+          iconColor="bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
+        />
       </div>
 
       {/* Payment Stats */}

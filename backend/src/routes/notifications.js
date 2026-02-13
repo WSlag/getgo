@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { Notification } from '../models/index.js';
+import admin from 'firebase-admin';
+import { db } from '../config/firestore.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
@@ -7,24 +8,47 @@ const router = Router();
 // Get all notifications for user
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user.uid;
     const { limit = 50, offset = 0, unreadOnly = false } = req.query;
 
-    const where = { userId: req.user.id };
+    // Build query
+    let query = db.collection('users').doc(userId).collection('notifications')
+      .orderBy('createdAt', 'desc')
+      .limit(parseInt(limit))
+      .offset(parseInt(offset));
+
+    // Filter by unread if requested
     if (unreadOnly === 'true') {
-      where.isRead = false;
+      query = db.collection('users').doc(userId).collection('notifications')
+        .where('isRead', '==', false)
+        .orderBy('createdAt', 'desc')
+        .limit(parseInt(limit))
+        .offset(parseInt(offset));
     }
 
-    const notifications = await Notification.findAndCountAll({
-      where,
-      order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-    });
+    const notificationsSnapshot = await query.get();
+
+    const notifications = notificationsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate?.() || null,
+    }));
+
+    // Get total count and unread count
+    const allSnapshot = unreadOnly === 'true'
+      ? await db.collection('users').doc(userId).collection('notifications')
+          .where('isRead', '==', false)
+          .get()
+      : await db.collection('users').doc(userId).collection('notifications').get();
+
+    const unreadSnapshot = await db.collection('users').doc(userId).collection('notifications')
+      .where('isRead', '==', false)
+      .get();
 
     res.json({
-      notifications: notifications.rows,
-      total: notifications.count,
-      unreadCount: await Notification.count({ where: { userId: req.user.id, isRead: false } }),
+      notifications,
+      total: allSnapshot.size,
+      unreadCount: unreadSnapshot.size,
       limit: parseInt(limit),
       offset: parseInt(offset),
     });
@@ -37,11 +61,13 @@ router.get('/', authenticateToken, async (req, res) => {
 // Get unread count
 router.get('/unread-count', authenticateToken, async (req, res) => {
   try {
-    const count = await Notification.count({
-      where: { userId: req.user.id, isRead: false },
-    });
+    const userId = req.user.uid;
 
-    res.json({ unreadCount: count });
+    const unreadSnapshot = await db.collection('users').doc(userId).collection('notifications')
+      .where('isRead', '==', false)
+      .get();
+
+    res.json({ unreadCount: unreadSnapshot.size });
   } catch (error) {
     console.error('Get unread count error:', error);
     res.status(500).json({ error: 'Failed to get unread count' });
@@ -51,17 +77,21 @@ router.get('/unread-count', authenticateToken, async (req, res) => {
 // Mark notification as read
 router.put('/:id/read', authenticateToken, async (req, res) => {
   try {
-    const notification = await Notification.findByPk(req.params.id);
+    const userId = req.user.uid;
+    const notificationId = req.params.id;
 
-    if (!notification) {
+    const notificationRef = db.collection('users').doc(userId).collection('notifications').doc(notificationId);
+    const notificationDoc = await notificationRef.get();
+
+    if (!notificationDoc.exists) {
       return res.status(404).json({ error: 'Notification not found' });
     }
 
-    if (notification.userId !== req.user.id) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-
-    await notification.update({ isRead: true });
+    // 🔒 AUTHORIZATION: Notification is in user's subcollection, so already authorized
+    await notificationRef.update({
+      isRead: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
     res.json({ message: 'Notification marked as read' });
   } catch (error) {
@@ -73,10 +103,22 @@ router.put('/:id/read', authenticateToken, async (req, res) => {
 // Mark all notifications as read
 router.put('/read-all', authenticateToken, async (req, res) => {
   try {
-    await Notification.update(
-      { isRead: true },
-      { where: { userId: req.user.id, isRead: false } }
-    );
+    const userId = req.user.uid;
+
+    // Get all unread notifications
+    const unreadSnapshot = await db.collection('users').doc(userId).collection('notifications')
+      .where('isRead', '==', false)
+      .get();
+
+    // Batch update all unread notifications
+    const batch = db.batch();
+    unreadSnapshot.docs.forEach(doc => {
+      batch.update(doc.ref, {
+        isRead: true,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
 
     res.json({ message: 'All notifications marked as read' });
   } catch (error) {
@@ -88,17 +130,18 @@ router.put('/read-all', authenticateToken, async (req, res) => {
 // Delete a notification
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    const notification = await Notification.findByPk(req.params.id);
+    const userId = req.user.uid;
+    const notificationId = req.params.id;
 
-    if (!notification) {
+    const notificationRef = db.collection('users').doc(userId).collection('notifications').doc(notificationId);
+    const notificationDoc = await notificationRef.get();
+
+    if (!notificationDoc.exists) {
       return res.status(404).json({ error: 'Notification not found' });
     }
 
-    if (notification.userId !== req.user.id) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-
-    await notification.destroy();
+    // 🔒 AUTHORIZATION: Notification is in user's subcollection, so already authorized
+    await notificationRef.delete();
 
     res.json({ message: 'Notification deleted' });
   } catch (error) {
@@ -110,9 +153,19 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 // Delete all read notifications
 router.delete('/clear-read', authenticateToken, async (req, res) => {
   try {
-    await Notification.destroy({
-      where: { userId: req.user.id, isRead: true },
+    const userId = req.user.uid;
+
+    // Get all read notifications
+    const readSnapshot = await db.collection('users').doc(userId).collection('notifications')
+      .where('isRead', '==', true)
+      .get();
+
+    // Batch delete all read notifications
+    const batch = db.batch();
+    readSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
     });
+    await batch.commit();
 
     res.json({ message: 'Read notifications cleared' });
   } catch (error) {

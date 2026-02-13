@@ -20,6 +20,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { uploadPaymentScreenshot, createPaymentSubmission } from '@/services/firestoreService';
@@ -73,10 +74,10 @@ export function GCashPaymentModal({
     }
   }, [open]);
 
-  // Watch for contract creation when payment is approved
+  // Watch for payment approval and return control to parent
   useEffect(() => {
     if (submission?.status === 'approved' && order) {
-      // Contract is created server-side, notify parent
+      // Payment is recorded server-side; notify parent
       setTimeout(() => {
         onContractCreated?.({ bidId: bid.id });
         handleClose();
@@ -613,7 +614,7 @@ export function GCashPaymentModal({
           return {
             icon: <CheckCircle2 style={{ width: '48px', height: '48px', color: '#22c55e' }} />,
             title: 'Payment Verified!',
-            message: 'Your payment has been approved and your contract is being created. You will be redirected shortly.',
+            message: 'Your payment has been approved and your platform fee is now recorded. You will be redirected shortly.',
             color: '#22c55e',
           };
         case 'rejected':
@@ -729,12 +730,12 @@ export function GCashPaymentModal({
                 {step === 'upload' && 'Upload Screenshot'}
                 {step === 'status' && 'Verification Status'}
               </DialogTitle>
-              <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '2px' }}>
+              <DialogDescription style={{ fontSize: '14px', color: '#6b7280', marginTop: '2px' }}>
                 {step === 'info' && 'Pay via GCash to generate contract'}
                 {step === 'qr' && 'Send payment via GCash'}
                 {step === 'upload' && 'Upload your payment receipt'}
                 {step === 'status' && 'Payment verification in progress'}
-              </p>
+              </DialogDescription>
             </div>
           </div>
         </DialogHeader>

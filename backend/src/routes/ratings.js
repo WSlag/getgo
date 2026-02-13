@@ -1,63 +1,64 @@
 import { Router } from 'express';
-import { Op } from 'sequelize';
-import {
-  Rating,
-  Contract,
-  Bid,
-  CargoListing,
-  TruckListing,
-  User,
-  TruckerProfile,
-  ShipperProfile,
-  Notification,
-} from '../models/index.js';
+import admin from 'firebase-admin';
+import { db } from '../config/firestore.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { sequelize } from '../models/index.js';
 
 const router = Router();
 
 // Get ratings for a user
-router.get('/user/:userId', async (req, res) => {
+router.get('/user/:userId', authenticateToken, async (req, res) => {
   try {
     const { limit = 20, offset = 0 } = req.query;
+    const userId = req.params.userId;
 
-    const ratings = await Rating.findAndCountAll({
-      where: { ratedUserId: req.params.userId },
-      include: [
-        {
-          model: User,
-          as: 'rater',
-          attributes: ['id', 'name', 'profileImage'],
-        },
-        {
-          model: Contract,
-          include: [
-            {
-              model: Bid,
-              include: [
-                { model: CargoListing, attributes: ['origin', 'destination'] },
-                { model: TruckListing, attributes: ['origin', 'destination'] },
-              ],
-            },
-          ],
-        },
-      ],
-      order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-    });
+    // Query ratings from Firestore
+    const ratingsSnapshot = await db.collection('ratings')
+      .where('ratedUserId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .limit(parseInt(limit))
+      .offset(parseInt(offset))
+      .get();
+
+    // Get total count
+    const countSnapshot = await db.collection('ratings')
+      .where('ratedUserId', '==', userId)
+      .get();
+    const total = countSnapshot.size;
+
+    // Enrich ratings with basic rater data only (avoid leaking contract/listing internals)
+    const ratings = await Promise.all(
+      ratingsSnapshot.docs.map(async (ratingDoc) => {
+        const rating = { id: ratingDoc.id, ...ratingDoc.data() };
+
+        // Get rater info
+        const raterDoc = await db.collection('users').doc(rating.raterId).get();
+        const rater = raterDoc.exists ? {
+          id: raterDoc.id,
+          name: raterDoc.data().name,
+          profileImage: raterDoc.data().profileImage,
+        } : null;
+
+        return {
+          ...rating,
+          rater,
+          createdAt: rating.createdAt?.toDate?.() || null,
+        };
+      })
+    );
 
     // Calculate average rating
-    const avgResult = await Rating.findOne({
-      where: { ratedUserId: req.params.userId },
-      attributes: [[sequelize.fn('AVG', sequelize.col('score')), 'avgRating']],
-      raw: true,
+    let totalScore = 0;
+    countSnapshot.docs.forEach(doc => {
+      totalScore += doc.data().score || 0;
     });
+    const averageRating = countSnapshot.size > 0
+      ? (totalScore / countSnapshot.size).toFixed(1)
+      : null;
 
     res.json({
-      ratings: ratings.rows,
-      total: ratings.count,
-      averageRating: avgResult?.avgRating ? parseFloat(avgResult.avgRating).toFixed(1) : null,
+      ratings,
+      total,
+      averageRating,
       limit: parseInt(limit),
       offset: parseInt(offset),
     });
@@ -70,24 +71,56 @@ router.get('/user/:userId', async (req, res) => {
 // Get rating for a specific contract
 router.get('/contract/:contractId', authenticateToken, async (req, res) => {
   try {
-    const ratings = await Rating.findAll({
-      where: { contractId: req.params.contractId },
-      include: [
-        {
-          model: User,
-          as: 'rater',
-          attributes: ['id', 'name', 'profileImage'],
-        },
-        {
-          model: User,
-          as: 'ratedUser',
-          attributes: ['id', 'name', 'profileImage'],
-        },
-      ],
-    });
+    const userId = req.user.uid;
+    const contractId = req.params.contractId;
+
+    const contractDoc = await db.collection('contracts').doc(contractId).get();
+    if (!contractDoc.exists) {
+      return res.status(404).json({ error: 'Contract not found' });
+    }
+
+    const participantIds = contractDoc.data()?.participantIds || [];
+    if (!participantIds.includes(userId)) {
+      return res.status(403).json({ error: 'Not authorized to view these ratings' });
+    }
+
+    // Query ratings from Firestore
+    const ratingsSnapshot = await db.collection('ratings')
+      .where('contractId', '==', contractId)
+      .get();
+
+    // Enrich ratings with user data
+    const ratings = await Promise.all(
+      ratingsSnapshot.docs.map(async (ratingDoc) => {
+        const rating = { id: ratingDoc.id, ...ratingDoc.data() };
+
+        // Get rater info
+        const raterDoc = await db.collection('users').doc(rating.raterId).get();
+        const rater = raterDoc.exists ? {
+          id: raterDoc.id,
+          name: raterDoc.data().name,
+          profileImage: raterDoc.data().profileImage,
+        } : null;
+
+        // Get rated user info
+        const ratedUserDoc = await db.collection('users').doc(rating.ratedUserId).get();
+        const ratedUser = ratedUserDoc.exists ? {
+          id: ratedUserDoc.id,
+          name: ratedUserDoc.data().name,
+          profileImage: ratedUserDoc.data().profileImage,
+        } : null;
+
+        return {
+          ...rating,
+          rater,
+          ratedUser,
+          createdAt: rating.createdAt?.toDate?.() || null,
+        };
+      })
+    );
 
     // Check if current user has already rated
-    const myRating = ratings.find((r) => r.raterId === req.user.id);
+    const myRating = ratings.find((r) => r.raterId === userId);
 
     res.json({
       ratings,
@@ -103,6 +136,7 @@ router.get('/contract/:contractId', authenticateToken, async (req, res) => {
 // Create a rating
 router.post('/', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user.uid;
     const { contractId, score, tags = [], comment } = req.body;
 
     if (!contractId || !score) {
@@ -113,141 +147,157 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Score must be between 1 and 5' });
     }
 
-    // Get contract with related data
-    const contract = await Contract.findByPk(contractId, {
-      include: [
-        {
-          model: Bid,
-          include: [
-            {
-              model: CargoListing,
-              include: [{ model: User, as: 'shipper' }],
-            },
-            {
-              model: TruckListing,
-              include: [{ model: User, as: 'trucker' }],
-            },
-            {
-              model: User,
-              as: 'bidder',
-            },
-          ],
-        },
-      ],
-    });
+    // Get contract from Firestore
+    const contractDoc = await db.collection('contracts').doc(contractId).get();
 
-    if (!contract) {
+    if (!contractDoc.exists) {
       return res.status(404).json({ error: 'Contract not found' });
     }
+
+    const contract = { id: contractDoc.id, ...contractDoc.data() };
 
     if (contract.status !== 'completed') {
       return res.status(400).json({ error: 'Can only rate completed contracts' });
     }
 
-    const bid = contract.Bid;
-    const listing = bid.CargoListing || bid.TruckListing;
+    // Get bid
+    const bidDoc = await db.collection('bids').doc(contract.bidId).get();
+    if (!bidDoc.exists) {
+      return res.status(404).json({ error: 'Bid not found' });
+    }
+    const bid = bidDoc.data();
+
+    // Get listing to find owner
+    const listingId = bid.cargoListingId || bid.truckListingId;
+    const listingCollection = bid.cargoListingId ? 'cargoListings' : 'truckListings';
+    const listingDoc = await db.collection(listingCollection).doc(listingId).get();
+
+    if (!listingDoc.exists) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    const listing = listingDoc.data();
     const listingOwnerId = listing.userId;
     const bidderId = bid.bidderId;
 
-    // Check user is involved
-    if (req.user.id !== listingOwnerId && req.user.id !== bidderId) {
+    // 🔒 AUTHORIZATION: Check user is involved in this contract
+    if (userId !== listingOwnerId && userId !== bidderId) {
       return res.status(403).json({ error: 'Not authorized to rate this contract' });
     }
 
     // Determine who is being rated
-    const ratedUserId = req.user.id === listingOwnerId ? bidderId : listingOwnerId;
+    const ratedUserId = userId === listingOwnerId ? bidderId : listingOwnerId;
 
     // Check if already rated
-    const existingRating = await Rating.findOne({
-      where: {
-        contractId,
-        raterId: req.user.id,
-      },
-    });
+    const existingRatingsSnapshot = await db.collection('ratings')
+      .where('contractId', '==', contractId)
+      .where('raterId', '==', userId)
+      .get();
 
-    if (existingRating) {
+    if (!existingRatingsSnapshot.empty) {
       return res.status(400).json({ error: 'You have already rated this contract' });
     }
 
-    // Create rating
-    const rating = await Rating.create({
+    // Create rating in Firestore
+    const ratingRef = db.collection('ratings').doc();
+    const ratingData = {
       contractId,
-      raterId: req.user.id,
+      raterId: userId,
       ratedUserId,
       score,
-      tags,
-      comment,
+      tags: tags || [],
+      comment: comment || '',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await ratingRef.set(ratingData);
+
+    // Get rated user's data to determine role
+    const ratedUserDoc = await db.collection('users').doc(ratedUserId).get();
+    const ratedUserData = ratedUserDoc.exists ? ratedUserDoc.data() : null;
+
+    // Calculate new average rating for rated user
+    const ratingsSnapshot = await db.collection('ratings')
+      .where('ratedUserId', '==', ratedUserId)
+      .get();
+
+    let totalScore = 0;
+    ratingsSnapshot.docs.forEach(doc => {
+      totalScore += doc.data().score || 0;
     });
+    const newRating = ratingsSnapshot.size > 0 ? totalScore / ratingsSnapshot.size : score;
 
-    // Update trucker profile rating if rated user is a trucker
-    const truckerProfile = await TruckerProfile.findOne({ where: { userId: ratedUserId } });
-    if (truckerProfile) {
-      // Calculate new average rating
-      const avgResult = await Rating.findOne({
-        where: { ratedUserId },
-        attributes: [[sequelize.fn('AVG', sequelize.col('score')), 'avgRating']],
-        raw: true,
-      });
+    // Update user profile based on role (embedded in user document)
+    if (ratedUserData) {
+      const userRef = db.collection('users').doc(ratedUserId);
 
-      const newRating = avgResult?.avgRating ? parseFloat(avgResult.avgRating) : score;
+      if (ratedUserData.role === 'trucker' && ratedUserData.truckerProfile) {
+        const truckerProfile = ratedUserData.truckerProfile;
+        const newTotalTrips = (truckerProfile.totalTrips || 0) + 1;
+        const newBadge = calculateBadge(newRating, newTotalTrips);
 
-      // Update trucker profile
-      await truckerProfile.update({
-        rating: newRating,
-        totalTrips: truckerProfile.totalTrips + 1,
-      });
-
-      // Update badge based on rating and trips
-      const newBadge = calculateBadge(newRating, truckerProfile.totalTrips + 1);
-      if (newBadge !== truckerProfile.badge) {
-        await truckerProfile.update({ badge: newBadge });
-
-        // Notify trucker of badge upgrade
-        await Notification.create({
-          userId: ratedUserId,
-          type: 'BADGE_UPGRADE',
-          title: 'Badge Upgraded!',
-          message: `Congratulations! You've earned the ${newBadge} badge!`,
-          data: { oldBadge: truckerProfile.badge, newBadge },
+        await userRef.update({
+          'truckerProfile.rating': newRating,
+          'truckerProfile.totalTrips': newTotalTrips,
+          'truckerProfile.badge': newBadge,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+
+        // Notify if badge changed
+        if (newBadge !== truckerProfile.badge) {
+          await db.collection('users').doc(ratedUserId).collection('notifications').doc().set({
+            type: 'BADGE_UPGRADE',
+            title: 'Badge Upgraded!',
+            message: `Congratulations! You've earned the ${newBadge} badge!`,
+            data: { oldBadge: truckerProfile.badge, newBadge },
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
       }
-    }
 
-    // Update shipper profile if rated user is a shipper
-    const shipperProfile = await ShipperProfile.findOne({ where: { userId: ratedUserId } });
-    if (shipperProfile) {
-      await shipperProfile.update({
-        totalTransactions: shipperProfile.totalTransactions + 1,
-      });
+      if (ratedUserData.role === 'shipper' && ratedUserData.shipperProfile) {
+        const shipperProfile = ratedUserData.shipperProfile;
+        const newTotalTransactions = (shipperProfile.totalTransactions || 0) + 1;
+        const newTier = calculateMembershipTier(newTotalTransactions);
 
-      // Update membership tier based on transactions
-      const newTier = calculateMembershipTier(shipperProfile.totalTransactions + 1);
-      if (newTier !== shipperProfile.membershipTier) {
-        await shipperProfile.update({ membershipTier: newTier });
-
-        // Notify shipper of tier upgrade
-        await Notification.create({
-          userId: ratedUserId,
-          type: 'TIER_UPGRADE',
-          title: 'Membership Tier Upgraded!',
-          message: `Congratulations! You've reached ${newTier} tier! Enjoy new benefits.`,
-          data: { oldTier: shipperProfile.membershipTier, newTier },
+        await userRef.update({
+          'shipperProfile.totalTransactions': newTotalTransactions,
+          'shipperProfile.membershipTier': newTier,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+
+        // Notify if tier changed
+        if (newTier !== shipperProfile.membershipTier) {
+          await db.collection('users').doc(ratedUserId).collection('notifications').doc().set({
+            type: 'TIER_UPGRADE',
+            title: 'Membership Tier Upgraded!',
+            message: `Congratulations! You've reached ${newTier} tier! Enjoy new benefits.`,
+            data: { oldTier: shipperProfile.membershipTier, newTier },
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
       }
     }
 
     // Notify the rated user
-    await Notification.create({
-      userId: ratedUserId,
+    await db.collection('users').doc(ratedUserId).collection('notifications').doc().set({
       type: 'RATING_REQUEST',
       title: 'New Rating Received',
       message: `You received a ${score}-star rating for contract #${contract.contractNumber}`,
-      data: { contractId, ratingId: rating.id, score },
+      data: { contractId, ratingId: ratingRef.id, score },
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     res.status(201).json({
       message: 'Rating submitted successfully',
-      rating,
+      rating: {
+        id: ratingRef.id,
+        ...ratingData,
+        createdAt: new Date(),
+      },
     });
   } catch (error) {
     console.error('Create rating error:', error);
@@ -258,20 +308,52 @@ router.post('/', authenticateToken, async (req, res) => {
 // Get my given ratings
 router.get('/my-ratings', authenticateToken, async (req, res) => {
   try {
-    const ratings = await Rating.findAll({
-      where: { raterId: req.user.id },
-      include: [
-        {
-          model: User,
-          as: 'ratedUser',
-          attributes: ['id', 'name', 'profileImage'],
-        },
-        {
-          model: Contract,
-          attributes: ['id', 'contractNumber'],
-        },
-      ],
-      order: [['createdAt', 'DESC']],
+    const userId = req.user.uid;
+
+    // Query ratings from Firestore
+    const ratingsSnapshot = await db.collection('ratings')
+      .where('raterId', '==', userId)
+      .get();
+
+    // Enrich ratings with rated user and contract data
+    const ratings = await Promise.all(
+      ratingsSnapshot.docs.map(async (ratingDoc) => {
+        const rating = { id: ratingDoc.id, ...ratingDoc.data() };
+
+        // Get rated user info
+        const ratedUserDoc = await db.collection('users').doc(rating.ratedUserId).get();
+        const ratedUser = ratedUserDoc.exists ? {
+          id: ratedUserDoc.id,
+          name: ratedUserDoc.data().name,
+          profileImage: ratedUserDoc.data().profileImage,
+        } : null;
+
+        // Get contract info
+        let contract = null;
+        if (rating.contractId) {
+          const contractDoc = await db.collection('contracts').doc(rating.contractId).get();
+          if (contractDoc.exists) {
+            contract = {
+              id: contractDoc.id,
+              contractNumber: contractDoc.data().contractNumber,
+            };
+          }
+        }
+
+        return {
+          ...rating,
+          ratedUser,
+          Contract: contract,
+          createdAt: rating.createdAt?.toDate?.() || null,
+        };
+      })
+    );
+
+    // Sort by createdAt descending
+    ratings.sort((a, b) => {
+      const dateA = a.createdAt || new Date(0);
+      const dateB = b.createdAt || new Date(0);
+      return dateB - dateA;
     });
 
     res.json({ ratings });
@@ -284,82 +366,72 @@ router.get('/my-ratings', authenticateToken, async (req, res) => {
 // Get pending ratings (contracts I need to rate)
 router.get('/pending', authenticateToken, async (req, res) => {
   try {
-    // Get completed contracts where user is involved
-    const contracts = await Contract.findAll({
-      where: { status: 'completed' },
-      include: [
-        {
-          model: Bid,
-          include: [
-            {
-              model: CargoListing,
-              include: [
-                {
-                  model: User,
-                  as: 'shipper',
-                  attributes: ['id', 'name', 'profileImage'],
-                },
-              ],
-            },
-            {
-              model: TruckListing,
-              include: [
-                {
-                  model: User,
-                  as: 'trucker',
-                  attributes: ['id', 'name', 'profileImage'],
-                },
-              ],
-            },
-            {
-              model: User,
-              as: 'bidder',
-              attributes: ['id', 'name', 'profileImage'],
-            },
-          ],
-        },
-        {
-          model: Rating,
-          as: 'ratings',
-        },
-      ],
-      order: [['updatedAt', 'DESC']],
+    const userId = req.user.uid;
+
+    // Get completed contracts from Firestore
+    const contractsSnapshot = await db.collection('contracts')
+      .where('status', '==', 'completed')
+      .get();
+
+    // Process each contract to check if user is involved and hasn't rated
+    const pendingRatings = [];
+
+    for (const contractDoc of contractsSnapshot.docs) {
+      const contract = { id: contractDoc.id, ...contractDoc.data() };
+
+      // Get bid
+      const bidDoc = await db.collection('bids').doc(contract.bidId).get();
+      if (!bidDoc.exists) continue;
+      const bid = bidDoc.data();
+
+      // Get listing
+      const listingId = bid.cargoListingId || bid.truckListingId;
+      const listingCollection = bid.cargoListingId ? 'cargoListings' : 'truckListings';
+      if (!listingId) continue;
+
+      const listingDoc = await db.collection(listingCollection).doc(listingId).get();
+      if (!listingDoc.exists) continue;
+      const listing = listingDoc.data();
+
+      // Check if user is involved
+      const isInvolved = bid.bidderId === userId || listing.userId === userId;
+      if (!isInvolved) continue;
+
+      // Check if user has already rated this contract
+      const ratingsSnapshot = await db.collection('ratings')
+        .where('contractId', '==', contract.id)
+        .where('raterId', '==', userId)
+        .get();
+
+      const hasRated = !ratingsSnapshot.empty;
+      if (hasRated) continue;
+
+      // Determine the other user
+      const otherUserId = listing.userId === userId ? bid.bidderId : listing.userId;
+      const otherUserDoc = await db.collection('users').doc(otherUserId).get();
+      const otherUser = otherUserDoc.exists ? {
+        id: otherUserDoc.id,
+        name: otherUserDoc.data().name,
+        profileImage: otherUserDoc.data().profileImage,
+      } : null;
+
+      pendingRatings.push({
+        contractId: contract.id,
+        contractNumber: contract.contractNumber,
+        route: `${listing.origin} → ${listing.destination}`,
+        otherUser,
+        completedAt: contract.updatedAt?.toDate?.() || null,
+      });
+    }
+
+    // Sort by completedAt descending
+    pendingRatings.sort((a, b) => {
+      const dateA = a.completedAt || new Date(0);
+      const dateB = b.completedAt || new Date(0);
+      return dateB - dateA;
     });
 
-    // Filter to contracts user is involved in and hasn't rated yet
-    const pendingRatings = contracts.filter((contract) => {
-      const bid = contract.Bid;
-      if (!bid) return false;
-
-      const listing = bid.CargoListing || bid.TruckListing;
-      const isInvolved = bid.bidderId === req.user.id || listing.userId === req.user.id;
-      if (!isInvolved) return false;
-
-      // Check if user has already rated
-      const hasRated = contract.ratings?.some((r) => r.raterId === req.user.id);
-      return !hasRated;
-    });
-
-    res.json({
-      pendingRatings: pendingRatings.map((contract) => {
-        const bid = contract.Bid;
-        const listing = bid.CargoListing || bid.TruckListing;
-        const otherUser =
-          listing.userId === req.user.id
-            ? bid.bidder
-            : bid.CargoListing?.shipper || bid.TruckListing?.trucker;
-
-        return {
-          contractId: contract.id,
-          contractNumber: contract.contractNumber,
-          route: `${listing.origin} → ${listing.destination}`,
-          otherUser: otherUser
-            ? { id: otherUser.id, name: otherUser.name, profileImage: otherUser.profileImage }
-            : null,
-          completedAt: contract.updatedAt,
-        };
-      }),
-    });
+    res.json({ pendingRatings });
   } catch (error) {
     console.error('Get pending ratings error:', error);
     res.status(500).json({ error: 'Failed to get pending ratings' });

@@ -7,6 +7,7 @@ import {
   DialogBottomSheet,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -174,9 +175,9 @@ export function CargoDetailsModal({
               </div>
               <div>
                 <DialogTitle style={{ fontSize: isMobile ? '16px' : '20px' }}>Cargo Details</DialogTitle>
-                <p style={{ fontSize: isMobile ? '11px' : '14px', color: '#6b7280' }}>
+                <DialogDescription style={{ fontSize: isMobile ? '11px' : '14px', color: '#6b7280' }}>
                   Posted {formatTimeAgo(cargo.postedAt)}
-                </p>
+                </DialogDescription>
               </div>
             </div>
             {isOwner && (

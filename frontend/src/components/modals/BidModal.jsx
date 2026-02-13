@@ -20,6 +20,7 @@ export function BidModal({
   listing,
   currentRole = 'trucker',
   onSubmit,
+  isSuspended = false,
   loading = false,
 }) {
   const [bidAmount, setBidAmount] = useState('');
@@ -69,8 +70,9 @@ export function BidModal({
 
   if (!listing) return null;
 
-  // Prevent bidding on non-open listings
-  const canPlaceBid = listing.status === 'open' || listing.status === 'waiting' || listing.status === 'available';
+  // Prevent bidding on non-open listings and suspended accounts
+  const listingAllowsBid = listing.status === 'open' || listing.status === 'waiting' || listing.status === 'available';
+  const canPlaceBid = listingAllowsBid && !isSuspended;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -113,7 +115,7 @@ export function BidModal({
           </DialogHeader>
 
           {/* Warning Banner for Non-Open Listings */}
-          {!canPlaceBid && (
+          {!listingAllowsBid && (
             <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
               <div className="rounded-lg bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-2 border-red-200 dark:border-red-800" style={{ padding: isMobile ? '12px' : '16px' }}>
                 <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#b91c1c' }} className="dark:text-red-400">
@@ -121,6 +123,16 @@ export function BidModal({
                 </p>
                 <p style={{ fontSize: isMobile ? '10px' : '11px', marginTop: '4px', color: '#dc2626' }} className="dark:text-red-500">
                   Status: {listing.status?.toUpperCase()}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {isSuspended && (
+            <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+              <div className="rounded-lg bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-2 border-red-200 dark:border-red-800" style={{ padding: isMobile ? '12px' : '16px' }}>
+                <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#b91c1c' }} className="dark:text-red-400">
+                  Account suspended. Pay outstanding fees to resume bidding.
                 </p>
               </div>
             </div>
@@ -304,7 +316,7 @@ export function BidModal({
             disabled={loading || !canPlaceBid}
             className="flex-1"
           >
-            {loading ? 'Submitting...' : !canPlaceBid ? 'Bidding Closed' : `Submit ${isCargo ? 'Bid' : 'Offer'}`}
+            {loading ? 'Submitting...' : isSuspended ? 'Account Suspended' : !listingAllowsBid ? 'Bidding Closed' : `Submit ${isCargo ? 'Bid' : 'Offer'}`}
           </Button>
         </div>
       </DialogBottomSheet>

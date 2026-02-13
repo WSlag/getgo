@@ -9,7 +9,6 @@ import {
   AlertCircle,
   Loader2,
   MapPin,
-  Package,
   Truck,
   Calendar,
   PenTool,
@@ -136,7 +135,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
   }, [contracts]);
 
   const formatPrice = (price) => {
-    if (!price) return '---';
+    if (price === null || price === undefined) return '---';
     return `₱${Number(price).toLocaleString()}`;
   };
 
@@ -172,6 +171,44 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
       return '---';
     }
   };
+
+  const toMillis = (value) => {
+    if (!value) return 0;
+    if (value.toDate && typeof value.toDate === 'function') return value.toDate().getTime();
+    if (value.seconds) return value.seconds * 1000;
+    const parsed = new Date(value).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const feeLedgerRows = useMemo(() => {
+    return [...contracts]
+      .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
+      .map((contract) => ({
+        id: contract.id,
+        contractNumber: contract.contractNumber,
+        route: `${contract.pickupCity || contract.pickupAddress || '---'} → ${contract.deliveryCity || contract.deliveryAddress || '---'}`,
+        amount: Number(contract.platformFee || 0),
+        paid: contract.platformFeePaid === true,
+        status: contract.platformFeePaid ? 'paid' : (contract.platformFeeStatus || 'outstanding'),
+        dueDate: contract.platformFeeDueDate,
+        paidAt: contract.platformFeePaidAt,
+        createdAt: contract.createdAt,
+      }));
+  }, [contracts]);
+
+  const feeLedgerSummary = useMemo(() => {
+    const totalFees = feeLedgerRows.reduce((sum, row) => sum + row.amount, 0);
+    const totalOutstanding = feeLedgerRows
+      .filter((row) => !row.paid)
+      .reduce((sum, row) => sum + row.amount, 0);
+    const totalPaid = totalFees - totalOutstanding;
+    return {
+      totalFees,
+      totalOutstanding,
+      totalPaid,
+      rows: feeLedgerRows.length,
+    };
+  }, [feeLedgerRows]);
 
   const getSignatureStatus = (contract) => {
     const isCargo = contract.listingType === 'cargo';
@@ -275,6 +312,77 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
           ))}
         </div>
       </div>
+
+      {/* Platform Fee Ledger */}
+      {feeLedgerRows.length > 0 && (
+        <div
+          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+          style={{ marginBottom: isMobile ? '16px' : '20px', padding: isMobile ? '14px' : '16px' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <PesoIcon className="size-4 text-orange-500" />
+              <h3 style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: '700', color: darkMode ? '#fff' : '#111827' }}>
+                Platform Fee Ledger
+              </h3>
+            </div>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{feeLedgerSummary.rows} contracts</span>
+          </div>
+
+          <div className="grid grid-cols-3" style={{ gap: '8px', marginBottom: '12px' }}>
+            <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50" style={{ padding: '8px 10px' }}>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">Total Fees</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatPrice(feeLedgerSummary.totalFees)}</p>
+            </div>
+            <div className="rounded-lg bg-green-50 dark:bg-green-900/20" style={{ padding: '8px 10px' }}>
+              <p className="text-[11px] text-green-700 dark:text-green-300">Paid</p>
+              <p className="text-sm font-semibold text-green-700 dark:text-green-300">{formatPrice(feeLedgerSummary.totalPaid)}</p>
+            </div>
+            <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20" style={{ padding: '8px 10px' }}>
+              <p className="text-[11px] text-orange-700 dark:text-orange-300">Outstanding</p>
+              <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">{formatPrice(feeLedgerSummary.totalOutstanding)}</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gap: '8px' }}>
+            {feeLedgerRows.slice(0, 8).map((row) => (
+              <div
+                key={row.id}
+                onClick={() => onOpenContract?.(row.id)}
+                className="rounded-lg border border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 cursor-pointer"
+                style={{ padding: '10px 12px' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">#{row.contractNumber || '---'}</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">{formatPrice(row.amount)}</p>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {row.route}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                  <span
+                    className={cn(
+                      'text-[11px] px-2 py-0.5 rounded-full font-medium',
+                      row.status === 'paid' && 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+                      row.status === 'overdue' && 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+                      row.status !== 'paid' && row.status !== 'overdue' && 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                    )}
+                  >
+                    {row.status === 'paid' ? 'Paid' : row.status === 'overdue' ? 'Overdue' : 'Outstanding'}
+                  </span>
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                    {row.status === 'paid'
+                      ? `Paid ${formatDate(row.paidAt)}`
+                      : row.dueDate
+                      ? `Due ${formatDate(row.dueDate)}`
+                      : `Created ${formatDate(row.createdAt)}`}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Contracts List */}
       {loading ? (
@@ -515,3 +623,4 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
 }
 
 export default ContractsView;
+

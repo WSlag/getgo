@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 
 export function HomeView({
   activeMarket = 'cargo',
+  isGuestPreview = false,
   onMarketChange,
   cargoListings = [],
   truckListings = [],
@@ -33,6 +34,7 @@ export function HomeView({
 }) {
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
+  const isAccountSuspended = currentUser?.accountStatus === 'suspended' || currentUser?.isActive === false;
 
   // Detect mobile screen for compact cards
   const isMobile = useMediaQuery('(max-width: 1023px)');
@@ -53,7 +55,7 @@ export function HomeView({
   return (
     <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '20px' : '24px', paddingBottom: isMobile ? '100px' : '24px' }}>
       {/* Suspension Banner */}
-      {currentUser?.accountStatus === 'suspended' && (
+      {isAccountSuspended && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white p-3">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -61,7 +63,7 @@ export function HomeView({
               <div className="min-w-0">
                 <p className="font-semibold text-sm">Account Suspended</p>
                 <p className="text-xs opacity-90 truncate">
-                  Outstanding fees: ₱{(currentUser.outstandingPlatformFees || 0).toLocaleString()}
+                  Outstanding fees: ₱{(currentUser.outstandingPlatformFees || currentUser.outstandingFees || 0).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -135,6 +137,20 @@ export function HomeView({
           )}
         </div>
       </div>
+
+      {isGuestPreview && (
+        <div
+          className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-100"
+          style={{ padding: isMobile ? '10px 12px' : '12px 16px', marginBottom: isMobile ? '16px' : '20px' }}
+        >
+          <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '600' }}>
+            Guest Preview Mode
+          </p>
+          <p style={{ fontSize: isMobile ? '11px' : '12px', opacity: 0.9 }}>
+            Showing anonymized sample listings to preview marketplace activity. Sign in to unlock full details and live transactions.
+          </p>
+        </div>
+      )}
 
       {/* Shipment Tracking Section */}
       {activeShipments && activeShipments.length > 0 && (
@@ -534,7 +550,7 @@ export function HomeView({
                   onBid={() => onBidCargo?.(cargo)}
                   onContact={() => onContactShipper?.(cargo)}
                   onViewMap={() => onViewMap?.(cargo)}
-                  canBid={currentRole === 'trucker' && (cargo.status === 'open' || cargo.status === 'waiting')}
+                  canBid={currentRole === 'trucker' && !isAccountSuspended && (cargo.status === 'open' || cargo.status === 'waiting')}
                   isOwner={currentUserId && (cargo.shipperId === currentUserId || cargo.userId === currentUserId)}
                   darkMode={darkMode}
                 />
@@ -548,7 +564,7 @@ export function HomeView({
                   onBook={() => onBookTruck?.(truck)}
                   onContact={() => onContactTrucker?.(truck)}
                   onViewMap={() => onViewMap?.(truck)}
-                  canBook={currentRole === 'shipper' && (truck.status === 'open' || truck.status === 'waiting')}
+                  canBook={currentRole === 'shipper' && !isAccountSuspended && ['open', 'waiting', 'available', 'in-transit'].includes(truck.status)}
                   isOwner={currentUserId && (truck.truckerId === currentUserId || truck.userId === currentUserId)}
                   darkMode={darkMode}
                 />
