@@ -32,6 +32,16 @@ import {
 import api from '@/services/api';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
+const normalizePaymentStats = (raw) => {
+  const stats = raw?.stats || raw || {};
+  return {
+    pendingReview: Number(stats.pendingReview || 0),
+    approved: Number(stats.approved || stats.approvedToday || 0),
+    rejected: Number(stats.rejected || stats.rejectedToday || 0),
+    totalAmountToday: Number(stats.totalAmountToday || 0),
+  };
+};
+
 // Status badge component
 function StatusBadge({ status }) {
   const config = {
@@ -485,7 +495,7 @@ export function AdminPaymentsView({ darkMode = false, className, onVerifyContrac
   const fetchStats = async () => {
     try {
       const data = await api.admin.getPaymentStats();
-      setStats(data);
+      setStats(normalizePaymentStats(data));
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
@@ -566,7 +576,10 @@ export function AdminPaymentsView({ darkMode = false, className, onVerifyContrac
   return (
     <main
       className={cn('flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto', className)}
-      style={{ padding: isMobile ? '16px 14px' : '32px' }}
+      style={{
+        padding: isMobile ? '16px 14px' : '32px',
+        paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '32px',
+      }}
     >
       {/* Header */}
       <div
@@ -633,7 +646,7 @@ export function AdminPaymentsView({ darkMode = false, className, onVerifyContrac
                 <p className={cn(
                   "font-bold text-gray-900 dark:text-white",
                   isMobile ? "text-lg" : "text-2xl"
-                )}>{stats.stats?.pendingReview || 0}</p>
+                )}>{stats.pendingReview || 0}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Pending</p>
               </div>
             </div>
@@ -654,7 +667,7 @@ export function AdminPaymentsView({ darkMode = false, className, onVerifyContrac
                 <p className={cn(
                   "font-bold text-gray-900 dark:text-white",
                   isMobile ? "text-lg" : "text-2xl"
-                )}>{stats.stats?.approvedToday || 0}</p>
+                )}>{stats.approved || 0}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Approved</p>
               </div>
             </div>
@@ -675,7 +688,7 @@ export function AdminPaymentsView({ darkMode = false, className, onVerifyContrac
                 <p className={cn(
                   "font-bold text-gray-900 dark:text-white",
                   isMobile ? "text-lg" : "text-2xl"
-                )}>{stats.stats?.rejectedToday || 0}</p>
+                )}>{stats.rejected || 0}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Rejected</p>
               </div>
             </div>
@@ -697,7 +710,7 @@ export function AdminPaymentsView({ darkMode = false, className, onVerifyContrac
                   "font-bold text-gray-900 dark:text-white",
                   isMobile ? "text-base" : "text-2xl"
                 )}>
-                  {isMobile ? '₱' : 'PHP '}{formatPrice(stats.stats?.totalAmountToday || 0)}
+                  PHP {formatPrice(stats.totalAmountToday || 0)}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Today</p>
               </div>
@@ -793,7 +806,7 @@ export function AdminPaymentsView({ darkMode = false, className, onVerifyContrac
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <p className="font-semibold text-gray-900 dark:text-white">
-                    ₱{formatPrice(submission.orderAmount)}
+                    PHP {formatPrice(submission.orderAmount)}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
                     {submission.extractedData?.referenceNumber || submission.orderId?.slice(0, 12) + '...'}

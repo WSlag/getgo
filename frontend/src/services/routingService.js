@@ -109,7 +109,10 @@ export const fetchRoute = async (origin, destination) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error('OpenRouteService error:', errorData);
+      // Only log non-404 errors (404s are expected for invalid routes/API issues)
+      if (response.status !== 404) {
+        console.error('OpenRouteService error:', errorData);
+      }
       return getFallbackRoute(origin, destination);
     }
 

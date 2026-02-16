@@ -1,14 +1,15 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
   memoryLocalCache,
+  connectFirestoreEmulator,
 } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
-import { getFunctions } from 'firebase/functions';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDK0-bmmPsuScseGdhN4wj71knEEeicpGs",
@@ -23,10 +24,17 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
+// Detect emulator mode from environment variable
+const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+
 // Initialize services
 export const auth = getAuth(app);
 export const db = (() => {
   try {
+    // Use memory cache in emulator mode to avoid persistence conflicts
+    if (useEmulator) {
+      return initializeFirestore(app, { localCache: memoryLocalCache() });
+    }
     return initializeFirestore(app, {
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager(),
@@ -40,12 +48,26 @@ export const db = (() => {
 export const storage = getStorage(app);
 export const functions = getFunctions(app, 'asia-southeast1');
 
+// Connect to Firebase Emulators if in test mode
+if (useEmulator) {
+  const emulatorHost = import.meta.env.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
+
+  console.log('🧪 Connecting to Firebase Emulators...');
+
+  connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
+  connectFirestoreEmulator(db, emulatorHost, 8080);
+  connectFunctionsEmulator(functions, emulatorHost, 5001);
+  connectStorageEmulator(storage, emulatorHost, 9199);
+
+  console.log('✅ Connected to Firebase Emulators');
+}
+
 // Intentionally do not expose admin bootstrap callables on window.
 // First-admin initialization must be done through secure operational tooling.
 
-// Initialize Analytics (only in browser)
+// Initialize Analytics (only in browser and not in test mode)
 let analytics = null;
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && !useEmulator) {
   analytics = getAnalytics(app);
 }
 export { analytics };

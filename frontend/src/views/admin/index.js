@@ -8,5 +8,6 @@ export { PaymentsView } from './PaymentsView';
 export { FinancialOverview } from './FinancialOverview';
 export { DisputesManagement } from './DisputesManagement';
 export { ReferralManagement } from './ReferralManagement';
+export { BrokerPayoutsView } from './BrokerPayoutsView';
 export { RatingsManagement } from './RatingsManagement';
 export { SystemSettings } from './SystemSettings';

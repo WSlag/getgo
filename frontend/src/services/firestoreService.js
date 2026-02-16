@@ -349,7 +349,9 @@ export const sendChatMessage = async (bidId, senderId, senderName, message, reci
   batch.set(messageRef, {
     senderId,
     senderName,
+    recipientId: recipientId || null,
     message,
+    read: false,
     isRead: false,
     createdAt: serverTimestamp()
   });
@@ -374,16 +376,15 @@ export const sendChatMessage = async (bidId, senderId, senderName, message, reci
 };
 
 export const markMessagesRead = async (bidId, userId) => {
-  const messagesQuery = query(
-    collection(db, 'bids', bidId, 'messages'),
-    where('senderId', '!=', userId),
-    where('isRead', '==', false)
-  );
+  const messagesQuery = query(collection(db, 'bids', bidId, 'messages'));
   const snap = await getDocs(messagesQuery);
 
   const batch = writeBatch(db);
   snap.forEach((docSnap) => {
-    batch.update(docSnap.ref, { isRead: true });
+    const message = docSnap.data();
+    if (message.senderId !== userId && !(message.isRead === true || message.read === true)) {
+      batch.update(docSnap.ref, { isRead: true, read: true });
+    }
   });
   await batch.commit();
 };
@@ -518,7 +519,7 @@ export const createNotification = async (userId, data) => {
 
 export const markNotificationRead = async (userId, notificationId) => {
   const notifRef = doc(db, 'users', userId, 'notifications', notificationId);
-  await updateDoc(notifRef, { isRead: true });
+  await updateDoc(notifRef, { isRead: true, read: true });
 };
 
 export const markAllNotificationsRead = async (userId) => {
@@ -530,7 +531,7 @@ export const markAllNotificationsRead = async (userId) => {
 
   const batch = writeBatch(db);
   snap.forEach((docSnap) => {
-    batch.update(docSnap.ref, { isRead: true });
+    batch.update(docSnap.ref, { isRead: true, read: true });
   });
   await batch.commit();
 };

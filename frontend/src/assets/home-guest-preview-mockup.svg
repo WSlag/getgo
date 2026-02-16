@@ -47,7 +47,7 @@
   <!-- Sidebar -->
   <rect x="56" y="146" width="280" height="786" rx="20" fill="#FFFFFF" stroke="#E2E8F0" filter="url(#softShadow)"/>
   <text x="84" y="182" fill="#0F172A" font-family="Poppins, Arial, sans-serif" font-size="16" font-weight="700">Marketplace Pulse</text>
-  <text x="84" y="202" fill="#64748B" font-family="Poppins, Arial, sans-serif" font-size="12">Anonymized activity for guest preview</text>
+  <text x="84" y="202" fill="#64748B" font-family="Poppins, Arial, sans-serif" font-size="12">Real-time market activity snapshot</text>
 
   <rect x="84" y="222" width="108" height="40" rx="12" fill="url(#orangeGrad)"/>
   <text x="138" y="247" text-anchor="middle" fill="#FFFFFF" font-family="Poppins, Arial, sans-serif" font-size="13" font-weight="600">Cargo</text>
@@ -70,10 +70,10 @@
   <text x="290" y="555" text-anchor="end" fill="#EA580C" font-family="Poppins, Arial, sans-serif" font-size="13" font-weight="600">Updated now</text>
 
   <rect x="84" y="616" width="224" height="126" rx="14" fill="#FFFBEB" stroke="#FCD34D"/>
-  <text x="102" y="642" fill="#92400E" font-family="Poppins, Arial, sans-serif" font-size="11" font-weight="700">GUEST PREVIEW</text>
-  <text x="102" y="664" fill="#78350F" font-family="Poppins, Arial, sans-serif" font-size="13">Listings are anonymized.</text>
-  <text x="102" y="684" fill="#78350F" font-family="Poppins, Arial, sans-serif" font-size="13">Tap any action to sign up</text>
-  <text x="102" y="704" fill="#78350F" font-family="Poppins, Arial, sans-serif" font-size="13">and access full details.</text>
+  <text x="102" y="642" fill="#92400E" font-family="Poppins, Arial, sans-serif" font-size="11" font-weight="700">START SHIPPING</text>
+  <text x="102" y="664" fill="#78350F" font-family="Poppins, Arial, sans-serif" font-size="13">Compare routes and pricing.</text>
+  <text x="102" y="684" fill="#78350F" font-family="Poppins, Arial, sans-serif" font-size="13">Create your account to start</text>
+  <text x="102" y="704" fill="#78350F" font-family="Poppins, Arial, sans-serif" font-size="13">posting, bidding, and booking.</text>
   <rect x="102" y="716" width="188" height="34" rx="10" fill="url(#orangeGrad)"/>
   <text x="196" y="738" text-anchor="middle" fill="#FFFFFF" font-family="Poppins, Arial, sans-serif" font-size="13" font-weight="600">Create Free Account</text>
 
@@ -92,13 +92,13 @@
   <text x="1379" y="201" text-anchor="middle" fill="#475569" font-family="Poppins, Arial, sans-serif" font-size="13">In Transit</text>
 
   <rect x="382" y="236" width="1136" height="84" rx="14" fill="#ECFEFF" stroke="#A5F3FC"/>
-  <text x="404" y="264" fill="#0F766E" font-family="Poppins, Arial, sans-serif" font-size="14" font-weight="700">Guest Preview Mode: 2,220 anonymized listings displayed</text>
+  <text x="404" y="264" fill="#0F766E" font-family="Poppins, Arial, sans-serif" font-size="14" font-weight="700">Marketplace Live Feed: 2,220 active listings displayed</text>
   <text x="404" y="285" fill="#155E75" font-family="Poppins, Arial, sans-serif" font-size="12">You can browse routes and prices instantly. Action clicks prompt secure sign-up.</text>
   <rect x="1320" y="252" width="176" height="50" rx="12" fill="url(#orangeGrad)"/>
   <text x="1408" y="283" text-anchor="middle" fill="#FFFFFF" font-family="Poppins, Arial, sans-serif" font-size="13" font-weight="600">Unlock Marketplace</text>
 
   <text x="382" y="354" fill="#0F172A" font-family="Poppins, Arial, sans-serif" font-size="24" font-weight="700">Available Cargo</text>
-  <text x="382" y="377" fill="#64748B" font-family="Poppins, Arial, sans-serif" font-size="13">1,280 active anonymized cargo offers</text>
+  <text x="382" y="377" fill="#64748B" font-family="Poppins, Arial, sans-serif" font-size="13">1,280 active cargo offers</text>
 
   <!-- Card row 1 -->
   <rect x="382" y="392" width="360" height="236" rx="16" fill="#FFFFFF" stroke="#E2E8F0"/>

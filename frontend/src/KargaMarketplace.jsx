@@ -12,6 +12,7 @@ import { useChat } from './hooks/useChat';
 import { useNotifications } from './hooks/useNotifications';
 import { useShipments } from './hooks/useShipments';
 import * as firestoreService from './services/firestoreService';
+import api from './services/api';
 import { getCoordinates, cityCoordinates } from './utils/cityCoordinates';
 import { maskContact, calculateDistance, estimateFuelCost, optimizeRoute, findBackloadMatches, calculateFuelSavings, estimateDuration, calculateRouteEfficiency } from './utils/calculations';
 import { PLATFORM_FEE_RATE, MINIMUM_WALLET_BALANCE, paymentMethods, shipperTiers, getShipperTier, getTruckerBadge, brokerTiers, notificationTypes } from './utils/constants';
@@ -377,8 +378,7 @@ export default function KargaMarketplace() {
   // Register as broker - Firebase version
   const registerAsBroker = async () => {
     if (!authUser) return;
-    const code = firestoreService.generateReferralCode(userRole);
-    await firestoreService.createBrokerProfile(authUser.uid, code);
+    await api.broker.register();
     setEarningsTab('dashboard');
   };
 

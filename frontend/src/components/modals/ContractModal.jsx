@@ -98,7 +98,7 @@ export function ContractModal({
 
   const formatPrice = (price) => {
     if (!price) return '---';
-    return `₱${Number(price).toLocaleString()}`;
+    return `PHP ${Number(price).toLocaleString()}`;
   };
 
   const formatDate = (dateStr) => {
@@ -146,7 +146,6 @@ export function ContractModal({
   };
 
   const statusStyles = {
-    pending_payment: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
     draft: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
     signed: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
     in_transit: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -184,7 +183,8 @@ export function ContractModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" style={{ padding: isMobile ? '16px 24px' : undefined }}>
+      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm">
+        <div style={{ padding: isMobile ? '16px' : '24px' }}>
         <DialogHeader>
           <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
             <div style={{
@@ -209,96 +209,47 @@ export function ContractModal({
         </DialogHeader>
 
         {/* Status Badge */}
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
-          <Badge className={cn("uppercase tracking-wide", statusStyles[contract.status])} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '9px' : '11px' }}>
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px', marginTop: isMobile ? '12px' : '16px' }}>
+          <Badge className={cn("uppercase tracking-wide", statusStyles[contract.status])} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
             {contract.status?.replace('_', ' ')}
           </Badge>
           <div className="text-right">
-            <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Contract Value</p>
+            <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Contract Value</p>
             <p style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 'bold', color: '#10b981' }}>
               {formatPrice(contract.agreedPrice)}
             </p>
           </div>
         </div>
 
-        {/* Pending Payment Banner */}
-        {contract.status === 'pending_payment' && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
-            {isTrucker ? (
-              // Trucker view: show payment button
-              <div className="rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-900/20 border-2 border-orange-300 dark:border-orange-700" style={{ padding: isMobile ? '14px' : '16px' }}>
-                <div className="flex items-start" style={{ gap: isMobile ? '10px' : '12px' }}>
-                  <div className="rounded-full bg-orange-500" style={{ padding: isMobile ? '8px' : '10px' }}>
-                    <AlertCircle style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#fff' }} />
-                  </div>
-                  <div className="flex-1">
-                    <h4 style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 'bold', color: '#ea580c', marginBottom: isMobile ? '4px' : '6px' }}>
-                      Platform Fee Payment Required
-                    </h4>
-                    <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#9a3412', lineHeight: '1.5', marginBottom: isMobile ? '10px' : '12px' }}>
-                      To activate this contract and proceed with signing, please pay the 5% platform service fee of <strong>{formatPrice(contract.platformFee)}</strong>.
-                    </p>
-                    <Button
-                      variant="default"
-                      size={isMobile ? "sm" : "default"}
-                      onClick={() => onPayPlatformFee?.({ contractId: contract.id, bidId: contract.bidId, platformFee: contract.platformFee })}
-                      className="gap-2 bg-orange-600 hover:bg-orange-700"
-                    >
-                      <PesoIcon className="size-4" />
-                      Pay Platform Fee ({formatPrice(contract.platformFee)})
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              // Shipper view: show waiting message
-              <div className="rounded-xl bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/30 dark:to-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-700" style={{ padding: isMobile ? '14px' : '16px' }}>
-                <div className="flex items-start" style={{ gap: isMobile ? '10px' : '12px' }}>
-                  <div className="rounded-full bg-yellow-500" style={{ padding: isMobile ? '8px' : '10px' }}>
-                    <Clock style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#fff' }} />
-                  </div>
-                  <div className="flex-1">
-                    <h4 style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 'bold', color: '#d97706', marginBottom: isMobile ? '4px' : '6px' }}>
-                      Awaiting Platform Fee Payment
-                    </h4>
-                    <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#92400e', lineHeight: '1.5' }}>
-                      Waiting for {truckerInfo?.name || 'the trucker'} to pay the platform fee of <strong>{formatPrice(contract.platformFee)}</strong>. You'll be notified when the contract is ready for signing.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Route Info */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
-          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }} className="flex items-center" style={{ gap: '6px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }} className="flex items-center gap-1.5">
             <MapPin style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} /> Route Information
           </h4>
           <div className="flex items-center rounded-xl bg-gray-100 dark:bg-gray-800/60" style={{ gap: isMobile ? '8px' : '12px', padding: isMobile ? '10px' : '12px' }}>
             <div className="flex items-center flex-1" style={{ gap: isMobile ? '6px' : '8px', minWidth: 0 }}>
               <MapPin style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#10b981', flexShrink: 0 }} />
               <div className="flex-1" style={{ minWidth: 0 }}>
-                <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Pickup</p>
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Pickup</p>
                 <span style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {contract.pickupAddress || listing?.origin}
                 </span>
                 {contract.pickupStreetAddress && (
-                  <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280', marginTop: '2px' }}>{contract.pickupCity}</p>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: '2px' }}>{contract.pickupCity}</p>
                 )}
               </div>
             </div>
-            <span style={{ fontSize: isMobile ? '14px' : '16px', color: '#9ca3af', flexShrink: 0 }}>→</span>
+            <span style={{ fontSize: isMobile ? '14px' : '16px', color: '#9ca3af', flexShrink: 0 }}>{'->'}</span>
             <div className="flex items-center flex-1" style={{ gap: isMobile ? '6px' : '8px', minWidth: 0 }}>
               <MapPin style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#ef4444', flexShrink: 0 }} />
               <div className="flex-1" style={{ minWidth: 0 }}>
-                <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Delivery</p>
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Delivery</p>
                 <span style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {contract.deliveryAddress || listing?.destination}
                 </span>
                 {contract.deliveryStreetAddress && (
-                  <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280', marginTop: '2px' }}>{contract.deliveryCity}</p>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: '2px' }}>{contract.deliveryCity}</p>
                 )}
               </div>
             </div>
@@ -315,27 +266,27 @@ export function ContractModal({
         </div>
 
         {/* Cargo Details */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
-          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }} className="flex items-center" style={{ gap: '6px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }} className="flex items-center gap-1.5">
             <Package style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} /> Cargo Information
           </h4>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '8px' : '12px' }}>
             <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
-              <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Cargo Type</p>
+              <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Cargo Type</p>
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{contract.cargoType || listing?.cargoType || 'General'}</p>
             </div>
             <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
-              <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Weight</p>
+              <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Weight</p>
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>
                 {contract.cargoWeight || listing?.weight || '---'} {contract.cargoWeightUnit || listing?.weightUnit || 'tons'}
               </p>
             </div>
             <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
-              <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Vehicle Type</p>
+              <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Vehicle Type</p>
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{contract.vehicleType || listing?.vehicleNeeded || listing?.vehicleType || '---'}</p>
             </div>
             <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20" style={{ padding: isMobile ? '10px' : '12px' }}>
-              <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#ea580c' }}>
+              <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#ea580c' }}>
                 {hasDeclaredCargoValue ? 'Declared Value (Max Liability)' : 'Default Liability Cap (No Declared Value)'}
               </p>
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: 'bold', color: '#c2410c' }}>{formatPrice(liabilityCap)}</p>
@@ -343,21 +294,21 @@ export function ContractModal({
           </div>
           {contract.cargoDescription && (
             <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ marginTop: isMobile ? '8px' : '12px', padding: isMobile ? '10px' : '12px' }}>
-              <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Description</p>
+              <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Description</p>
               <p style={{ fontSize: isMobile ? '12px' : '13px', color: darkMode ? '#d1d5db' : '#374151' }}>{contract.cargoDescription}</p>
             </div>
           )}
           {contract.specialInstructions && (
             <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20" style={{ marginTop: isMobile ? '6px' : '8px', padding: isMobile ? '10px' : '12px' }}>
-              <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#ca8a04' }}>Special Instructions</p>
+              <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#ca8a04' }}>Special Instructions</p>
               <p style={{ fontSize: isMobile ? '12px' : '13px', color: '#a16207' }}>{contract.specialInstructions}</p>
             </div>
           )}
         </div>
 
         {/* Parties Involved */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
-          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }} className="flex items-center" style={{ gap: '6px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }} className="flex items-center gap-1.5">
             <User style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} /> Contract Parties
           </h4>
 
@@ -376,10 +327,10 @@ export function ContractModal({
               <Package style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#fff' }} />
             </div>
             <div className="flex-1" style={{ minWidth: 0 }}>
-              <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Shipper (First Party)</p>
+              <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Shipper (First Party)</p>
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shipperInfo?.name}</p>
               {fullyExecuted && shipperInfo?.phone && (
-                <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280', marginTop: '4px' }} className="flex items-center" style={{ gap: '4px' }}>
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: '4px' }} className="flex items-center gap-1">
                   <Phone style={{ width: '12px', height: '12px' }} /> {shipperInfo.phone}
                 </p>
               )}
@@ -388,7 +339,7 @@ export function ContractModal({
               {contract.shipperSignature ? (
                 <div className="flex items-center text-green-600" style={{ gap: isMobile ? '4px' : '6px' }}>
                   <CheckCircle2 style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px' }} />
-                  <div style={{ fontSize: isMobile ? '9px' : '10px' }}>
+                  <div style={{ fontSize: isMobile ? '11px' : '12px' }}>
                     <p>Signed</p>
                     <p className="text-gray-400">{formatDateTime(contract.shipperSignedAt)}</p>
                   </div>
@@ -396,7 +347,7 @@ export function ContractModal({
               ) : (
                 <div className="flex items-center text-yellow-600" style={{ gap: '4px' }}>
                   <Clock style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px' }} />
-                  <span style={{ fontSize: isMobile ? '9px' : '10px' }}>Pending</span>
+                  <span style={{ fontSize: isMobile ? '11px' : '12px' }}>Pending</span>
                 </div>
               )}
             </div>
@@ -417,22 +368,22 @@ export function ContractModal({
               <Truck style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#fff' }} />
             </div>
             <div className="flex-1" style={{ minWidth: 0 }}>
-              <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Trucker (Second Party)</p>
+              <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Trucker (Second Party)</p>
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{truckerInfo?.name}</p>
               {fullyExecuted && truckerInfo?.phone && (
-                <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280', marginTop: '4px' }} className="flex items-center" style={{ gap: '4px' }}>
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: '4px' }} className="flex items-center gap-1">
                   <Phone style={{ width: '12px', height: '12px' }} /> {truckerInfo.phone}
                 </p>
               )}
               {contract.vehiclePlateNumber && (
-                <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Plate: {contract.vehiclePlateNumber}</p>
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Plate: {contract.vehiclePlateNumber}</p>
               )}
             </div>
             <div className="text-right" style={{ flexShrink: 0 }}>
               {contract.truckerSignature ? (
                 <div className="flex items-center text-green-600" style={{ gap: isMobile ? '4px' : '6px' }}>
                   <CheckCircle2 style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px' }} />
-                  <div style={{ fontSize: isMobile ? '9px' : '10px' }}>
+                  <div style={{ fontSize: isMobile ? '11px' : '12px' }}>
                     <p>Signed</p>
                     <p className="text-gray-400">{formatDateTime(contract.truckerSignedAt)}</p>
                   </div>
@@ -440,7 +391,7 @@ export function ContractModal({
               ) : (
                 <div className="flex items-center text-yellow-600" style={{ gap: '4px' }}>
                   <Clock style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px' }} />
-                  <span style={{ fontSize: isMobile ? '9px' : '10px' }}>Pending</span>
+                  <span style={{ fontSize: isMobile ? '11px' : '12px' }}>Pending</span>
                 </div>
               )}
             </div>
@@ -448,7 +399,7 @@ export function ContractModal({
 
           {/* Platform Disclaimer */}
           <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800" style={{ marginTop: isMobile ? '8px' : '12px', padding: isMobile ? '8px' : '12px' }}>
-            <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#1d4ed8' }} className="flex items-center" style={{ gap: '4px' }}>
+            <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#1d4ed8' }} className="flex items-center gap-1">
               <Info style={{ width: '12px', height: '12px', flexShrink: 0 }} />
               <span><strong>Karga</strong> is a technology platform facilitating this connection. Karga is NOT a party to this contract.</span>
             </p>
@@ -456,8 +407,8 @@ export function ContractModal({
         </div>
 
         {/* Financial Details */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
-          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }} className="flex items-center" style={{ gap: '6px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }} className="flex items-center gap-1.5">
             <PesoIcon style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} /> Financial Terms
           </h4>
           <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
@@ -482,7 +433,7 @@ export function ContractModal({
               </div>
             )}
           </div>
-          <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#6b7280', marginTop: isMobile ? '6px' : '8px' }} className="flex items-center" style={{ gap: '4px' }}>
+          <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: isMobile ? '6px' : '8px' }} className="flex items-center gap-1">
             <Shield style={{ width: '12px', height: '12px' }} />
             Platform service fee is paid by the trucker via GCash. Freight payment is settled directly between shipper and trucker.
           </p>
@@ -490,7 +441,7 @@ export function ContractModal({
 
         {/* Platform Fee Payment Section - For Truckers Only */}
         {!contract.platformFeePaid && isTrucker && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <div className={cn(
               "rounded-lg border",
               contract.platformFeeStatus === 'overdue'
@@ -520,7 +471,7 @@ export function ContractModal({
                   }}>
                     Amount: <strong>{formatPrice(contract.platformFee)}</strong>
                     {contract.platformFeeDueDate && (
-                      <span> • Due: {formatDate(contract.platformFeeDueDate)}</span>
+                      <span> - Due: {formatDate(contract.platformFeeDueDate)}</span>
                     )}
                   </p>
                   {contract.platformFeeStatus === 'overdue' && (
@@ -530,7 +481,7 @@ export function ContractModal({
                       marginTop: '4px',
                       fontWeight: '500'
                     }}>
-                      ⚠️ Your account may be suspended. Pay immediately to avoid restrictions.
+                      Warning: Your account may be suspended. Pay immediately to avoid restrictions.
                     </p>
                   )}
                   <Button
@@ -551,8 +502,8 @@ export function ContractModal({
         )}
 
         {/* Key Terms Summary */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
-          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }} className="flex items-center" style={{ gap: '6px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+          <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }} className="flex items-center gap-1.5">
             <Scale style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} /> Key Contract Terms
           </h4>
 
@@ -563,7 +514,7 @@ export function ContractModal({
                 <Shield style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#ea580c', marginTop: '2px', flexShrink: 0 }} />
                 <div>
                   <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', color: '#c2410c' }}>Liability Limitation</p>
-                  <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#c2410c', marginTop: '4px' }}>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#c2410c', marginTop: '4px' }}>
                     Maximum trucker liability for loss/damage is limited to the <strong>{liabilityCapLabel}</strong>.
                     For cargo above PHP 100,000, full value declaration before pickup is recommended.
                   </p>
@@ -574,7 +525,7 @@ export function ContractModal({
             {/* Exceptions */}
             <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
               <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '4px' : '6px' }}>Liability Exceptions</p>
-              <ul style={{ fontSize: isMobile ? '10px' : '11px', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <ul style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <li>- Cap may not apply to gross negligence, willful misconduct, fraud, theft, or illegal acts.</li>
                 <li>- Carrier is not liable for force majeure, shipper fault, or inherent defect of goods.</li>
                 <li>- Claims cover direct and documented loss, supported by delivery records and proof of value.</li>
@@ -587,8 +538,8 @@ export function ContractModal({
                 <Gavel style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#6b7280', marginTop: '2px', flexShrink: 0 }} />
                 <div>
                   <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', color: darkMode ? '#d1d5db' : '#374151' }}>Dispute Resolution</p>
-                  <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#6b7280', marginTop: '4px' }}>
-                    Negotiation (7 days) → Mediation (14 days) → Binding Arbitration per RA 9285
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: '4px' }}>
+                    Negotiation (7 days) to Mediation (14 days) to Binding Arbitration per RA 9285
                   </p>
                 </div>
               </div>
@@ -596,7 +547,7 @@ export function ContractModal({
 
             {/* Governing Law */}
             <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
-              <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#6b7280' }}>
+              <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>
                 <strong>Governing Law:</strong> Republic of the Philippines (Civil Code, E-Commerce Act RA 8792, Data Privacy Act RA 10173)
               </p>
             </div>
@@ -615,7 +566,7 @@ export function ContractModal({
 
           {showFullTerms && (
             <div className="rounded-lg bg-gray-100 dark:bg-gray-800 max-h-60 overflow-y-auto" style={{ marginTop: isMobile ? '8px' : '12px', padding: isMobile ? '12px' : '16px' }}>
-              <pre style={{ fontSize: isMobile ? '10px' : '11px', color: darkMode ? '#d1d5db' : '#374151', whiteSpace: 'pre-wrap', fontFamily: 'sans-serif' }}>
+              <pre style={{ fontSize: isMobile ? '11px' : '12px', color: darkMode ? '#d1d5db' : '#374151', whiteSpace: 'pre-wrap', fontFamily: 'sans-serif' }}>
                 {contract.terms}
               </pre>
             </div>
@@ -624,8 +575,8 @@ export function ContractModal({
 
         {/* Shipment Tracking */}
         {contract.shipment && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
-            <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '6px' : '8px' }} className="flex items-center" style={{ gap: '6px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+            <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '6px' : '8px' }} className="flex items-center gap-1.5">
               <Truck style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} /> Shipment Tracking
             </h4>
             <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20" style={{ padding: isMobile ? '10px' : '12px' }}>
@@ -675,19 +626,7 @@ export function ContractModal({
         )}
 
         {/* Action Buttons */}
-        <DialogFooter style={{ gap: isMobile ? '8px' : '12px', paddingTop: isMobile ? '12px' : '16px' }}>
-          {contract.status === 'pending_payment' && isTrucker && (
-            <Button
-              variant="default"
-              size={isMobile ? "default" : "lg"}
-              onClick={() => onPayPlatformFee?.({ contractId: contract.id, bidId: contract.bidId, platformFee: contract.platformFee })}
-              className="gap-2 flex-1 bg-orange-600 hover:bg-orange-700"
-            >
-              <PesoIcon className="size-4" />
-              Pay Platform Fee ({formatPrice(contract.platformFee)})
-            </Button>
-          )}
-
+        <DialogFooter style={{ gap: isMobile ? '8px' : '12px', paddingTop: isMobile ? '16px' : '20px' }}>
           {contract.status === 'draft' && !hasUserSigned && (
             <Button
               variant={confirmSign ? "destructive" : "gradient"}
@@ -732,10 +671,13 @@ export function ContractModal({
             Close
           </Button>
         </DialogFooter>
+        </div>
       </DialogBottomSheet>
     </Dialog>
   );
 }
 
 export default ContractModal;
+
+
 

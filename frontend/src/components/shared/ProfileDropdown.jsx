@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Bell, Moon, Sun, HelpCircle, LogOut, ChevronRight, Star, Truck, Package } from 'lucide-react';
+import { User, Bell, Moon, Sun, HelpCircle, LogOut, ChevronRight, Star, Truck, Package, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -13,8 +13,10 @@ import { Switch } from '@/components/ui/switch';
 export function ProfileDropdown({
   user = {},
   currentRole = 'shipper',
+  isBroker = false,
   darkMode = false,
   onToggleDarkMode,
+  onBrokerDashboard,
   onEditProfile,
   onNotificationSettings,
   onHelpSupport,
@@ -123,6 +125,27 @@ export function ProfileDropdown({
 
         {/* Menu Items */}
         <div className="p-2">
+          {/* Broker Dashboard */}
+          <DropdownMenuItem
+            onSelect={onBrokerDashboard}
+            className="flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800"
+          >
+            <div className="flex items-center gap-3">
+              <div className="size-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                <Users className="size-4 text-gray-600 dark:text-gray-400" />
+              </div>
+              <span className="text-sm text-gray-700 dark:text-gray-300">{isBroker ? 'Broker Dashboard' : 'Broker Program'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {!isBroker && (
+                <span className="px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400 text-xs font-medium">
+                  Earn Extra!
+                </span>
+              )}
+              <ChevronRight className="size-4 text-gray-400" />
+            </div>
+          </DropdownMenuItem>
+
           {/* Edit Profile */}
           <DropdownMenuItem
             onSelect={onEditProfile}

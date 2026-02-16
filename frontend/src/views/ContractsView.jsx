@@ -70,7 +70,7 @@ const statusConfig = {
   },
 };
 
-export function ContractsView({ darkMode, currentUser, onOpenContract, initialFilter = 'all' }) {
+export function ContractsView({ darkMode, currentUser, onOpenContract, initialFilter = 'all', embedded = false }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -99,8 +99,8 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
     return contracts.filter((contract) => {
       // Status filter
       if (filterStatus === 'unpaid_fees') {
-        // Show contracts with unpaid platform fees
-        if (contract.platformFeePaid !== false) {
+        // Show contracts with unpaid platform fees where current user is the payer
+        if (contract.platformFeePaid !== false || contract.platformFeePayerId !== currentUser?.id) {
           return false;
         }
       } else if (filterStatus !== 'all' && contract.status !== filterStatus) {
@@ -120,7 +120,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
 
       return true;
     });
-  }, [contracts, filterStatus, searchQuery]);
+  }, [contracts, filterStatus, searchQuery, currentUser?.id]);
 
   // Group contracts by status
   const contractCounts = useMemo(() => {
@@ -130,13 +130,13 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
       signed: contracts.filter((c) => c.status === 'signed').length,
       in_transit: contracts.filter((c) => c.status === 'in_transit').length,
       completed: contracts.filter((c) => c.status === 'completed').length,
-      unpaid_fees: contracts.filter((c) => c.platformFeePaid === false).length,
+      unpaid_fees: contracts.filter((c) => c.platformFeePaid === false && c.platformFeePayerId === currentUser?.id).length,
     };
-  }, [contracts]);
+  }, [contracts, currentUser?.id]);
 
   const formatPrice = (price) => {
     if (price === null || price === undefined) return '---';
-    return `₱${Number(price).toLocaleString()}`;
+    return `PHP ${Number(price).toLocaleString()}`;
   };
 
   const formatDate = (dateStr) => {
@@ -181,12 +181,14 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
   };
 
   const feeLedgerRows = useMemo(() => {
+    // Only show platform fee ledger for contracts where current user is the fee payer
     return [...contracts]
+      .filter((contract) => contract.platformFeePayerId === currentUser?.id)
       .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
       .map((contract) => ({
         id: contract.id,
         contractNumber: contract.contractNumber,
-        route: `${contract.pickupCity || contract.pickupAddress || '---'} → ${contract.deliveryCity || contract.deliveryAddress || '---'}`,
+        route: `${contract.pickupCity || contract.pickupAddress || '---'} -> ${contract.deliveryCity || contract.deliveryAddress || '---'}`,
         amount: Number(contract.platformFee || 0),
         paid: contract.platformFeePaid === true,
         status: contract.platformFeePaid ? 'paid' : (contract.platformFeeStatus || 'outstanding'),
@@ -194,7 +196,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
         paidAt: contract.platformFeePaidAt,
         createdAt: contract.createdAt,
       }));
-  }, [contracts]);
+  }, [contracts, currentUser?.id]);
 
   const feeLedgerSummary = useMemo(() => {
     const totalFees = feeLedgerRows.reduce((sum, row) => sum + row.amount, 0);
@@ -228,30 +230,32 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
   };
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto" style={{ padding: isMobile ? '16px' : '24px' }}>
-      {/* Header */}
-      <div style={{ marginBottom: isMobile ? '24px' : '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-          <div className="size-12 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-            <FileText className="size-6 text-white" />
-          </div>
-          <div>
-            <h1 style={{
-              fontWeight: 'bold',
-              color: darkMode ? '#fff' : '#111827',
-              fontSize: isMobile ? '20px' : '24px',
-              marginBottom: '4px',
-              lineHeight: '1.2'
-            }}>My Contracts</h1>
-            <p style={{
-              color: darkMode ? '#9ca3af' : '#6b7280',
-              fontSize: isMobile ? '12px' : '14px'
-            }}>
-              View and manage your transportation contracts
-            </p>
+    <div className={cn("flex-1", !embedded && "bg-gray-50 dark:bg-gray-950 overflow-y-auto")} style={!embedded ? { padding: isMobile ? '16px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' } : {}}>
+      {/* Header - Only show when not embedded */}
+      {!embedded && (
+        <div style={{ marginBottom: isMobile ? '24px' : '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <div className="size-12 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+              <FileText className="size-6 text-white" />
+            </div>
+            <div>
+              <h1 style={{
+                fontWeight: 'bold',
+                color: darkMode ? '#fff' : '#111827',
+                fontSize: isMobile ? '20px' : '24px',
+                marginBottom: '4px',
+                lineHeight: '1.2'
+              }}>My Contracts</h1>
+              <p style={{
+                color: darkMode ? '#9ca3af' : '#6b7280',
+                fontSize: isMobile ? '12px' : '14px'
+              }}>
+                View and manage your transportation contracts
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Filters */}
       <div style={{ marginBottom: isMobile ? '20px' : '24px' }}>
@@ -488,7 +492,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
                         fontSize: isMobile ? '12px' : '14px',
                         color: darkMode ? '#9ca3af' : '#6b7280'
                       }}>
-                        {contract.cargoType} • {contract.cargoWeight} {contract.cargoWeightUnit}
+                        {contract.cargoType} - {contract.cargoWeight} {contract.cargoWeightUnit}
                       </p>
                     </div>
                   </div>
@@ -496,7 +500,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
                   {/* Price */}
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <p style={{
-                      fontSize: isMobile ? '10px' : '12px',
+                      fontSize: isMobile ? '11px' : '12px',
                       color: darkMode ? '#9ca3af' : '#6b7280'
                     }}>Contract Value</p>
                     <p style={{
@@ -530,7 +534,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
                   }}>
                     {contract.pickupAddress}
                   </span>
-                  <span className="text-gray-400">→</span>
+                  <span className="text-gray-400">{'->'}</span>
                   <MapPin style={{ width: '16px', height: '16px' }} className="text-red-500 flex-shrink-0" />
                   <span style={{
                     fontSize: isMobile ? '12px' : '14px',
@@ -581,8 +585,8 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
                       </div>
                     )}
 
-                    {/* Platform Fee Status Badge */}
-                    {!contract.platformFeePaid && (
+                    {/* Platform Fee Status Badge (only show to the fee payer) */}
+                    {!contract.platformFeePaid && contract.platformFeePayerId === currentUser?.id && (
                       <div
                         className={cn(
                           'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium',
@@ -610,7 +614,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
 
                   {/* Action hint */}
                   <span className="text-gray-400 dark:text-gray-500">
-                    Click to view details →
+                    Click to view details {'->'}
                   </span>
                 </div>
               </div>
@@ -623,4 +627,6 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
 }
 
 export default ContractsView;
+
+
 

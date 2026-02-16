@@ -262,7 +262,7 @@ By signing, both parties agree to these terms.
       contractNumber,
       agreedPrice: bid.price,
       platformFee,
-      declaredCargoValue: declaredCargoValue || 100000,
+      declaredCargoValue: declaredCargoValue || listing.declaredValue || 100000,
       pickupDate: pickupDate || listing.pickupDate || listing.availableDate || null,
       pickupAddress: composeFullAddress(listing.origin, listing.originStreetAddress),
       pickupCity: listing.origin,

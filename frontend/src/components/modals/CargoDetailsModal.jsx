@@ -16,6 +16,7 @@ import { useBidsForListing } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import api from '@/services/api';
+import { canBidCargoStatus } from '@/utils/listingStatus';
 
 export function CargoDetailsModal({
   open,
@@ -38,6 +39,7 @@ export function CargoDetailsModal({
   const [processingAction, setProcessingAction] = React.useState(null);
   const [contractId, setContractId] = React.useState(null);
   const [loadingContract, setLoadingContract] = React.useState(false);
+  const [bidContracts, setBidContracts] = React.useState({});
   const isMobile = useMediaQuery('(max-width: 1023px)');
 
   const handleAcceptBid = async (bid) => {
@@ -95,12 +97,42 @@ export function CargoDetailsModal({
     'cargo'
   );
 
+  React.useEffect(() => {
+    const fetchAcceptedBidContracts = async () => {
+      if (!open || !isOwner || fetchedBids.length === 0) {
+        setBidContracts({});
+        return;
+      }
+
+      const acceptedBids = fetchedBids.filter((bid) => bid.status === 'accepted');
+      if (acceptedBids.length === 0) {
+        setBidContracts({});
+        return;
+      }
+
+      const contractMap = {};
+      await Promise.all(acceptedBids.map(async (acceptedBid) => {
+        try {
+          const response = await api.contracts.getByBid(acceptedBid.id);
+          if (response?.contract?.id) {
+            contractMap[acceptedBid.id] = response.contract.id;
+          }
+        } catch (error) {
+          // Contract may not exist yet.
+        }
+      }));
+      setBidContracts(contractMap);
+    };
+
+    fetchAcceptedBidContracts();
+  }, [open, isOwner, fetchedBids]);
+
   if (!cargo) return null;
 
   const formatPrice = (price) => {
     if (!price) return '---';
-    if (typeof price === 'string' && price.startsWith('₱')) return price;
-    return `₱${Number(price).toLocaleString()}`;
+    if (typeof price === 'string' && price.startsWith('PHP ')) return price;
+    return `PHP ${Number(price).toLocaleString()}`;
   };
 
   const formatTimeAgo = (timestamp) => {
@@ -157,7 +189,7 @@ export function CargoDetailsModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" hideCloseButton>
-        <div className="px-6 py-4">
+        <div style={{ padding: isMobile ? '16px' : '24px' }}>
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
@@ -195,13 +227,13 @@ export function CargoDetailsModal({
         </DialogHeader>
 
         {/* Status and Price Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px', marginTop: isMobile ? '12px' : '16px' }}>
           <div className="flex items-center" style={{ gap: isMobile ? '6px' : '12px' }}>
-            <Badge className={cn("uppercase tracking-wide", statusStyles[cargo.status])} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '9px' : '11px' }}>
+            <Badge className={cn("uppercase tracking-wide", statusStyles[cargo.status])} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
               {cargo.status}
             </Badge>
             {cargo.cargoType && (
-              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '9px' : '11px' }}>
+              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
                 {cargo.cargoType}
               </Badge>
             )}
@@ -212,7 +244,7 @@ export function CargoDetailsModal({
         </div>
 
         {/* Shipper Info */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
           <h3 style={{ fontWeight: 'bold', fontSize: isMobile ? '15px' : '18px', color: darkMode ? '#fff' : '#111827', marginBottom: '4px' }}>
             {cargo.company || cargo.shipper}
           </h3>
@@ -224,7 +256,7 @@ export function CargoDetailsModal({
         </div>
 
         {/* Route Section */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
           <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Route</h4>
           <div className="flex items-center rounded-xl bg-gray-100 dark:bg-gray-800/60" style={{ gap: isMobile ? '6px' : '12px', padding: isMobile ? '10px' : '16px' }}>
             <div className="flex items-center flex-1 min-w-0" style={{ gap: isMobile ? '6px' : '8px' }}>
@@ -242,7 +274,7 @@ export function CargoDetailsModal({
                 <MapPin style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px', color: '#fff' }} />
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: '10px', color: '#6b7280' }}>From</p>
+                <p style={{ fontSize: '11px', color: '#6b7280' }}>From</p>
                 <p style={{ fontWeight: '500', fontSize: isMobile ? '13px' : '14px', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cargo.origin}</p>
               </div>
             </div>
@@ -267,7 +299,7 @@ export function CargoDetailsModal({
                 <MapPin style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px', color: '#fff' }} />
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: '10px', color: '#6b7280' }}>To</p>
+                <p style={{ fontSize: '11px', color: '#6b7280' }}>To</p>
                 <p style={{ fontWeight: '500', fontSize: isMobile ? '13px' : '14px', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cargo.destination}</p>
               </div>
             </div>
@@ -291,14 +323,14 @@ export function CargoDetailsModal({
         </div>
 
         {/* Cargo Details */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
           <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Cargo Details</h4>
           <div className="grid grid-cols-2" style={{ gap: isMobile ? '12px' : '16px' }}>
             {displayWeight && (
               <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
                 <Weight style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#f97316' }} />
                 <div>
-                  <p style={{ fontSize: '10px', color: '#6b7280' }}>Weight</p>
+                  <p style={{ fontSize: '11px', color: '#6b7280' }}>Weight</p>
                   <p style={{ fontWeight: '500', fontSize: isMobile ? '13px' : '14px', color: darkMode ? '#fff' : '#111827' }}>{displayWeight}</p>
                 </div>
               </div>
@@ -307,7 +339,7 @@ export function CargoDetailsModal({
               <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
                 <Truck style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#3b82f6' }} />
                 <div>
-                  <p style={{ fontSize: '10px', color: '#6b7280' }}>Vehicle Needed</p>
+                  <p style={{ fontSize: '11px', color: '#6b7280' }}>Vehicle Needed</p>
                   <p style={{ fontWeight: '500', fontSize: isMobile ? '13px' : '14px', color: darkMode ? '#fff' : '#111827' }}>{cargo.vehicleNeeded}</p>
                 </div>
               </div>
@@ -316,7 +348,7 @@ export function CargoDetailsModal({
               <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
                 <Calendar style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#10b981' }} />
                 <div>
-                  <p style={{ fontSize: '10px', color: '#6b7280' }}>Pickup Date</p>
+                  <p style={{ fontSize: '11px', color: '#6b7280' }}>Pickup Date</p>
                   <p style={{ fontWeight: '500', fontSize: isMobile ? '13px' : '14px', color: darkMode ? '#fff' : '#111827' }}>{cargo.pickupDate}</p>
                 </div>
               </div>
@@ -326,7 +358,7 @@ export function CargoDetailsModal({
 
         {/* Description */}
         {cargo.description && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>Description</h4>
             <p style={{ fontSize: isMobile ? '13px' : '14px', color: '#6b7280', lineHeight: '1.5' }}>{cargo.description}</p>
           </div>
@@ -334,7 +366,7 @@ export function CargoDetailsModal({
 
         {/* Photos */}
         {displayImages.length > 0 && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Photos</h4>
             <div className="flex gap-3 flex-wrap">
               {displayImages.map((image, idx) => (
@@ -358,7 +390,7 @@ export function CargoDetailsModal({
 
         {/* Map Preview */}
         {cargo.originCoords && cargo.destCoords && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Route Map</h4>
             <RouteMap
               origin={cargo.origin}
@@ -373,7 +405,7 @@ export function CargoDetailsModal({
 
         {/* Bids Section - Only for owner */}
         {isOwner && (
-          <div className="py-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
               Bids Received {!bidsLoading && `(${bids.length})`}
             </h4>
@@ -479,10 +511,18 @@ export function CargoDetailsModal({
                           variant="gradient"
                           size="sm"
                           className="flex-1 gap-2"
-                          onClick={() => onCreateContract?.(bid._original, cargo)}
+                          onClick={() => {
+                            const existingContractId = bidContracts[bid.id];
+                            if (existingContractId && onOpenContract) {
+                              onClose?.();
+                              onOpenContract(existingContractId);
+                              return;
+                            }
+                            onCreateContract?.(bid._original, cargo);
+                          }}
                         >
                           <FileText className="size-4" />
-                          Create Contract
+                          {bidContracts[bid.id] ? 'Open Contract' : 'Create Contract'}
                         </Button>
                       )}
                     </div>
@@ -498,11 +538,11 @@ export function CargoDetailsModal({
         )}
 
         {/* Action Buttons */}
-        <div className="pt-4">
-          {(!isOwner && currentRole === 'trucker' && (cargo.status === 'open' || cargo.status === 'waiting')) ||
+        <div style={{ paddingTop: isMobile ? '16px' : '20px' }}>
+          {(!isOwner && currentRole === 'trucker' && canBidCargoStatus(cargo.status)) ||
            (isOwner && cargo.status === 'negotiating') ? (
             <div className="flex gap-3 mb-3">
-              {!isOwner && currentRole === 'trucker' && (cargo.status === 'open' || cargo.status === 'waiting') && (
+              {!isOwner && currentRole === 'trucker' && canBidCargoStatus(cargo.status) && (
                 <Button
                   variant="gradient"
                   className="flex-1"
@@ -563,3 +603,4 @@ export function CargoDetailsModal({
 }
 
 export default CargoDetailsModal;
+

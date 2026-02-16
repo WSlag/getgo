@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import api from '../services/api';
 
 const AuthContext = createContext();
 
@@ -265,6 +266,19 @@ export function AuthProvider({ children }) {
         balance: 0,
         updatedAt: serverTimestamp()
       });
+
+      // Optional one-time referral attribution (broker code).
+      if (profileData.referralCode && profileData.referralCode.trim()) {
+        try {
+          await api.broker.applyReferralCode(profileData.referralCode.trim().toUpperCase());
+          if (typeof window !== 'undefined') {
+            window.localStorage.removeItem('karga_referral_code');
+          }
+        } catch (referralError) {
+          // Do not block account creation if referral attribution fails.
+          console.warn('Referral attribution skipped:', referralError?.message || referralError);
+        }
+      }
 
       setIsNewUser(false);
       return { success: true };

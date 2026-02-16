@@ -17,8 +17,10 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export function ProfilePage() {
+  const isMobile = useMediaQuery('(max-width: 1023px)');
   const {
     userProfile,
     shipperProfile,
@@ -115,7 +117,13 @@ export function ProfilePage() {
   };
 
   return (
-    <main className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto" style={{ padding: '28px 32px' }}>
+    <main
+      className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto"
+      style={{
+        padding: isMobile ? '16px' : '28px 32px',
+        paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '32px',
+      }}
+    >
       <div className="max-w-2xl mx-auto">
         {/* Profile Header Card */}
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm" style={{ padding: '24px', marginBottom: '24px' }}>
@@ -202,7 +210,7 @@ export function ProfilePage() {
                 <Award className="size-4 text-purple-600" />
               </div>
               <div className="min-w-0">
-                <Badge className={cn("text-[10px] px-1.5 py-0.5 font-semibold", getMembershipColor(shipperProfile?.membershipTier))}>
+                <Badge className={cn("text-[11px] px-1.5 py-0.5 font-semibold", getMembershipColor(shipperProfile?.membershipTier))}>
                   {shipperProfile?.membershipTier || 'NEW'}
                 </Badge>
                 <p className="text-[11px] text-purple-600/70 mt-0.5">Membership</p>
@@ -236,7 +244,7 @@ export function ProfilePage() {
                 <Award className="size-4 text-purple-600" />
               </div>
               <div className="min-w-0">
-                <Badge className={cn("text-[10px] px-1.5 py-0.5 font-semibold", getBadgeColor(truckerProfile?.badge))}>
+                <Badge className={cn("text-[11px] px-1.5 py-0.5 font-semibold", getBadgeColor(truckerProfile?.badge))}>
                   {truckerProfile?.badge || 'STARTER'}
                 </Badge>
                 <p className="text-[11px] text-purple-600/70 mt-0.5">Badge</p>
@@ -247,7 +255,7 @@ export function ProfilePage() {
                 <Wallet className="size-4 text-green-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-lg font-bold text-green-600 leading-tight">₱{wallet?.balance?.toLocaleString() || '0'}</p>
+                <p className="text-lg font-bold text-green-600 leading-tight">PHP {wallet?.balance?.toLocaleString() || '0'}</p>
                 <p className="text-[11px] text-green-600/70">Wallet</p>
               </div>
             </div>

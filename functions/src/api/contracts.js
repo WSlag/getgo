@@ -114,15 +114,6 @@ exports.createContract = functions.region('asia-southeast1').https.onCall(async 
 
   const platformFee = Math.round(bid.price * PLATFORM_FEE_RATE);
 
-  // Check if platform fee has been paid
-  const feeSnap = await db.collection('platformFees')
-    .where('bidId', '==', bidId)
-    .where('status', '==', 'completed')
-    .limit(1)
-    .get();
-
-  const isPlatformFeePaid = !feeSnap.empty;
-
   // Determine who is the trucker (platform fee payer)
   const platformFeePayerId = isCargo ? bid.bidderId : listingOwnerId;
 
@@ -144,9 +135,10 @@ The Trucker agrees to transport cargo from:
 
 3. PAYMENT TERMS
 - Freight Rate: PHP ${Number(bid.price).toLocaleString()}
-- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - PAID
+- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - Payable by Trucker within 3 days of shipment pickup
 - Payment Method: Direct payment from Shipper to Trucker
 - Payment Schedule: As agreed between parties (COD, advance, or partial)
+- Late Payment: Failure to pay platform fee within 3 days will result in account suspension until payment is received
 
 4. OBLIGATIONS
 Shipper: Accurate cargo info, proper packaging, timely payment to Trucker
@@ -175,7 +167,7 @@ By signing, both parties agree to these terms.
     contractNumber,
     agreedPrice: bid.price,
     platformFee,
-    declaredCargoValue: declaredCargoValue || 100000,
+    declaredCargoValue: declaredCargoValue || listing.declaredValue || 100000,
     pickupDate: pickupDate || listing.pickupDate || listing.availableDate || null,
     pickupAddress: composeFullAddress(listing.origin, listing.originStreetAddress),
     pickupCity: listing.origin,
@@ -193,8 +185,12 @@ By signing, both parties agree to these terms.
     vehiclePlateNumber: isCargo ? '' : (listing.plateNumber || ''),
     terms: terms || defaultTerms,
     liabilityAcknowledged: liabilityAcknowledged || false,
-    status: isPlatformFeePaid ? 'draft' : 'pending_payment',
-    platformFeePaid: isPlatformFeePaid,
+    status: 'draft',
+    platformFeePaid: false,
+    platformFeeStatus: 'outstanding',
+    platformFeeDueDate: null,
+    platformFeeBillingStartedAt: null,
+    platformFeeReminders: [],
     platformFeePayerId,
     listingType: isCargo ? 'cargo' : 'truck',
     listingId: listing.id,
@@ -228,37 +224,23 @@ By signing, both parties agree to these terms.
   });
 
   // Create notifications for both parties
-  if (isPlatformFeePaid) {
-    // If paid, notify both parties contract is ready to sign
-    await db.collection(`users/${bid.bidderId}/notifications`).doc().set({
-      type: 'CONTRACT_READY',
-      title: 'Contract Ready for Signing',
-      message: `Contract #${contractNumber} is ready for your signature. Please review the terms and sign to proceed.`,
-      data: { contractId: contractRef.id, bidId },
-      isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  } else {
-    // If not paid, notify trucker to pay platform fee
-    await db.collection(`users/${platformFeePayerId}/notifications`).doc().set({
-      type: 'PLATFORM_FEE_REQUIRED',
-      title: 'Platform Fee Payment Required',
-      message: `Contract #${contractNumber} created. Please pay ₱${platformFee.toLocaleString()} platform fee to proceed.`,
-      data: { contractId: contractRef.id, bidId, platformFee },
-      isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+  await db.collection(`users/${bid.bidderId}/notifications`).doc().set({
+    type: 'CONTRACT_READY',
+    title: 'Contract Ready for Review',
+    message: `Contract #${contractNumber} is ready for your review. Please sign to activate. Platform fee of ₱${platformFee.toLocaleString()} will be due 3 days after pickup.`,
+    data: { contractId: contractRef.id, bidId },
+    isRead: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 
-    // Notify listing owner that contract is waiting for payment
-    await db.collection(`users/${listingOwnerId}/notifications`).doc().set({
-      type: 'CONTRACT_PENDING_PAYMENT',
-      title: 'Contract Created',
-      message: `Contract #${contractNumber} created. Waiting for trucker to pay platform fee.`,
-      data: { contractId: contractRef.id, bidId },
-      isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  }
+  await db.collection(`users/${listingOwnerId}/notifications`).doc().set({
+    type: 'CONTRACT_READY',
+    title: 'Contract Ready for Review',
+    message: `Contract #${contractNumber} is ready for your review. Please sign to proceed.`,
+    data: { contractId: contractRef.id, bidId },
+    isRead: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 
   return {
     message: 'Contract created successfully',
@@ -291,8 +273,8 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
 
   const contract = { id: contractDoc.id, ...contractDoc.data() };
 
-  if (contract.status !== 'draft') {
-    throw new functions.https.HttpsError('failed-precondition', 'Contract has already been signed or is not in draft status');
+  if (contract.status === 'signed' || contract.status === 'completed') {
+    throw new functions.https.HttpsError('failed-precondition', 'Contract has already been signed');
   }
 
   const listingOwnerId = contract.listingOwnerId;
@@ -366,6 +348,44 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // Platform fee grace period starts at signing for all contracts
+    if (contract.platformFee > 0) {
+      const pickupTime = new Date();
+      const dueDate = new Date(pickupTime);
+      dueDate.setDate(dueDate.getDate() + 3);
+
+      const billingUpdates = {
+        platformFeeStatus: contract.platformFeePaid ? 'paid' : 'outstanding',
+        platformFeeDueDate: admin.firestore.Timestamp.fromDate(dueDate),
+        platformFeeBillingStartedAt: admin.firestore.Timestamp.fromDate(pickupTime),
+        platformFeeReminders: [],
+      };
+
+      await db.collection('contracts').doc(contractId).update(billingUpdates);
+
+      // Only notify if fee is NOT already paid
+      if (!contract.platformFeePaid) {
+        const feePayerId = contract.platformFeePayerId
+          || (isCargo ? contract.bidderId : contract.listingOwnerId);
+
+        if (feePayerId) {
+          await db.collection(`users/${feePayerId}/notifications`).doc().set({
+            type: 'PLATFORM_FEE_DUE',
+            title: 'Platform Fee Payment Due',
+            message: `Contract #${contract.contractNumber} is now active. Platform fee of ₱${contract.platformFee.toLocaleString()} is due by ${dueDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}.`,
+            data: {
+              contractId,
+              platformFee: contract.platformFee,
+              dueDate: dueDate.toISOString(),
+              actionRequired: 'PAY_PLATFORM_FEE',
+            },
+            isRead: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    }
 
     // Update listing status
     const listingCollection = isCargo ? 'cargoListings' : 'truckListings';
@@ -447,14 +467,8 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
 
-  if (!contract.platformFeePaid) {
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 3);
-    completionUpdates.platformFeeStatus = 'outstanding';
-    completionUpdates.platformFeeDueDate = admin.firestore.Timestamp.fromDate(dueDate);
-    completionUpdates.platformFeeBillingStartedAt = admin.firestore.FieldValue.serverTimestamp();
-    completionUpdates.platformFeeReminders = [];
-  }
+  // Platform fee billing dates are now set at contract signing, not completion
+  // No need to set them again here
 
   await db.collection('contracts').doc(contractId).update(completionUpdates);
 
@@ -496,34 +510,131 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
     });
   }
 
-  // If fee is still unpaid, notify payer with due date after completion.
-  if (!contract.platformFeePaid && contract.platformFee > 0) {
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 3);
-    const feePayerId = contract.platformFeePayerId
-      || (contract.listingType === 'cargo' ? contract.bidderId : contract.listingOwnerId);
-
-    if (feePayerId) {
-      await db.collection(`users/${feePayerId}/notifications`).doc().set({
-        type: 'PLATFORM_FEE_OUTSTANDING',
-        title: 'Platform Fee Due After Delivery',
-        message: `Contract #${contract.contractNumber} is completed. Please pay platform fee of ₱${contract.platformFee.toLocaleString()} by ${dueDate.toLocaleDateString()}.`,
-        data: {
-          contractId,
-          bidId: contract.bidId,
-          platformFee: contract.platformFee,
-          dueDate: dueDate.toISOString(),
-          actionRequired: 'PAY_PLATFORM_FEE',
-        },
-        isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    }
-  }
+  // Note: Platform fee reminders are handled by the scheduled reminder system
+  // No need to send additional notifications here
 
   return {
     message: 'Contract completed successfully',
     contract: { ...contract, status: 'completed' },
+  };
+});
+
+/**
+ * Cancel Contract (before pickup/completion)
+ * Both parties or admin can cancel if no service rendered
+ */
+exports.cancelContract = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const { contractId, reason } = data;
+  const userId = context.auth.uid;
+
+  if (!contractId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Contract ID is required');
+  }
+
+  const db = admin.firestore();
+  const contractDoc = await db.collection('contracts').doc(contractId).get();
+
+  if (!contractDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Contract not found');
+  }
+
+  const contract = contractDoc.data();
+
+  // Verify user is participant or admin
+  const userDoc = await db.collection('users').doc(userId).get();
+  const isAdmin = userDoc.data()?.role === 'admin';
+  const isParticipant = contract.participantIds?.includes(userId);
+
+  if (!isAdmin && !isParticipant) {
+    throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+  }
+
+  // Can only cancel if not yet completed/delivered
+  if (contract.status === 'completed') {
+    throw new functions.https.HttpsError('failed-precondition', 'Cannot cancel completed contract');
+  }
+
+  // Check if any shipment activity occurred
+  const shipmentSnap = await db.collection('shipments')
+    .where('contractId', '==', contractId)
+    .limit(1)
+    .get();
+
+  let hasActivity = false;
+  if (!shipmentSnap.empty) {
+    const shipment = shipmentSnap.docs[0].data();
+    // If shipment has location updates beyond initial creation, consider it active
+    hasActivity = shipment.status === 'in_transit' || shipment.progress > 0;
+  }
+
+  // Admin can always cancel, participants can only cancel if no activity
+  if (!isAdmin && hasActivity) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Cannot cancel contract after shipment has started. Please contact admin for dispute resolution.'
+    );
+  }
+
+  // Cancel the contract
+  const cancellationUpdates = {
+    status: 'cancelled',
+    cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+    cancelledBy: userId,
+    cancellationReason: reason || 'No reason provided',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  // If platform fee was unpaid, clear billing dates (waive fee for cancelled contracts)
+  if (!contract.platformFeePaid) {
+    cancellationUpdates.platformFeeStatus = 'waived';
+    cancellationUpdates.platformFeeDueDate = null;
+    cancellationUpdates.platformFeeBillingStartedAt = null;
+
+    // Deduct from user's outstanding fees if it was already counted
+    const feePayerId = contract.platformFeePayerId;
+    if (feePayerId) {
+      const payerDoc = await db.collection('users').doc(feePayerId).get();
+      const currentOutstanding = payerDoc.data()?.outstandingPlatformFees || 0;
+
+      await db.collection('users').doc(feePayerId).update({
+        outstandingPlatformFees: Math.max(0, currentOutstanding - (contract.platformFee || 0)),
+        outstandingFeeContracts: admin.firestore.FieldValue.arrayRemove(contractId),
+      });
+    }
+  }
+
+  await db.collection('contracts').doc(contractId).update(cancellationUpdates);
+
+  // Update listing status back to available
+  if (contract.listingId) {
+    const listingCollection = contract.listingType === 'cargo' ? 'cargoListings' : 'truckListings';
+    await db.collection(listingCollection).doc(contract.listingId).update({
+      status: 'available',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Notify all participants
+  const notificationPromises = contract.participantIds.map(participantId => {
+    return db.collection(`users/${participantId}/notifications`).doc().set({
+      type: 'CONTRACT_CANCELLED',
+      title: 'Contract Cancelled',
+      message: `Contract #${contract.contractNumber} has been cancelled. ${contract.platformFeePaid ? '' : 'Platform fee waived.'}`,
+      data: { contractId, reason },
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  await Promise.all(notificationPromises);
+
+  return {
+    message: 'Contract cancelled successfully',
+    platformFeeWaived: !contract.platformFeePaid,
   };
 });
 

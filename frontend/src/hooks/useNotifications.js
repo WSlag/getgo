@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
+const isRead = (notification) => notification?.isRead === true || notification?.read === true;
+
 export function useNotifications(userId, maxResults = 50) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,8 @@ export function useNotifications(userId, maxResults = 50) {
             ...docData,
             createdAt,
             time: formatTimeAgo(createdAt),
-            read: docData.isRead || false,
+            read: isRead(docData),
+            isRead: isRead(docData),
           };
         });
         setNotifications(data);
@@ -49,7 +52,7 @@ export function useNotifications(userId, maxResults = 50) {
   }, [userId, maxResults]);
 
   const unreadCount = useMemo(() => {
-    return notifications.filter((n) => !n.isRead).length;
+    return notifications.filter((n) => !isRead(n)).length;
   }, [notifications]);
 
   return { notifications, unreadCount, loading, error };

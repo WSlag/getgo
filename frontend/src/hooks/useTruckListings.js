@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import { normalizeListingStatus, toTruckUiStatus } from '../utils/listingStatus';
 
 export function useTruckListings(options = {}) {
   const {
@@ -18,7 +19,8 @@ export function useTruckListings(options = {}) {
     const constraints = [];
 
     if (status) {
-      constraints.push(where('status', '==', status));
+      const normalizedStatus = normalizeListingStatus(status);
+      constraints.push(where('status', '==', normalizedStatus));
     }
 
     if (userId) {
@@ -57,6 +59,8 @@ export function useTruckListings(options = {}) {
             id: doc.id,
             type: 'truck',
             ...docData,
+            status: normalizeListingStatus(docData.status),
+            uiStatus: toTruckUiStatus(docData.status),
             // Map Firebase field names to TruckCard expected names
             trucker: docData.userName || 'Unknown Trucker',
             truckerRating: docData.userRating || 0,
@@ -68,8 +72,6 @@ export function useTruckListings(options = {}) {
             distance: distance ? `${distance} km` : null,
             estimatedTime: estimatedTime,
             bidCount: docData.bidCount || 0,
-            // Map status: Firebase uses 'open' but TruckCard expects 'available'
-            status: docData.status === 'open' ? 'available' : docData.status,
             // Keep original fields
             createdAt: createdAt,
             updatedAt: docData.updatedAt?.toDate?.() || new Date(),

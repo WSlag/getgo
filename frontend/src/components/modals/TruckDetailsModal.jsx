@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { RouteMap } from '@/components/maps';
 import { useBidsForListing } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
+import { canBookTruckStatus, toTruckUiStatus } from '@/utils/listingStatus';
+import api from '@/services/api';
 
 export function TruckDetailsModal({
   open,
@@ -27,12 +29,14 @@ export function TruckDetailsModal({
   onAcceptBid,
   onRejectBid,
   onCreateContract,
+  onOpenContract,
   onReopenListing,
   darkMode = false,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const [processingBidId, setProcessingBidId] = React.useState(null);
   const [processingAction, setProcessingAction] = React.useState(null);
+  const [bidContracts, setBidContracts] = React.useState({});
 
   const handleAcceptBid = async (bid) => {
     if (!onAcceptBid) return;
@@ -64,11 +68,42 @@ export function TruckDetailsModal({
     'truck'
   );
 
+  React.useEffect(() => {
+    const fetchAcceptedBidContracts = async () => {
+      if (!open || !isOwner || fetchedBids.length === 0) {
+        setBidContracts({});
+        return;
+      }
+
+      const acceptedBids = fetchedBids.filter((bid) => bid.status === 'accepted');
+      if (acceptedBids.length === 0) {
+        setBidContracts({});
+        return;
+      }
+
+      const contractMap = {};
+      await Promise.all(acceptedBids.map(async (acceptedBid) => {
+        try {
+          const response = await api.contracts.getByBid(acceptedBid.id);
+          if (response?.contract?.id) {
+            contractMap[acceptedBid.id] = response.contract.id;
+          }
+        } catch (error) {
+          // Contract may not exist yet.
+        }
+      }));
+      setBidContracts(contractMap);
+    };
+
+    fetchAcceptedBidContracts();
+  }, [open, isOwner, fetchedBids]);
+
   if (!truck) return null;
+  const displayStatus = truck.uiStatus || toTruckUiStatus(truck.status);
 
   const formatPrice = (price) => {
     if (!price) return '---';
-    return `₱${Number(price).toLocaleString()}`;
+    return `PHP ${Number(price).toLocaleString()}`;
   };
 
   const formatTimeAgo = (timestamp) => {
@@ -122,7 +157,7 @@ export function TruckDetailsModal({
     offline: 'bg-gradient-to-r from-gray-400 to-gray-600',
   };
 
-  const currentGradient = gradientColors[truck.status] || gradientColors.available;
+  const currentGradient = gradientColors[displayStatus] || gradientColors.available;
   const truckPhotos = truck.truckPhotos || [];
 
   // Map fetched bids to booking display format (keep full bid data for chat)
@@ -182,11 +217,11 @@ export function TruckDetailsModal({
         {/* Status and Price Header */}
         <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
           <div className="flex items-center" style={{ gap: isMobile ? '6px' : '12px' }}>
-            <Badge className={cn("uppercase tracking-wide", statusStyles[truck.status] || statusStyles.available)} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '9px' : '11px' }}>
-              {statusLabels[truck.status] || 'AVAILABLE'}
+            <Badge className={cn("uppercase tracking-wide", statusStyles[displayStatus] || statusStyles.available)} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
+              {statusLabels[displayStatus] || 'AVAILABLE'}
             </Badge>
             {truck.vehicleType && (
-              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '9px' : '11px' }}>
+              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
                 {truck.vehicleType}
               </Badge>
             )}
@@ -255,7 +290,7 @@ export function TruckDetailsModal({
                 <MapPin style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px', color: '#fff' }} />
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>From</p>
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>From</p>
                 <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{truck.origin}</p>
               </div>
             </div>
@@ -280,7 +315,7 @@ export function TruckDetailsModal({
                 <MapPin style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px', color: '#fff' }} />
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>To</p>
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>To</p>
                 <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{truck.destination}</p>
               </div>
             </div>
@@ -313,7 +348,7 @@ export function TruckDetailsModal({
               <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
                 <Truck style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#a78bfa', flexShrink: 0 }} />
                 <div>
-                  <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Vehicle Type</p>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Vehicle Type</p>
                   <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{truck.vehicleType}</p>
                 </div>
               </div>
@@ -322,7 +357,7 @@ export function TruckDetailsModal({
               <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
                 <Truck style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#3b82f6', flexShrink: 0 }} />
                 <div>
-                  <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Capacity</p>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Capacity</p>
                   <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{truck.capacity}</p>
                 </div>
               </div>
@@ -343,7 +378,7 @@ export function TruckDetailsModal({
                   #
                 </div>
                 <div>
-                  <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Plate Number</p>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Plate Number</p>
                   <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', fontFamily: 'monospace', color: darkMode ? '#fff' : '#111827' }}>{truck.plateNumber}</p>
                 </div>
               </div>
@@ -352,7 +387,7 @@ export function TruckDetailsModal({
               <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
                 <Calendar style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#10b981', flexShrink: 0 }} />
                 <div>
-                  <p style={{ fontSize: isMobile ? '9px' : '10px', color: '#6b7280' }}>Available Date</p>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Available Date</p>
                   <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{truck.availableDate}</p>
                 </div>
               </div>
@@ -455,12 +490,12 @@ export function TruckDetailsModal({
                           {formatPrice(booking.amount)}
                         </p>
                         {booking.status === 'accepted' && (
-                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '9px' : '10px' }}>
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '11px' : '12px' }}>
                             Accepted
                           </Badge>
                         )}
                         {booking.status === 'rejected' && (
-                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '9px' : '10px' }}>
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '11px' : '12px' }}>
                             Rejected
                           </Badge>
                         )}
@@ -525,10 +560,18 @@ export function TruckDetailsModal({
                           variant="gradient"
                           size={isMobile ? "sm" : "default"}
                           className="flex-1 gap-2"
-                          onClick={() => onCreateContract?.(booking._original, truck)}
+                          onClick={() => {
+                            const existingContractId = bidContracts[booking.id];
+                            if (existingContractId && onOpenContract) {
+                              onClose?.();
+                              onOpenContract(existingContractId);
+                              return;
+                            }
+                            onCreateContract?.(booking._original, truck);
+                          }}
                         >
                           <FileText className="size-4" />
-                          Create Contract
+                          {bidContracts[booking.id] ? 'Open Contract' : 'Create Contract'}
                         </Button>
                       )}
                     </div>
@@ -545,7 +588,7 @@ export function TruckDetailsModal({
 
         {/* Action Buttons */}
         <div className="flex" style={{ gap: isMobile ? '8px' : '12px', paddingTop: isMobile ? '8px' : '12px' }}>
-          {!isOwner && currentRole === 'shipper' && (truck.status === 'open' || truck.status === 'waiting' || truck.status === 'available') && (
+          {!isOwner && currentRole === 'shipper' && canBookTruckStatus(truck.status) && (
             <Button
               variant="gradient"
               size={isMobile ? "default" : "lg"}
@@ -581,3 +624,4 @@ export function TruckDetailsModal({
 }
 
 export default TruckDetailsModal;
+

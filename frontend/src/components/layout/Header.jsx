@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Bell, User, Moon, Sun } from 'lucide-react';
+import { Home, TrendingUp, Bell, User, Moon, Sun, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Logo } from '@/components/shared/Logo';
@@ -12,9 +12,11 @@ export function Header({
   unreadNotifications = 0,
   userInitial = 'U',
   currentRole = 'shipper',
+  isBroker = false,
   onLogout,
   onNotificationClick,
   onProfileClick,
+  onBrokerClick,
   onEditProfile,
   onNotificationSettings,
   onHelpSupport,
@@ -23,8 +25,6 @@ export function Header({
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'tracking', label: 'Tracking', icon: TrendingUp },
-    { id: 'notifications', label: 'Alerts', icon: Bell, badge: unreadNotifications },
-    { id: 'profile', label: 'Profile', icon: User },
   ];
 
   return (
@@ -47,6 +47,8 @@ export function Header({
                   onClick={() => {
                     if (item.id === 'notifications' && onNotificationClick) {
                       onNotificationClick();
+                    } else if (item.id === 'broker' && onBrokerClick) {
+                      onBrokerClick();
                     } else if (item.id === 'profile' && onProfileClick) {
                       onProfileClick();
                     } else if (onTabChange) {
@@ -77,7 +79,18 @@ export function Header({
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
-            {/* Wallet removed - using direct GCash payment */}
+            {/* Notification Bell */}
+            <button
+              onClick={onNotificationClick}
+              className="relative size-9 rounded-xl bg-white/50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-800 flex items-center justify-center transition-all duration-300 hover:shadow-md hover:scale-105 active:scale-95 backdrop-blur-sm"
+            >
+              <Bell className="size-5 text-gray-700 dark:text-gray-400" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -top-1 -right-1 size-5 flex items-center justify-center bg-red-500 text-white text-xs font-bold rounded-full border-2 border-white dark:border-gray-900">
+                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                </span>
+              )}
+            </button>
 
             {/* Dark Mode Toggle */}
             <button
@@ -97,6 +110,8 @@ export function Header({
               currentRole={currentRole}
               darkMode={darkMode}
               onToggleDarkMode={onToggleDarkMode}
+              isBroker={isBroker}
+              onBrokerDashboard={onBrokerClick}
               onEditProfile={onEditProfile}
               onNotificationSettings={onNotificationSettings}
               onHelpSupport={onHelpSupport}

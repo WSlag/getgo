@@ -16,6 +16,7 @@ import { PaymentsView } from './PaymentsView';
 import { FinancialOverview } from './FinancialOverview';
 import { DisputesManagement } from './DisputesManagement';
 import { ReferralManagement } from './ReferralManagement';
+import { BrokerPayoutsView } from './BrokerPayoutsView';
 import { RatingsManagement } from './RatingsManagement';
 import { SystemSettings } from './SystemSettings';
 import { ContractVerificationView } from '../ContractVerificationView';
@@ -33,6 +34,7 @@ const sectionTitles = {
   financial: { title: 'Financial Overview', subtitle: 'Platform revenue and transactions' },
   disputes: { title: 'Disputes', subtitle: 'Handle and resolve disputes' },
   referrals: { title: 'Referral Program', subtitle: 'Manage brokers and referrals' },
+  brokerPayouts: { title: 'Broker Payouts', subtitle: 'Review and approve broker payout requests' },
   ratings: { title: 'Ratings & Reviews', subtitle: 'Monitor platform quality' },
   settings: { title: 'System Settings', subtitle: 'Configure platform parameters' },
 };
@@ -46,16 +48,21 @@ export function AdminDashboard({ onBackToApp }) {
   const [badges, setBadges] = useState({
     pendingPayments: 0,
     openDisputes: 0,
+    pendingBrokerPayouts: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
 
   // Fetch badge counts
   const fetchBadges = useCallback(async () => {
     try {
-      const stats = await api.admin.getPaymentStats();
+      const [stats, brokerPayouts] = await Promise.all([
+        api.admin.getPaymentStats(),
+        api.admin.getBrokerPayoutRequests({ status: 'pending', limit: 300 }),
+      ]);
       setBadges({
         pendingPayments: stats?.stats?.pendingReview || 0,
         openDisputes: 0, // TODO: Add dispute count endpoint
+        pendingBrokerPayouts: brokerPayouts?.requests?.length || 0,
       });
     } catch (err) {
       console.error('Error fetching admin badges:', err);
@@ -122,6 +129,8 @@ export function AdminDashboard({ onBackToApp }) {
         return <DisputesManagement />;
       case 'referrals':
         return <ReferralManagement />;
+      case 'brokerPayouts':
+        return <BrokerPayoutsView />;
       case 'ratings':
         return <RatingsManagement />;
       case 'settings':

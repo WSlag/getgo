@@ -114,7 +114,7 @@ export function RatingModal({
               {listing && (
                 <div className="flex items-center gap-1 text-sm text-gray-500">
                   <MapPin className="size-3" />
-                  <span>{listing.origin} → {listing.destination}</span>
+                  <span>{listing.origin} {'->'} {listing.destination}</span>
                 </div>
               )}
             </div>

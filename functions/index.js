@@ -970,6 +970,7 @@ const contractFunctions = require('./src/api/contracts');
 exports.createContract = contractFunctions.createContract;
 exports.signContract = contractFunctions.signContract;
 exports.completeContract = contractFunctions.completeContract;
+exports.cancelContract = contractFunctions.cancelContract;
 exports.getContracts = contractFunctions.getContracts;
 exports.getContract = contractFunctions.getContract;
 exports.getContractByBid = contractFunctions.getContractByBid;
@@ -1018,12 +1019,27 @@ exports.adminGetOutstandingFees = adminFunctions.adminGetOutstandingFees;
 exports.adminGetMarketplaceKpis = adminFunctions.adminGetMarketplaceKpis;
 
 // =============================================================================
+// BROKER REFERRAL FUNCTIONS
+// =============================================================================
+
+const referralFunctions = require('./src/api/referrals');
+exports.brokerRegister = referralFunctions.brokerRegister;
+exports.brokerApplyReferralCode = referralFunctions.brokerApplyReferralCode;
+exports.brokerGetDashboard = referralFunctions.brokerGetDashboard;
+exports.brokerRequestPayout = referralFunctions.brokerRequestPayout;
+exports.adminGetBrokers = referralFunctions.adminGetBrokers;
+exports.adminUpdateBrokerTier = referralFunctions.adminUpdateBrokerTier;
+exports.adminGetBrokerPayoutRequests = referralFunctions.adminGetBrokerPayoutRequests;
+exports.adminReviewBrokerPayout = referralFunctions.adminReviewBrokerPayout;
+
+// =============================================================================
 // ROUTE OPTIMIZATION FUNCTIONS
 // =============================================================================
 
 const listingFunctions = require('./src/api/listings');
 exports.findBackloadOpportunities = listingFunctions.findBackloadOpportunities;
 exports.getPopularRoutes = listingFunctions.getPopularRoutes;
+exports.requestListingChat = listingFunctions.requestListingChat;
 
 // =============================================================================
 // FIRESTORE TRIGGERS
@@ -1040,6 +1056,9 @@ exports.onShipmentStatusChanged = shipmentTriggers.onShipmentStatusChanged;
 
 const ratingTriggers = require('./src/triggers/ratingTriggers');
 exports.onRatingCreated = ratingTriggers.onRatingCreated;
+
+const referralTriggers = require('./src/triggers/referralTriggers');
+exports.onPlatformFeeCompleted = referralTriggers.onPlatformFeeCompleted;
 
 // =============================================================================
 // SCHEDULED FUNCTIONS

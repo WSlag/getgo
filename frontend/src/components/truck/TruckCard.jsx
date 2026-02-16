@@ -20,6 +20,7 @@ export function TruckCard({
   availableDate,
   description,
   status = 'available',
+  uiStatus,
   postedAt,
   truckPhotos = [],
   bidCount = 0,
@@ -35,6 +36,8 @@ export function TruckCard({
   className,
   compact = false, // New prop for condensed mobile view
 }) {
+  const displayStatus = uiStatus || status;
+
   // Status badge styles - Figma gradient style with shadows (matching CargoCard)
   const statusStyles = {
     available: 'bg-gradient-to-br from-green-400 to-green-600 text-white shadow-lg',
@@ -59,7 +62,7 @@ export function TruckCard({
     offline: 'bg-gradient-to-r from-gray-400 to-gray-600',
   };
 
-  const currentGradient = gradientColors[status] || gradientColors.available;
+  const currentGradient = gradientColors[displayStatus] || gradientColors.available;
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -105,15 +108,15 @@ export function TruckCard({
         {/* Gradient Accent Bar */}
         <div className={cn("h-1", currentGradient)} />
 
-        <div className="p-4">
+        <div style={{ padding: '16px' }}>
           {/* Row 1: Status Badge + Vehicle Type + Rate */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Badge
-                className={cn("uppercase tracking-wide text-[10px] font-semibold px-2 py-0.5", compactStatusStyles[status] || compactStatusStyles.available)}
-              >
-                {statusLabels[status] || 'AVAILABLE'}
-              </Badge>
+                  <Badge
+                    className={cn("uppercase tracking-wide text-[10px] font-semibold px-2 py-0.5", compactStatusStyles[displayStatus] || compactStatusStyles.available)}
+                  >
+                    {statusLabels[displayStatus] || 'AVAILABLE'}
+                  </Badge>
               {vehicleType && (
                 <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase text-[10px] px-2 py-0.5">
                   {vehicleType}
@@ -180,8 +183,8 @@ export function TruckCard({
         <div className="flex items-start justify-between" style={{ marginBottom: '16px' }}>
           <div className="flex-1">
             <div className="flex items-center" style={{ gap: '8px', marginBottom: '8px' }}>
-              <Badge className={cn("uppercase tracking-wide", statusStyles[status] || statusStyles.available)} style={{ padding: '5px 10px', fontSize: '10px' }}>
-                {statusLabels[status] || 'AVAILABLE'}
+              <Badge className={cn("uppercase tracking-wide", statusStyles[displayStatus] || statusStyles.available)} style={{ padding: '5px 10px', fontSize: '10px' }}>
+                {statusLabels[displayStatus] || 'AVAILABLE'}
               </Badge>
               <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {vehicleType || 'TRUCK'}
@@ -407,7 +410,7 @@ export function TruckCard({
                   className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
                   style={{ padding: '14px 20px' }}
                 >
-                  Contact
+                  Request Chat
                 </button>
               )}
             </>

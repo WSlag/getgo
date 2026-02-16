@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import { normalizeListingStatus } from '../utils/listingStatus';
 
 export function useCargoListings(options = {}) {
   const {
@@ -18,7 +19,7 @@ export function useCargoListings(options = {}) {
     const constraints = [];
 
     if (status) {
-      constraints.push(where('status', '==', status));
+      constraints.push(where('status', '==', normalizeListingStatus(status)));
     }
 
     if (userId) {
@@ -57,6 +58,7 @@ export function useCargoListings(options = {}) {
             id: doc.id,
             type: 'cargo',
             ...docData,
+            status: normalizeListingStatus(docData.status),
             // Map Firebase field names to CargoCard expected names
             shipper: docData.userName || 'Unknown Shipper',
             company: docData.userName || 'Unknown Shipper',

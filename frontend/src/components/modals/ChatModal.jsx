@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useChat } from '@/hooks/useChat';
-import { sendChatMessage } from '@/services/firestoreService';
+import { sendChatMessage, markMessagesRead } from '@/services/firestoreService';
 import socketService from '@/services/socketService';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import api from '@/services/api';
@@ -81,11 +81,20 @@ export function ChatModal({
       try {
         setLoadingContract(true);
         const response = await api.contracts.getByBid(bidId);
-        if (response.contract) {
+        if (response?.contract) {
           setContractId(response.contract.id);
+        } else {
+          setContractId(null);
         }
       } catch (error) {
-        // Contract doesn't exist yet - this is normal
+        // Contract doesn't exist yet - this is normal for bids without contracts
+        const isExpectedError = error.code === 'not-found' ||
+                               (error.message && error.message.includes('Contract not found'));
+
+        // Only warn about unexpected errors
+        if (!isExpectedError) {
+          console.warn('Error fetching contract:', error.message || error);
+        }
         setContractId(null);
       } finally {
         setLoadingContract(false);
@@ -102,6 +111,17 @@ export function ChatModal({
     }
   }, [messages]);
 
+  // Mark incoming messages as read whenever chat is open
+  useEffect(() => {
+    if (!open || !bidId || !currentUser?.uid) {
+      return;
+    }
+
+    markMessagesRead(bidId, currentUser.uid).catch((err) => {
+      console.error('Failed to mark messages read:', err);
+    });
+  }, [open, bidId, currentUser?.uid, messages.length]);
+
   // Focus input when modal opens
   useEffect(() => {
     if (open && inputRef.current) {
@@ -111,7 +131,7 @@ export function ChatModal({
 
   const formatPrice = (price) => {
     if (!price) return '---';
-    return `₱${Number(price).toLocaleString()}`;
+    return `PHP ${Number(price).toLocaleString()}`;
   };
 
   const formatTimeAgo = (timestamp) => {
@@ -204,7 +224,7 @@ export function ChatModal({
               <div>
                 <DialogTitle>Start a Conversation</DialogTitle>
                 <DialogDescription>
-                  {listing.origin} → {listing.destination}
+                  {listing.origin} {'->'} {listing.destination}
                 </DialogDescription>
               </div>
             </div>
@@ -271,7 +291,7 @@ export function ChatModal({
               <DialogDescription style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <MapPin style={{ width: '12px', height: '12px', color: '#22c55e' }} />
                 <span>{listing.origin}</span>
-                <span style={{ color: '#9ca3af', margin: '0 4px' }}>→</span>
+                <span style={{ color: '#9ca3af', margin: '0 4px' }}>{'->'}</span>
                 <MapPin style={{ width: '12px', height: '12px', color: '#ef4444' }} />
                 <span>{listing.destination}</span>
               </DialogDescription>

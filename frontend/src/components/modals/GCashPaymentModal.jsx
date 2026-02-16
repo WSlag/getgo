@@ -60,8 +60,8 @@ export function GCashPaymentModal({
   const agreedPrice = bid?.price || 0;
 
   const formatPrice = (price) => {
-    if (!price) return '₱0';
-    return `₱${Number(price).toLocaleString()}`;
+    if (!price) return 'PHP 0';
+    return `PHP ${Number(price).toLocaleString()}`;
   };
 
   // Reset state when modal opens/closes
@@ -184,7 +184,7 @@ export function GCashPaymentModal({
           <span style={{ fontSize: '14px', color: '#6b7280' }}>Route</span>
         </div>
         <span style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
-          {listing?.origin} → {listing?.destination}
+          {listing?.origin} {'->'} {listing?.destination}
         </span>
       </div>
 
@@ -385,7 +385,7 @@ export function GCashPaymentModal({
         border: '1px solid #bfdbfe',
       }}>
         <div style={{ fontSize: '13px', fontWeight: '600', color: '#1d4ed8', marginBottom: '8px' }}>
-          📱 Payment Instructions:
+          Payment Instructions:
         </div>
         <ol style={{ fontSize: '12px', color: '#1e40af', margin: 0, paddingLeft: '16px' }}>
           <li style={{ marginBottom: '6px' }}>Open your GCash app</li>
@@ -530,7 +530,7 @@ export function GCashPaymentModal({
         border: '1px solid #fcd34d',
       }}>
         <div style={{ fontSize: '13px', fontWeight: '600', color: '#92400e', marginBottom: '8px' }}>
-          ✓ Make sure your screenshot shows:
+          Make sure your screenshot shows:
         </div>
         <ul style={{ fontSize: '12px', color: '#78350f', margin: 0, paddingLeft: '20px' }}>
           <li style={{ marginBottom: '4px' }}>Reference number clearly visible</li>

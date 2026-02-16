@@ -31,6 +31,7 @@ const notificationColors = {
 };
 
 const filterTabs = ['All', 'Bids', 'Contracts', 'Messages', 'Shipments'];
+const isRead = (notification) => notification?.isRead === true || notification?.read === true;
 
 export function NotificationsModal({
   open,
@@ -60,12 +61,12 @@ export function NotificationsModal({
   }, [notifications, activeFilter]);
 
   const unreadCount = useMemo(() => {
-    return notifications.filter(n => !n.read && !n.isRead).length;
+    return notifications.filter((notification) => !isRead(notification)).length;
   }, [notifications]);
 
   const handleNotificationClick = (notification) => {
     // Mark as read
-    if (!notification.read && !notification.isRead && onMarkAsRead) {
+    if (!isRead(notification) && onMarkAsRead) {
       onMarkAsRead(currentUserId, notification.id);
     }
 
@@ -272,7 +273,7 @@ export function NotificationsModal({
               {filteredNotifications.map((notification) => {
                 const IconComponent = getIcon(notification.type);
                 const iconBg = getColors(notification.type);
-                const isUnread = !notification.read && !notification.isRead;
+                const isUnread = !isRead(notification);
 
                 return (
                   <div
@@ -330,7 +331,7 @@ export function NotificationsModal({
                           </div>
                           {notification.amount && (
                             <span style={{ fontWeight: '700', fontSize: '14px', color: '#ea580c' }}>
-                              ₱{Number(notification.amount).toLocaleString()}
+                              PHP {Number(notification.amount).toLocaleString()}
                             </span>
                           )}
                         </div>
