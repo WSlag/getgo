@@ -59,6 +59,7 @@ export function PostModal({
     cargoType: '',
     vehicleType: '',
     askingPrice: '',
+    declaredValue: '',
     description: '',
     pickupDate: '',
     photos: [],
@@ -82,6 +83,7 @@ export function PostModal({
         cargoType: existingData.cargoType || '',
         vehicleType: existingData.vehicleType || existingData.vehicleNeeded || '',
         askingPrice: (existingData.askingPrice || existingData.askingRate || existingData.price)?.toString() || '',
+        declaredValue: existingData.declaredValue?.toString() || '',
         description: existingData.description || '',
         pickupDate: existingData.pickupDate || existingData.availableDate || '',
         photos: existingData.cargoPhotos || existingData.truckPhotos || existingData.photos || [],
@@ -367,6 +369,32 @@ export function PostModal({
               />
             </div>
           </div>
+
+          {/* Declared Value - Shipper only */}
+          {isShipper && (
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                Declared Cargo Value
+                <span className="text-xs text-gray-500 ml-2">(Optional)</span>
+              </label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  placeholder="Default: ₱100,000"
+                  value={formData.declaredValue}
+                  onChange={(e) => handleChange('declaredValue', e.target.value)}
+                  className="pr-12"
+                  min="0"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                  PHP
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Maximum liability in case of loss/damage. Leave blank for default ₱100,000.
+              </p>
+            </div>
+          )}
 
           {/* Description */}
           <div>

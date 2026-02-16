@@ -1,13 +1,14 @@
-import { Filter, X, Radio, MapPin, Navigation, MapPinned, Route, ChevronRight, AlertCircle } from 'lucide-react';
+import { Filter, X, Radio, MapPin, Navigation, MapPinned, Route, ChevronRight, AlertCircle, BookmarkPlus, Bookmark, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CargoCard } from '@/components/cargo/CargoCard';
 import { TruckCard } from '@/components/truck/TruckCard';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
+import { canBidCargoStatus, canBookTruckStatus } from '@/utils/listingStatus';
+import BrokerHomeCard from '@/components/broker/BrokerHomeCard';
 
 export function HomeView({
   activeMarket = 'cargo',
-  isGuestPreview = false,
   onMarketChange,
   cargoListings = [],
   truckListings = [],
@@ -31,6 +32,14 @@ export function HomeView({
   onRouteOptimizerClick,
   currentUser = null,
   onNavigateToContracts,
+  savedSearches = [],
+  onSaveCurrentSearch,
+  onApplySavedSearch,
+  onDeleteSavedSearch,
+  isBroker = false,
+  shouldShowBrokerCard = false,
+  onDismissBrokerCard,
+  onActivateBroker,
 }) {
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
@@ -51,9 +60,10 @@ export function HomeView({
     in_transit: { color: 'bg-orange-500', label: 'In Transit', textColor: 'text-orange-500' },
     delivered: { color: 'bg-green-500', label: 'Delivered', textColor: 'text-green-500' },
   };
+  const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
 
   return (
-    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '20px' : '24px', paddingBottom: isMobile ? '100px' : '24px' }}>
+    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '16px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' }}>
       {/* Suspension Banner */}
       {isAccountSuspended && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white p-3">
@@ -138,19 +148,62 @@ export function HomeView({
         </div>
       </div>
 
-      {isGuestPreview && (
-        <div
-          className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-100"
-          style={{ padding: isMobile ? '10px 12px' : '12px 16px', marginBottom: isMobile ? '16px' : '20px' }}
-        >
-          <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '600' }}>
-            Guest Preview Mode
-          </p>
-          <p style={{ fontSize: isMobile ? '11px' : '12px', opacity: 0.9 }}>
-            Showing anonymized sample listings to preview marketplace activity. Sign in to unlock full details and live transactions.
-          </p>
+      {/* Saved Searches */}
+      <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900" style={{ padding: isMobile ? '12px' : '16px', marginBottom: isMobile ? '12px' : '16px' }}>
+        <div className="flex items-center justify-between" style={{ marginBottom: '10px' }}>
+          <div className="flex items-center gap-2">
+            <Bookmark className="size-4 text-orange-500" />
+            <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151' }}>
+              Saved Searches
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            disabled={!hasCurrentSearchPreset}
+            onClick={() => onSaveCurrentSearch?.()}
+          >
+            <BookmarkPlus className="size-4" />
+            Save Current
+          </Button>
         </div>
-      )}
+        {savedSearches.length > 0 ? (
+          <div className="flex flex-wrap" style={{ gap: '8px' }}>
+            {savedSearches.map((savedSearch) => (
+              <div
+                key={savedSearch.id}
+                className="flex items-center rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+                style={{ padding: '4px 10px', gap: '6px' }}
+              >
+                <button
+                  type="button"
+                  onClick={() => onApplySavedSearch?.(savedSearch)}
+                  className="text-left"
+                  style={{ fontSize: '12px', color: darkMode ? '#d1d5db' : '#374151' }}
+                >
+                  {savedSearch.market === 'trucks' ? 'Trucks' : 'Cargo'}: {savedSearch.searchQuery || 'All'} ({savedSearch.filterStatus || 'all'})
+                </button>
+                <button
+                  type="button"
+                  aria-label="Delete saved search"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDeleteSavedSearch?.(savedSearch.id);
+                  }}
+                  className="text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ fontSize: '12px', color: '#6b7280' }}>
+            Save frequent search and filter combinations for one-tap reuse.
+          </p>
+        )}
+      </div>
 
       {/* Shipment Tracking Section */}
       {activeShipments && activeShipments.length > 0 && (
@@ -233,13 +286,13 @@ export function HomeView({
                             borderRadius: '9999px',
                             fontWeight: '500',
                             color: '#fff',
-                            fontSize: isMobile ? '10px' : '12px'
+                            fontSize: isMobile ? '11px' : '12px'
                           }}>
                             {status.label}
                           </span>
                           <span style={{
                             color: darkMode ? '#9ca3af' : '#6b7280',
-                            fontSize: isMobile ? '10px' : '12px'
+                            fontSize: isMobile ? '11px' : '12px'
                           }}>
                             #{shipment.trackingNumber}
                           </span>
@@ -255,7 +308,7 @@ export function HomeView({
                       <div style={{ textAlign: 'right' }}>
                         <p style={{
                           color: darkMode ? '#9ca3af' : '#6b7280',
-                          fontSize: isMobile ? '10px' : '12px'
+                          fontSize: isMobile ? '11px' : '12px'
                         }}>Progress</p>
                         <p className={status.textColor} style={{
                           fontWeight: 'bold',
@@ -288,7 +341,7 @@ export function HomeView({
                           <MapPin style={{ width: isMobile ? '12px' : '16px', height: isMobile ? '12px' : '16px', color: '#fff' }} />
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <p style={{ fontSize: '10px', color: '#6b7280' }}>From</p>
+                          <p style={{ fontSize: '11px', color: '#6b7280' }}>From</p>
                           <p style={{
                             fontWeight: '500',
                             color: darkMode ? '#fff' : '#111827',
@@ -321,7 +374,7 @@ export function HomeView({
                           <MapPin style={{ width: isMobile ? '12px' : '16px', height: isMobile ? '12px' : '16px', color: '#fff' }} />
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <p style={{ fontSize: '10px', color: '#6b7280' }}>To</p>
+                          <p style={{ fontSize: '11px', color: '#6b7280' }}>To</p>
                           <p style={{
                             fontWeight: '500',
                             color: darkMode ? '#fff' : '#111827',
@@ -363,7 +416,7 @@ export function HomeView({
                       </span>
                       <span style={{
                         color: '#6b7280',
-                        fontSize: isMobile ? '10px' : '12px',
+                        fontSize: isMobile ? '11px' : '12px',
                         flexShrink: 0
                       }}>{shipment.lastUpdate || '2 hours ago'}</span>
                     </div>
@@ -375,7 +428,7 @@ export function HomeView({
                         justifyContent: 'space-between',
                         color: '#6b7280',
                         marginBottom: '4px',
-                        fontSize: isMobile ? '10px' : '11px'
+                        fontSize: isMobile ? '11px' : '12px'
                       }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {shipment.origin || 'Davao City'}
@@ -436,6 +489,16 @@ export function HomeView({
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Broker Home Card - Show for non-brokers when eligible */}
+      {!isBroker && shouldShowBrokerCard && (
+        <div style={{ marginBottom: isMobile ? '24px' : '32px' }}>
+          <BrokerHomeCard
+            onActivate={onActivateBroker}
+            onDismiss={onDismissBrokerCard}
+          />
         </div>
       )}
 
@@ -550,7 +613,7 @@ export function HomeView({
                   onBid={() => onBidCargo?.(cargo)}
                   onContact={() => onContactShipper?.(cargo)}
                   onViewMap={() => onViewMap?.(cargo)}
-                  canBid={currentRole === 'trucker' && !isAccountSuspended && (cargo.status === 'open' || cargo.status === 'waiting')}
+                  canBid={currentRole === 'trucker' && !isAccountSuspended && canBidCargoStatus(cargo.status)}
                   isOwner={currentUserId && (cargo.shipperId === currentUserId || cargo.userId === currentUserId)}
                   darkMode={darkMode}
                 />
@@ -564,7 +627,7 @@ export function HomeView({
                   onBook={() => onBookTruck?.(truck)}
                   onContact={() => onContactTrucker?.(truck)}
                   onViewMap={() => onViewMap?.(truck)}
-                  canBook={currentRole === 'shipper' && !isAccountSuspended && ['open', 'waiting', 'available', 'in-transit'].includes(truck.status)}
+                  canBook={currentRole === 'shipper' && !isAccountSuspended && canBookTruckStatus(truck.status)}
                   isOwner={currentUserId && (truck.truckerId === currentUserId || truck.userId === currentUserId)}
                   darkMode={darkMode}
                 />

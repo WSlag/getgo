@@ -19,12 +19,25 @@ import {
   Search,
   ArrowRight,
   Star,
+  BookmarkPlus,
+  Bookmark,
+  Trash2,
 } from 'lucide-react';
 import { useRouteOptimizer } from '@/hooks/useRouteOptimizer';
 import { formatCurrency } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
-export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDestination, darkMode = false }) {
+export function RouteOptimizerModal({
+  open,
+  onClose,
+  initialOrigin,
+  initialDestination,
+  savedRoutes = [],
+  onSaveRoute,
+  onApplySavedRoute,
+  onDeleteSavedRoute,
+  darkMode = false,
+}) {
   const [origin, setOrigin] = useState(initialOrigin || '');
   const [destination, setDestination] = useState(initialDestination || '');
   const [maxDetour, setMaxDetour] = useState('50');
@@ -72,10 +85,22 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
     setOrigin(route.origin);
     setDestination(route.destination);
   };
+  const canSaveRoute = origin.trim() && destination.trim();
+
+  const handleSaveCurrentRoute = () => {
+    if (!canSaveRoute) return;
+    onSaveRoute?.({
+      origin: origin.trim(),
+      destination: destination.trim(),
+      maxDetourKm: Number(maxDetour) || 50,
+      type: searchType,
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" hideCloseButton>
+        <div style={{ padding: isMobile ? '16px' : '24px' }}>
         <DialogHeader>
           <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
             <div style={{
@@ -92,13 +117,13 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
             </div>
             <div>
               <DialogTitle style={{ fontSize: isMobile ? '16px' : '20px' }}>Route Optimizer</DialogTitle>
-              <DialogDescription style={{ fontSize: isMobile ? '11px' : '14px' }}>Find backload opportunities along your route</DialogDescription>
+              <DialogDescription style={{ fontSize: isMobile ? '12px' : '14px' }}>Find backload opportunities along your route</DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         {/* Search Form */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px', marginTop: isMobile ? '12px' : '16px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '12px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '10px' : '12px' }}>
               <div>
@@ -159,22 +184,75 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
               </div>
             </div>
 
-            <Button
-              onClick={handleSearch}
-              disabled={loading || !origin.trim()}
-              size={isMobile ? "default" : "lg"}
-              className="bg-gradient-to-r from-green-500 to-emerald-600 w-full"
-              style={{ gap: '6px' }}
-            >
-              {loading ? <Loader2 style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} className="animate-spin" /> : <Search style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} />}
-              <span>Search</span>
-            </Button>
+            <div className="flex" style={{ gap: '8px' }}>
+              <Button
+                onClick={handleSearch}
+                disabled={loading || !origin.trim()}
+                size={isMobile ? "default" : "lg"}
+                className="bg-gradient-to-r from-green-500 to-emerald-600 flex-1"
+                style={{ gap: '6px' }}
+              >
+                {loading ? <Loader2 style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} className="animate-spin" /> : <Search style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} />}
+                <span>Search</span>
+              </Button>
+              <Button
+                onClick={handleSaveCurrentRoute}
+                disabled={!canSaveRoute}
+                size={isMobile ? "default" : "lg"}
+                variant="outline"
+                className="gap-1"
+              >
+                <BookmarkPlus style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} />
+                <span>Save</span>
+              </Button>
+            </div>
           </div>
         </div>
 
+        {/* Saved Routes */}
+        {savedRoutes.length > 0 && (
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+            <div className="flex items-center" style={{ gap: '6px', marginBottom: isMobile ? '6px' : '8px' }}>
+              <Bookmark style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#f97316' }} />
+              <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '600' }}>Saved Routes</p>
+            </div>
+            <div className="flex flex-wrap" style={{ gap: '8px' }}>
+              {savedRoutes.map((savedRoute) => (
+                <div
+                  key={savedRoute.id}
+                  className="flex items-center rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+                  style={{ padding: '4px 10px', gap: '6px' }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrigin(savedRoute.origin || '');
+                      setDestination(savedRoute.destination || '');
+                      setMaxDetour(String(savedRoute.maxDetourKm || 50));
+                      setSearchType(savedRoute.type || 'both');
+                      onApplySavedRoute?.(savedRoute);
+                    }}
+                    style={{ fontSize: isMobile ? '11px' : '12px' }}
+                  >
+                    {savedRoute.origin} <ArrowRight style={{ width: '10px', height: '10px', display: 'inline' }} /> {savedRoute.destination}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete route"
+                    onClick={() => onDeleteSavedRoute?.(savedRoute.id)}
+                    className="text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 style={{ width: isMobile ? '12px' : '13px', height: isMobile ? '12px' : '13px' }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Error Message */}
         {error && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <div className="rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400" style={{ padding: isMobile ? '12px' : '16px', fontSize: isMobile ? '12px' : '14px' }}>
               {error}
             </div>
@@ -182,7 +260,7 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
         )}
 
         {/* Results or Popular Routes */}
-        <div style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+        <div style={{ paddingTop: isMobile ? '16px' : '20px' }}>
           {backloadResults ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
                 {/* Summary */}
@@ -215,20 +293,32 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
                               )}
                               <span style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rec.route}</span>
                             </div>
-                            <Badge variant="outline" className="text-green-600 border-green-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '10px' : '11px', flexShrink: 0 }}>
+                            <Badge variant="outline" className="text-green-600 border-green-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '11px' : '12px', flexShrink: 0 }}>
                               {formatCurrency(rec.price)}
                             </Badge>
                           </div>
-                          <div className="flex items-center text-muted-foreground" style={{ gap: isMobile ? '6px' : '8px', fontSize: isMobile ? '10px' : '11px', flexWrap: 'wrap' }}>
+                          <div className="flex items-center text-muted-foreground" style={{ gap: isMobile ? '6px' : '8px', fontSize: isMobile ? '11px' : '12px', flexWrap: 'wrap' }}>
                             <span>{rec.originDistance}km from origin</span>
                             {rec.destDistance !== null && (
                               <>
-                                <span>•</span>
+                                <span>-</span>
                                 <span>{rec.destDistance}km from destination</span>
                               </>
                             )}
-                            <span>•</span>
+                            <span>-</span>
                             <span className="text-green-600">{rec.reason}</span>
+                            {typeof rec.etaSavedMinutes === 'number' && (
+                              <>
+                                <span>-</span>
+                                <span className="text-blue-600">ETA gain {rec.etaSavedMinutes}m</span>
+                              </>
+                            )}
+                            {typeof rec.matchScore === 'number' && (
+                              <>
+                                <span>-</span>
+                                <span className="text-amber-600">Match {Math.round(rec.matchScore)}%</span>
+                              </>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -254,12 +344,12 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
                             <span style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {cargo.origin} <ArrowRight style={{ width: isMobile ? '12px' : '14px', height: isMobile ? '12px' : '14px', display: 'inline', verticalAlign: 'middle' }} /> {cargo.destination}
                             </span>
-                            <Badge style={{ fontSize: isMobile ? '10px' : '11px', padding: isMobile ? '2px 6px' : '4px 8px', flexShrink: 0 }}>{formatCurrency(cargo.askingPrice)}</Badge>
+                            <Badge style={{ fontSize: isMobile ? '11px' : '12px', padding: isMobile ? '2px 6px' : '4px 8px', flexShrink: 0 }}>{formatCurrency(cargo.askingPrice)}</Badge>
                           </div>
-                          <div className="text-muted-foreground" style={{ fontSize: isMobile ? '10px' : '11px', marginBottom: '4px' }}>
-                            {cargo.cargoType} • {cargo.weight} {cargo.weightUnit} • {cargo.routeDistance}km route
+                          <div className="text-muted-foreground" style={{ fontSize: isMobile ? '11px' : '12px', marginBottom: '4px' }}>
+                            {cargo.cargoType} - {cargo.weight} {cargo.weightUnit} - {cargo.routeDistance}km route
                           </div>
-                          <div className="text-green-600" style={{ fontSize: isMobile ? '10px' : '11px' }}>
+                          <div className="text-green-600" style={{ fontSize: isMobile ? '11px' : '12px' }}>
                             {cargo.originDistance}km detour from your origin
                           </div>
                         </div>
@@ -286,12 +376,12 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
                             <span style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {truck.origin} <ArrowRight style={{ width: isMobile ? '12px' : '14px', height: isMobile ? '12px' : '14px', display: 'inline', verticalAlign: 'middle' }} /> {truck.destination}
                             </span>
-                            <Badge style={{ fontSize: isMobile ? '10px' : '11px', padding: isMobile ? '2px 6px' : '4px 8px', flexShrink: 0 }}>{formatCurrency(truck.askingPrice)}</Badge>
+                            <Badge style={{ fontSize: isMobile ? '11px' : '12px', padding: isMobile ? '2px 6px' : '4px 8px', flexShrink: 0 }}>{formatCurrency(truck.askingPrice)}</Badge>
                           </div>
-                          <div className="text-muted-foreground" style={{ fontSize: isMobile ? '10px' : '11px', marginBottom: '4px' }}>
-                            {truck.vehicleType} • {truck.capacity} {truck.capacityUnit} • {truck.routeDistance}km route
+                          <div className="text-muted-foreground" style={{ fontSize: isMobile ? '11px' : '12px', marginBottom: '4px' }}>
+                            {truck.vehicleType} - {truck.capacity} {truck.capacityUnit} - {truck.routeDistance}km route
                           </div>
-                          <div className="text-green-600" style={{ fontSize: isMobile ? '10px' : '11px' }}>
+                          <div className="text-green-600" style={{ fontSize: isMobile ? '11px' : '12px' }}>
                             {truck.originDistance}km detour from your origin
                           </div>
                         </div>
@@ -328,9 +418,9 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
                           <span style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {route.origin} <ArrowRight style={{ width: isMobile ? '12px' : '14px', height: isMobile ? '12px' : '14px', display: 'inline', verticalAlign: 'middle' }} /> {route.destination}
                           </span>
-                          <Badge variant="secondary" style={{ fontSize: isMobile ? '10px' : '11px', padding: isMobile ? '2px 6px' : '4px 8px', flexShrink: 0 }}>{route.count} listings</Badge>
+                          <Badge variant="secondary" style={{ fontSize: isMobile ? '11px' : '12px', padding: isMobile ? '2px 6px' : '4px 8px', flexShrink: 0 }}>{route.count} listings</Badge>
                         </div>
-                        <div className="text-muted-foreground" style={{ fontSize: isMobile ? '10px' : '11px' }}>
+                        <div className="text-muted-foreground" style={{ fontSize: isMobile ? '11px' : '12px' }}>
                           {route.distance}km distance
                         </div>
                       </button>
@@ -345,9 +435,11 @@ export function RouteOptimizerModal({ open, onClose, initialOrigin, initialDesti
               </div>
             )}
         </div>
+        </div>
       </DialogBottomSheet>
     </Dialog>
   );
 }
 
 export default RouteOptimizerModal;
+

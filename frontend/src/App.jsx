@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import RegisterScreen from './components/auth/RegisterScreen';
 import GetGoApp from './GetGoApp';
@@ -12,6 +12,33 @@ const USE_NEW_UI = true;
 
 function AppContent() {
   const { loading, isNewUser, authUser } = useAuth();
+
+  // Capture broker referral code from deep links for registration attribution.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const url = new URL(window.location.href);
+    let code = '';
+
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    if (pathParts.length >= 2 && pathParts[0].toLowerCase() === 'r') {
+      code = pathParts[1] || '';
+    }
+
+    if (!code) {
+      code = url.searchParams.get('ref') || '';
+    }
+
+    const normalized = String(code || '').trim().toUpperCase();
+    if (!normalized) return;
+
+    window.localStorage.setItem('karga_referral_code', normalized);
+
+    // Normalize URL after capture.
+    if (url.pathname !== '/' || url.searchParams.has('ref')) {
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
 
   // Loading state - show spinner while checking auth
   if (loading) {

@@ -35,7 +35,7 @@ export function BidModal({
 
   const formatPrice = (price) => {
     if (!price) return '---';
-    return `₱${Number(price).toLocaleString()}`;
+    return `PHP ${Number(price).toLocaleString()}`;
   };
 
   const handleSubmit = () => {
@@ -77,7 +77,7 @@ export function BidModal({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogBottomSheet className="max-w-md backdrop-blur-sm" hideCloseButton>
-        <div className="px-6 pt-4 pb-4 lg:px-8 lg:pt-8">
+        <div style={{ padding: isMobile ? '16px' : '24px', paddingBottom: 0 }}>
           <DialogHeader>
             <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
               <div style={{
@@ -105,7 +105,7 @@ export function BidModal({
                 <DialogTitle style={{ fontSize: isMobile ? '16px' : '20px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {isCargo ? 'Place Your Bid' : 'Book This Truck'}
                 </DialogTitle>
-                <DialogDescription style={{ fontSize: isMobile ? '11px' : '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <DialogDescription style={{ fontSize: isMobile ? '12px' : '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {isCargo
                     ? `Bidding on ${listing.shipper}'s cargo`
                     : `Booking ${listing.trucker}'s truck`}
@@ -116,12 +116,12 @@ export function BidModal({
 
           {/* Warning Banner for Non-Open Listings */}
           {!listingAllowsBid && (
-            <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+            <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px', marginTop: isMobile ? '12px' : '16px' }}>
               <div className="rounded-lg bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-2 border-red-200 dark:border-red-800" style={{ padding: isMobile ? '12px' : '16px' }}>
                 <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#b91c1c' }} className="dark:text-red-400">
-                  ⚠️ This listing is no longer accepting bids
+                  Warning: This listing is no longer accepting bids
                 </p>
-                <p style={{ fontSize: isMobile ? '10px' : '11px', marginTop: '4px', color: '#dc2626' }} className="dark:text-red-500">
+                <p style={{ fontSize: isMobile ? '11px' : '12px', marginTop: '4px', color: '#dc2626' }} className="dark:text-red-500">
                   Status: {listing.status?.toUpperCase()}
                 </p>
               </div>
@@ -129,7 +129,7 @@ export function BidModal({
           )}
 
           {isSuspended && (
-            <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+            <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
               <div className="rounded-lg bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-2 border-red-200 dark:border-red-800" style={{ padding: isMobile ? '12px' : '16px' }}>
                 <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#b91c1c' }} className="dark:text-red-400">
                   Account suspended. Pay outstanding fees to resume bidding.
@@ -139,7 +139,7 @@ export function BidModal({
           )}
 
           {/* Listing Summary */}
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <div className="rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850" style={{ padding: isMobile ? '12px' : '16px' }}>
               <div className="flex items-center justify-between" style={{ marginBottom: isMobile ? '8px' : '12px' }}>
                 <div>
@@ -164,13 +164,13 @@ export function BidModal({
                   <span style={{ fontWeight: '500' }}>{listing.origin}</span>
                 </div>
                 {listing.originStreetAddress && (
-                  <p style={{ fontSize: isMobile ? '10px' : '11px', marginLeft: isMobile ? '20px' : '24px', marginBottom: isMobile ? '6px' : '8px', color: '#9ca3af' }}>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', marginLeft: isMobile ? '20px' : '24px', marginBottom: isMobile ? '6px' : '8px', color: '#9ca3af' }}>
                     {listing.originStreetAddress}
                   </p>
                 )}
 
                 <div className="flex items-center justify-center" style={{ gap: '4px', margin: isMobile ? '4px 0' : '8px 0' }}>
-                  <span className="text-gray-300 dark:text-gray-600">→</span>
+                  <span className="text-gray-300 dark:text-gray-600">{'->'}</span>
                 </div>
 
                 <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px', marginBottom: '4px' }}>
@@ -178,7 +178,7 @@ export function BidModal({
                   <span style={{ fontWeight: '500' }}>{listing.destination}</span>
                 </div>
                 {listing.destinationStreetAddress && (
-                  <p style={{ fontSize: isMobile ? '10px' : '11px', marginLeft: isMobile ? '20px' : '24px', color: '#9ca3af' }}>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', marginLeft: isMobile ? '20px' : '24px', color: '#9ca3af' }}>
                     {listing.destinationStreetAddress}
                   </p>
                 )}
@@ -187,14 +187,14 @@ export function BidModal({
               {isCargo && (
                 <div style={{ marginTop: isMobile ? '6px' : '8px', fontSize: isMobile ? '12px' : '14px' }} className="text-gray-600 dark:text-gray-400">
                   <span style={{ fontWeight: '500' }}>{listing.weight} {listing.unit}</span>
-                  {listing.cargoType && <span> • {listing.cargoType}</span>}
+                  {listing.cargoType && <span> - {listing.cargoType}</span>}
                 </div>
               )}
             </div>
           </div>
 
           {/* Bid Form */}
-          <div style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
               {/* Bid Amount */}
               <div>
@@ -217,7 +217,7 @@ export function BidModal({
                     PHP
                   </span>
                 </div>
-                {errors.bidAmount && <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#ef4444', marginTop: '4px' }}>{errors.bidAmount}</p>}
+                {errors.bidAmount && <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#ef4444', marginTop: '4px' }}>{errors.bidAmount}</p>}
 
                 {/* Quick bid buttons */}
                 <div className="flex" style={{ gap: isMobile ? '6px' : '8px', marginTop: isMobile ? '6px' : '8px' }}>
@@ -235,7 +235,7 @@ export function BidModal({
                           ? "bg-gradient-to-br from-orange-100 to-orange-200 text-orange-700 dark:from-orange-900/30 dark:to-orange-800/30 dark:text-orange-400 shadow-sm"
                           : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
                       )}
-                      style={{ padding: isMobile ? '6px 8px' : '8px 10px', fontSize: isMobile ? '10px' : '11px' }}
+                      style={{ padding: isMobile ? '6px 8px' : '8px 10px', fontSize: isMobile ? '11px' : '12px' }}
                     >
                       {formatPrice(amount)}
                     </button>
@@ -260,7 +260,7 @@ export function BidModal({
                       className={errors.cargoType && "border-red-500"}
                       style={{ fontSize: isMobile ? '13px' : '14px' }}
                     />
-                    {errors.cargoType && <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#ef4444', marginTop: '4px' }}>{errors.cargoType}</p>}
+                    {errors.cargoType && <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#ef4444', marginTop: '4px' }}>{errors.cargoType}</p>}
                   </div>
                   <div>
                     <label style={{ fontSize: isMobile ? '11px' : '12px', fontWeight: '500', marginBottom: '6px', display: 'block' }} className="text-gray-700 dark:text-gray-300">
@@ -277,7 +277,7 @@ export function BidModal({
                       className={errors.cargoWeight && "border-red-500"}
                       style={{ fontSize: isMobile ? '13px' : '14px' }}
                     />
-                    {errors.cargoWeight && <p style={{ fontSize: isMobile ? '10px' : '11px', color: '#ef4444', marginTop: '4px' }}>{errors.cargoWeight}</p>}
+                    {errors.cargoWeight && <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#ef4444', marginTop: '4px' }}>{errors.cargoWeight}</p>}
                   </div>
                 </div>
               )}
@@ -300,7 +300,7 @@ export function BidModal({
         </div>
 
         {/* Fixed Action Buttons - Outside scrollable area */}
-        <div className="dialog-fixed-footer flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-background px-6 py-4 lg:px-8 flex gap-3">
+        <div className="dialog-fixed-footer flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-background flex gap-3" style={{ padding: isMobile ? '16px' : '20px' }}>
           <Button
             variant="ghost"
             size={isMobile ? "default" : "lg"}
@@ -325,3 +325,4 @@ export function BidModal({
 }
 
 export default BidModal;
+

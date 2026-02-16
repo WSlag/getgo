@@ -163,3 +163,107 @@ exports.getPopularRoutes = functions.region('asia-southeast1').https.onCall(asyn
     routes: routes.slice(0, 20), // Top 20 popular routes
   };
 });
+
+/**
+ * Request to chat before placing a bid
+ * Creates a notification for listing owner so they can review the listing and respond.
+ */
+exports.requestListingChat = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const { listingId, listingType, note } = data || {};
+  if (!listingId || !listingType) {
+    throw new functions.https.HttpsError('invalid-argument', 'listingId and listingType are required');
+  }
+
+  const normalizedType = String(listingType).toLowerCase();
+  if (!['cargo', 'truck'].includes(normalizedType)) {
+    throw new functions.https.HttpsError('invalid-argument', 'listingType must be cargo or truck');
+  }
+
+  const listingCollection = normalizedType === 'cargo' ? 'cargoListings' : 'truckListings';
+  const db = admin.firestore();
+
+  const [listingDoc, requesterDoc] = await Promise.all([
+    db.collection(listingCollection).doc(listingId).get(),
+    db.collection('users').doc(context.auth.uid).get(),
+  ]);
+
+  if (!listingDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Listing not found');
+  }
+
+  const listing = listingDoc.data();
+  const listingOwnerId = listing.userId;
+  if (!listingOwnerId) {
+    throw new functions.https.HttpsError('failed-precondition', 'Listing owner is missing');
+  }
+
+  if (listingOwnerId === context.auth.uid) {
+    throw new functions.https.HttpsError('failed-precondition', 'Cannot request chat on your own listing');
+  }
+
+  const requesterName = requesterDoc.exists
+    ? (requesterDoc.data().name || requesterDoc.data().displayName || 'A user')
+    : 'A user';
+  const safeNote = typeof note === 'string' ? note.trim().slice(0, 200) : '';
+
+  const requestRef = db.collection('chatRequests').doc(`${listingId}_${context.auth.uid}`);
+  await requestRef.set({
+    listingId,
+    listingType: normalizedType,
+    listingOwnerId,
+    requesterId: context.auth.uid,
+    requesterName,
+    route: {
+      origin: listing.origin || '',
+      destination: listing.destination || '',
+    },
+    note: safeNote,
+    status: 'pending',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  const notificationMessageBase = `${requesterName} requested to chat about ${listing.origin || 'origin'} -> ${listing.destination || 'destination'}.`;
+  const notificationMessage = safeNote
+    ? `${notificationMessageBase} Note: ${safeNote}`
+    : notificationMessageBase;
+
+  await db.collection(`users/${listingOwnerId}/notifications`).doc().set({
+    type: 'CHAT_REQUEST',
+    title: 'New Chat Request',
+    message: notificationMessage,
+    data: {
+      listingId,
+      listingType: normalizedType,
+      requesterId: context.auth.uid,
+      requesterName,
+      origin: listing.origin || null,
+      destination: listing.destination || null,
+    },
+    isRead: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await db.collection(`users/${context.auth.uid}/notifications`).doc().set({
+    type: 'CHAT_REQUEST_SENT',
+    title: 'Chat Request Sent',
+    message: `You requested to chat with the ${normalizedType === 'cargo' ? 'shipper' : 'trucker'}.`,
+    data: {
+      listingId,
+      listingType: normalizedType,
+      listingOwnerId,
+    },
+    isRead: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return {
+    success: true,
+    requestId: requestRef.id,
+    message: 'Chat request sent',
+  };
+});

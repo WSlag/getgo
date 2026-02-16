@@ -152,6 +152,35 @@ This creates sample data:
 - `GET /api/notifications` - Get notifications
 - `PUT /api/notifications/:id/read` - Mark as read
 
+## Testing
+
+### E2E Testing with Playwright
+
+The project includes comprehensive end-to-end tests using Playwright and Firebase Emulators.
+
+**Quick Start:**
+```bash
+# Install dependencies
+npm install
+npx playwright install chromium
+
+# Run tests
+npm run test:e2e
+
+# Visual test runner
+npm run test:e2e:ui
+```
+
+**📚 Full testing documentation:** [tests/README.md](tests/README.md)
+
+Tests cover:
+- Authentication flow (phone OTP, registration, logout)
+- User journeys across different roles
+- Cargo/truck listing creation
+- Contract workflows
+
+All tests run against Firebase Emulators (zero production impact).
+
 ## Environment Variables
 
 Create `.env` in backend folder:

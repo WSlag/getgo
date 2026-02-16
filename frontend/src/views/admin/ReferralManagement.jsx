@@ -13,8 +13,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase';
+import api from '@/services/api';
 
 // Tier badge
 function TierBadge({ tier }) {
@@ -47,30 +46,18 @@ export function ReferralManagement() {
   const fetchBrokers = async () => {
     setLoading(true);
     try {
-      // Fetch users who have referral codes (brokers)
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const brokersData = [];
-
-      for (const userDoc of usersSnapshot.docs) {
-        const userData = userDoc.data();
-        // Check for broker profile
-        const brokerProfileSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'brokerProfile'));
-
-        if (!brokerProfileSnapshot.empty) {
-          const brokerData = brokerProfileSnapshot.docs[0].data();
-          brokersData.push({
-            id: userDoc.id,
-            name: userData.name,
-            phone: userData.phone,
-            referralCode: brokerData.referralCode,
-            tier: brokerData.tier || 'STARTER',
-            totalReferrals: brokerData.totalReferrals || 0,
-            totalEarnings: brokerData.totalEarnings || 0,
-            pendingEarnings: brokerData.pendingEarnings || 0,
-            createdAt: brokerData.createdAt || userData.createdAt,
-          });
-        }
-      }
+      const response = await api.admin.getBrokers({ limit: 300 });
+      const brokersData = (response?.brokers || []).map((broker) => ({
+        id: broker.id,
+        name: broker.user?.name || 'Unknown',
+        phone: broker.user?.phone || '-',
+        referralCode: broker.referralCode || '-',
+        tier: broker.tier || 'STARTER',
+        totalReferrals: broker.totalReferrals || 0,
+        totalEarnings: broker.totalEarnings || 0,
+        pendingEarnings: broker.pendingEarnings || 0,
+        createdAt: broker.createdAt || null,
+      }));
 
       // Sort by earnings
       brokersData.sort((a, b) => b.totalEarnings - a.totalEarnings);
@@ -86,19 +73,12 @@ export function ReferralManagement() {
       });
     } catch (error) {
       console.error('Error fetching brokers:', error);
-
-      // Mock data for demonstration
-      const mockBrokers = [
-        { id: '1', name: 'Juan Cruz', phone: '+63912345678', referralCode: 'SHP12345', tier: 'GOLD', totalReferrals: 25, totalEarnings: 15000, pendingEarnings: 2000, createdAt: new Date() },
-        { id: '2', name: 'Maria Santos', phone: '+63923456789', referralCode: 'TRK67890', tier: 'SILVER', totalReferrals: 12, totalEarnings: 8000, pendingEarnings: 500, createdAt: new Date() },
-        { id: '3', name: 'Pedro Garcia', phone: '+63934567890', referralCode: 'SHP24680', tier: 'STARTER', totalReferrals: 3, totalEarnings: 1500, pendingEarnings: 0, createdAt: new Date() },
-      ];
-      setBrokers(mockBrokers);
+      setBrokers([]);
       setStats({
-        total: mockBrokers.length,
-        totalReferrals: mockBrokers.reduce((sum, b) => sum + b.totalReferrals, 0),
-        totalEarnings: mockBrokers.reduce((sum, b) => sum + b.totalEarnings, 0),
-        activeBrokers: mockBrokers.filter(b => b.totalReferrals > 0).length,
+        total: 0,
+        totalReferrals: 0,
+        totalEarnings: 0,
+        activeBrokers: 0,
       });
     } finally {
       setLoading(false);

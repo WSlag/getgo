@@ -238,7 +238,13 @@ export function TrackingView({
   };
 
   return (
-    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '16px' : '24px' }}>
+    <main
+      className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)}
+      style={{
+        padding: isMobile ? '16px' : '24px',
+        paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px',
+      }}
+    >
       {/* Page Header */}
       <div style={{ marginBottom: isMobile ? '24px' : '32px' }}>
         <h1 style={{

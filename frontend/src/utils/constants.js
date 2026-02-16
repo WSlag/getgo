@@ -1,7 +1,7 @@
 import { Circle, Medal, Award, Trophy, Gem, Crown, Zap, BadgeCheck, CheckCircle2 } from 'lucide-react';
 
 // Platform constants
-export const PLATFORM_FEE_RATE = 0.03; // 3%
+export const PLATFORM_FEE_RATE = 0.05; // 5% (must match Firebase Functions)
 export const MINIMUM_WALLET_BALANCE = 500; // PHP
 
 // Payment methods

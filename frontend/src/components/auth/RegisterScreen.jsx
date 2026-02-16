@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
-import { User, Truck, Package, ArrowRight, Loader2, Building2, Mail } from 'lucide-react';
+import { User, Truck, Package, ArrowRight, Loader2, Building2, Mail, Link2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import BrokerOnboardingModal from '../broker/BrokerOnboardingModal';
 
 export default function RegisterScreen({ darkMode }) {
   const { authUser, createUserProfile } = useAuth();
   const [name, setName] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
+  const [referralCode, setReferralCode] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem('karga_referral_code') || '';
+  });
   const [role, setRole] = useState('shipper');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showBrokerOnboarding, setShowBrokerOnboarding] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,14 +34,17 @@ export default function RegisterScreen({ darkMode }) {
       businessName: businessName.trim() || name.trim(),
       email: email.trim() || null,
       role,
+      referralCode: referralCode.trim() || null,
     });
 
     setLoading(false);
 
     if (!result.success) {
       setError(result.error || 'Failed to create profile. Please try again.');
+    } else {
+      // Show broker onboarding modal after successful registration
+      setShowBrokerOnboarding(true);
     }
-    // If successful, AuthContext will handle the state update
   };
 
   return (
@@ -181,6 +190,43 @@ export default function RegisterScreen({ darkMode }) {
             </div>
           </div>
 
+          {/* Referral Code (Optional) */}
+          <div style={{ marginBottom: '24px' }}>
+            <label
+              className="block font-medium text-gray-700 dark:text-gray-300"
+              style={{ fontSize: '14px', marginBottom: '8px' }}
+            >
+              Referral Code (Optional)
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                placeholder="SHP12345"
+                className={cn(
+                  "w-full border border-gray-200 dark:border-gray-600",
+                  "bg-white dark:bg-gray-700 text-gray-900 dark:text-white",
+                  "placeholder:text-gray-400 dark:placeholder:text-gray-500",
+                  "focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500",
+                  "transition-all duration-200"
+                )}
+                style={{
+                  padding: '14px 48px 14px 16px',
+                  borderRadius: '12px',
+                  fontSize: '15px',
+                }}
+              />
+              <Link2
+                className="absolute text-gray-400"
+                style={{ right: '16px', top: '50%', transform: 'translateY(-50%)', width: '20px', height: '20px' }}
+              />
+            </div>
+            <p className="text-gray-400 dark:text-gray-500" style={{ fontSize: '12px', marginTop: '8px' }}>
+              If invited by a broker, enter their code here.
+            </p>
+          </div>
+
           {/* Role Selection */}
           <div style={{ marginBottom: '24px' }}>
             <label
@@ -315,6 +361,14 @@ export default function RegisterScreen({ darkMode }) {
           </p>
         </div>
       </div>
+
+      {/* Broker Onboarding Modal */}
+      <BrokerOnboardingModal
+        open={showBrokerOnboarding}
+        onClose={() => setShowBrokerOnboarding(false)}
+        onActivate={() => setShowBrokerOnboarding(false)}
+        userRole={role}
+      />
     </div>
   );
 }

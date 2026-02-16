@@ -30,60 +30,30 @@ export function PWAUpdateNotification() {
   if (!showUpdate) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: '80px',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      zIndex: 9999,
-      backgroundColor: '#1f2937',
-      color: 'white',
-      padding: '16px 20px',
-      borderRadius: '12px',
-      boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '16px',
-      maxWidth: '90vw',
-      width: '400px'
-    }}>
-      <RefreshCw style={{ width: '24px', height: '24px', color: '#f97316', flexShrink: 0 }} />
-      <div style={{ flex: 1 }}>
-        <p style={{ fontWeight: '600', marginBottom: '4px', fontSize: '14px' }}>Update Available</p>
-        <p style={{ fontSize: '12px', color: '#9ca3af', margin: 0 }}>A new version is ready to install</p>
+    <div
+      className="fixed left-1/2 z-[9999] w-[min(92vw,420px)] -translate-x-1/2 rounded-xl bg-gray-800 text-white shadow-2xl"
+      style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
+    >
+      <div className="flex items-center gap-4 px-4 py-4 sm:px-5">
+        <RefreshCw className="size-6 text-orange-500 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm mb-1">Update Available</p>
+          <p className="text-xs text-gray-400 m-0">A new version is ready to install</p>
+        </div>
+        <button
+          onClick={handleUpdate}
+          className="bg-orange-500 hover:bg-orange-600 text-white border-none px-4 py-2 rounded-lg font-semibold text-sm shrink-0 transition-colors"
+        >
+          Update
+        </button>
+        <button
+          onClick={handleDismiss}
+          className="bg-transparent border-none text-gray-400 hover:text-gray-200 cursor-pointer p-1 shrink-0 transition-colors"
+          aria-label="Dismiss update notification"
+        >
+          <X className="size-5" />
+        </button>
       </div>
-      <button
-        onClick={handleUpdate}
-        style={{
-          backgroundColor: '#f97316',
-          color: 'white',
-          border: 'none',
-          padding: '10px 16px',
-          borderRadius: '8px',
-          fontWeight: '600',
-          cursor: 'pointer',
-          fontSize: '14px',
-          flexShrink: 0
-        }}
-      >
-        Update
-      </button>
-      <button
-        onClick={handleDismiss}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: '#9ca3af',
-          cursor: 'pointer',
-          padding: '4px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0
-        }}
-      >
-        <X style={{ width: '20px', height: '20px' }} />
-      </button>
     </div>
   );
 }

@@ -1,39 +1,25 @@
 import React from 'react';
-import { Home, Package, MessageSquare, TrendingUp, User, Plus, Bell, ClipboardList, Map, FileText } from 'lucide-react';
+import { Home, MessageSquare, Plus, ClipboardList, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 
 export function MobileNav({
   activeTab = 'home',
   onTabChange,
   onPostClick,
   unreadMessages = 0,
-  unreadNotifications = 0,
-  unreadBids = 0,
-  pendingContractsCount = 0,
+  activityBadge = 0, // Combined bids + contracts count
   currentRole = 'shipper', // 'shipper' or 'trucker'
   className,
 }) {
-  // Account-specific navigation items
-  // Shipper: Home, Bids, Contracts, Post, Chat
-  // Trucker: Home, Bids, Contracts, Post, Chat
-  const shipperNavItems = [
+  // Streamlined 5-item navigation
+  // [Home] [Activity] [+ Post] [Messages] [Profile]
+  const navItems = [
     { id: 'home', label: 'Home', icon: Home },
-    { id: 'bids', label: 'Bids', icon: ClipboardList, badge: unreadBids },
+    { id: 'activity', label: 'Activity', icon: ClipboardList, badge: activityBadge },
     { id: 'post', label: 'Post', icon: Plus, isAction: true },
-    { id: 'contracts', label: 'Contracts', icon: FileText, badge: pendingContractsCount },
-    { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadMessages },
+    { id: 'messages', label: 'Messages', icon: MessageSquare, badge: unreadMessages },
+    { id: 'profile', label: 'Profile', icon: User },
   ];
-
-  const truckerNavItems = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'bids', label: 'Bids', icon: Package, badge: unreadBids },
-    { id: 'post', label: 'Post', icon: Plus, isAction: true },
-    { id: 'contracts', label: 'Contracts', icon: FileText, badge: pendingContractsCount },
-    { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadMessages },
-  ];
-
-  const navItems = currentRole === 'trucker' ? truckerNavItems : shipperNavItems;
 
   return (
     <nav

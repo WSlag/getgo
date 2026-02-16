@@ -31,7 +31,7 @@ export function ChatView({
 
   const formatPrice = (price) => {
     if (!price) return '---';
-    return `₱${Number(price).toLocaleString()}`;
+    return `PHP ${Number(price).toLocaleString()}`;
   };
 
   const handleConversationClick = (conversation) => {
@@ -75,7 +75,7 @@ export function ChatView({
   };
 
   return (
-    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto")} style={{ padding: isMobile ? '20px' : '24px', paddingBottom: isMobile ? '100px' : '24px' }}>
+    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto")} style={{ padding: isMobile ? '20px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' }}>
       {/* Header */}
       <div style={{ marginBottom: isMobile ? '16px' : '24px' }}>
         <h2 style={{ fontSize: isMobile ? '20px' : '28px', fontWeight: 'bold', color: darkMode ? '#fff' : '#111827', marginBottom: '8px' }}>
@@ -169,7 +169,7 @@ export function ChatView({
                         {conversation.origin || '---'}
                       </span>
                     </div>
-                    <span className="text-orange-500" style={{ fontSize: isMobile ? '14px' : '16px', flexShrink: 0 }}>→</span>
+                    <span className="text-orange-500" style={{ fontSize: isMobile ? '14px' : '16px', flexShrink: 0 }}>{'->'}</span>
                     <div className="flex items-center" style={{ gap: '6px', flex: 1, minWidth: 0 }}>
                       <MapPin style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#ef4444', flexShrink: 0 }} />
                       <span style={{ fontSize: isMobile ? '13px' : '14px', color: darkMode ? '#d1d5db' : '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

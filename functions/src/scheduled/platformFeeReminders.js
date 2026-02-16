@@ -30,16 +30,19 @@ exports.sendPlatformFeeReminders = functions
 
     for (const doc of unpaidContracts.docs) {
       const contract = { id: doc.id, ...doc.data() };
-      // Defer fee reminders/suspension until delivery is completed.
-      if (contract.status !== 'completed') {
+
+      // Skip cancelled and draft contracts
+      if (contract.status === 'cancelled' || contract.status === 'draft') {
         continue;
       }
 
-      const billingStartedAt =
-        contract.platformFeeBillingStartedAt?.toDate()
-        || contract.completedAt?.toDate()
-        || contract.createdAt?.toDate()
-        || now;
+      // Only process contracts where billing has started
+      if (!contract.platformFeeBillingStartedAt) {
+        console.log(`Skipping contract ${contract.id} - billing not started yet`);
+        continue;
+      }
+
+      const billingStartedAt = contract.platformFeeBillingStartedAt.toDate();
       const dueDate = contract.platformFeeDueDate?.toDate() || (() => {
         const d = new Date(billingStartedAt);
         d.setDate(d.getDate() + 3);
@@ -50,6 +53,14 @@ exports.sendPlatformFeeReminders = functions
         (now - billingStartedAt) / (1000 * 60 * 60 * 24)
       );
       const daysUntilDue = Math.floor((dueDate - now) / (1000 * 60 * 60 * 24));
+
+      console.log(`Processing contract ${contract.id}: ${contract.contractNumber}`);
+      console.log(`  Billing started: ${billingStartedAt.toISOString()}`);
+      console.log(`  Days since billing: ${daysSinceBillingStart}`);
+      console.log(`  Due date: ${dueDate.toISOString()}`);
+      console.log(`  Days until due: ${daysUntilDue}`);
+      console.log(`  Status: ${contract.platformFeeStatus}`);
+      console.log(`  Reminders sent: ${contract.platformFeeReminders?.join(', ') || 'none'}`);
 
       // Day 1: Initial reminder
       if (daysSinceBillingStart === 1 && !contract.platformFeeReminders?.includes('day_1')) {

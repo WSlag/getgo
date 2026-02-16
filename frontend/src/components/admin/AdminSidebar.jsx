@@ -9,6 +9,7 @@ import {
   CreditCard,
   AlertTriangle,
   Link2,
+  Landmark,
   Star,
   Settings,
   ArrowLeft,
@@ -27,6 +28,7 @@ const navItems = [
   { id: 'financial', label: 'Financial', icon: PesoIcon },
   { id: 'disputes', label: 'Disputes', icon: AlertTriangle, badge: 'openDisputes' },
   { id: 'referrals', label: 'Referrals', icon: Link2 },
+  { id: 'brokerPayouts', label: 'Broker Payouts', icon: Landmark, badge: 'pendingBrokerPayouts' },
   { id: 'ratings', label: 'Ratings', icon: Star },
 ];
 

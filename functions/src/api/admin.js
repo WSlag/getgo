@@ -595,7 +595,6 @@ exports.adminGetMarketplaceKpis = functions.region('asia-southeast1').https.onCa
       .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(firstWeekStart))
       .get(),
     db.collection('platformFees')
-      .where('status', '==', 'completed')
       .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(firstWeekStart))
       .get(),
     db.collection('disputes')
@@ -635,6 +634,7 @@ exports.adminGetMarketplaceKpis = functions.region('asia-southeast1').https.onCa
 
   feesSnap.docs.forEach((doc) => {
     const fee = doc.data();
+    if (fee.status !== 'completed') return;
     const feeBucket = getBucket(toDate(fee.createdAt));
     if (feeBucket) feeBucket.feesCollected += Number(fee.amount || 0);
   });

@@ -137,16 +137,16 @@ service cloud.firestore {
       // Broker Profile subcollection (including nested referrals and commissions)
       match /brokerProfile/{docId} {
         allow read: if isOwner(uid) || isAdmin();
-        allow write: if isOwner(uid);
+        allow write: if false; // Server-authoritative only
 
         match /referrals/{refId} {
           allow read: if isOwner(uid) || isAdmin();
-          allow write: if isOwner(uid);
+          allow write: if false;
         }
 
         match /commissions/{commId} {
           allow read: if isOwner(uid) || isAdmin();
-          allow write: if isOwner(uid);
+          allow write: if false;
         }
       }
 
@@ -173,6 +173,12 @@ service cloud.firestore {
         allow create: if isOwner(uid);
         allow update: if isOwner(uid);
         allow delete: if isOwner(uid);
+      }
+
+      // Broker Onboarding subcollection
+      match /brokerOnboarding/{docId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow write: if isOwner(uid);
       }
     }
 
@@ -241,7 +247,7 @@ service cloud.firestore {
         allow update: if (isBidParticipant(bidId) || isAdmin()) &&
           request.resource.data.senderId == resource.data.senderId &&
           request.resource.data.message == resource.data.message &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'updatedAt']);
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'read', 'updatedAt']);
         allow delete: if false;
       }
     }
@@ -338,6 +344,34 @@ service cloud.firestore {
     match /platformFees/{feeId} {
       allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if false; // Only backend creates
+    }
+
+    // Broker public/private summaries managed by Cloud Functions
+    match /brokers/{brokerId} {
+      allow read: if isAuth() && (request.auth.uid == brokerId || isAdmin());
+      allow write: if false;
+    }
+
+    // One referral attribution document per referred user (doc id = referred user id)
+    match /brokerReferrals/{referredUserId} {
+      allow read: if isAuth() && (
+        request.auth.uid == referredUserId ||
+        resource.data.brokerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow write: if false;
+    }
+
+    // Commission ledger (append-only server writes)
+    match /brokerCommissions/{commissionId} {
+      allow read: if isAuth() && (resource.data.brokerId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Payout requests (server-managed workflow)
+    match /brokerPayoutRequests/{requestId} {
+      allow read: if isAuth() && (resource.data.brokerId == request.auth.uid || isAdmin());
+      allow write: if false;
     }
   }
 }

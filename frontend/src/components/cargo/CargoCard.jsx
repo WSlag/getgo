@@ -389,7 +389,7 @@ export function CargoCard({
                   className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
                   style={{ padding: '14px 20px' }}
                 >
-                  Contact
+                  Request Chat
                 </button>
               )}
             </>

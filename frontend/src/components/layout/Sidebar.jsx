@@ -1,4 +1,4 @@
-import { Ship, Package, Truck, Plus, CheckCircle, Route, Navigation, MessageSquare, FileText, Shield } from 'lucide-react';
+import { Ship, Package, Truck, Plus, CheckCircle, Route, Navigation, FileText, Shield, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Sidebar({
@@ -19,6 +19,8 @@ export function Sidebar({
   onRouteOptimizerClick,
   onMyBidsClick,
   onContractsClick,
+  onBrokerClick,
+  isBroker = false,
   onPaymentReviewClick,
   className,
 }) {
@@ -170,6 +172,16 @@ export function Sidebar({
                 {activeContractsCount}
               </span>
             )}
+          </button>
+
+          {/* Broker Hub */}
+          <button
+            onClick={onBrokerClick}
+            className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
+            style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+          >
+            <Users className="size-5 text-emerald-500" />
+            <span className="font-medium flex-1 text-left">{isBroker ? 'Broker Dashboard' : 'Broker Program'}</span>
           </button>
 
           {/* Admin Dashboard - Admin Only */}

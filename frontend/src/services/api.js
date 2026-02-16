@@ -15,8 +15,16 @@ async function callFunction(name, data = {}) {
     const result = await fn(data);
     return result.data;
   } catch (error) {
-    console.error(`Cloud Function ${name} error:`, error);
-    throw new Error(error.message || 'Function call failed');
+    // Only log non-expected errors
+    const isExpectedError = error.code === 'not-found' ||
+                           (error.message && error.message.includes('Contract not found'));
+    if (!isExpectedError) {
+      console.error(`Cloud Function ${name} error:`, error);
+    }
+    // Preserve the original error code and message
+    const err = new Error(error.message || 'Function call failed');
+    err.code = error.code;
+    throw err;
   }
 }
 
@@ -187,6 +195,7 @@ const api = {
     updateTruck: (id, data) => put(`/listings/trucks/${id}`, data),
     deleteCargo: (id) => del(`/listings/cargo/${id}`),
     deleteTruck: (id) => del(`/listings/trucks/${id}`),
+    requestChat: (data) => callFunction('requestListingChat', data || {}),
   },
 
   // Route Optimization / Backload Finder
@@ -236,6 +245,13 @@ const api = {
     getPending: () => callFunction('getPendingRatings', {}),
     getMyRatings: () => get('/ratings/my-ratings'),
     submit: (data) => callFunction('submitRating', data),
+  },
+
+  broker: {
+    register: (data = {}) => callFunction('brokerRegister', data),
+    applyReferralCode: (referralCode) => callFunction('brokerApplyReferralCode', { referralCode }),
+    getDashboard: () => callFunction('brokerGetDashboard', {}),
+    requestPayout: (data) => callFunction('brokerRequestPayout', data || {}),
   },
 
   // Shipment Tracking
@@ -290,9 +306,12 @@ const api = {
     getDisputeDetails: (disputeId) => get(`/admin/disputes/${disputeId}`),
     resolveDispute: (disputeId, data) => callFunction('adminResolveDispute', { disputeId, ...data }),
 
-    // Referrals/Brokers
-    getBrokers: (params) => get(`/admin/referrals/brokers${params ? `?${new URLSearchParams(params)}` : ''}`),
-    updateBrokerTier: (brokerId, tier) => post(`/admin/referrals/${brokerId}/tier`, { tier }),
+    // Referrals/Brokers (Firebase Functions - authoritative)
+    getBrokers: (params) => callFunction('adminGetBrokers', params || {}),
+    updateBrokerTier: (brokerId, tier) => callFunction('adminUpdateBrokerTier', { brokerId, tier }),
+    getBrokerPayoutRequests: (params) => callFunction('adminGetBrokerPayoutRequests', params || {}),
+    reviewBrokerPayout: (requestId, decision, data = {}) =>
+      callFunction('adminReviewBrokerPayout', { requestId, decision, ...data }),
 
     // Ratings
     getRatings: (params) => get(`/admin/ratings${params ? `?${new URLSearchParams(params)}` : ''}`),

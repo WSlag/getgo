@@ -4,7 +4,7 @@
  * while preserving all existing Firebase functionality
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 // Firestore Service
@@ -23,7 +23,7 @@ import {
 } from './services/firestoreService';
 
 // Firebase
-import { getDoc, doc } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from './firebase';
 
 // Hooks
@@ -32,6 +32,7 @@ import { useCargoListings } from './hooks/useCargoListings';
 import { useTruckListings } from './hooks/useTruckListings';
 import { useNotifications } from './hooks/useNotifications';
 import { useMyBids } from './hooks/useBids';
+import { useConversations } from './hooks/useConversations';
 // Wallet removed - using direct GCash payment
 import { useShipments } from './hooks/useShipments';
 import { useTheme } from './hooks/useTheme';
@@ -39,6 +40,7 @@ import { useMarketplace } from './hooks/useMarketplace';
 import { useModals } from './hooks/useModals';
 import { useSocket } from './hooks/useSocket';
 import { useAuthGuard } from './hooks/useAuthGuard';
+import { useBrokerOnboarding } from './hooks/useBrokerOnboarding';
 
 // Layout Components
 import { Header } from '@/components/layout/Header';
@@ -53,11 +55,14 @@ import { ContractVerificationView } from '@/views/ContractVerificationView';
 import { ContractsView } from '@/views/ContractsView';
 import { BidsView } from '@/views/BidsView';
 import { ChatView } from '@/views/ChatView';
+import { BrokerView } from '@/views/BrokerView';
+import { NotificationsView } from '@/views/NotificationsView';
 import { ProfilePage } from '@/components/profile/ProfilePage';
 import { AdminDashboard } from '@/views/admin/AdminDashboard';
+import ActivityView from '@/views/ActivityView';
 
 // Modal Components
-import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal, MyBidsModal, ContractModal, NotificationsModal } from '@/components/modals';
+import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal, MyBidsModal, ContractModal, RatingModal } from '@/components/modals';
 import { GCashPaymentModal } from '@/components/modals/GCashPaymentModal';
 import { FullMapModal } from '@/components/maps';
 import AuthModal from '@/components/auth/AuthModal';
@@ -65,6 +70,14 @@ import AuthModal from '@/components/auth/AuthModal';
 // API
 import api from './services/api';
 import { guestCargoListings, guestTruckListings, guestActiveShipments } from '@/data/guestMarketplaceData';
+import { canBidCargoStatus, canBookTruckStatus, matchesMarketplaceFilter, normalizeListingStatus, toTruckUiStatus } from '@/utils/listingStatus';
+
+const SAVED_SEARCHES_KEY_PREFIX = 'karga.savedSearches.v1';
+const SAVED_ROUTES_KEY_PREFIX = 'karga.savedRoutes.v1';
+
+function getUserScopedKey(prefix, uid) {
+  return `${prefix}:${uid || 'guest'}`;
+}
 
 export default function GetGoApp() {
   // Firebase Auth
@@ -74,6 +87,8 @@ export default function GetGoApp() {
     shipperProfile,
     truckerProfile,
     currentRole,
+    brokerProfile,
+    isBroker,
     switchRole,
     logout,
     isAdmin,
@@ -84,6 +99,7 @@ export default function GetGoApp() {
   const { listings: firebaseTruckListings, loading: truckLoading } = useTruckListings();
   const { notifications: firebaseNotifications, unreadCount: firebaseUnreadCount } = useNotifications(authUser?.uid);
   const { bids: myBids } = useMyBids(authUser?.uid);
+  const { conversations } = useConversations(authUser?.uid);
   // Wallet removed - using direct GCash payment for platform fees
   const { activeShipments: firebaseActiveShipments } = useShipments(authUser?.uid);
 
@@ -109,6 +125,14 @@ export default function GetGoApp() {
     emitShipmentUpdate,
     clearNotification,
   } = useSocket(authUser?.uid);
+
+  // Broker Onboarding & Re-engagement
+  const {
+    shouldShowHomeCard: shouldShowBrokerCard,
+    dismissHomeCard: handleDismissBrokerCard,
+    markConverted: handleBrokerConverted,
+    activateTrigger,
+  } = useBrokerOnboarding(authUser?.uid, isBroker);
 
   // Auth Guard for protected actions
   const {
@@ -143,16 +167,22 @@ export default function GetGoApp() {
 
   // Toast notification state for real-time events
   const [toasts, setToasts] = useState([]);
+  const [ratingTarget, setRatingTarget] = useState(null);
+  const [ratingLoading, setRatingLoading] = useState(false);
+  const [savedSearches, setSavedSearches] = useState([]);
+  const [savedRoutes, setSavedRoutes] = useState([]);
 
   // Show toast notification
   const showToast = (toast) => {
-    const id = Date.now();
+    const id = `${Date.now()}-${Math.random()}`;
     setToasts((prev) => [...prev, { id, ...toast }]);
     // Auto-dismiss after 5 seconds
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 5000);
   };
+
+  const isNotificationRead = (notification) => notification?.isRead === true || notification?.read === true;
 
   // Handle socket notifications
   useEffect(() => {
@@ -168,27 +198,93 @@ export default function GetGoApp() {
     }
   }, [socketNotifications, clearNotification]);
 
-  // Fetch pending payments count for admin users
+  // Load saved marketplace artifacts by user scope
+  useEffect(() => {
+    const savedSearchesKey = getUserScopedKey(SAVED_SEARCHES_KEY_PREFIX, authUser?.uid);
+    const savedRoutesKey = getUserScopedKey(SAVED_ROUTES_KEY_PREFIX, authUser?.uid);
+
+    try {
+      const searchesRaw = window.localStorage.getItem(savedSearchesKey);
+      const routesRaw = window.localStorage.getItem(savedRoutesKey);
+      setSavedSearches(searchesRaw ? JSON.parse(searchesRaw) : []);
+      setSavedRoutes(routesRaw ? JSON.parse(routesRaw) : []);
+    } catch (error) {
+      console.error('Failed to load saved searches/routes:', error);
+      setSavedSearches([]);
+      setSavedRoutes([]);
+    }
+  }, [authUser?.uid]);
+
+  useEffect(() => {
+    const key = getUserScopedKey(SAVED_SEARCHES_KEY_PREFIX, authUser?.uid);
+    window.localStorage.setItem(key, JSON.stringify(savedSearches.slice(0, 20)));
+  }, [savedSearches, authUser?.uid]);
+
+  useEffect(() => {
+    const key = getUserScopedKey(SAVED_ROUTES_KEY_PREFIX, authUser?.uid);
+    window.localStorage.setItem(key, JSON.stringify(savedRoutes.slice(0, 20)));
+  }, [savedRoutes, authUser?.uid]);
+
+  // Subscribe pending payments count for admin users (real-time)
   useEffect(() => {
     if (!isAdmin) {
       setPendingPaymentsCount(0);
       return;
     }
 
-    const fetchPendingCount = async () => {
-      try {
-        const data = await api.admin.getPaymentStats();
-        setPendingPaymentsCount(data.stats?.pendingReview || 0);
-      } catch (error) {
-        console.error('Error fetching pending payments count:', error);
-      }
-    };
+    const paymentsQuery = query(
+      collection(db, 'paymentSubmissions'),
+      where('status', '==', 'manual_review')
+    );
 
-    fetchPendingCount();
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchPendingCount, 30000);
-    return () => clearInterval(interval);
+    const unsubscribe = onSnapshot(
+      paymentsQuery,
+      (snapshot) => {
+        setPendingPaymentsCount(snapshot.size);
+      },
+      async (error) => {
+        console.error('Error subscribing pending payments count:', error);
+        try {
+          const data = await api.admin.getPaymentStats();
+          const pendingReview = Number(data?.pendingReview || data?.stats?.pendingReview || 0);
+          setPendingPaymentsCount(pendingReview);
+        } catch (fallbackError) {
+          console.error('Fallback pending count fetch failed:', fallbackError);
+        }
+      }
+    );
+
+    return () => unsubscribe();
   }, [isAdmin]);
+
+  // Broker Re-engagement Triggers
+  // Trigger on first completed contract
+  useEffect(() => {
+    if (!authUser || isBroker || !activateTrigger) return;
+
+    const completedContracts = contracts.filter(c => c.status === 'completed');
+    if (completedContracts.length === 1) {
+      activateTrigger('first_transaction');
+    }
+  }, [contracts, authUser, isBroker, activateTrigger]);
+
+  // Trigger on 5-star rating received
+  useEffect(() => {
+    if (!authUser || isBroker || !userProfile || !activateTrigger) return;
+
+    if (userProfile.rating >= 5.0 && userProfile.tripsCompleted >= 3) {
+      activateTrigger('5_star_rating');
+    }
+  }, [userProfile, authUser, isBroker, activateTrigger]);
+
+  // Trigger on power user milestone
+  useEffect(() => {
+    if (!authUser || isBroker || !userProfile || !activateTrigger) return;
+
+    if (userProfile.tripsCompleted >= 10) {
+      activateTrigger('power_user_10_trips');
+    }
+  }, [userProfile, authUser, isBroker, activateTrigger]);
 
   // Load contracts function (can be called manually to refresh)
   const loadContracts = async () => {
@@ -209,17 +305,46 @@ export default function GetGoApp() {
     }
   };
 
-  // Fetch contracts for current user
+  // Subscribe contracts for current user (real-time)
   useEffect(() => {
     if (!authUser?.uid) {
       setContracts([]);
+      setContractsLoading(false);
       return;
     }
 
-    loadContracts();
-    // Refresh every 30 seconds
-    const interval = setInterval(loadContracts, 30000);
-    return () => clearInterval(interval);
+    setContractsLoading(true);
+
+    const contractsQuery = query(
+      collection(db, 'contracts'),
+      where('participantIds', 'array-contains', authUser.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      contractsQuery,
+      (snapshot) => {
+        const contractDocs = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        })).sort((a, b) => {
+          const aTime = a.createdAt?._seconds || 0;
+          const bTime = b.createdAt?._seconds || 0;
+          return bTime - aTime;
+        });
+        setContracts(contractDocs);
+        setContractsLoading(false);
+      },
+      async (error) => {
+        console.error('Error subscribing contracts:', error);
+        try {
+          await loadContracts();
+        } finally {
+          setContractsLoading(false);
+        }
+      }
+    );
+
+    return () => unsubscribe();
   }, [authUser?.uid]);
 
   // Use anonymized preview data for non-auth users to keep Home vibrant and conversion-focused.
@@ -229,6 +354,18 @@ export default function GetGoApp() {
   const truckListings = isGuestUser ? guestTruckListings : firebaseTruckListings;
   const activeShipments = isGuestUser ? guestActiveShipments : (firebaseActiveShipments || []);
   const unreadNotifications = firebaseUnreadCount || 0;
+  const unreadMessages = useMemo(
+    () => conversations.reduce((total, conversation) => total + Number(conversation.unreadCount || 0), 0),
+    [conversations]
+  );
+  const unreadBids = useMemo(
+    () =>
+      firebaseNotifications.filter((notification) => {
+        const type = String(notification.type || '').toLowerCase();
+        return !isNotificationRead(notification) && (type.includes('bid') || type === 'new_bid');
+      }).length,
+    [firebaseNotifications]
+  );
   // Wallet removed - no balance tracking
 
   // Create currentUser object for suspension banner and other features
@@ -249,15 +386,21 @@ export default function GetGoApp() {
   };
 
   // Counts for sidebar
-  const openCargoCount = cargoListings.filter(c => c.status === 'open').length;
-  const availableTrucksCount = truckListings.filter(t => t.status === 'available' || t.status === 'open').length;
+  const openCargoCount = cargoListings.filter(c => canBidCargoStatus(c.status)).length;
+  const availableTrucksCount = truckListings.filter(t => canBookTruckStatus(t.status)).length;
   const activeShipmentsCount = activeShipments.length;
   const pendingContractsCount = contracts.filter(c => c.status === 'draft').length;
   const activeContractsCount = contracts.filter(c => c.status === 'signed' || c.status === 'in_transit').length;
 
+  // Activity badge (combined bids + contracts)
+  const activityBadge = useMemo(
+    () => unreadBids + pendingContractsCount,
+    [unreadBids, pendingContractsCount]
+  );
+
   // Filter listings
   const filteredCargoListings = cargoListings.filter(cargo => {
-    if (filterStatus !== 'all' && cargo.status !== filterStatus) return false;
+    if (!matchesMarketplaceFilter(cargo.status, filterStatus)) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (
@@ -271,10 +414,7 @@ export default function GetGoApp() {
   });
 
   const filteredTruckListings = truckListings.filter(truck => {
-    const truckStatus = truck.status === 'available'
-      ? 'open'
-      : (truck.status === 'in-transit' ? 'waiting' : truck.status);
-    if (filterStatus !== 'all' && truckStatus !== filterStatus) return false;
+    if (!matchesMarketplaceFilter(truck.status, filterStatus)) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (
@@ -286,6 +426,106 @@ export default function GetGoApp() {
     }
     return true;
   });
+
+  const handleSaveCurrentSearch = () => {
+    const normalizedQuery = String(searchQuery || '').trim();
+    if (!normalizedQuery && filterStatus === 'all') {
+      showToast({
+        type: 'info',
+        title: 'Nothing to save',
+        message: 'Set a search term or filter before saving.',
+      });
+      return;
+    }
+
+    const isDuplicate = savedSearches.some((savedSearch) =>
+      savedSearch.market === activeMarket
+      && savedSearch.filterStatus === filterStatus
+      && String(savedSearch.searchQuery || '').trim().toLowerCase() === normalizedQuery.toLowerCase()
+    );
+    if (isDuplicate) {
+      showToast({
+        type: 'info',
+        title: 'Already saved',
+        message: 'This search preset already exists.',
+      });
+      return;
+    }
+
+    const nextSavedSearch = {
+      id: `search-${Date.now()}`,
+      market: activeMarket,
+      filterStatus,
+      searchQuery: normalizedQuery,
+      createdAt: Date.now(),
+    };
+
+    setSavedSearches((prev) => [nextSavedSearch, ...prev].slice(0, 20));
+    showToast({
+      type: 'success',
+      title: 'Search Saved',
+      message: 'You can now reapply this search in one tap.',
+    });
+  };
+
+  const handleApplySavedSearch = (savedSearch) => {
+    if (!savedSearch) return;
+    setActiveMarket(savedSearch.market || 'cargo');
+    setFilterStatus(savedSearch.filterStatus || 'all');
+    setSearchQuery(savedSearch.searchQuery || '');
+  };
+
+  const handleDeleteSavedSearch = (savedSearchId) => {
+    setSavedSearches((prev) => prev.filter((savedSearch) => savedSearch.id !== savedSearchId));
+  };
+
+  const handleSaveRoute = (routePreset) => {
+    if (!routePreset?.origin || !routePreset?.destination) {
+      return;
+    }
+    const exists = savedRoutes.some((savedRoute) =>
+      savedRoute.origin?.toLowerCase() === routePreset.origin.toLowerCase()
+      && savedRoute.destination?.toLowerCase() === routePreset.destination.toLowerCase()
+      && (savedRoute.type || 'both') === (routePreset.type || 'both')
+      && Number(savedRoute.maxDetourKm || 50) === Number(routePreset.maxDetourKm || 50)
+    );
+    if (exists) {
+      showToast({
+        type: 'info',
+        title: 'Route Already Saved',
+        message: 'This route preset already exists.',
+      });
+      return;
+    }
+
+    const nextRoute = {
+      id: `route-${Date.now()}`,
+      origin: routePreset.origin,
+      destination: routePreset.destination,
+      maxDetourKm: Number(routePreset.maxDetourKm || 50),
+      type: routePreset.type || 'both',
+      createdAt: Date.now(),
+    };
+    setSavedRoutes((prev) => [nextRoute, ...prev].slice(0, 20));
+    showToast({
+      type: 'success',
+      title: 'Route Saved',
+      message: 'Saved route added to Route Optimizer presets.',
+    });
+  };
+
+  const handleDeleteSavedRoute = (routeId) => {
+    setSavedRoutes((prev) => prev.filter((route) => route.id !== routeId));
+  };
+
+  const handleApplySavedRoute = (routePreset) => {
+    if (!routePreset) return;
+    showToast({
+      type: 'info',
+      title: 'Route Applied',
+      message: `${routePreset.origin} -> ${routePreset.destination}`,
+    });
+  };
 
   // Get user initial for avatar
   const userInitial = userProfile?.name?.[0]?.toUpperCase() || authUser?.phoneNumber?.[0] || 'U';
@@ -373,12 +613,43 @@ export default function GetGoApp() {
     openModal('editTruck', truck);
   };
 
+  const handleRequestListingChat = async (listing, listingType) => {
+    if (!listing?.id) {
+      showToast({
+        type: 'error',
+        title: 'Unable to request chat',
+        message: 'Listing information is incomplete.',
+      });
+      return;
+    }
+
+    try {
+      await api.listings.requestChat({
+        listingId: listing.id,
+        listingType,
+        note: `Interested in discussing ${listing.origin || 'origin'} -> ${listing.destination || 'destination'}.`,
+      });
+      showToast({
+        type: 'success',
+        title: 'Chat Request Sent',
+        message: 'The listing owner has been notified. You can bid anytime.',
+      });
+    } catch (error) {
+      console.error('Failed to request chat:', error);
+      showToast({
+        type: 'error',
+        title: 'Request failed',
+        message: error.message || 'Could not send chat request.',
+      });
+    }
+  };
+
   const handleContactShipper = (cargo) => {
-    requireAuth(() => openModal('chat', { listing: cargo, type: 'cargo' }), 'Sign in to contact shipper');
+    requireAuth(() => handleRequestListingChat(cargo, 'cargo'), 'Sign in to request chat');
   };
 
   const handleContactTrucker = (truck) => {
-    requireAuth(() => openModal('chat', { listing: truck, type: 'truck' }), 'Sign in to contact trucker');
+    requireAuth(() => handleRequestListingChat(truck, 'truck'), 'Sign in to request chat');
   };
 
   const handleViewMap = (listing) => {
@@ -391,11 +662,15 @@ export default function GetGoApp() {
   };
 
   const handleNotificationClick = () => {
-    requireAuth(() => openModal('notifications'), 'Sign in to view notifications');
+    requireAuth(() => setActiveTab('notifications'), 'Sign in to view notifications');
   };
 
   const handleProfileClick = () => {
     requireAuth(() => setActiveTab('profile'), 'Sign in to view profile');
+  };
+
+  const handleBrokerClick = () => {
+    requireAuth(() => setActiveTab('broker'), 'Sign in to access broker dashboard');
   };
 
   const handleEditProfile = () => {
@@ -403,7 +678,7 @@ export default function GetGoApp() {
   };
 
   const handleNotificationSettings = () => {
-    requireAuth(() => openModal('notifications'), 'Sign in to manage notifications');
+    requireAuth(() => setActiveTab('notifications'), 'Sign in to manage notifications');
   };
 
   const handleHelpSupport = () => {
@@ -520,49 +795,62 @@ export default function GetGoApp() {
     try {
       setContractLoading(true);
 
-      // Determine listing type and platform fee payer (trucker)
-      const isCargo = !!listing.cargoType || listing.type === 'cargo';
-      const truckerUserId = isCargo ? bid.bidderId : listing.userId;
-      const currentUserId = authUser?.uid;
+      let contract = null;
 
-      // Create contract via API (will be in pending_payment status if fee not paid)
-      const response = await api.contracts.create({
-        bidId: bid.id,
-        // Add any additional contract data here if needed
-      });
-
-      const contract = response.contract;
-
-      // Check if current user is the trucker (fee payer)
-      if (truckerUserId === currentUserId) {
-        // Rare case: trucker is creating the contract (e.g., truck listing)
-        // Open payment modal immediately
-        showToast({
-          type: 'info',
-          title: 'Platform Fee Required',
-          message: 'Please pay the platform fee to activate your contract.',
-        });
-
-        const platformFee = contract.platformFee || Math.round(bid.price * 0.05);
-        openModal('platformFee', { bid, listing, platformFee, contract });
-      } else {
-        // Normal case: shipper is creating contract, trucker needs to pay
-        showToast({
-          type: 'success',
-          title: 'Contract Created',
-          message: 'Contract created successfully. Waiting for trucker to pay platform fee.',
-        });
-
-        // Close the details modal and refresh contracts
-        closeModal('cargoDetails');
-        closeModal('truckDetails');
-
-        // Navigate to contracts view
-        setActiveTab('contracts');
+      // First check if trigger-created contract already exists for this bid
+      try {
+        const existing = await api.contracts.getByBid(bid.id);
+        if (existing?.contract) {
+          contract = existing.contract;
+          showToast({
+            type: 'info',
+            title: 'Contract Ready',
+            message: 'This bid already has a contract. Opening it now.',
+          });
+          closeModal('cargoDetails');
+          closeModal('truckDetails');
+          await handleOpenContract(contract.id);
+          return;
+        }
+      } catch (lookupError) {
+        // No existing contract found; continue to create flow
       }
 
-      // Refresh contracts list
-      await loadContracts();
+      // Create contract via API - will be in draft status
+      try {
+        const response = await api.contracts.create({
+          bidId: bid.id,
+        });
+        contract = response.contract;
+      } catch (createError) {
+        if (
+          createError?.code === 'already-exists'
+          || String(createError?.message || '').toLowerCase().includes('already exists')
+        ) {
+          const existing = await api.contracts.getByBid(bid.id);
+          if (existing?.contract) {
+            contract = existing.contract;
+          }
+        } else {
+          throw createError;
+        }
+      }
+
+      if (!contract) {
+        throw new Error('Unable to find or create contract for this bid');
+      }
+
+      // Show success message
+      showToast({
+        type: 'success',
+        title: 'Contract Created',
+        message: 'Contract created successfully. Please review and sign. Platform fee will be due 3 days after pickup.',
+      });
+
+      // Close the details modal and navigate to contracts view
+      closeModal('cargoDetails');
+      closeModal('truckDetails');
+      setActiveTab('contracts');
 
     } catch (error) {
       console.error('Error creating contract:', error);
@@ -657,13 +945,36 @@ export default function GetGoApp() {
   const handleCompleteContract = async (contractId) => {
     setContractLoading(true);
     try {
-      await api.contracts.complete(contractId);
+      const response = await api.contracts.complete(contractId);
       showToast({
         type: 'bid-accepted',
         title: 'Delivery Confirmed!',
         message: 'Contract completed. Please rate your experience.',
       });
       closeModal('contract');
+      const completedContract = response?.contract
+        ? { id: contractId, ...response.contract }
+        : null;
+      const resolvedContract = completedContract || (await api.contracts.getById(contractId))?.contract;
+
+      if (resolvedContract && authUser?.uid) {
+        const otherUserId = resolvedContract.listingOwnerId === authUser.uid
+          ? resolvedContract.bidderId
+          : resolvedContract.listingOwnerId;
+        const otherUserName = resolvedContract.listingOwnerId === authUser.uid
+          ? (resolvedContract.bidderName || 'Counterparty')
+          : (resolvedContract.listingOwnerName || 'Counterparty');
+
+        if (otherUserId) {
+          setRatingTarget({
+            contract: resolvedContract,
+            userToRate: {
+              id: otherUserId,
+              name: otherUserName,
+            },
+          });
+        }
+      }
     } catch (error) {
       console.error('Error completing contract:', error);
       showToast({
@@ -673,6 +984,42 @@ export default function GetGoApp() {
       });
     } finally {
       setContractLoading(false);
+    }
+  };
+
+  const handleSubmitRating = async (ratingData) => {
+    setRatingLoading(true);
+    try {
+      await api.ratings.submit(ratingData);
+      setRatingTarget(null);
+      showToast({
+        type: 'success',
+        title: 'Rating Submitted',
+        message: 'Thanks for sharing feedback. Your reputation has been updated.',
+      });
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+      const alreadyRated = error?.code === 'already-exists'
+        || String(error?.message || '').toLowerCase().includes('already rated')
+        || String(error?.message || '').toLowerCase().includes('already rated this contract');
+
+      if (alreadyRated) {
+        setRatingTarget(null);
+        showToast({
+          type: 'info',
+          title: 'Already Rated',
+          message: 'You have already rated this contract.',
+        });
+        return;
+      }
+
+      showToast({
+        type: 'error',
+        title: 'Rating Failed',
+        message: error.message || 'Unable to submit rating right now.',
+      });
+    } finally {
+      setRatingLoading(false);
     }
   };
 
@@ -695,6 +1042,160 @@ export default function GetGoApp() {
     }
   };
 
+  // Handler: Activate broker
+  const handleActivateBroker = async () => {
+    try {
+      await api.broker.register();
+      await handleBrokerConverted();
+      showToast({
+        type: 'success',
+        title: 'Broker Activated!',
+        message: 'Start sharing your referral link to earn commissions.',
+      });
+      setActiveTab('broker'); // Navigate to broker dashboard
+    } catch (error) {
+      console.error('Broker activation error:', error);
+      showToast({
+        type: 'error',
+        title: 'Activation Failed',
+        message: error.message || 'Could not activate broker features.',
+      });
+    }
+  };
+
+  const loadBidContext = async (bidId, notificationData = {}) => {
+    if (!bidId) {
+      throw new Error('Missing bid ID');
+    }
+
+    const bidDoc = await getDoc(doc(db, 'bids', bidId));
+    if (!bidDoc.exists()) {
+      throw new Error('Bid not found');
+    }
+
+    const bid = { id: bidDoc.id, ...bidDoc.data() };
+    const listingType = bid.listingType || notificationData.listingType || (bid.cargoListingId ? 'cargo' : 'truck');
+    const listingId = bid.cargoListingId || bid.truckListingId || bid.listingId || notificationData.listingId;
+    const listingCollection = listingType === 'cargo' ? 'cargoListings' : 'truckListings';
+
+    let listing = null;
+    if (listingId) {
+      const listingDoc = await getDoc(doc(db, listingCollection, listingId));
+      if (listingDoc.exists()) {
+        listing = { id: listingDoc.id, ...listingDoc.data() };
+      }
+    }
+
+    if (!listing) {
+      listing = {
+        id: listingId || bid.listingId,
+        origin: bid.origin,
+        destination: bid.destination,
+        userId: bid.listingOwnerId,
+        userName: bid.listingOwnerName,
+      };
+    }
+
+    if (listingType === 'cargo') {
+      listing.shipper = listing.shipper || listing.userName || bid.listingOwnerName;
+      listing.company = listing.company || listing.userName || bid.listingOwnerName;
+      listing.status = normalizeListingStatus(listing.status);
+    } else {
+      listing.trucker = listing.trucker || listing.userName || bid.listingOwnerName;
+      listing.status = normalizeListingStatus(listing.status);
+      listing.uiStatus = listing.uiStatus || toTruckUiStatus(listing.status);
+      listing.askingRate = listing.askingRate ?? listing.askingPrice;
+    }
+
+    return { bid, listing, listingType };
+  };
+
+  const handleOpenBidFromNotification = async (notification) => {
+    const bidId = notification?.data?.bidId;
+    if (!bidId) {
+      setActiveTab('bids');
+      return;
+    }
+
+    try {
+      const { listing, listingType } = await loadBidContext(bidId, notification.data);
+      setActiveTab('home');
+      if (listingType === 'cargo') {
+        openModal('cargoDetails', listing);
+      } else {
+        openModal('truckDetails', listing);
+      }
+    } catch (error) {
+      console.error('Failed to open bid notification:', error);
+      setActiveTab('bids');
+      showToast({
+        type: 'error',
+        title: 'Unable to open bid',
+        message: error.message || 'The bid may no longer be available.',
+      });
+    }
+  };
+
+  const handleOpenChatFromNotification = async (notification) => {
+    const bidId = notification?.data?.bidId;
+    if (!bidId) {
+      setActiveTab('chat');
+      return;
+    }
+
+    try {
+      const { bid, listing, listingType } = await loadBidContext(bidId, notification.data);
+      openModal('chat', { bid, listing, type: listingType, bidId: bid.id });
+      setActiveTab('chat');
+    } catch (error) {
+      console.error('Failed to open chat notification:', error);
+      setActiveTab('chat');
+      showToast({
+        type: 'error',
+        title: 'Unable to open chat',
+        message: error.message || 'The chat context is unavailable.',
+      });
+    }
+  };
+
+  const handleOpenListingFromNotification = async (notification) => {
+    const listingId = notification?.data?.listingId;
+    const listingType = String(notification?.data?.listingType || '').toLowerCase();
+    if (!listingId || !['cargo', 'truck'].includes(listingType)) {
+      setActiveTab('home');
+      return;
+    }
+
+    try {
+      const listingCollection = listingType === 'cargo' ? 'cargoListings' : 'truckListings';
+      const listingDoc = await getDoc(doc(db, listingCollection, listingId));
+      if (!listingDoc.exists()) {
+        throw new Error('Listing not found');
+      }
+
+      const listing = { id: listingDoc.id, ...listingDoc.data() };
+      if (listingType === 'cargo') {
+        listing.status = normalizeListingStatus(listing.status);
+        openModal('cargoDetails', listing);
+      } else {
+        listing.status = normalizeListingStatus(listing.status);
+        listing.uiStatus = listing.uiStatus || toTruckUiStatus(listing.status);
+        listing.askingRate = listing.askingRate ?? listing.askingPrice;
+        openModal('truckDetails', listing);
+      }
+
+      setActiveTab('home');
+    } catch (error) {
+      console.error('Failed to open listing notification:', error);
+      setActiveTab('home');
+      showToast({
+        type: 'error',
+        title: 'Unable to open listing',
+        message: error.message || 'The listing may no longer be available.',
+      });
+    }
+  };
+
   // If admin dashboard is open, render it instead of main app
   if (showAdminDashboard && isAdmin) {
     return <AdminDashboard onBackToApp={handleBackFromAdmin} />;
@@ -711,9 +1212,11 @@ export default function GetGoApp() {
         unreadNotifications={unreadNotifications}
         userInitial={userInitial}
         currentRole={userRole}
+        isBroker={isBroker}
         onLogout={handleLogout}
         onNotificationClick={handleNotificationClick}
         onProfileClick={handleProfileClick}
+        onBrokerClick={handleBrokerClick}
         onEditProfile={handleEditProfile}
         onNotificationSettings={handleNotificationSettings}
         onHelpSupport={handleHelpSupport}
@@ -746,6 +1249,8 @@ export default function GetGoApp() {
           onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
           onMyBidsClick={() => requireAuth(() => openModal('myBids'), 'Sign in to view your bids')}
           onContractsClick={handleContractsClick}
+          onBrokerClick={handleBrokerClick}
+          isBroker={isBroker}
           onPaymentReviewClick={isAdmin ? handlePaymentReviewClick : undefined}
         />
 
@@ -753,7 +1258,6 @@ export default function GetGoApp() {
         {activeTab === 'home' && (
           <HomeView
             activeMarket={activeMarket}
-            isGuestPreview={isGuestUser}
             onMarketChange={setActiveMarket}
             cargoListings={filteredCargoListings}
             truckListings={filteredTruckListings}
@@ -775,10 +1279,32 @@ export default function GetGoApp() {
             onTrackLive={handleTrackLive}
             onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
             currentUser={currentUser}
+            savedSearches={savedSearches}
+            onSaveCurrentSearch={handleSaveCurrentSearch}
+            onApplySavedSearch={handleApplySavedSearch}
+            onDeleteSavedSearch={handleDeleteSavedSearch}
             onNavigateToContracts={(filter) => {
               setContractFilter(filter || 'all');
               setActiveTab('contracts');
             }}
+            isBroker={isBroker}
+            shouldShowBrokerCard={shouldShowBrokerCard}
+            onDismissBrokerCard={handleDismissBrokerCard}
+            onActivateBroker={handleActivateBroker}
+          />
+        )}
+
+        {activeTab === 'activity' && (
+          <ActivityView
+            currentUser={currentUser}
+            currentRole={userRole}
+            darkMode={darkMode}
+            onOpenChat={(bid, listing) => {
+              openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
+            }}
+            onOpenContract={handleOpenContract}
+            unreadBids={unreadBids}
+            pendingContractsCount={pendingContractsCount}
           />
         )}
 
@@ -795,18 +1321,51 @@ export default function GetGoApp() {
           />
         )}
 
-        {activeTab === 'notifications' && (
+        {activeTab === 'notifications' && authUser && (
+          <NotificationsView
+            notifications={firebaseNotifications}
+            loading={false}
+            unreadCount={unreadNotifications}
+            currentUserId={authUser?.uid}
+            onMarkAsRead={markNotificationRead}
+            onMarkAllAsRead={markAllNotificationsRead}
+            onOpenBid={handleOpenBidFromNotification}
+            onOpenChat={handleOpenChatFromNotification}
+            onOpenListing={handleOpenListingFromNotification}
+            onOpenContract={handleOpenContract}
+            onPayPlatformFee={handlePayPlatformFee}
+            darkMode={darkMode}
+          />
+        )}
+
+        {activeTab === 'notifications' && !authUser && (
           <main className="flex-1 p-4 lg:p-8">
             <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-4">
               Notifications
             </h2>
             <p className="text-gray-600 dark:text-gray-400">
-              View your notifications here. (Integration pending)
+              Please sign in to view your notifications.
             </p>
           </main>
         )}
 
         {activeTab === 'profile' && <ProfilePage />}
+
+        {activeTab === 'broker' && (
+          <BrokerView
+            authUser={authUser}
+            isBroker={isBroker}
+            brokerProfile={brokerProfile}
+            onBrokerRegistered={() => {
+              showToast({
+                type: 'success',
+                title: 'Broker Activated',
+                message: 'You can now share your referral link and request payouts.',
+              });
+            }}
+            onToast={showToast}
+          />
+        )}
 
         {activeTab === 'bids' && authUser && (
           <BidsView
@@ -830,7 +1389,7 @@ export default function GetGoApp() {
           </main>
         )}
 
-        {activeTab === 'chat' && authUser && (
+        {activeTab === 'messages' && authUser && (
           <ChatView
             currentUser={authUser}
             onOpenChat={(bid, listing, type) => {
@@ -840,7 +1399,7 @@ export default function GetGoApp() {
           />
         )}
 
-        {activeTab === 'chat' && !authUser && (
+        {activeTab === 'messages' && !authUser && (
           <main className="flex-1 p-4 lg:p-8">
             <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-4">
               Messages
@@ -877,10 +1436,8 @@ export default function GetGoApp() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onPostClick={handlePostClick}
-        unreadMessages={0}
-        unreadBids={0}
-        unreadNotifications={unreadNotifications}
-        pendingContractsCount={pendingContractsCount}
+        unreadMessages={unreadMessages}
+        activityBadge={activityBadge}
         currentRole={userRole}
       />
 
@@ -970,14 +1527,22 @@ export default function GetGoApp() {
             // Validation checks
             if (!authUser || !authUser.uid) {
               console.error('User not authenticated');
-              alert('You must be logged in to place a bid');
+              showToast({
+                type: 'error',
+                title: 'Authentication required',
+                message: 'You must be logged in to place a bid.',
+              });
               setBidLoading(false);
               return;
             }
 
             if (!userProfile) {
               console.error('User profile not loaded');
-              alert('Please wait for your profile to load');
+              showToast({
+                type: 'error',
+                title: 'Profile loading',
+                message: 'Please wait for your profile to load.',
+              });
               setBidLoading(false);
               return;
             }
@@ -988,7 +1553,11 @@ export default function GetGoApp() {
             // Ensure listing has required fields
             if (!listing.userId && !listing.shipperId && !listing.truckerId) {
               console.error('Listing missing owner ID:', listing);
-              alert('Cannot place bid: listing owner information is missing');
+              showToast({
+                type: 'error',
+                title: 'Bid unavailable',
+                message: 'Cannot place bid: listing owner information is missing.',
+              });
               setBidLoading(false);
               return;
             }
@@ -1023,7 +1592,11 @@ export default function GetGoApp() {
             });
 
             closeModal('bid');
-            alert('Bid placed successfully!');
+            showToast({
+              type: 'success',
+              title: 'Bid placed',
+              message: 'Your bid has been submitted successfully.',
+            });
           } catch (error) {
             console.error('Error creating bid:', error);
             console.error('Error details:', {
@@ -1036,7 +1609,11 @@ export default function GetGoApp() {
               handleSuspendedAction();
               return;
             }
-            alert(`Failed to place bid: ${error.message || 'Unknown error'}`);
+            showToast({
+              type: 'error',
+              title: 'Bid failed',
+              message: error.message || 'Unknown error',
+            });
           } finally {
             setBidLoading(false);
           }
@@ -1109,6 +1686,7 @@ export default function GetGoApp() {
           closeModal('truckDetails');
           handleCreateContract(bid, listing);
         }}
+        onOpenContract={handleOpenContract}
         darkMode={darkMode}
       />
 
@@ -1127,6 +1705,10 @@ export default function GetGoApp() {
         onClose={() => closeModal('routeOptimizer')}
         initialOrigin={getModalData('routeOptimizer')?.origin}
         initialDestination={getModalData('routeOptimizer')?.destination}
+        savedRoutes={savedRoutes}
+        onSaveRoute={handleSaveRoute}
+        onApplySavedRoute={handleApplySavedRoute}
+        onDeleteSavedRoute={handleDeleteSavedRoute}
       />
 
       {/* My Bids Modal */}
@@ -1164,17 +1746,13 @@ export default function GetGoApp() {
         loading={contractLoading}
       />
 
-      {/* Notifications Modal */}
-      <NotificationsModal
-        open={modals.notifications}
-        onClose={() => closeModal('notifications')}
-        notifications={firebaseNotifications}
-        loading={false}
-        onMarkAsRead={markNotificationRead}
-        onMarkAllAsRead={markAllNotificationsRead}
-        currentUserId={authUser?.uid}
-        onOpenContract={handleOpenContract}
-        onPayPlatformFee={handlePayPlatformFee}
+      <RatingModal
+        open={!!ratingTarget}
+        onClose={() => setRatingTarget(null)}
+        contract={ratingTarget?.contract}
+        userToRate={ratingTarget?.userToRate}
+        onSubmit={handleSubmitRating}
+        loading={ratingLoading}
       />
 
       {/* Wallet Modal removed - using direct GCash payment */}

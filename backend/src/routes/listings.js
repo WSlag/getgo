@@ -227,7 +227,7 @@ router.get('/cargo/:id', optionalAuth, async (req, res) => {
 
 router.post('/cargo', authenticateToken, async (req, res) => {
   try {
-    const { origin, destination, cargoType, weight, weightUnit = 'tons', vehicleNeeded, askingPrice, description, pickupDate, photos = [], originStreetAddress = '', destinationStreetAddress = '' } = req.body;
+    const { origin, destination, cargoType, weight, weightUnit = 'tons', vehicleNeeded, askingPrice, declaredValue, description, pickupDate, photos = [], originStreetAddress = '', destinationStreetAddress = '' } = req.body;
     if (!origin || !destination || !askingPrice) return res.status(400).json({ error: 'Origin, destination, and asking price are required' });
 
     const userId = req.user.uid;
@@ -253,6 +253,7 @@ router.post('/cargo', authenticateToken, async (req, res) => {
       weightUnit,
       vehicleNeeded: vehicleNeeded || null,
       askingPrice: Number(askingPrice),
+      declaredValue: declaredValue ? Number(declaredValue) : null,
       description: description || '',
       pickupDate: pickupDate || null,
       photos,

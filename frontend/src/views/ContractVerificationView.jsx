@@ -4,8 +4,10 @@ import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from '
 import { Button } from '../components/ui/button';
 import { RefreshCw, CheckCircle2, XCircle, AlertCircle, Info } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 export function ContractVerificationView() {
+  const isMobile = useMediaQuery('(max-width: 1023px)');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
@@ -111,7 +113,7 @@ export function ContractVerificationView() {
                         detail.listing = { id: listingDoc.id, ...listingDoc.data(), collection: listingCollection };
 
                         if (detail.listing.userId !== payment.userId) {
-                          detail.issues.push('User ID mismatch (payer ≠ listing owner)');
+                          detail.issues.push('User ID mismatch (payer != listing owner)');
                         }
                       } else {
                         detail.issues.push('Listing not found');
@@ -165,12 +167,18 @@ export function ContractVerificationView() {
   };
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto p-8">
+    <div
+      className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto"
+      style={{
+        padding: isMobile ? '16px' : '32px',
+        paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '32px',
+      }}
+    >
       {/* Header */}
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            🔍 Contract Creation Verification
+          <h1 className={cn("font-bold text-gray-900 dark:text-white mb-2", isMobile ? "text-xl" : "text-3xl")}>
+            Contract Creation Verification
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
             Verify that contracts are being automatically created after admin payment approval
@@ -232,7 +240,7 @@ export function ContractVerificationView() {
                   {results.stats.contractsCreated}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Contracts Created ✅
+                  Contracts Created (Success)
                 </div>
               </div>
 
@@ -244,7 +252,7 @@ export function ContractVerificationView() {
                   {results.stats.contractsFailed}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Contracts Failed ❌
+                  Contracts Failed
                 </div>
               </div>
             </div>
@@ -271,7 +279,7 @@ export function ContractVerificationView() {
                 className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6"
               >
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  💳 Payment: {detail.id.substring(0, 12)}...
+                  Payment: {detail.id.substring(0, 12)}...
                 </h3>
 
                 {/* Order Info */}
@@ -329,7 +337,7 @@ export function ContractVerificationView() {
                     <div className="flex items-start gap-3">
                       <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                       <div className="text-sm text-green-800 dark:text-green-200">
-                        ✅ Platform fee recorded
+                        Platform fee recorded
                       </div>
                     </div>
                   </div>
@@ -344,7 +352,7 @@ export function ContractVerificationView() {
                           <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                           <div className="flex-1">
                             <div className="font-semibold text-green-900 dark:text-green-100 mb-2">
-                              ✅ CONTRACT CREATED SUCCESSFULLY!
+                              CONTRACT CREATED SUCCESSFULLY
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-sm text-green-800 dark:text-green-200">
                               <div>
@@ -381,7 +389,7 @@ export function ContractVerificationView() {
                           <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                           <div className="flex-1">
                             <div className="font-semibold text-red-900 dark:text-red-100 mb-2">
-                              ❌ CONTRACT NOT CREATED
+                              CONTRACT NOT CREATED
                             </div>
                             {detail.order.bidId && (
                               <div className="text-sm text-red-800 dark:text-red-200 mb-2">

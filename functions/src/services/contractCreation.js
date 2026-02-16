@@ -114,7 +114,7 @@ async function createContractFromApprovedFee(bidId, userId, options = {}) {
   }
 
   const platformFee = Math.round(bid.price * PLATFORM_FEE_RATE);
-  const declaredCargoValue = options.declaredCargoValue || 100000;
+  const declaredCargoValue = options.declaredCargoValue || listing.declaredValue || 100000;
 
   // Build default terms
   const defaultTerms = `
@@ -132,9 +132,10 @@ The Trucker agrees to transport cargo from ${listing.origin} to ${listing.destin
 
 3. PAYMENT TERMS
 - Freight Rate: PHP ${Number(bid.price).toLocaleString()}
-- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - Payable by Trucker within 3 days after delivery completion
+- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - Payable by Trucker within 3 days of shipment pickup
 - Payment Method: Direct payment from Shipper to Trucker
 - Payment Schedule: As agreed between parties (COD, advance, or partial)
+- Late Payment: Failure to pay platform fee within 3 days will result in account suspension until payment is received
 
 4. OBLIGATIONS
 Shipper: Accurate cargo info, proper packaging, timely payment to Trucker
@@ -191,8 +192,8 @@ By signing, both parties agree to these terms.
     platformFee,
 
     // Platform fee tracking fields
-    platformFeePaid: createPlatformFeeDebt ? false : true,
-    platformFeeStatus: createPlatformFeeDebt ? 'outstanding' : 'paid',
+    platformFeePaid: false,
+    platformFeeStatus: 'outstanding',
     platformFeeDueDate: null,
     platformFeeBillingStartedAt: null,
     platformFeeOrderId: null,
