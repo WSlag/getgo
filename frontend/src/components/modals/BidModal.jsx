@@ -28,7 +28,7 @@ export function BidModal({
   const [cargoType, setCargoType] = useState('');
   const [cargoWeight, setCargoWeight] = useState('');
   const [errors, setErrors] = useState({});
-  const isMobile = !useMediaQuery('(min-width: 640px)');
+  const isMobile = useMediaQuery('(max-width: 1023px)');
 
   const isCargo = listing?.type === 'cargo' || !listing?.trucker;
   const isShipper = currentRole === 'shipper';

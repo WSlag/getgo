@@ -1,34 +1,8 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
-import { db } from '../config/firestore.js';
+import { db, getUserDoc } from '../config/firestore.js';
 import { authenticateToken } from '../middleware/auth.js';
-
-// Helper function to mask contact info
-const maskContactInfo = (user, showContact = false) => {
-  if (!user) return user;
-
-  const masked = { ...user.toJSON ? user.toJSON() : user };
-
-  if (!showContact) {
-    if (masked.phone) {
-      masked.phone = '****' + masked.phone.slice(-4);
-      masked.phoneMasked = true;
-    }
-    if (masked.email) {
-      masked.email = '****@****';
-      masked.emailMasked = true;
-    }
-    if (masked.facebookUrl) {
-      masked.facebookUrl = null;
-      masked.facebookMasked = true;
-    }
-    masked.contactMasked = true;
-  } else {
-    masked.contactMasked = false;
-  }
-
-  return masked;
-};
+import { maskContactInfo } from '../utils/helpers.js';
 
 // Check if user has a signed contract with another user
 const hasSignedContract = async (userId1, userId2) => {
@@ -251,19 +225,28 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Cannot bid on your own listing' });
     }
 
-    // For truckers bidding on cargo, check wallet balance
-    if (listingType === 'cargo') {
-      const walletDoc = await db.collection('users').doc(userId).collection('wallet').doc('main').get();
-      const wallet = walletDoc.exists ? walletDoc.data() : null;
-      const requiredFee = Math.round(price * PLATFORM_FEE_RATE);
+    // 🔒 ROLE ENFORCEMENT: only the correct role may bid on each listing type
+    // - cargo listings: only truckers bid (they offer to carry the cargo)
+    // - truck listings: only shippers bid (they offer cargo to fill the truck)
+    const userProfile = await getUserDoc(userId);
+    const expectedRole = listingType === 'cargo' ? 'trucker' : 'shipper';
+    if (!userProfile || userProfile.role !== expectedRole) {
+      return res.status(403).json({
+        error: `Only ${expectedRole}s can place bids on ${listingType} listings`,
+      });
+    }
 
-      if (!wallet || wallet.balance < requiredFee) {
-        return res.status(400).json({
-          error: `Insufficient wallet balance. You need ₱${requiredFee} to cover the platform fee.`,
-          requiredFee,
-          currentBalance: wallet ? wallet.balance : 0,
-        });
-      }
+    // Check wallet balance for platform fee (applies to all bid types)
+    const walletDoc = await db.collection('users').doc(userId).collection('wallet').doc('main').get();
+    const wallet = walletDoc.exists ? walletDoc.data() : null;
+    const requiredFee = Math.round(price * PLATFORM_FEE_RATE);
+
+    if (!wallet || wallet.balance < requiredFee) {
+      return res.status(400).json({
+        error: `Insufficient wallet balance. You need ₱${requiredFee} to cover the platform fee.`,
+        requiredFee,
+        currentBalance: wallet ? wallet.balance : 0,
+      });
     }
 
     // Create bid in Firestore

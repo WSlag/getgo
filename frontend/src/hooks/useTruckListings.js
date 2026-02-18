@@ -7,7 +7,8 @@ export function useTruckListings(options = {}) {
   const {
     status = null,
     userId = null,
-    maxResults = 50
+    maxResults = 50,
+    authUser = undefined, // pass authUser to gate subscription on authentication
   } = options;
 
   const [listings, setListings] = useState([]);
@@ -15,6 +16,15 @@ export function useTruckListings(options = {}) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // If authUser is explicitly provided and is null/falsy, skip subscription
+    // (undefined means caller didn't pass it, so we proceed as before)
+    if (authUser === null) {
+      setListings([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     let q = collection(db, 'truckListings');
     const constraints = [];
 
@@ -92,7 +102,7 @@ export function useTruckListings(options = {}) {
     );
 
     return () => unsubscribe();
-  }, [status, userId, maxResults]);
+  }, [status, userId, maxResults, authUser]);
 
   return { listings, loading, error };
 }

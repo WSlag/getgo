@@ -80,21 +80,6 @@ export function ContractModal({
   const otherPartySigned = isShipper ? !!contract.truckerSignature : !!contract.shipperSignature;
   const fullyExecuted = contract.status === 'signed' || contract.status === 'completed' || contract.status === 'in_transit';
 
-  // Debug logging (can be removed after verification)
-  console.log('ContractModal Debug:', {
-    contractId: contract.id,
-    currentUserId: currentUser?.id,
-    listingOwnerId: contract.listingOwnerId,
-    bidderId: contract.bidderId,
-    isCargo,
-    isListingOwner,
-    isBidder,
-    isShipper,
-    hasUserSigned,
-    otherPartySigned,
-    shipperSig: contract.shipperSignature,
-    truckerSig: contract.truckerSignature,
-  });
 
   const formatPrice = (price) => {
     if (!price) return '---';

@@ -16,6 +16,8 @@ import { collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/
 import { db } from '@/firebase';
 import api from '@/services/api';
 
+const PLATFORM_FEE_RATE = 0.05;
+
 // Transaction type badge
 function TransactionTypeBadge({ type }) {
   const config = {
@@ -86,7 +88,7 @@ export function FinancialOverview() {
       paymentsSnapshot.forEach(doc => {
         const data = doc.data();
         const amount = data.orderAmount || data.amount || 0;
-        const platformFee = amount * 0.05; // 5% platform fee
+        const platformFee = amount * PLATFORM_FEE_RATE;
         totalRevenue += platformFee;
 
         const resolvedAt = data.resolvedAt?.toDate?.() || (data.resolvedAt ? new Date(data.resolvedAt) : null);
@@ -113,7 +115,7 @@ export function FinancialOverview() {
         weekRevenue,
         monthRevenue,
         totalWalletBalance,
-        pendingPayouts: 0, // TODO: Calculate from pending payout requests
+        pendingPayouts: 0, // Payout request tracking not yet implemented
       });
 
       // Fetch recent transactions (mock for now)

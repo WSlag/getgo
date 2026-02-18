@@ -1,37 +1,42 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 
 // Hook to get bids for a specific listing
-export function useBidsForListing(listingId, listingType) {
+export function useBidsForListing(listingId, listingType, listingOwnerId = null) {
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!listingId || !listingType) {
+    const viewerId = listingOwnerId || auth.currentUser?.uid || null;
+
+    if (!listingId || !listingType || !viewerId) {
       setBids([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
     const fieldName = listingType === 'cargo' ? 'cargoListingId' : 'truckListingId';
-    // Note: Not using orderBy to avoid needing a composite index
-    // Sorting is done in JavaScript after fetching
+    // Query is constrained by listing owner for Firestore rule compatibility,
+    // then narrowed to the target listing in-memory.
     const q = query(
       collection(db, 'bids'),
-      where(fieldName, '==', listingId)
+      where('listingOwnerId', '==', viewerId)
     );
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
+        const data = snapshot.docs
+          .map((doc) => ({
           id: doc.id,
           ...doc.data(),
           createdAt: doc.data().createdAt?.toDate?.() || new Date(),
           updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-        }));
+          }))
+          .filter((bid) => bid[fieldName] === listingId);
         // Sort by createdAt descending (newest first)
         data.sort((a, b) => b.createdAt - a.createdAt);
         setBids(data);
@@ -46,7 +51,7 @@ export function useBidsForListing(listingId, listingType) {
     );
 
     return () => unsubscribe();
-  }, [listingId, listingType]);
+  }, [listingId, listingType, listingOwnerId]);
 
   return { bids, loading, error };
 }

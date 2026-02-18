@@ -13,7 +13,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useChat } from '@/hooks/useChat';
 import { sendChatMessage, markMessagesRead } from '@/services/firestoreService';
-import socketService from '@/services/socketService';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import api from '@/services/api';
 
@@ -167,16 +166,6 @@ export function ChatModal({
         message.trim(),
         recipientId
       );
-
-      // Also emit via Socket.io for real-time notification
-      socketService.emitChatMessage({
-        bidId,
-        senderId: currentUser.uid,
-        senderName,
-        message: message.trim(),
-        recipientId,
-        preview: message.trim().substring(0, 50),
-      });
 
       setMessage('');
     } catch (err) {

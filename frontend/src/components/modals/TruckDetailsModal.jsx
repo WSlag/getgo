@@ -178,6 +178,7 @@ export function TruckDetailsModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" hideCloseButton>
+        <div style={{ padding: isMobile ? '16px' : '24px' }}>
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
@@ -215,7 +216,7 @@ export function TruckDetailsModal({
         </DialogHeader>
 
         {/* Status and Price Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
           <div className="flex items-center" style={{ gap: isMobile ? '6px' : '12px' }}>
             <Badge className={cn("uppercase tracking-wide", statusStyles[displayStatus] || statusStyles.available)} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
               {statusLabels[displayStatus] || 'AVAILABLE'}
@@ -232,7 +233,7 @@ export function TruckDetailsModal({
         </div>
 
         {/* Trucker Info */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
           <div className="flex items-center" style={{ gap: isMobile ? '12px' : '16px' }}>
             <div style={{
               width: isMobile ? '48px' : '56px',
@@ -272,7 +273,7 @@ export function TruckDetailsModal({
         </div>
 
         {/* Route Section */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
           <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Route</h4>
           <div className="flex items-center rounded-xl bg-gray-100 dark:bg-gray-800/60" style={{ gap: isMobile ? '8px' : '12px', padding: isMobile ? '12px' : '16px' }}>
             <div className="flex items-center flex-1" style={{ gap: isMobile ? '6px' : '8px', minWidth: 0 }}>
@@ -341,7 +342,7 @@ export function TruckDetailsModal({
         </div>
 
         {/* Truck Details */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
           <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Truck Details</h4>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '10px' : '16px' }}>
             {truck.vehicleType && (
@@ -397,7 +398,7 @@ export function TruckDetailsModal({
 
         {/* Description */}
         {truck.description && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '6px' : '8px' }}>Description</h4>
             <p style={{ fontSize: isMobile ? '13px' : '14px', color: '#6b7280', lineHeight: '1.6' }}>{truck.description}</p>
           </div>
@@ -405,7 +406,7 @@ export function TruckDetailsModal({
 
         {/* Photos */}
         {truckPhotos.length > 0 && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Photos</h4>
             <div className="flex flex-wrap" style={{ gap: isMobile ? '8px' : '12px' }}>
               {truckPhotos.map((photo, idx) => (
@@ -430,7 +431,7 @@ export function TruckDetailsModal({
 
         {/* Map Preview */}
         {truck.originCoords && truck.destCoords && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Route Map</h4>
             <RouteMap
               origin={truck.origin}
@@ -445,12 +446,12 @@ export function TruckDetailsModal({
 
         {/* Bookings Section - Only for owner */}
         {isOwner && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>
               Booking Requests {!bidsLoading && `(${bookings.length})`}
             </h4>
             {bidsLoading ? (
-              <div className="flex items-center justify-center" style={{ paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+              <div className="flex items-center justify-center" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
                 <Loader2 style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px', color: '#a78bfa' }} className="animate-spin" />
                 <span style={{ marginLeft: '8px', fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>Loading requests...</span>
               </div>
@@ -579,7 +580,7 @@ export function TruckDetailsModal({
                 ))}
               </div>
             ) : (
-              <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#6b7280', textAlign: 'center', paddingTop: isMobile ? '12px' : '16px', paddingBottom: isMobile ? '12px' : '16px' }}>
+              <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#6b7280', textAlign: 'center', paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
                 No booking requests yet
               </p>
             )}
@@ -587,7 +588,7 @@ export function TruckDetailsModal({
         )}
 
         {/* Action Buttons */}
-        <div className="flex" style={{ gap: isMobile ? '8px' : '12px', paddingTop: isMobile ? '8px' : '12px' }}>
+        <div className="flex" style={{ gap: isMobile ? '8px' : '12px', paddingTop: isMobile ? '16px' : '20px' }}>
           {!isOwner && currentRole === 'shipper' && canBookTruckStatus(truck.status) && (
             <Button
               variant="gradient"
@@ -617,6 +618,7 @@ export function TruckDetailsModal({
           >
             Close
           </Button>
+        </div>
         </div>
       </DialogBottomSheet>
     </Dialog>

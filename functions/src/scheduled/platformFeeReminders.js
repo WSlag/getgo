@@ -15,14 +15,10 @@ exports.sendPlatformFeeReminders = functions
     const db = admin.firestore();
     const now = new Date();
 
-    console.log(`Running platform fee reminder check at ${now.toISOString()}`);
-
     // Query contracts with unpaid platform fees
     const unpaidContracts = await db.collection('contracts')
       .where('platformFeePaid', '==', false)
       .get();
-
-    console.log(`Found ${unpaidContracts.size} contracts with unpaid platform fees`);
 
     const batch = db.batch();
     const notifications = [];
@@ -38,7 +34,6 @@ exports.sendPlatformFeeReminders = functions
 
       // Only process contracts where billing has started
       if (!contract.platformFeeBillingStartedAt) {
-        console.log(`Skipping contract ${contract.id} - billing not started yet`);
         continue;
       }
 
@@ -53,14 +48,6 @@ exports.sendPlatformFeeReminders = functions
         (now - billingStartedAt) / (1000 * 60 * 60 * 24)
       );
       const daysUntilDue = Math.floor((dueDate - now) / (1000 * 60 * 60 * 24));
-
-      console.log(`Processing contract ${contract.id}: ${contract.contractNumber}`);
-      console.log(`  Billing started: ${billingStartedAt.toISOString()}`);
-      console.log(`  Days since billing: ${daysSinceBillingStart}`);
-      console.log(`  Due date: ${dueDate.toISOString()}`);
-      console.log(`  Days until due: ${daysUntilDue}`);
-      console.log(`  Status: ${contract.platformFeeStatus}`);
-      console.log(`  Reminders sent: ${contract.platformFeeReminders?.join(', ') || 'none'}`);
 
       // Day 1: Initial reminder
       if (daysSinceBillingStart === 1 && !contract.platformFeeReminders?.includes('day_1')) {
@@ -124,13 +111,11 @@ exports.sendPlatformFeeReminders = functions
 
     // Commit contract updates
     await batch.commit();
-    console.log(`Batch committed: ${unpaidContracts.size} contracts processed`);
 
     // Send notifications
     for (const { userId, notification } of notifications) {
       await db.collection(`users/${userId}/notifications`).doc().set(notification);
     }
-    console.log(`Sent ${notifications.length} reminder notifications`);
 
     // Process suspensions
     for (const { userId, contractId, platformFee, contractNumber } of suspensions) {
@@ -173,13 +158,9 @@ exports.sendPlatformFeeReminders = functions
           performedBy: 'SYSTEM',
           performedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-
-        console.log(`Suspended user ${userId} for unpaid platform fee on contract ${contractId}`);
       } catch (error) {
         console.error(`Error suspending user ${userId}:`, error);
       }
     }
-
-    console.log(`Completed: Sent ${notifications.length} reminders, suspended ${suspensions.length} accounts`);
     return null;
   });

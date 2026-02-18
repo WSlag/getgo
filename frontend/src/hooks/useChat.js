@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { sendChatMessage, markMessagesRead } from '../services/firestoreService';
-import socketService from '../services/socketService';
 
 // Hook to get chat messages for a bid (real-time)
 export function useChat(bidId) {
@@ -63,16 +62,6 @@ export function useChatActions() {
     try {
       // Send via Firestore (creates message + notification)
       await sendChatMessage(bidId, senderId, senderName, message.trim(), recipientId);
-
-      // Also emit via Socket.io for real-time notification
-      socketService.emitChatMessage({
-        bidId,
-        senderId,
-        senderName,
-        message: message.trim(),
-        recipientId,
-        preview: message.trim().substring(0, 50),
-      });
 
       setLoading(false);
       return { success: true };

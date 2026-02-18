@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import BidsView from './BidsView';
 import ContractsView from './ContractsView';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export default function ActivityView({
   currentUser,
@@ -12,7 +13,7 @@ export default function ActivityView({
   pendingContractsCount = 0,
 }) {
   const [activeSubTab, setActiveSubTab] = useState('bids');
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+  const isMobile = useMediaQuery('(max-width: 1023px)');
 
   return (
     <main

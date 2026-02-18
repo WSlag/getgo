@@ -100,7 +100,7 @@ export function HomeView({
           )}
           style={{ padding: '12px 16px' }}
         >
-          Cargo
+          {currentRole === 'shipper' && !isBroker ? 'My Cargo' : 'Cargo'}
         </button>
         <button
           onClick={() => onMarketChange?.('trucks')}
@@ -112,7 +112,7 @@ export function HomeView({
           )}
           style={{ padding: '12px 16px' }}
         >
-          Trucks
+          {currentRole === 'trucker' && !isBroker ? 'My Trucks' : 'Trucks'}
         </button>
       </div>
 
@@ -561,14 +561,19 @@ export function HomeView({
           "font-bold text-gray-900 dark:text-white",
           isMobile ? "text-base" : "text-xl"
         )} style={{ marginBottom: '4px' }}>
-          {activeMarket === 'cargo' ? 'Available Cargo' : 'Available Trucks'}
+          {activeMarket === 'cargo'
+            ? (currentRole === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
+            : (currentRole === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks')}
         </h2>
         <p className={cn(
           "text-gray-600 dark:text-gray-400",
           isMobile ? "text-xs" : "text-sm"
         )}>
           <span className="font-semibold text-orange-500">
-            {listingCount} {activeMarket === 'cargo' ? 'cargo listings' : 'trucks'}
+            {listingCount}{' '}
+            {activeMarket === 'cargo'
+              ? (currentRole === 'shipper' && !isBroker ? 'cargo posts' : 'cargo listings')
+              : (currentRole === 'trucker' && !isBroker ? 'truck posts' : 'trucks')}
           </span>{' '}
           available
         </p>

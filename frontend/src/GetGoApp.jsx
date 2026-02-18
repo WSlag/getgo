@@ -95,8 +95,9 @@ export default function GetGoApp() {
   } = useAuth();
 
   // Firebase Data Hooks - fetch ALL listings, filter in view layer
-  const { listings: firebaseCargoListings, loading: cargoLoading } = useCargoListings();
-  const { listings: firebaseTruckListings, loading: truckLoading } = useTruckListings();
+  // Pass authUser so hooks only subscribe when authenticated (avoids permission errors)
+  const { listings: firebaseCargoListings, loading: cargoLoading } = useCargoListings({ authUser });
+  const { listings: firebaseTruckListings, loading: truckLoading } = useTruckListings({ authUser });
   const { notifications: firebaseNotifications, unreadCount: firebaseUnreadCount } = useNotifications(authUser?.uid);
   const { bids: myBids } = useMyBids(authUser?.uid);
   const { conversations } = useConversations(authUser?.uid);
@@ -400,6 +401,10 @@ export default function GetGoApp() {
 
   // Filter listings
   const filteredCargoListings = cargoListings.filter(cargo => {
+    // Shippers only see their own cargo; truckers/brokers/guests see all
+    if (!isGuestUser && userRole === 'shipper' && !isBroker) {
+      if (!(cargo.shipperId === authUser.uid || cargo.userId === authUser.uid)) return false;
+    }
     if (!matchesMarketplaceFilter(cargo.status, filterStatus)) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -414,6 +419,10 @@ export default function GetGoApp() {
   });
 
   const filteredTruckListings = truckListings.filter(truck => {
+    // Truckers only see their own truck(s); shippers/brokers/guests see all
+    if (!isGuestUser && userRole === 'trucker' && !isBroker) {
+      if (!(truck.truckerId === authUser.uid || truck.userId === authUser.uid)) return false;
+    }
     if (!matchesMarketplaceFilter(truck.status, filterStatus)) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -1473,7 +1482,6 @@ export default function GetGoApp() {
                 photos: photoUrls,
               };
               await createCargoListing(authUser.uid, userProfile, listingData);
-              console.log('Cargo listing created successfully');
             } else {
               // Upload photos first (if any)
               const photoUrls = await uploadListingPhotos(authUser.uid, data.photos || [], 'truck');
@@ -1491,7 +1499,6 @@ export default function GetGoApp() {
                 photos: photoUrls,
               };
               await createTruckListing(authUser.uid, userProfile, truckerProfile, listingData);
-              console.log('Truck listing created successfully');
             }
             closeModal('post');
           } catch (error) {
@@ -1568,16 +1575,7 @@ export default function GetGoApp() {
               cargoType: data.cargoType || null,
               cargoWeight: data.cargoWeight || null,
             };
-
-            console.log('Creating bid with data:', {
-              bidderId: authUser.uid,
-              listingId: listing.id,
-              listingType,
-              listingOwnerId: listing.userId || listing.shipperId || listing.truckerId,
-            });
-
             await createBid(authUser.uid, userProfile, listing, listingType, bidData);
-            console.log('Bid created successfully');
 
             // Emit socket event for instant notification to listing owner
             emitBid({
@@ -1796,7 +1794,6 @@ export default function GetGoApp() {
             }
 
             await updateCargoListing(data.id, updateData);
-            console.log('Cargo listing updated successfully');
             closeModal('editCargo');
           } catch (error) {
             console.error('Error updating cargo listing:', error);
@@ -1844,7 +1841,6 @@ export default function GetGoApp() {
             }
 
             await updateTruckListing(data.id, updateData);
-            console.log('Truck listing updated successfully');
             closeModal('editTruck');
           } catch (error) {
             console.error('Error updating truck listing:', error);

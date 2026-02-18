@@ -191,7 +191,7 @@ service cloud.firestore {
 
     // Cargo Listings
     match /cargoListings/{listingId} {
-      allow read: if true;
+      allow read: if isAuth();
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
       // Allow owner to update, OR allow authenticated users to increment bidCount only
       allow update: if isAuth() && (
@@ -203,7 +203,7 @@ service cloud.firestore {
 
     // Truck Listings
     match /truckListings/{listingId} {
-      allow read: if true;
+      allow read: if isAuth();
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
       // Allow owner to update, OR allow authenticated users to increment bidCount only
       allow update: if isAuth() && (

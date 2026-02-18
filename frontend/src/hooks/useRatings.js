@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import * as api from '../services/api';
+import api from '../services/api';
 
 // Hook to get ratings for a user
 export function useUserRatings(userId) {
@@ -117,7 +117,7 @@ export function usePendingRatings(userId) {
     }
 
     try {
-      const result = await api.get('/ratings/pending');
+      const result = await api.ratings.getPending();
       setPendingRatings(result.pendingRatings || []);
       setLoading(false);
       setError(null);
@@ -144,7 +144,7 @@ export function useRatingActions() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.post('/ratings', ratingData);
+      const result = await api.ratings.submit(ratingData);
       setLoading(false);
       return result;
     } catch (err) {
@@ -158,8 +158,7 @@ export function useRatingActions() {
     setLoading(true);
     setError(null);
     try {
-      const queryString = new URLSearchParams(params).toString();
-      const result = await api.get(`/ratings/user/${userId}${queryString ? `?${queryString}` : ''}`);
+      const result = await api.ratings.getForUser(userId, params);
       setLoading(false);
       return result;
     } catch (err) {
@@ -173,7 +172,7 @@ export function useRatingActions() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.get(`/ratings/contract/${contractId}`);
+      const result = await api.ratings.getForContract(contractId);
       setLoading(false);
       return result;
     } catch (err) {

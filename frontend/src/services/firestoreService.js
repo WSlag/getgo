@@ -229,6 +229,12 @@ export const createBid = async (bidderId, bidderProfile, listing, listingType, d
 
 export const acceptBid = async (bidId, bid, listing, listingType) => {
   const batch = writeBatch(db);
+  const currentUserId = auth.currentUser?.uid || null;
+  const listingOwnerId = bid?.listingOwnerId || listing?.userId || listing?.shipperId || listing?.truckerId || currentUserId;
+
+  if (!listingOwnerId) {
+    throw new Error('Cannot accept bid: listing owner is missing');
+  }
 
   // Update accepted bid
   const bidRef = doc(db, 'bids', bidId);
@@ -241,13 +247,19 @@ export const acceptBid = async (bidId, bid, listing, listingType) => {
   batch.update(listingRef, { status: 'negotiating', updatedAt: serverTimestamp() });
 
   // Reject all other pending bids on this listing
-  const otherBidsQuery = listingType === 'cargo'
-    ? query(collection(db, 'bids'), where('cargoListingId', '==', listing.id), where('status', '==', 'pending'))
-    : query(collection(db, 'bids'), where('truckListingId', '==', listing.id), where('status', '==', 'pending'));
+  const otherBidsQuery = query(
+    collection(db, 'bids'),
+    where('listingOwnerId', '==', listingOwnerId)
+  );
 
   const otherBidsSnap = await getDocs(otherBidsQuery);
   otherBidsSnap.forEach((docSnap) => {
-    if (docSnap.id !== bidId) {
+    const bidDoc = docSnap.data();
+    const isSameListing = listingType === 'cargo'
+      ? bidDoc.cargoListingId === listing.id
+      : bidDoc.truckListingId === listing.id;
+
+    if (docSnap.id !== bidId && isSameListing && bidDoc.status === 'pending') {
       batch.update(docSnap.ref, { status: 'rejected', updatedAt: serverTimestamp() });
     }
   });
@@ -306,6 +318,11 @@ export const withdrawBid = async (bidId) => {
 
 export const reopenListing = async (listingId, listingType) => {
   const batch = writeBatch(db);
+  const currentUserId = auth.currentUser?.uid;
+
+  if (!currentUserId) {
+    throw new Error('Must be signed in to reopen listing');
+  }
 
   // Update listing status back to open
   const listingRef = listingType === 'cargo'
@@ -320,18 +337,20 @@ export const reopenListing = async (listingId, listingType) => {
   // Reject all accepted bids (if any) for this listing
   const bidsQuery = query(
     collection(db, 'bids'),
-    where('listingId', '==', listingId),
-    where('listingType', '==', listingType),
-    where('status', '==', 'accepted')
+    where('listingOwnerId', '==', currentUserId)
   );
 
   const bidsSnapshot = await getDocs(bidsQuery);
   bidsSnapshot.forEach((bidDoc) => {
-    const bidRef = doc(db, 'bids', bidDoc.id);
-    batch.update(bidRef, {
-      status: 'rejected',
-      updatedAt: serverTimestamp()
-    });
+    const bidData = bidDoc.data();
+    const isSameListing = bidData.listingId === listingId && bidData.listingType === listingType;
+    if (isSameListing && bidData.status === 'accepted') {
+      const bidRef = doc(db, 'bids', bidDoc.id);
+      batch.update(bidRef, {
+        status: 'rejected',
+        updatedAt: serverTimestamp()
+      });
+    }
   });
 
   await batch.commit();
@@ -785,5 +804,49 @@ export const getUserPaymentOrders = async (userId, status = null) => {
   }
 
   const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+// ============================================================
+// RATING READ HELPERS (replaces Express /ratings/* endpoints)
+// ============================================================
+
+/**
+ * Get ratings received by a user
+ * @param {string} userId
+ * @returns {Promise<{ratings: Array, averageScore: number, totalRatings: number}>}
+ */
+export const getRatingsForUser = async (userId) => {
+  const snapshot = await getDocs(
+    query(collection(db, 'ratings'), where('ratedUserId', '==', userId), orderBy('createdAt', 'desc'))
+  );
+  const ratings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const averageScore = ratings.length
+    ? ratings.reduce((sum, r) => sum + (r.score || 0), 0) / ratings.length
+    : 0;
+  return { ratings, averageScore: Math.round(averageScore * 10) / 10, totalRatings: ratings.length };
+};
+
+/**
+ * Get ratings for a specific contract
+ * @param {string} contractId
+ * @returns {Promise<Array>}
+ */
+export const getRatingsForContract = async (contractId) => {
+  const snapshot = await getDocs(
+    query(collection(db, 'ratings'), where('contractId', '==', contractId))
+  );
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+/**
+ * Get ratings submitted by the current user
+ * @param {string} userId
+ * @returns {Promise<Array>}
+ */
+export const getMyRatings = async (userId) => {
+  const snapshot = await getDocs(
+    query(collection(db, 'ratings'), where('raterId', '==', userId), orderBy('createdAt', 'desc'))
+  );
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };

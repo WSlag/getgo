@@ -1,4 +1,5 @@
 import { verifyFirebaseToken } from '../config/firebase-admin.js';
+import { getUserDoc } from '../config/firestore.js';
 
 // Verify Firebase token middleware (required authentication)
 export const authenticateToken = async (req, res, next) => {
@@ -48,15 +49,22 @@ export const optionalAuth = async (req, res, next) => {
 
 // Role-based access control (checks Firestore user profile)
 export const requireRole = (...roles) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Note: Role checking would need to query Firestore for user profile
-    // For now, this middleware passes through if user is authenticated
-    // Actual role validation should be done in route handlers by querying Firestore
-
-    next();
+    try {
+      const userProfile = await getUserDoc(req.user.uid);
+      if (!userProfile || !roles.includes(userProfile.role)) {
+        return res.status(403).json({ error: `Access restricted to: ${roles.join(', ')}` });
+      }
+      // Attach profile so route handlers don't need to re-fetch
+      req.userProfile = userProfile;
+      next();
+    } catch (err) {
+      console.error('requireRole error:', err);
+      res.status(500).json({ error: 'Failed to verify user role' });
+    }
   };
 };

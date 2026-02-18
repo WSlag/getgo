@@ -75,7 +75,7 @@ export function ChatView({
   };
 
   return (
-    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto")} style={{ padding: isMobile ? '20px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' }}>
+    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto")} style={{ padding: isMobile ? '16px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' }}>
       {/* Header */}
       <div style={{ marginBottom: isMobile ? '16px' : '24px' }}>
         <h2 style={{ fontSize: isMobile ? '20px' : '28px', fontWeight: 'bold', color: darkMode ? '#fff' : '#111827', marginBottom: '8px' }}>

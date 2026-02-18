@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../firebase';
-import * as api from '../services/api';
+import api from '../services/api';
 
 // Hook to get all contracts for the current user
 export function useContracts(userId) {
@@ -154,7 +154,7 @@ export function useContractActions() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.post('/contracts', { bidId, terms });
+      const result = await api.contracts.create({ bidId, terms });
       setLoading(false);
       return result;
     } catch (err) {
@@ -168,7 +168,7 @@ export function useContractActions() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.put(`/contracts/${contractId}/sign`, {});
+      const result = await api.contracts.sign(contractId);
       setLoading(false);
       return result;
     } catch (err) {
@@ -182,7 +182,7 @@ export function useContractActions() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.put(`/contracts/${contractId}/complete`, {});
+      const result = await api.contracts.complete(contractId);
       setLoading(false);
       return result;
     } catch (err) {
@@ -196,8 +196,7 @@ export function useContractActions() {
     setLoading(true);
     setError(null);
     try {
-      const queryString = new URLSearchParams(params).toString();
-      const result = await api.get(`/contracts${queryString ? `?${queryString}` : ''}`);
+      const result = await api.contracts.getAll(params);
       setLoading(false);
       return result;
     } catch (err) {
@@ -211,7 +210,7 @@ export function useContractActions() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.get(`/contracts/${contractId}`);
+      const result = await api.contracts.getById(contractId);
       setLoading(false);
       return result;
     } catch (err) {
