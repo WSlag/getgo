@@ -262,3 +262,64 @@ exports.getGcashConfig = functions.region('asia-southeast1').https.onCall(async 
 });
 
 // Wallet payout functionality removed - direct GCash payment only
+
+/**
+ * Get a single order by ID
+ */
+exports.getOrder = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const { orderId } = data;
+  if (!orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'orderId is required');
+  }
+
+  const db = admin.firestore();
+  const orderDoc = await db.collection('orders').doc(orderId).get();
+
+  if (!orderDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Order not found');
+  }
+
+  const order = { id: orderDoc.id, ...orderDoc.data() };
+
+  // Security: only the order owner can view it
+  if (order.userId !== context.auth.uid) {
+    throw new functions.https.HttpsError('permission-denied', 'Access denied');
+  }
+
+  // Get latest payment submission for this order
+  const submissionsSnap = await db.collection('paymentSubmissions')
+    .where('orderId', '==', orderId)
+    .orderBy('submittedAt', 'desc')
+    .limit(1)
+    .get();
+
+  const latestSubmission = submissionsSnap.empty
+    ? null
+    : { id: submissionsSnap.docs[0].id, ...submissionsSnap.docs[0].data() };
+
+  return { order, latestSubmission };
+});
+
+/**
+ * Get current user's pending orders
+ */
+exports.getPendingOrders = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const db = admin.firestore();
+  const ordersSnap = await db.collection('orders')
+    .where('userId', '==', context.auth.uid)
+    .where('status', 'in', ['pending', 'submitted'])
+    .orderBy('createdAt', 'desc')
+    .limit(20)
+    .get();
+
+  const orders = ordersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return { orders };
+});

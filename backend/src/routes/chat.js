@@ -5,6 +5,48 @@ import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
+// Get unread message count
+// IMPORTANT: must be defined before GET /:bidId to avoid Express matching 'unread' as a bidId
+router.get('/unread/count', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+
+    // Get all bids where user is involved (either as bidder or listing owner)
+    const bidsSnapshot = await db.collection('bids')
+      .where('bidderId', '==', userId)
+      .get();
+
+    const bidsSnapshot2 = await db.collection('bids')
+      .where('listingOwnerId', '==', userId)
+      .get();
+
+    // Combine bid IDs
+    const bidIds = [
+      ...bidsSnapshot.docs.map(doc => doc.id),
+      ...bidsSnapshot2.docs.map(doc => doc.id)
+    ];
+
+    // Count unread messages across all bids
+    let unreadCount = 0;
+
+    for (const bidId of bidIds) {
+      const unreadSnapshot = await db.collection('bids')
+        .doc(bidId)
+        .collection('messages')
+        .where('senderId', '!=', userId)
+        .where('isRead', '==', false)
+        .get();
+
+      unreadCount += unreadSnapshot.size;
+    }
+
+    res.json({ unreadCount });
+  } catch (error) {
+    console.error('Get unread count error:', error);
+    res.status(500).json({ error: 'Failed to get unread count' });
+  }
+});
+
 // Get chat messages for a bid
 router.get('/:bidId', authenticateToken, async (req, res) => {
   try {
@@ -154,47 +196,6 @@ router.put('/:bidId/read', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Mark read error:', error);
     res.status(500).json({ error: 'Failed to mark messages as read' });
-  }
-});
-
-// Get unread message count
-router.get('/unread/count', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.uid;
-
-    // Get all bids where user is involved (either as bidder or listing owner)
-    const bidsSnapshot = await db.collection('bids')
-      .where('bidderId', '==', userId)
-      .get();
-
-    const bidsSnapshot2 = await db.collection('bids')
-      .where('listingOwnerId', '==', userId)
-      .get();
-
-    // Combine bid IDs
-    const bidIds = [
-      ...bidsSnapshot.docs.map(doc => doc.id),
-      ...bidsSnapshot2.docs.map(doc => doc.id)
-    ];
-
-    // Count unread messages across all bids
-    let unreadCount = 0;
-
-    for (const bidId of bidIds) {
-      const unreadSnapshot = await db.collection('bids')
-        .doc(bidId)
-        .collection('messages')
-        .where('senderId', '!=', userId)
-        .where('isRead', '==', false)
-        .get();
-
-      unreadCount += unreadSnapshot.size;
-    }
-
-    res.json({ unreadCount });
-  } catch (error) {
-    console.error('Get unread count error:', error);
-    res.status(500).json({ error: 'Failed to get unread count' });
   }
 });
 

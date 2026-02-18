@@ -53,7 +53,7 @@ export function BidsView({
     : 'View and manage your truck bookings';
 
   return (
-    <main className={cn("flex-1", !embedded && "bg-gray-50 dark:bg-gray-950 overflow-y-auto")} style={!embedded ? { padding: isMobile ? '20px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' } : {}}>
+    <main className={cn("flex-1", !embedded && "bg-gray-50 dark:bg-gray-950 overflow-y-auto")} style={!embedded ? { padding: isMobile ? '16px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' } : {}}>
       {/* Header - Only show when not embedded */}
       {!embedded && (
         <div style={{ marginBottom: isMobile ? '16px' : '24px' }}>

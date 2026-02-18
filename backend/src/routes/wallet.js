@@ -20,16 +20,14 @@
  */
 
 import { Router } from 'express';
-import { Wallet, WalletTransaction, User, Bid, CargoListing, TruckListing } from '../models/index.js';
 import { authenticateToken } from '../middleware/auth.js';
 import admin from '../config/firebase-admin.js';
 
-const PLATFORM_FEE_RATE = parseFloat(process.env.PLATFORM_FEE_RATE) || 0.05;
+const hasGcashConfig = !!(process.env.GCASH_ACCOUNT_NUMBER && process.env.GCASH_ACCOUNT_NAME);
 
-// GCash configuration for screenshot verification
 const GCASH_CONFIG = {
-  accountNumber: process.env.GCASH_ACCOUNT_NUMBER || '09171234567',
-  accountName: process.env.GCASH_ACCOUNT_NAME || 'KARGA CONNECT',
+  accountNumber: process.env.GCASH_ACCOUNT_NUMBER,
+  accountName: process.env.GCASH_ACCOUNT_NAME,
   qrCodeUrl: process.env.GCASH_QR_URL || null,
   maxDailyTopup: 50000,
   maxDailySubmissions: 5,
@@ -38,379 +36,7 @@ const GCASH_CONFIG = {
 
 const router = Router();
 
-// Payment methods configuration
-const paymentMethods = {
-  gcash: { name: 'GCash', fee: 0 },
-  maya: { name: 'Maya', fee: 0 },
-  grabpay: { name: 'GrabPay', fee: 0 },
-  bank: { name: 'Bank Transfer', fee: 0 },
-  seveneleven: { name: '7-Eleven', fee: 15 },
-  cebuana: { name: 'Cebuana', fee: 25 },
-};
 
-// DEPRECATED ROUTES - Wallet functionality removed
-/* WALLET DEPRECATED
-// Get wallet balance and transactions
-router.get('/', authenticateToken, async (req, res) => {
-  try {
-    let wallet = await Wallet.findOne({
-      where: { userId: req.user.id },
-      include: [
-        {
-          model: WalletTransaction,
-          as: 'transactions',
-          order: [['createdAt', 'DESC']],
-          limit: 50,
-        },
-      ],
-    });
-
-    // Create wallet if doesn't exist
-    if (!wallet) {
-      wallet = await Wallet.create({ userId: req.user.id, balance: 0 });
-    }
-
-    res.json({
-      wallet: {
-        id: wallet.id,
-        balance: parseFloat(wallet.balance),
-        transactions: wallet.transactions || [],
-      },
-    });
-  } catch (error) {
-    console.error('Get wallet error:', error);
-    res.status(500).json({ error: 'Failed to get wallet' });
-  }
-});
-
-// Get wallet transactions
-router.get('/transactions', authenticateToken, async (req, res) => {
-  try {
-    const { limit = 50, offset = 0, type } = req.query;
-
-    const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
-    if (!wallet) {
-      return res.status(404).json({ error: 'Wallet not found' });
-    }
-
-    const where = { walletId: wallet.id };
-    if (type) where.type = type;
-
-    const transactions = await WalletTransaction.findAndCountAll({
-      where,
-      order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-    });
-
-    res.json({
-      transactions: transactions.rows,
-      total: transactions.count,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-    });
-  } catch (error) {
-    console.error('Get transactions error:', error);
-    res.status(500).json({ error: 'Failed to get transactions' });
-  }
-});
-
-// Top up wallet (Mock payment)
-router.post('/topup', authenticateToken, async (req, res) => {
-  try {
-    const { amount, method = 'gcash' } = req.body;
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'Valid amount is required' });
-    }
-
-    if (!paymentMethods[method]) {
-      return res.status(400).json({ error: 'Invalid payment method' });
-    }
-
-    let wallet = await Wallet.findOne({ where: { userId: req.user.id } });
-    if (!wallet) {
-      wallet = await Wallet.create({ userId: req.user.id, balance: 0 });
-    }
-
-    const fee = paymentMethods[method].fee;
-    const netAmount = amount - fee;
-
-    // Simulate payment processing (in production, integrate with actual payment gateway)
-    // For demo, we'll automatically approve the top-up
-
-    // Generate reference number
-    const prefix = method.toUpperCase().substring(0, 2);
-    const reference = `${prefix}-${Date.now().toString().slice(-8)}`;
-
-    // Update wallet balance
-    await wallet.update({ balance: parseFloat(wallet.balance) + netAmount });
-
-    // Create transaction record
-    const transaction = await WalletTransaction.create({
-      walletId: wallet.id,
-      type: 'topup',
-      amount: netAmount,
-      method: paymentMethods[method].name,
-      description: `Top-up via ${paymentMethods[method].name}`,
-      reference,
-      status: 'completed',
-    });
-
-    // If there was a fee, create a fee transaction
-    if (fee > 0) {
-      await WalletTransaction.create({
-        walletId: wallet.id,
-        type: 'fee',
-        amount: -fee,
-        description: `${paymentMethods[method].name} processing fee`,
-        reference,
-        status: 'completed',
-      });
-    }
-
-    res.json({
-      message: 'Top-up successful',
-      transaction,
-      newBalance: parseFloat(wallet.balance),
-      fee,
-    });
-  } catch (error) {
-    console.error('Top up error:', error);
-    res.status(500).json({ error: 'Top-up failed' });
-  }
-});
-
-// Request payout
-router.post('/payout', authenticateToken, async (req, res) => {
-  try {
-    const { amount, method = 'gcash', accountDetails } = req.body;
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'Valid amount is required' });
-    }
-
-    const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
-    if (!wallet) {
-      return res.status(404).json({ error: 'Wallet not found' });
-    }
-
-    if (parseFloat(wallet.balance) < amount) {
-      return res.status(400).json({
-        error: 'Insufficient balance',
-        currentBalance: parseFloat(wallet.balance),
-        requestedAmount: amount,
-      });
-    }
-
-    // Generate reference number
-    const prefix = 'PO';
-    const reference = `${prefix}-${Date.now().toString().slice(-8)}`;
-
-    // Update wallet balance
-    await wallet.update({ balance: parseFloat(wallet.balance) - amount });
-
-    // Create payout transaction
-    const transaction = await WalletTransaction.create({
-      walletId: wallet.id,
-      type: 'payout',
-      amount: -amount,
-      method: paymentMethods[method]?.name || method,
-      description: `Payout to ${paymentMethods[method]?.name || method}`,
-      reference,
-      status: 'completed', // In production, this would be 'pending' until verified
-    });
-
-    res.json({
-      message: 'Payout processed successfully',
-      transaction,
-      newBalance: parseFloat(wallet.balance),
-    });
-  } catch (error) {
-    console.error('Payout error:', error);
-    res.status(500).json({ error: 'Payout failed' });
-  }
-});
-
-// Deduct platform fee (internal use)
-router.post('/deduct-fee', authenticateToken, async (req, res) => {
-  try {
-    const { amount, description, contractId } = req.body;
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'Valid amount is required' });
-    }
-
-    const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
-    if (!wallet) {
-      return res.status(404).json({ error: 'Wallet not found' });
-    }
-
-    if (parseFloat(wallet.balance) < amount) {
-      return res.status(400).json({
-        error: 'Insufficient balance for platform fee',
-        currentBalance: parseFloat(wallet.balance),
-        requiredFee: amount,
-      });
-    }
-
-    // Update wallet balance
-    await wallet.update({ balance: parseFloat(wallet.balance) - amount });
-
-    // Create fee transaction
-    const transaction = await WalletTransaction.create({
-      walletId: wallet.id,
-      type: 'fee',
-      amount: -amount,
-      description: description || 'Platform fee',
-      reference: contractId || `FEE-${Date.now()}`,
-      status: 'completed',
-    });
-
-    res.json({
-      message: 'Fee deducted successfully',
-      transaction,
-      newBalance: parseFloat(wallet.balance),
-    });
-  } catch (error) {
-    console.error('Deduct fee error:', error);
-    res.status(500).json({ error: 'Fee deduction failed' });
-  }
-});
-
-// Get payment methods
-router.get('/payment-methods', (req, res) => {
-  res.json({ paymentMethods });
-});
-
-// Pay platform fee for contract creation
-router.post('/pay-platform-fee', authenticateToken, async (req, res) => {
-  try {
-    const { bidId, amount } = req.body;
-    const userId = req.user.uid;
-
-    if (!bidId) {
-      return res.status(400).json({ error: 'Bid ID is required' });
-    }
-
-    const db = admin.firestore();
-
-    // Validate bid exists in Firestore and is accepted
-    const bidDoc = await db.collection('bids').doc(bidId).get();
-    if (!bidDoc.exists) {
-      return res.status(404).json({ error: 'Bid not found' });
-    }
-
-    const bid = { id: bidDoc.id, ...bidDoc.data() };
-
-    if (bid.status !== 'accepted') {
-      return res.status(400).json({ error: 'Bid must be accepted before paying platform fee' });
-    }
-
-    // Verify the user is the listing owner
-    if (bid.listingOwnerId !== userId) {
-      return res.status(403).json({ error: 'Only the listing owner can pay the platform fee' });
-    }
-
-    // Calculate expected fee
-    const expectedFee = Math.round(bid.price * PLATFORM_FEE_RATE);
-    const feeAmount = amount || expectedFee;
-
-    // Check if fee already paid for this bid in Firestore
-    const existingFeeSnap = await db.collection('platformFees')
-      .where('bidId', '==', bidId)
-      .where('status', '==', 'completed')
-      .limit(1)
-      .get();
-
-    if (!existingFeeSnap.empty) {
-      return res.status(400).json({
-        error: 'Platform fee already paid for this bid',
-        transactionId: existingFeeSnap.docs[0].id,
-      });
-    }
-
-    // Get wallet balance from Firestore
-    const walletRef = db.doc(`users/${userId}/wallet/main`);
-    const walletSnap = await walletRef.get();
-    const currentBalance = walletSnap.exists ? (walletSnap.data().balance || 0) : 0;
-
-    // Check sufficient balance
-    if (currentBalance < feeAmount) {
-      return res.status(400).json({
-        error: 'Insufficient wallet balance',
-        currentBalance,
-        requiredFee: feeAmount,
-        shortfall: feeAmount - currentBalance,
-      });
-    }
-
-    // Deduct from Firestore wallet
-    const newBalance = currentBalance - feeAmount;
-    await walletRef.set({
-      balance: newBalance,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    // Record fee transaction in Firestore wallet transactions
-    const txRef = db.collection(`users/${userId}/walletTransactions`).doc();
-    await txRef.set({
-      type: 'fee',
-      amount: -feeAmount,
-      method: 'wallet',
-      description: `Platform fee for contract (${bid.origin} → ${bid.destination})`,
-      reference: bidId,
-      balanceBefore: currentBalance,
-      balanceAfter: newBalance,
-      status: 'completed',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // Record in platformFees collection for tracking
-    await db.collection('platformFees').doc().set({
-      bidId,
-      userId,
-      amount: feeAmount,
-      status: 'completed',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    res.json({
-      message: 'Platform fee paid successfully',
-      transactionId: txRef.id,
-      newBalance,
-      bidId,
-      feeAmount,
-    });
-  } catch (error) {
-    console.error('Pay platform fee error:', error);
-    res.status(500).json({ error: 'Failed to process platform fee payment' });
-  }
-});
-
-// Check if platform fee is paid for a bid
-router.get('/fee-status/:bidId', authenticateToken, async (req, res) => {
-  try {
-    const { bidId } = req.params;
-
-    const feeTransaction = await WalletTransaction.findOne({
-      where: {
-        reference: bidId,
-        type: 'fee',
-        status: 'completed',
-      },
-    });
-
-    res.json({
-      paid: !!feeTransaction,
-      transaction: feeTransaction,
-    });
-  } catch (error) {
-    console.error('Check fee status error:', error);
-    res.status(500).json({ error: 'Failed to check fee status' });
-  }
-});
-END WALLET DEPRECATED */
 
 // ============================================================
 // GCASH SCREENSHOT VERIFICATION ENDPOINTS (ACTIVE)
@@ -432,6 +58,10 @@ const maskPhoneNumber = (phone) => {
 // Create a top-up order for GCash screenshot verification
 router.post('/create-topup-order', authenticateToken, async (req, res) => {
   try {
+    if (!hasGcashConfig) {
+      return res.status(503).json({ error: 'GCash payment settings are not configured' });
+    }
+
     const { amount } = req.body;
     const userId = req.user.uid || req.user.id;
 
@@ -593,6 +223,10 @@ router.get('/pending-orders', authenticateToken, async (req, res) => {
 
 // Get GCash configuration (public info only)
 router.get('/gcash-config', authenticateToken, (req, res) => {
+  if (!hasGcashConfig) {
+    return res.status(503).json({ error: 'GCash payment settings are not configured' });
+  }
+
   res.json({
     accountName: GCASH_CONFIG.accountName,
     accountNumber: maskPhoneNumber(GCASH_CONFIG.accountNumber),

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Phone, ArrowRight, Shield, Loader2 } from 'lucide-react';
+import { Phone, ArrowRight, Shield, Loader2, KeyRound } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Logo } from '../shared/Logo';
 
 export default function LoginScreen({ darkMode, onSkipLogin }) {
-  const { sendOtp, verifyOtp, authError } = useAuth();
+  const { sendOtp, verifyOtp, signInWithRecoveryCode } = useAuth();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState('phone'); // 'phone' or 'otp'
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [step, setStep] = useState('phone'); // 'phone' | 'otp' | 'recovery'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formattedPhone, setFormattedPhone] = useState('');
@@ -44,8 +45,6 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
 
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    console.log('Verify button clicked, OTP:', otp);
-
     if (!otp.trim() || otp.length !== 6) {
       setError('Please enter the 6-digit code');
       return;
@@ -54,9 +53,7 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
     setLoading(true);
     setError('');
 
-    console.log('Calling verifyOtp...');
     const result = await verifyOtp(otp);
-    console.log('verifyOtp result:', result);
 
     setLoading(false);
 
@@ -79,9 +76,44 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
     setError('');
   };
 
+  const handleRecoveryCodeChange = (e) => {
+    const value = e.target.value
+      .toUpperCase()
+      .replace(/[^A-Z0-9-]/g, '')
+      .slice(0, 14);
+    setRecoveryCode(value);
+    setError('');
+  };
+
+  const handleRecoverySignIn = async (e) => {
+    e.preventDefault();
+
+    if (!phone.trim()) {
+      setError('Please enter your phone number');
+      return;
+    }
+
+    if (!recoveryCode.trim()) {
+      setError('Please enter your recovery code');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    const result = await signInWithRecoveryCode(phone, recoveryCode);
+
+    setLoading(false);
+
+    if (!result.success) {
+      setError(result.error || 'Recovery sign-in failed. Please try again.');
+    }
+  };
+
   const handleBack = () => {
     setStep('phone');
     setOtp('');
+    setRecoveryCode('');
     setError('');
   };
 
@@ -116,7 +148,7 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
                 <Phone className={`absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 ${theme.textMuted}`} />
               </div>
               <p className={`text-xs ${theme.textMuted}`} style={{ marginTop: '12px' }}>
-                We'll send a verification code to this number
+                We&apos;ll send a verification code to this number
               </p>
             </div>
 
@@ -149,8 +181,16 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
                 </>
               )}
             </button>
+
+            <button
+              type="button"
+              onClick={() => { setStep('recovery'); setError(''); }}
+              className={`w-full mt-3 py-2 text-sm ${theme.textMuted} hover:text-orange-500`}
+            >
+              Lost SIM access? Use a recovery code
+            </button>
           </form>
-        ) : (
+        ) : step === 'otp' ? (
           /* OTP Verification Step */
           <form onSubmit={handleVerifyOtp}>
             <div className="mb-8">
@@ -214,7 +254,96 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
               onClick={() => { setStep('phone'); setOtp(''); }}
               className={`w-full mt-3 py-2 text-sm ${theme.textMuted} hover:text-orange-500`}
             >
-              Didn't receive code? Try again
+              Didn&apos;t receive code? Try again
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStep('recovery'); setError(''); }}
+              className={`w-full py-2 text-sm ${theme.textMuted} hover:text-orange-500`}
+            >
+              Use recovery code instead
+            </button>
+          </form>
+        ) : (
+          /* Recovery Code Step */
+          <form onSubmit={handleRecoverySignIn}>
+            <div className="mb-8">
+              <button
+                type="button"
+                onClick={handleBack}
+                className={`text-sm ${theme.textMuted} hover:text-orange-500 mb-4 flex items-center gap-1`}
+              >
+                <ArrowRight className="w-4 h-4 rotate-180" />
+                Back
+              </button>
+
+              <label className={`block text-sm font-medium ${theme.textMuted} mb-3`}>
+                Recovery Sign-In
+              </label>
+              <p className={`text-xs ${theme.textMuted} mb-5`}>
+                Enter your phone number and one saved recovery code.
+              </p>
+
+              <div className="relative mb-3">
+                <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${theme.textMuted}`}>
+                  +63
+                </span>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={handlePhoneChange}
+                  placeholder="9171234567"
+                  className={`w-full rounded-xl border ${theme.input} focus:outline-none focus:ring-2 focus:ring-orange-500`}
+                  style={{ padding: '14px 16px 14px 56px' }}
+                />
+              </div>
+
+              <input
+                type="text"
+                value={recoveryCode}
+                onChange={handleRecoveryCodeChange}
+                placeholder="ABCD-EFGH-JKLM"
+                className={`w-full rounded-xl border ${theme.input} focus:outline-none focus:ring-2 focus:ring-orange-500`}
+                style={{ padding: '14px 16px' }}
+                autoFocus
+              />
+            </div>
+
+            {error && (
+              <div className="mb-6 p-3 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading || phone.length < 10 || recoveryCode.length < 12}
+              className={`w-full py-3 px-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:scale-105 active:scale-95
+                ${phone.length >= 10 && recoveryCode.length >= 12 && !loading
+                  ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700 shadow-lg shadow-orange-500/30'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                }`}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  <KeyRound className="w-5 h-5" />
+                  Sign In with Recovery Code
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStep('phone'); setRecoveryCode(''); setError(''); }}
+              className={`w-full mt-3 py-2 text-sm ${theme.textMuted} hover:text-orange-500`}
+            >
+              Use SMS verification instead
             </button>
           </form>
         )}

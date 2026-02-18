@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   onAuthStateChanged,
   signInWithPhoneNumber,
+  signInWithCustomToken,
   RecaptchaVerifier,
   signOut
 } from 'firebase/auth';
@@ -213,6 +214,46 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Sign in with backup recovery code
+  const signInWithRecoveryCode = async (phoneNumber, recoveryCode) => {
+    try {
+      setAuthError(null);
+      const response = await api.auth.recoverySignIn({ phoneNumber, recoveryCode });
+
+      if (!response?.customToken) {
+        throw new Error('Recovery sign-in failed');
+      }
+
+      const credential = await signInWithCustomToken(auth, response.customToken);
+      return { success: true, user: credential.user };
+    } catch (error) {
+      setAuthError(error.message);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Get backup recovery code status
+  const getRecoveryStatus = async () => {
+    try {
+      if (!authUser) throw new Error('Not authenticated');
+      const status = await api.auth.getRecoveryStatus();
+      return { success: true, ...status };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Generate new backup recovery codes (rotates old set)
+  const generateRecoveryCodes = async () => {
+    try {
+      if (!authUser) throw new Error('Not authenticated');
+      const result = await api.auth.generateRecoveryCodes();
+      return { success: true, ...result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
   // Create user profile after registration
   const createUserProfile = async (profileData) => {
     try {
@@ -292,21 +333,10 @@ export function AuthProvider({ children }) {
   const switchRole = async (newRole) => {
     try {
       if (!authUser || !userProfile) throw new Error('Not authenticated');
-      const token = await authUser.getIdToken();
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-      const response = await fetch(`${apiBaseUrl}/auth/switch-role`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ role: newRole }),
-      });
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || 'Failed to switch role');
-      }
+      // Update role directly in Firestore (no Express backend needed)
+      const userRef = doc(db, 'users', authUser.uid);
+      await setDoc(userRef, { role: newRole, updatedAt: serverTimestamp() }, { merge: true });
 
       // Create role profile if it doesn't exist
       if (newRole === 'shipper') {
@@ -435,11 +465,14 @@ export function AuthProvider({ children }) {
     authError,
     sendOtp,
     verifyOtp,
+    signInWithRecoveryCode,
     createUserProfile,
     updateProfile,
     switchRole,
     logout,
     getIdToken,
+    getRecoveryStatus,
+    generateRecoveryCodes,
     // Computed values
     isAuthenticated: !!authUser && !!userProfile,
     currentRole: userProfile?.role || 'shipper',

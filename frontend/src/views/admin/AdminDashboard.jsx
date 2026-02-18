@@ -61,7 +61,7 @@ export function AdminDashboard({ onBackToApp }) {
       ]);
       setBadges({
         pendingPayments: stats?.stats?.pendingReview || 0,
-        openDisputes: 0, // TODO: Add dispute count endpoint
+        openDisputes: 0, // Dispute tracking endpoint not yet implemented
         pendingBrokerPayouts: brokerPayouts?.requests?.length || 0,
       });
     } catch (err) {

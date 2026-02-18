@@ -1,13 +1,26 @@
 /**
  * Routing Service - OpenRouteService API Integration
  * Provides real road routes, distances, and durations
+ *
+ * Calls are proxied through a Firebase Cloud Function to avoid CORS restrictions.
  */
 
-const ORS_API_KEY = import.meta.env.VITE_OPENROUTE_API_KEY;
-const ORS_BASE_URL = 'https://api.openrouteservice.org/v2';
+const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'asia-southeast1';
+const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+const emulatorHost = import.meta.env.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
+const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+const configuredRouteProxyUrl = import.meta.env.VITE_ROUTE_PROXY_URL;
+
+const ROUTE_PROXY_URL = configuredRouteProxyUrl ||
+  (projectId
+    ? (useEmulator
+      ? `http://${emulatorHost}:5001/${projectId}/${functionsRegion}/getRoute`
+      : `https://${functionsRegion}-${projectId}.cloudfunctions.net/getRoute`)
+    : null);
 
 // Simple in-memory cache for routes
 const routeCache = new Map();
+const inFlightRequests = new Map();
 
 /**
  * Generate cache key for a route
@@ -84,61 +97,78 @@ export const fetchRoute = async (origin, destination) => {
     return routeCache.get(cacheKey);
   }
 
-  // If no API key, return straight line fallback
-  if (!ORS_API_KEY) {
-    console.warn('OpenRouteService API key not configured. Using straight line fallback.');
-    return getFallbackRoute(origin, destination);
+  if (inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey);
   }
 
-  try {
-    const response = await fetch(`${ORS_BASE_URL}/directions/driving-car`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': ORS_API_KEY,
-      },
-      body: JSON.stringify({
-        coordinates: [
-          [origin.lng, origin.lat],
-          [destination.lng, destination.lat]
-        ],
-        format: 'json',
-        instructions: false,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      // Only log non-404 errors (404s are expected for invalid routes/API issues)
-      if (response.status !== 404) {
-        console.error('OpenRouteService error:', errorData);
-      }
-      return getFallbackRoute(origin, destination);
-    }
-
-    const data = await response.json();
-
-    if (!data.routes || data.routes.length === 0) {
-      return getFallbackRoute(origin, destination);
-    }
-
-    const route = data.routes[0];
-    const coordinates = decodePolyline(route.geometry);
-
-    const result = {
-      coordinates, // Array of [lat, lng] for Leaflet Polyline
-      distance: Math.round(route.summary.distance / 1000), // Convert to km
-      duration: Math.round(route.summary.duration / 60), // Convert to minutes
-      isRealRoute: true,
+  const requestPromise = (async () => {
+    const cacheFallbackAndReturn = () => {
+      const fallbackRoute = getFallbackRoute(origin, destination);
+      routeCache.set(cacheKey, fallbackRoute);
+      return fallbackRoute;
     };
 
-    // Cache the result
-    routeCache.set(cacheKey, result);
+    try {
+      if (!ROUTE_PROXY_URL) {
+        return cacheFallbackAndReturn();
+      }
 
-    return result;
-  } catch (error) {
-    console.error('Failed to fetch route:', error);
-    return getFallbackRoute(origin, destination);
+      const response = await fetch(ROUTE_PROXY_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          coordinates: [
+            [origin.lng, origin.lat],
+            [destination.lng, destination.lat]
+          ],
+          format: 'json',
+          instructions: false,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        // Only log non-404 errors (404s are expected for invalid routes/API issues)
+        if (response.status !== 404) {
+          console.error('OpenRouteService error:', errorData);
+        }
+        return cacheFallbackAndReturn();
+      }
+
+      const data = await response.json();
+
+      if (!data.routes || data.routes.length === 0) {
+        return cacheFallbackAndReturn();
+      }
+
+      const route = data.routes[0];
+      const coordinates = decodePolyline(route.geometry);
+
+      const result = {
+        coordinates, // Array of [lat, lng] for Leaflet Polyline
+        distance: Math.round(route.summary.distance / 1000), // Convert to km
+        duration: Math.round(route.summary.duration / 60), // Convert to minutes
+        isRealRoute: true,
+      };
+
+      // Cache the result
+      routeCache.set(cacheKey, result);
+
+      return result;
+    } catch (error) {
+      console.error('Failed to fetch route:', error);
+      return cacheFallbackAndReturn();
+    }
+  })();
+
+  inFlightRequests.set(cacheKey, requestPromise);
+
+  try {
+    return await requestPromise;
+  } finally {
+    inFlightRequests.delete(cacheKey);
   }
 };
 
@@ -198,6 +228,7 @@ export const formatDuration = (minutes) => {
  */
 export const clearRouteCache = () => {
   routeCache.clear();
+  inFlightRequests.clear();
 };
 
 /**
@@ -205,4 +236,5 @@ export const clearRouteCache = () => {
  */
 export const getCacheStats = () => ({
   size: routeCache.size,
+  inFlight: inFlightRequests.size,
 });

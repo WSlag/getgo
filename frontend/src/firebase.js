@@ -12,13 +12,13 @@ import { getAnalytics } from 'firebase/analytics';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDK0-bmmPsuScseGdhN4wj71knEEeicpGs",
-  authDomain: "karga-ph.firebaseapp.com",
-  projectId: "karga-ph",
-  storageBucket: "karga-ph.firebasestorage.app",
-  messagingSenderId: "580800488549",
-  appId: "1:580800488549:web:3b5051b8c1ec0c8ba9128c",
-  measurementId: "G-WHFTRD15XC"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase
@@ -52,14 +52,10 @@ export const functions = getFunctions(app, 'asia-southeast1');
 if (useEmulator) {
   const emulatorHost = import.meta.env.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
 
-  console.log('🧪 Connecting to Firebase Emulators...');
-
   connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
   connectFirestoreEmulator(db, emulatorHost, 8080);
   connectFunctionsEmulator(functions, emulatorHost, 5001);
   connectStorageEmulator(storage, emulatorHost, 9199);
-
-  console.log('✅ Connected to Firebase Emulators');
 }
 
 // Intentionally do not expose admin bootstrap callables on window.

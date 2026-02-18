@@ -7,7 +7,6 @@
   "scripts": {
     "dev": "node --watch src/app.js",
     "start": "node src/app.js",
-    "seed": "node src/seed.js",
     "lint": "eslint src --ext .js",
     "test": "npm run lint && node scripts/runtime-smoke.mjs"
   },
@@ -20,9 +19,6 @@
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "firebase-admin": "^13.6.1",
-    "sequelize": "^6.37.1",
-    "socket.io": "^4.7.4",
-    "sqlite3": "^5.1.7",
     "uuid": "^9.0.1"
   },
   "overrides": {

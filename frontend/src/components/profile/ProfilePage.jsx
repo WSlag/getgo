@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   User, Phone, Mail, Facebook, Building2, MapPin,
   Truck, Star, Award, Wallet, LogOut, Package,
-  FileText, Calendar, Edit3, Save
+  FileText, Calendar, Edit3, Save, KeyRound, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +29,9 @@ export function ProfilePage() {
     currentRole,
     switchRole,
     logout,
-    updateProfile
+    updateProfile,
+    getRecoveryStatus,
+    generateRecoveryCodes
   } = useAuth();
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -42,6 +44,17 @@ export function ProfilePage() {
     businessAddress: '',
     businessType: ''
   });
+  const [recoveryStatus, setRecoveryStatus] = useState({
+    enabled: false,
+    activeCodes: 0,
+    usedCodes: 0,
+    lastGeneratedAt: null,
+    lastUsedAt: null,
+  });
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryError, setRecoveryError] = useState('');
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [generatedRecoveryCodes, setGeneratedRecoveryCodes] = useState([]);
 
   const openEditModal = () => {
     setEditForm({
@@ -88,12 +101,68 @@ export function ProfilePage() {
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    let date;
+    if (timestamp.toDate) {
+      date = timestamp.toDate();
+    } else if (typeof timestamp.seconds === 'number') {
+      date = new Date(timestamp.seconds * 1000);
+    } else if (typeof timestamp._seconds === 'number') {
+      date = new Date(timestamp._seconds * 1000);
+    } else {
+      date = new Date(timestamp);
+    }
+    if (Number.isNaN(date.getTime())) return 'N/A';
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  const loadRecoveryStatus = useCallback(async () => {
+    if (!getRecoveryStatus) return;
+    setRecoveryLoading(true);
+    setRecoveryError('');
+
+    const result = await getRecoveryStatus();
+
+    if (result.success) {
+      setRecoveryStatus({
+        enabled: !!result.enabled,
+        activeCodes: Number(result.activeCodes || 0),
+        usedCodes: Number(result.usedCodes || 0),
+        lastGeneratedAt: result.lastGeneratedAt || null,
+        lastUsedAt: result.lastUsedAt || null,
+      });
+    } else {
+      setRecoveryError(result.error || 'Failed to load recovery status');
+    }
+
+    setRecoveryLoading(false);
+  }, [getRecoveryStatus]);
+
+  useEffect(() => {
+    if (!userProfile || !getRecoveryStatus) return;
+    loadRecoveryStatus();
+  }, [userProfile, getRecoveryStatus, loadRecoveryStatus]);
+
+  const handleGenerateRecoveryCodes = async () => {
+    if (!generateRecoveryCodes) return;
+    setRecoveryLoading(true);
+    setRecoveryError('');
+
+    const result = await generateRecoveryCodes();
+
+    if (!result.success) {
+      setRecoveryError(result.error || 'Failed to generate recovery codes');
+      setRecoveryLoading(false);
+      return;
+    }
+
+    setGeneratedRecoveryCodes(result.codes || []);
+    setShowRecoveryModal(true);
+    await loadRecoveryStatus();
+    setRecoveryLoading(false);
   };
 
   const getMembershipColor = (tier) => {
@@ -120,8 +189,8 @@ export function ProfilePage() {
     <main
       className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto"
       style={{
-        padding: isMobile ? '16px' : '28px 32px',
-        paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '32px',
+        padding: isMobile ? '16px' : '24px',
+        paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px',
       }}
     >
       <div className="max-w-2xl mx-auto">
@@ -385,6 +454,47 @@ export function ProfilePage() {
           </div>
         </div>
 
+        {/* Security & Recovery Card */}
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm" style={{ padding: '24px', marginBottom: '24px' }}>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900 dark:text-white" style={{ marginBottom: '16px' }}>
+            <KeyRound className="size-5 text-orange-500" />
+            Security & Recovery
+          </h2>
+          <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700" style={{ padding: '16px', marginBottom: '14px' }}>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">
+              Recovery Codes
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400" style={{ marginTop: '4px' }}>
+              Save offline codes to sign in if you lose SIM access.
+            </p>
+            <div className="text-xs text-gray-600 dark:text-gray-300" style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span>Active codes: {recoveryStatus.activeCodes}</span>
+              <span>Used codes: {recoveryStatus.usedCodes}</span>
+              <span>Last generated: {recoveryStatus.lastGeneratedAt ? formatDate(recoveryStatus.lastGeneratedAt) : 'Never'}</span>
+            </div>
+          </div>
+
+          {recoveryError && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg" style={{ padding: '10px 12px', marginBottom: '12px' }}>
+              <p className="text-xs text-red-600 dark:text-red-400">{recoveryError}</p>
+            </div>
+          )}
+
+          <Button
+            type="button"
+            variant="gradient"
+            onClick={handleGenerateRecoveryCodes}
+            disabled={recoveryLoading}
+            className="w-full"
+          >
+            <RefreshCw className={cn('size-4 mr-2', recoveryLoading ? 'animate-spin' : '')} />
+            {recoveryStatus.enabled ? 'Regenerate Recovery Codes' : 'Generate Recovery Codes'}
+          </Button>
+          <p className="text-xs text-gray-500 dark:text-gray-400" style={{ marginTop: '10px' }}>
+            Regenerating invalidates all previous recovery codes.
+          </p>
+        </div>
+
         {/* Logout Button */}
         <button
           onClick={handleLogout}
@@ -395,6 +505,54 @@ export function ProfilePage() {
           Sign Out
         </button>
       </div>
+
+      {/* Recovery Codes Modal */}
+      <Dialog open={showRecoveryModal} onOpenChange={setShowRecoveryModal}>
+        <DialogContent className="max-w-md backdrop-blur-sm">
+          <DialogHeader>
+            <DialogTitle>Your Recovery Codes</DialogTitle>
+            <DialogDescription>
+              Save these codes now. Each code works only once and will not be shown again.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50" style={{ padding: '12px', maxHeight: '240px', overflowY: 'auto' }}>
+            {generatedRecoveryCodes.length > 0 ? (
+              generatedRecoveryCodes.map((code) => (
+                <div key={code} className="font-mono text-sm text-gray-900 dark:text-gray-100 tracking-wide" style={{ padding: '6px 4px' }}>
+                  {code}
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No codes available.</p>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={async () => {
+                if (typeof navigator !== 'undefined' && navigator.clipboard && generatedRecoveryCodes.length > 0) {
+                  await navigator.clipboard.writeText(generatedRecoveryCodes.join('\n'));
+                }
+              }}
+            >
+              Copy Codes
+            </Button>
+            <Button
+              type="button"
+              variant="gradient"
+              onClick={() => {
+                setShowRecoveryModal(false);
+                setGeneratedRecoveryCodes([]);
+              }}
+            >
+              I Saved Them
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Profile Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>

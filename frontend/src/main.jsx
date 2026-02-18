@@ -10,12 +10,8 @@ const updateSW = registerSW({
       detail: { updateSW }
     }));
   },
-  onOfflineReady() {
-    console.log('App ready to work offline');
-  },
-  onRegistered(registration) {
-    console.log('Service worker registered:', registration);
-  },
+  onOfflineReady() {},
+  onRegistered() {},
   onRegisterError(error) {
     console.error('Service worker registration failed:', error);
   }

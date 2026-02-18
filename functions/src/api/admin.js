@@ -465,8 +465,6 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
     .limit(limit)
     .get();
 
-  console.log(`Found ${unpaidContracts.size} contracts with unpaid platform fees`);
-
   // Enrich contracts with trucker data
   const contracts = await Promise.all(unpaidContracts.docs.map(async (doc) => {
     const contract = { id: doc.id, ...doc.data() };

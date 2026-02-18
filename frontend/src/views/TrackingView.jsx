@@ -45,8 +45,6 @@ export function TrackingView({
         currentLocation: city,
       });
 
-      console.log('Location updated successfully via API:', result);
-
       // Also emit socket event for instant UI update while API processes
       if (onLocationUpdate) {
         onLocationUpdate({

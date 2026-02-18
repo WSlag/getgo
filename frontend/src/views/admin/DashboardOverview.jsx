@@ -91,7 +91,7 @@ export function DashboardOverview({ badges, onNavigate }) {
       });
       setKpiSummary(marketplaceKpis?.summary || null);
 
-      // Mock recent activity (TODO: implement real activity feed)
+      // Recent activity uses static mock data; a real activity feed is not yet implemented
       setRecentActivity([
         { type: 'payment', message: 'New payment submission received', time: '2 mins ago', icon: CreditCard, color: 'text-blue-500' },
         { type: 'user', message: 'New trucker registered', time: '15 mins ago', icon: Users, color: 'text-green-500' },

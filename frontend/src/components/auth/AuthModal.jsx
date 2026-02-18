@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, ArrowRight, Shield, Loader2, X } from 'lucide-react';
+import { Phone, ArrowRight, Shield, Loader2, X, KeyRound } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Logo } from '../shared/Logo';
 import { cn } from '@/lib/utils';
@@ -9,10 +9,11 @@ import { cn } from '@/lib/utils';
  * Used when unauthenticated users try to perform protected actions
  */
 export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in to continue' }) {
-  const { sendOtp, verifyOtp, authUser, userProfile } = useAuth();
+  const { sendOtp, verifyOtp, signInWithRecoveryCode, authUser, userProfile } = useAuth();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState('phone'); // 'phone' or 'otp'
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [step, setStep] = useState('phone'); // 'phone' | 'otp' | 'recovery'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formattedPhone, setFormattedPhone] = useState('');
@@ -22,6 +23,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
     if (open) {
       setPhone('');
       setOtp('');
+      setRecoveryCode('');
       setStep('phone');
       setError('');
       setLoading(false);
@@ -96,9 +98,44 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
     setError('');
   };
 
+  const handleRecoveryCodeChange = (e) => {
+    const value = e.target.value
+      .toUpperCase()
+      .replace(/[^A-Z0-9-]/g, '')
+      .slice(0, 14);
+    setRecoveryCode(value);
+    setError('');
+  };
+
+  const handleRecoverySignIn = async (e) => {
+    if (e) e.preventDefault();
+
+    if (!phone.trim()) {
+      setError('Please enter your phone number');
+      return;
+    }
+
+    if (!recoveryCode.trim()) {
+      setError('Please enter your recovery code');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    const result = await signInWithRecoveryCode(phone, recoveryCode);
+
+    setLoading(false);
+
+    if (!result.success) {
+      setError(result.error || 'Recovery sign-in failed. Please try again.');
+    }
+  };
+
   const handleBack = () => {
     setStep('phone');
     setOtp('');
+    setRecoveryCode('');
     setError('');
   };
 
@@ -188,7 +225,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
                   className="text-gray-500 dark:text-gray-400"
                   style={{ fontSize: '13px', marginTop: '10px' }}
                 >
-                  We'll send a verification code to this number
+                  We&apos;ll send a verification code to this number
                 </p>
               </div>
 
@@ -225,8 +262,17 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
                   </>
                 )}
               </button>
+
+              <button
+                type="button"
+                onClick={() => { setStep('recovery'); setError(''); }}
+                className="w-full text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors"
+                style={{ marginTop: '12px', padding: '10px', fontSize: '14px' }}
+              >
+                Lost SIM access? Use a recovery code
+              </button>
             </form>
-          ) : (
+          ) : step === 'otp' ? (
             /* OTP Verification Step */
             <form onSubmit={handleVerifyOtp}>
               <div style={{ marginBottom: '24px' }}>
@@ -315,7 +361,133 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
                 className="w-full text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors"
                 style={{ marginTop: '12px', padding: '10px', fontSize: '14px' }}
               >
-                Didn't receive code? Try again
+                Didn&apos;t receive code? Try again
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setStep('recovery'); setError(''); }}
+                className="w-full text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors"
+                style={{ padding: '10px', fontSize: '14px' }}
+              >
+                Use recovery code instead
+              </button>
+            </form>
+          ) : (
+            /* Recovery Code Step */
+            <form onSubmit={handleRecoverySignIn}>
+              <div style={{ marginBottom: '24px' }}>
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="flex items-center text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors"
+                  style={{ fontSize: '14px', marginBottom: '16px', gap: '4px' }}
+                >
+                  <ArrowRight style={{ width: '16px', height: '16px', transform: 'rotate(180deg)' }} />
+                  Back
+                </button>
+
+                <label
+                  className="block font-medium text-gray-700 dark:text-gray-300"
+                  style={{ fontSize: '14px', marginBottom: '10px' }}
+                >
+                  Recovery Sign-In
+                </label>
+                <p
+                  className="text-gray-500 dark:text-gray-400"
+                  style={{ fontSize: '13px', marginBottom: '14px' }}
+                >
+                  Enter your phone number and one saved recovery code.
+                </p>
+
+                <div className="relative" style={{ marginBottom: '10px' }}>
+                  <span
+                    className="absolute text-gray-500 dark:text-gray-400 font-medium"
+                    style={{ left: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '16px' }}
+                  >
+                    +63
+                  </span>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={handlePhoneChange}
+                    placeholder="9171234567"
+                    className={cn(
+                      "w-full border border-gray-200 dark:border-gray-600",
+                      "bg-white dark:bg-gray-700 text-gray-900 dark:text-white",
+                      "placeholder:text-gray-400 dark:placeholder:text-gray-500",
+                      "focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500",
+                      "transition-all duration-200"
+                    )}
+                    style={{
+                      padding: '15px 48px 15px 56px',
+                      borderRadius: '12px',
+                      fontSize: '16px',
+                    }}
+                  />
+                </div>
+
+                <input
+                  type="text"
+                  value={recoveryCode}
+                  onChange={handleRecoveryCodeChange}
+                  placeholder="ABCD-EFGH-JKLM"
+                  className={cn(
+                    "w-full border border-gray-200 dark:border-gray-600",
+                    "bg-white dark:bg-gray-700 text-gray-900 dark:text-white",
+                    "placeholder:text-gray-400 dark:placeholder:text-gray-500",
+                    "focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500",
+                    "transition-all duration-200"
+                  )}
+                  style={{
+                    padding: '15px 16px',
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              {error && (
+                <div
+                  className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                  style={{ padding: '12px 14px', borderRadius: '10px', marginBottom: '20px' }}
+                >
+                  <p className="text-red-600 dark:text-red-400" style={{ fontSize: '14px' }}>{error}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || phone.length < 10 || recoveryCode.length < 12}
+                className={cn(
+                  "w-full font-medium flex items-center justify-center transition-all duration-300",
+                  phone.length >= 10 && recoveryCode.length >= 12 && !loading
+                    ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
+                )}
+                style={{ padding: '14px 20px', borderRadius: '12px', gap: '8px', fontSize: '15px' }}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin" style={{ width: '18px', height: '18px' }} />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    <KeyRound style={{ width: '18px', height: '18px' }} />
+                    Sign In with Recovery Code
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setStep('phone'); setRecoveryCode(''); setError(''); }}
+                className="w-full text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors"
+                style={{ marginTop: '12px', padding: '10px', fontSize: '14px' }}
+              >
+                Use SMS verification instead
               </button>
             </form>
           )}

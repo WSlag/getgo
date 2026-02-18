@@ -1,13 +1,29 @@
-import { auth, functions } from '../firebase';
+import { auth, functions, db } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore';
+import {
+  getRatingsForUser,
+  getRatingsForContract,
+  getMyRatings,
+  getPaymentSubmission,
+} from './firestoreService';
 
 /**
- * Call a Cloud Function
- * @param {string} name - Function name
- * @param {Object} data - Data to pass to function
- * @returns {Promise<any>} Function result
+ * Call a Firebase Cloud Function
+ * @param {string} name Function name
+ * @param {Object} data Payload
+ * @returns {Promise<any>} Function result data
  */
 async function callFunction(name, data = {}) {
   const fn = httpsCallable(functions, name);
@@ -15,35 +31,48 @@ async function callFunction(name, data = {}) {
     const result = await fn(data);
     return result.data;
   } catch (error) {
-    // Only log non-expected errors
-    const isExpectedError = error.code === 'not-found' ||
-                           (error.message && error.message.includes('Contract not found'));
+    const isExpectedError =
+      error.code === 'not-found' ||
+      (error.message && error.message.includes('Contract not found'));
+
     if (!isExpectedError) {
       console.error(`Cloud Function ${name} error:`, error);
     }
-    // Preserve the original error code and message
+
     const err = new Error(error.message || 'Function call failed');
     err.code = error.code;
     throw err;
   }
 }
 
-/**
- * API Client with Firebase Authentication
- *
- * Automatically attaches Firebase ID token to requests
- * for backend verification via Firebase Admin SDK
- */
+const requireAuthUser = () => {
+  const user = auth.currentUser;
+  if (!user) {
+    const err = new Error('Must be authenticated');
+    err.code = 'unauthenticated';
+    throw err;
+  }
+  return user;
+};
+
+const mapShipment = (docSnap) => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    ...data,
+    createdAt: data.createdAt?.toDate?.() || null,
+    updatedAt: data.updatedAt?.toDate?.() || null,
+    deliveredAt: data.deliveredAt?.toDate?.() || null,
+  };
+};
 
 /**
  * Get the current Firebase ID token
  * @returns {Promise<string|null>} The ID token or null if not authenticated
  */
-async function getIdToken() {
+export async function getIdToken() {
   const user = auth.currentUser;
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
   try {
     return await user.getIdToken();
   } catch (error) {
@@ -52,182 +81,33 @@ async function getIdToken() {
   }
 }
 
-/**
- * Make an authenticated API request
- * @param {string} endpoint - API endpoint (e.g., '/listings/cargo')
- * @param {Object} options - Fetch options
- * @returns {Promise<Response>}
- */
-async function apiRequest(endpoint, options = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
-
-  // Get Firebase token if user is authenticated
-  const token = await getIdToken();
-
-  // Build headers
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-  };
-
-  // Add authorization header if token exists
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  return response;
-}
-
-/**
- * Make a GET request
- * @param {string} endpoint
- * @param {Object} options
- * @returns {Promise<any>}
- */
-export async function get(endpoint, options = {}) {
-  const response = await apiRequest(endpoint, {
-    method: 'GET',
-    ...options,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(error.error || 'Request failed');
-  }
-
-  return response.json();
-}
-
-/**
- * Make a POST request
- * @param {string} endpoint
- * @param {Object} data
- * @param {Object} options
- * @returns {Promise<any>}
- */
-export async function post(endpoint, data, options = {}) {
-  const response = await apiRequest(endpoint, {
-    method: 'POST',
-    body: JSON.stringify(data),
-    ...options,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(error.error || 'Request failed');
-  }
-
-  return response.json();
-}
-
-/**
- * Make a PUT request
- * @param {string} endpoint
- * @param {Object} data
- * @param {Object} options
- * @returns {Promise<any>}
- */
-export async function put(endpoint, data, options = {}) {
-  const response = await apiRequest(endpoint, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-    ...options,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(error.error || 'Request failed');
-  }
-
-  return response.json();
-}
-
-/**
- * Make a DELETE request
- * @param {string} endpoint
- * @param {Object} options
- * @returns {Promise<any>}
- */
-export async function del(endpoint, options = {}) {
-  const response = await apiRequest(endpoint, {
-    method: 'DELETE',
-    ...options,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(error.error || 'Request failed');
-  }
-
-  return response.json();
-}
-
-/**
- * API helper object with all methods
- */
+// Firebase-backed API surface.
 const api = {
-  get,
-  post,
-  put,
-  delete: del,
-
-  // Specific endpoints
   auth: {
-    getProfile: () => get('/auth/me'),
-    updateProfile: (data) => put('/auth/me', data),
-    switchRole: (role) => post('/auth/switch-role', { role }),
-    registerBroker: () => post('/auth/register-broker', {}),
+    // Role switching is handled directly in Firestore.
+    switchRole: async (role) => {
+      const user = requireAuthUser();
+      await setDoc(doc(db, 'users', user.uid), { role, updatedAt: serverTimestamp() }, { merge: true });
+      return { success: true };
+    },
+    registerBroker: () => callFunction('brokerRegister', {}),
+    getRecoveryStatus: () => callFunction('authGetRecoveryStatus', {}),
+    generateRecoveryCodes: () => callFunction('authGenerateRecoveryCodes', {}),
+    recoverySignIn: (data) => callFunction('authRecoverySignIn', data || {}),
   },
 
-  listings: {
-    getCargo: (params) => get(`/listings/cargo${params ? `?${new URLSearchParams(params)}` : ''}`),
-    getTrucks: (params) => get(`/listings/trucks${params ? `?${new URLSearchParams(params)}` : ''}`),
-    getCargoById: (id) => get(`/listings/cargo/${id}`),
-    getTruckById: (id) => get(`/listings/trucks/${id}`),
-    createCargo: (data) => post('/listings/cargo', data),
-    createTruck: (data) => post('/listings/trucks', data),
-    updateCargo: (id, data) => put(`/listings/cargo/${id}`, data),
-    updateTruck: (id, data) => put(`/listings/trucks/${id}`, data),
-    deleteCargo: (id) => del(`/listings/cargo/${id}`),
-    deleteTruck: (id) => del(`/listings/trucks/${id}`),
-    requestChat: (data) => callFunction('requestListingChat', data || {}),
-  },
-
-  // Route Optimization / Backload Finder
   optimize: {
     findBackload: (params) => callFunction('findBackloadOpportunities', params || {}),
     getPopularRoutes: () => callFunction('getPopularRoutes', {}),
-  },
-
-  bids: {
-    create: (data) => post('/bids', data),
-    getMyBids: () => get('/bids/my-bids'),
-    accept: (bidId) => put(`/bids/${bidId}/accept`, {}),
-    reject: (bidId) => put(`/bids/${bidId}/reject`, {}),
+    requestChat: (data) => callFunction('requestListingChat', data || {}),
   },
 
   wallet: {
-    // Platform fee payment via GCash
     createPlatformFeeOrder: (data) => callFunction('createPlatformFeeOrder', data),
-    // GCash order management
     createTopUpOrder: (data) => callFunction('createTopUpOrder', data),
-    getOrder: (orderId) => get(`/wallet/order/${orderId}`),
-    getPendingOrders: () => get('/wallet/pending-orders'),
+    getOrder: (orderId) => callFunction('getOrder', { orderId }),
+    getPendingOrders: () => callFunction('getPendingOrders', {}),
     getGcashConfig: () => callFunction('getGcashConfig', {}),
-    // Legacy wallet functions removed:
-    // - getBalance, getTransactions, topUp, payout, payPlatformFee, getFeeStatus, getPaymentMethods
-  },
-
-  chat: {
-    getMessages: (bidId) => get(`/chat/${bidId}`),
-    sendMessage: (bidId, message) => post(`/chat/${bidId}`, { message }),
-    markAsRead: (bidId) => put(`/chat/${bidId}/read`, {}),
-    getUnreadCount: () => get('/chat/unread/count'),
   },
 
   contracts: {
@@ -240,10 +120,14 @@ const api = {
   },
 
   ratings: {
-    getForUser: (userId, params) => get(`/ratings/user/${userId}${params ? `?${new URLSearchParams(params)}` : ''}`),
-    getForContract: (contractId) => get(`/ratings/contract/${contractId}`),
+    getForUser: (userId) => getRatingsForUser(userId),
+    getForContract: (contractId) => getRatingsForContract(contractId),
     getPending: () => callFunction('getPendingRatings', {}),
-    getMyRatings: () => get('/ratings/my-ratings'),
+    getMyRatings: () => {
+      const user = auth.currentUser;
+      if (!user) return Promise.resolve([]);
+      return getMyRatings(user.uid);
+    },
     submit: (data) => callFunction('submitRating', data),
   },
 
@@ -254,72 +138,98 @@ const api = {
     requestPayout: (data) => callFunction('brokerRequestPayout', data || {}),
   },
 
-  // Shipment Tracking
   shipments: {
-    getAll: (params) => get(`/shipments${params ? `?${new URLSearchParams(params)}` : ''}`),
-    getById: (id) => get(`/shipments/${id}`),
-    track: (trackingNumber) => get(`/shipments/track/${trackingNumber}`),
+    getAll: async (params = {}) => {
+      const user = requireAuthUser();
+      let shipmentsQuery = query(
+        collection(db, 'shipments'),
+        where('participantIds', 'array-contains', user.uid),
+        orderBy('createdAt', 'desc')
+      );
+
+      if (params?.status) {
+        shipmentsQuery = query(
+          collection(db, 'shipments'),
+          where('participantIds', 'array-contains', user.uid),
+          where('status', '==', params.status),
+          orderBy('createdAt', 'desc')
+        );
+      }
+
+      const snapshot = await getDocs(shipmentsQuery);
+      return { shipments: snapshot.docs.map(mapShipment) };
+    },
+    getById: async (shipmentId) => {
+      const user = requireAuthUser();
+      const shipmentRef = doc(db, 'shipments', shipmentId);
+      const shipmentSnap = await getDoc(shipmentRef);
+
+      if (!shipmentSnap.exists()) {
+        const err = new Error('Shipment not found');
+        err.code = 'not-found';
+        throw err;
+      }
+
+      const shipment = mapShipment(shipmentSnap);
+      if (Array.isArray(shipment.participantIds) && !shipment.participantIds.includes(user.uid)) {
+        const err = new Error('Access denied');
+        err.code = 'permission-denied';
+        throw err;
+      }
+
+      return { shipment };
+    },
+    track: async (trackingNumber) => {
+      const snapshot = await getDocs(
+        query(collection(db, 'shipments'), where('trackingNumber', '==', trackingNumber), limit(1))
+      );
+
+      if (snapshot.empty) {
+        const err = new Error('Shipment not found');
+        err.code = 'not-found';
+        throw err;
+      }
+
+      return { shipment: mapShipment(snapshot.docs[0]) };
+    },
     updateLocation: (id, data) => callFunction('updateShipmentLocation', { shipmentId: id, ...data }),
     updateStatus: (id, status) => callFunction('updateShipmentStatus', { shipmentId: id, status }),
   },
 
-  // Admin Endpoints
   admin: {
-    // Dashboard
     getDashboardStats: () => callFunction('adminGetDashboardStats', {}),
 
-    // Payments
     getPendingPayments: (params) => callFunction('adminGetPendingPayments', params || {}),
-    getPayments: (params) => get(`/admin/payments${params ? `?${new URLSearchParams(params)}` : ''}`),
     getPaymentStats: () => callFunction('getPaymentStats', {}),
-    getPaymentDetails: (submissionId) => get(`/admin/payments/${submissionId}`),
     approvePayment: (submissionId, data) => callFunction('adminApprovePayment', { submissionId, ...data }),
     rejectPayment: (submissionId, data) => callFunction('adminRejectPayment', { submissionId, ...data }),
+    getPaymentDetails: (submissionId) => getPaymentSubmission(submissionId),
 
-    // Users
     getUsers: (params) => callFunction('adminGetUsers', params || {}),
-    getUserDetails: (userId) => get(`/admin/users/${userId}`),
     suspendUser: (userId, data) => callFunction('adminSuspendUser', { userId, ...data }),
     activateUser: (userId) => callFunction('adminActivateUser', { userId }),
     verifyUser: (userId) => callFunction('adminVerifyUser', { userId }),
     toggleAdmin: (userId, grant) => callFunction('adminToggleAdmin', { userId, grant }),
 
-    // Listings
-    getListings: (params) => get(`/admin/listings${params ? `?${new URLSearchParams(params)}` : ''}`),
-    deactivateListing: (listingId, data) => post(`/admin/listings/${listingId}/deactivate`, data),
-
-    // Contracts
     getContracts: (params) => callFunction('adminGetContracts', params || {}),
-    getContractDetails: (contractId) => get(`/admin/contracts/${contractId}`),
 
-    // Shipments
-    getShipments: (params) => get(`/admin/shipments${params ? `?${new URLSearchParams(params)}` : ''}`),
-    getActiveShipments: () => get('/admin/shipments/active'),
-
-    // Financial
     getFinancialSummary: () => callFunction('adminGetFinancialSummary', {}),
     getMarketplaceKpis: (params) => callFunction('adminGetMarketplaceKpis', params || {}),
-    getTransactions: (params) => get(`/admin/financial/transactions${params ? `?${new URLSearchParams(params)}` : ''}`),
 
-    // Disputes
-    getDisputes: (params) => get(`/admin/disputes${params ? `?${new URLSearchParams(params)}` : ''}`),
-    getDisputeDetails: (disputeId) => get(`/admin/disputes/${disputeId}`),
     resolveDispute: (disputeId, data) => callFunction('adminResolveDispute', { disputeId, ...data }),
 
-    // Referrals/Brokers (Firebase Functions - authoritative)
     getBrokers: (params) => callFunction('adminGetBrokers', params || {}),
     updateBrokerTier: (brokerId, tier) => callFunction('adminUpdateBrokerTier', { brokerId, tier }),
     getBrokerPayoutRequests: (params) => callFunction('adminGetBrokerPayoutRequests', params || {}),
     reviewBrokerPayout: (requestId, decision, data = {}) =>
       callFunction('adminReviewBrokerPayout', { requestId, decision, ...data }),
 
-    // Ratings
-    getRatings: (params) => get(`/admin/ratings${params ? `?${new URLSearchParams(params)}` : ''}`),
-    deleteRating: (ratingId, data) => del(`/admin/ratings/${ratingId}`, { body: JSON.stringify(data) }),
+    deleteRating: (ratingId, data) => callFunction('adminDeleteRating', { ratingId, ...data }),
 
-    // Settings
-    getSettings: () => get('/admin/settings'),
-    updateSettings: (settings) => put('/admin/settings', { settings }),
+    getSettings: () => callFunction('adminGetSettings', {}),
+    updateSettings: (settings) => callFunction('adminUpdateSettings', { settings }),
+
+    getOutstandingFees: () => callFunction('adminGetOutstandingFees', {}),
   },
 };
 

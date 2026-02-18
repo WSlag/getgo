@@ -1,16 +1,4 @@
 import { Router } from 'express';
-import {
-  Contract,
-  Bid,
-  CargoListing,
-  TruckListing,
-  User,
-  TruckerProfile,
-  ShipperProfile,
-  Notification,
-  Shipment,
-  WalletTransaction,
-} from '../models/index.js';
 import { authenticateToken } from '../middleware/auth.js';
 import admin from '../config/firebase-admin.js';
 
@@ -43,7 +31,7 @@ async function getFirestoreBidData(bidId) {
   return { bid, listing, isCargo };
 }
 
-const PLATFORM_FEE_RATE = parseFloat(process.env.PLATFORM_FEE_RATE) || 0.05;
+const PLATFORM_FEE_RATE = parseFloat(process.env.PLATFORM_FEE_RATE) || 0.03;
 
 // Generate unique contract number
 const generateContractNumber = () => {

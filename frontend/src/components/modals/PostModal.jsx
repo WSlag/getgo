@@ -66,7 +66,7 @@ export function PostModal({
   });
 
   const [formData, setFormData] = useState(getInitialFormData());
-  const isMobile = !useMediaQuery('(min-width: 640px)');
+  const isMobile = useMediaQuery('(max-width: 1023px)');
 
   // Pre-populate form when editing
   useEffect(() => {

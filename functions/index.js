@@ -43,8 +43,6 @@ exports.processPaymentSubmission = functions
     const submission = snap.data();
     const { submissionId } = context.params;
 
-    console.log(`Processing payment submission: ${submissionId}`);
-
     try {
       // Step 1: Update status to processing
       await snap.ref.update({
@@ -76,7 +74,6 @@ exports.processPaymentSubmission = functions
       }
 
       // Step 3: Analyze image (get hash, dimensions, EXIF)
-      console.log('Analyzing image...');
       const imageAnalysis = await analyzeImage(submission.screenshotUrl, submission.userId);
 
       if (!imageAnalysis.success) {
@@ -84,7 +81,6 @@ exports.processPaymentSubmission = functions
       }
 
       // Step 4: Check for duplicate image hash
-      console.log('Checking for duplicate image...');
       const duplicateHash = await checkDuplicateHash(
         db,
         imageAnalysis.hash,
@@ -92,7 +88,6 @@ exports.processPaymentSubmission = functions
       );
 
       // Step 5: Run OCR
-      console.log('Running OCR...');
       const ocrResults = await processScreenshot(submission.screenshotUrl, submission.userId);
 
       if (!ocrResults.success) {
@@ -101,11 +96,9 @@ exports.processPaymentSubmission = functions
       }
 
       // Step 6: Validate extracted data
-      console.log('Validating extracted data...');
       const validationResults = validateExtractedData(ocrResults.extractedData, order);
 
       // Step 7: Check for duplicate reference number
-      console.log('Checking for duplicate reference...');
       const duplicateRef = await checkDuplicateReference(
         db,
         ocrResults.extractedData?.referenceNumber,
@@ -115,7 +108,6 @@ exports.processPaymentSubmission = functions
       );
 
       // Step 8: Run fraud detection
-      console.log('Running fraud detection...');
       const fraudResults = await detectFraud({
         submission,
         order,
@@ -128,7 +120,6 @@ exports.processPaymentSubmission = functions
 
       // Step 9: Determine final status
       const finalStatus = determineFinalStatus(validationResults, fraudResults);
-      console.log(`Final status: ${finalStatus}, Fraud score: ${fraudResults.score}`);
 
       // Step 10: Update submission with all results
       const updateData = {
@@ -191,8 +182,6 @@ exports.processPaymentSubmission = functions
       if (finalStatus === 'manual_review') {
         await notifyAdminForReview(submissionId, submission.userId, order.amount, fraudResults);
       }
-
-      console.log(`Payment submission ${submissionId} processed successfully: ${finalStatus}`);
 
     } catch (error) {
       console.error('Error processing submission:', error);
@@ -258,7 +247,6 @@ async function approvePayment(submission, order, submissionId) {
 
   // Check if this is a platform fee payment or wallet top-up
   if (order.type === 'platform_fee') {
-    console.log(`Processing platform fee payment for bid ${order.bidId}`);
 
     // Record in platformFees collection
     await db.collection('platformFees').doc().set({
@@ -330,8 +318,6 @@ async function approvePayment(submission, order, submissionId) {
                 isRead: false,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
               });
-
-              console.log(`Account unsuspended for user ${platformFeePayerId}`);
             }
           }
 
@@ -368,8 +354,6 @@ async function approvePayment(submission, order, submissionId) {
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
             });
           }
-
-          console.log(`Contract ${order.contractId} platform fee marked as paid (status: ${nextStatus})`);
         }
       } else {
         console.warn('No contractId found in order - this should not happen with new flow');
@@ -388,7 +372,6 @@ async function approvePayment(submission, order, submissionId) {
     }
   } else {
     // Legacy: wallet top-up flow (kept for backward compatibility)
-    console.log(`Processing wallet top-up: ₱${order.amount} for user ${submission.userId}`);
 
     const batch = db.batch();
 
@@ -422,7 +405,6 @@ async function approvePayment(submission, order, submissionId) {
     });
 
     await batch.commit();
-    console.log(`Wallet credited: ₱${order.amount} for user ${submission.userId}`);
   }
 }
 
@@ -748,8 +730,6 @@ exports.setAdminRole = functions
         performedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      console.log(`Admin privileges ${isAdmin ? 'granted to' : 'revoked from'} user ${targetUserId} by ${context.auth.uid}`);
-
       return {
         success: true,
         message: `Admin privileges ${isAdmin ? 'granted' : 'revoked'} successfully`
@@ -836,8 +816,6 @@ exports.initializeFirstAdmin = functions
         performedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      console.log(`First admin initialized: ${context.auth.uid}`);
-
       return {
         success: true,
         message: 'You are now the first admin. You can grant admin privileges to others using setAdminRole.'
@@ -867,7 +845,7 @@ exports.validateUserCreation = functions
     const hasUnauthorizedAdmin = userData.isAdmin === true || userData.role === 'admin';
 
     if (hasUnauthorizedAdmin) {
-      console.error(`🚨 SECURITY ALERT: Unauthorized admin privilege escalation detected for user ${userId}`);
+      console.error(`SECURITY ALERT: Unauthorized admin privilege escalation detected for user ${userId}`);
 
       // Immediately revoke admin privileges
       await snap.ref.update({
@@ -891,8 +869,6 @@ exports.validateUserCreation = functions
 
       // Auto-disable account pending investigation
       await admin.auth().updateUser(userId, { disabled: true });
-
-      console.log(`✅ Remediation complete: Admin privileges revoked and account disabled for user ${userId}`);
     }
   });
 
@@ -905,7 +881,6 @@ exports.auditAdminAccounts = functions
   .pubsub.schedule('0 2 * * *')
   .timeZone('Asia/Manila')
   .onRun(async (context) => {
-    console.log('🔍 Starting daily admin account audit...');
 
     // Get all admin users
     const adminsByRole = await db.collection('users')
@@ -921,8 +896,6 @@ exports.auditAdminAccounts = functions
       ...adminsByRole.docs.map(doc => doc.id),
       ...adminsByFlag.docs.map(doc => doc.id)
     ]);
-
-    console.log(`Found ${adminIds.size} admin accounts`);
 
     // Check each admin for authorization trail
     const unauthorizedAdmins = [];
@@ -944,7 +917,7 @@ exports.auditAdminAccounts = functions
     }
 
     if (unauthorizedAdmins.length > 0) {
-      console.error(`🚨 SECURITY ALERT: Found ${unauthorizedAdmins.length} unauthorized admin accounts`);
+      console.error(`SECURITY ALERT: Found ${unauthorizedAdmins.length} unauthorized admin accounts`);
 
       // Log incident
       await db.collection('securityIncidents').add({
@@ -955,8 +928,6 @@ exports.auditAdminAccounts = functions
       });
 
       // TODO: Send notification to legitimate admins
-    } else {
-      console.log('✅ Admin account audit passed - all accounts properly authorized');
     }
 
     return null;
@@ -983,6 +954,8 @@ const walletFunctions = require('./src/api/wallet');
 exports.createPlatformFeeOrder = walletFunctions.createPlatformFeeOrder;
 exports.createTopUpOrder = walletFunctions.createTopUpOrder;
 exports.getGcashConfig = walletFunctions.getGcashConfig;
+exports.getOrder = walletFunctions.getOrder;
+exports.getPendingOrders = walletFunctions.getPendingOrders;
 
 // =============================================================================
 // SHIPMENT MANAGEMENT FUNCTIONS
@@ -1017,6 +990,15 @@ exports.adminResolveDispute = adminFunctions.adminResolveDispute;
 exports.adminGetContracts = adminFunctions.adminGetContracts;
 exports.adminGetOutstandingFees = adminFunctions.adminGetOutstandingFees;
 exports.adminGetMarketplaceKpis = adminFunctions.adminGetMarketplaceKpis;
+
+// =============================================================================
+// ACCOUNT RECOVERY FUNCTIONS
+// =============================================================================
+
+const recoveryFunctions = require('./src/api/recovery');
+exports.authGetRecoveryStatus = recoveryFunctions.authGetRecoveryStatus;
+exports.authGenerateRecoveryCodes = recoveryFunctions.authGenerateRecoveryCodes;
+exports.authRecoverySignIn = recoveryFunctions.authRecoverySignIn;
 
 // =============================================================================
 // BROKER REFERRAL FUNCTIONS
@@ -1066,3 +1048,66 @@ exports.onPlatformFeeCompleted = referralTriggers.onPlatformFeeCompleted;
 
 const platformFeeReminders = require('./src/scheduled/platformFeeReminders');
 exports.sendPlatformFeeReminders = platformFeeReminders.sendPlatformFeeReminders;
+
+// =============================================================================
+// ROUTING PROXY - Avoids CORS restrictions on OpenRouteService from the browser
+// =============================================================================
+
+const axios = require('axios');
+
+exports.getRoute = functions
+  .region('asia-southeast1')
+  .https.onRequest(async (req, res) => {
+    // Allow CORS from the app domain
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      return res.status(204).send('');
+    }
+
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    const apiKey = process.env.OPENROUTE_API_KEY;
+
+    if (!apiKey) {
+      return res.status(200).json({
+        routes: [],
+        error: 'Routing service not configured',
+      });
+    }
+
+    try {
+      const response = await axios.post(
+        'https://api.openrouteservice.org/v2/directions/driving-car',
+        req.body,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': apiKey,
+          },
+          validateStatus: null, // Forward all status codes
+        }
+      );
+
+      if (response.status >= 200 && response.status < 300) {
+        return res.status(200).json(response.data);
+      }
+
+      // Normalize upstream route failures to HTTP 200 so frontend can silently
+      // fallback to straight-line estimation without noisy network errors.
+      return res.status(200).json({
+        routes: [],
+        upstreamStatus: response.status,
+        upstreamError: response.data || null,
+      });
+    } catch (err) {
+      return res.status(200).json({
+        routes: [],
+        error: 'Failed to reach routing service',
+      });
+    }
+  });
