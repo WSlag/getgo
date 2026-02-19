@@ -14,14 +14,41 @@ exports.onBidCreated = functions.region('asia-southeast1').firestore
   .onCreate(async (snap, context) => {
     const bid = snap.data();
     const bidId = context.params.bidId;
+    const db = admin.firestore();
 
     // Get bidder name
-    const bidderDoc = await admin.firestore().collection('users').doc(bid.bidderId).get();
+    const bidderDoc = await db.collection('users').doc(bid.bidderId).get();
     const bidderName = bidderDoc.exists ? bidderDoc.data().name : 'Someone';
+
+    // Server-authoritative bid count increment with idempotency guard.
+    const listingCollection = bid.cargoListingId ? 'cargoListings' : (bid.truckListingId ? 'truckListings' : null);
+    const listingId = bid.cargoListingId || bid.truckListingId || null;
+    if (listingCollection && listingId) {
+      const listingRef = db.collection(listingCollection).doc(listingId);
+      const ledgerRef = db.collection('bidCountEvents').doc(bidId);
+
+      await db.runTransaction(async (tx) => {
+        const [ledgerDoc, listingDoc] = await Promise.all([tx.get(ledgerRef), tx.get(listingRef)]);
+        if (ledgerDoc.exists || !listingDoc.exists) {
+          return;
+        }
+
+        tx.update(listingRef, {
+          bidCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        tx.set(ledgerRef, {
+          bidId,
+          listingId,
+          listingCollection,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    }
 
     // Notify listing owner
     if (bid.listingOwnerId) {
-      await admin.firestore()
+      await db
         .collection(`users/${bid.listingOwnerId}/notifications`)
         .doc()
         .set({

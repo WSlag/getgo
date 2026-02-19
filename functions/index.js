@@ -7,6 +7,7 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const axios = require('axios');
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -24,7 +25,60 @@ const {
 const { createContractFromApprovedFee } = require('./src/services/contractCreation');
 const { isTrustedPaymentScreenshotUrl } = require('./src/utils/storageUrl');
 
+const { verifyAdmin } = require('./src/utils/adminAuth');
+
 const db = admin.firestore();
+
+function safeErrorMessage(error) {
+  if (!error) return 'Unknown error';
+  if (typeof error === 'string') return error;
+  if (error.response) {
+    return `HTTP ${error.response.status}: ${error.response.statusText || 'upstream error'}`;
+  }
+  return error.message || 'Unknown error';
+}
+
+function getAllowedOrigins() {
+  const rawOrigins = process.env.ALLOWED_ORIGIN || 'https://karga-ph.web.app';
+  return rawOrigins
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+function applyCors(req, res, options = {}) {
+  const allowedOrigins = getAllowedOrigins();
+  const requestOrigin = req.headers.origin || '';
+  const defaultOrigin = allowedOrigins[0] || 'https://karga-ph.web.app';
+  const originToSet = allowedOrigins.includes(requestOrigin) ? requestOrigin : defaultOrigin;
+
+  res.set('Access-Control-Allow-Origin', originToSet);
+  res.set('Vary', 'Origin');
+  res.set('Access-Control-Allow-Methods', options.methods || 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', options.headers || 'Content-Type');
+}
+
+function isAppCheckEnforced() {
+  return process.env.APP_CHECK_ENFORCED === 'true';
+}
+
+async function verifyHttpAppCheckToken(req, res) {
+  if (!isAppCheckEnforced()) return true;
+
+  const token = req.headers['x-firebase-appcheck'];
+  if (!token || typeof token !== 'string') {
+    res.status(401).json({ error: 'App Check token missing' });
+    return false;
+  }
+
+  try {
+    await admin.appCheck().verifyToken(token);
+    return true;
+  } catch (error) {
+    res.status(401).json({ error: 'App Check token invalid' });
+    return false;
+  }
+}
 
 /**
  * Process Payment Submission
@@ -184,7 +238,7 @@ exports.processPaymentSubmission = functions
       }
 
     } catch (error) {
-      console.error('Error processing submission:', error);
+      console.error('Error processing submission:', safeErrorMessage(error));
 
       // Update submission with error status
       await snap.ref.update({
@@ -359,7 +413,7 @@ async function approvePayment(submission, order, submissionId) {
         console.warn('No contractId found in order - this should not happen with new flow');
       }
     } catch (error) {
-      console.error('Error updating contract payment status:', error);
+      console.error('Error updating contract payment status:', safeErrorMessage(error));
       // Notify user of error
       await db.collection(`users/${submission.userId}/notifications`).doc().set({
         type: 'PAYMENT_STATUS',
@@ -518,16 +572,7 @@ async function notifyAdminForReview(submissionId, userId, amount, fraudResults) 
 exports.adminApprovePayment = functions
   .region('asia-southeast1')
   .https.onCall(async (data, context) => {
-    // Verify admin role
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
-    }
-
-    const adminDoc = await db.collection('users').doc(context.auth.uid).get();
-    const userData = adminDoc.exists ? adminDoc.data() : null;
-    if (!userData || (userData.role !== 'admin' && !userData.isAdmin)) {
-      throw new functions.https.HttpsError('permission-denied', 'Must be admin');
-    }
+    await verifyAdmin(context);
 
     const { submissionId, notes } = data;
     if (!submissionId) {
@@ -586,16 +631,7 @@ exports.adminApprovePayment = functions
 exports.adminRejectPayment = functions
   .region('asia-southeast1')
   .https.onCall(async (data, context) => {
-    // Verify admin role
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
-    }
-
-    const adminDoc = await db.collection('users').doc(context.auth.uid).get();
-    const userData = adminDoc.exists ? adminDoc.data() : null;
-    if (!userData || (userData.role !== 'admin' && !userData.isAdmin)) {
-      throw new functions.https.HttpsError('permission-denied', 'Must be admin');
-    }
+    await verifyAdmin(context);
 
     const { submissionId, reason, notes } = data;
     if (!submissionId) {
@@ -646,16 +682,7 @@ exports.adminRejectPayment = functions
 exports.getPaymentStats = functions
   .region('asia-southeast1')
   .https.onCall(async (data, context) => {
-    // Verify admin role
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
-    }
-
-    const adminDoc = await db.collection('users').doc(context.auth.uid).get();
-    const userData = adminDoc.exists ? adminDoc.data() : null;
-    if (!userData || (userData.role !== 'admin' && !userData.isAdmin)) {
-      throw new functions.https.HttpsError('permission-denied', 'Must be admin');
-    }
+    await verifyAdmin(context);
 
     // Get counts for each status
     const [pending, approved, rejected, review] = await Promise.all([
@@ -684,19 +711,7 @@ exports.getPaymentStats = functions
 exports.setAdminRole = functions
   .region('asia-southeast1')
   .https.onCall(async (data, context) => {
-    // Must be authenticated
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
-    }
-
-    // Check if caller is an existing admin
-    const callerDoc = await db.collection('users').doc(context.auth.uid).get();
-    const callerData = callerDoc.exists ? callerDoc.data() : null;
-
-    // Only existing admins can create new admins
-    if (!callerData || (callerData.role !== 'admin' && !callerData.isAdmin)) {
-      throw new functions.https.HttpsError('permission-denied', 'Only admins can grant admin privileges');
-    }
+    await verifyAdmin(context);
 
     const { targetUserId, isAdmin } = data;
 
@@ -927,7 +942,34 @@ exports.auditAdminAccounts = functions
         detectedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // TODO: Send notification to legitimate admins
+      // Notify legitimate admins about unauthorized accounts
+      const [legitimateByRole, legitimateByFlag] = await Promise.all([
+        db.collection('users').where('role', '==', 'admin').where('adminGrantedBy', '!=', null).limit(10).get(),
+        db.collection('users').where('isAdmin', '==', true).where('adminGrantedBy', '!=', null).limit(10).get()
+      ]);
+
+      const notifiedIds = new Set();
+      const legitimateDocs = [...legitimateByRole.docs, ...legitimateByFlag.docs];
+      const alertBatch = db.batch();
+
+      for (const adminDoc of legitimateDocs) {
+        if (notifiedIds.has(adminDoc.id)) continue;
+        notifiedIds.add(adminDoc.id);
+
+        const notifRef = db.collection('users').doc(adminDoc.id).collection('notifications').doc();
+        alertBatch.set(notifRef, {
+          type: 'SECURITY_ALERT',
+          title: 'Unauthorized Admin Accounts Detected',
+          message: `Security audit found ${unauthorizedAdmins.length} admin account(s) without proper authorization trail. Investigate immediately.`,
+          data: { count: unauthorizedAdmins.length, detectedAt: new Date().toISOString() },
+          isRead: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (notifiedIds.size > 0) {
+        await alertBatch.commit();
+      }
     }
 
     return null;
@@ -1001,6 +1043,13 @@ exports.authGenerateRecoveryCodes = recoveryFunctions.authGenerateRecoveryCodes;
 exports.authRecoverySignIn = recoveryFunctions.authRecoverySignIn;
 
 // =============================================================================
+// AUTH FUNCTIONS
+// =============================================================================
+
+const authFunctions = require('./src/api/auth');
+exports.switchUserRole = authFunctions.switchUserRole;
+
+// =============================================================================
 // BROKER REFERRAL FUNCTIONS
 // =============================================================================
 
@@ -1053,15 +1102,114 @@ exports.sendPlatformFeeReminders = platformFeeReminders.sendPlatformFeeReminders
 // ROUTING PROXY - Avoids CORS restrictions on OpenRouteService from the browser
 // =============================================================================
 
-const axios = require('axios');
+function parseNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isValidLongitude(value) {
+  return typeof value === 'number' && value >= -180 && value <= 180;
+}
+
+function isValidLatitude(value) {
+  return typeof value === 'number' && value >= -90 && value <= 90;
+}
+
+function getSingleQueryParam(rawValue) {
+  if (Array.isArray(rawValue)) {
+    return rawValue.length > 0 ? String(rawValue[0]) : null;
+  }
+  if (rawValue === undefined || rawValue === null) return null;
+  return String(rawValue);
+}
+
+function buildRoutePayload(body) {
+  const coordinates = body?.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length !== 2) {
+    return null;
+  }
+
+  const start = coordinates[0];
+  const end = coordinates[1];
+  if (!Array.isArray(start) || start.length !== 2 || !Array.isArray(end) || end.length !== 2) {
+    return null;
+  }
+
+  const startLng = parseNumber(start[0]);
+  const startLat = parseNumber(start[1]);
+  const endLng = parseNumber(end[0]);
+  const endLat = parseNumber(end[1]);
+
+  if (
+    !isValidLongitude(startLng) ||
+    !isValidLatitude(startLat) ||
+    !isValidLongitude(endLng) ||
+    !isValidLatitude(endLat)
+  ) {
+    return null;
+  }
+
+  return {
+    coordinates: [
+      [startLng, startLat],
+      [endLng, endLat],
+    ],
+    format: body?.format === 'geojson' ? 'geojson' : 'json',
+    instructions: body?.instructions === true,
+  };
+}
+
+function buildGeocodeParams(endpoint, query) {
+  const params = new URLSearchParams();
+  const sharedAllowed = new Set([
+    'text',
+    'size',
+    'boundary.country',
+    'focus.point.lat',
+    'focus.point.lon',
+    'layers',
+  ]);
+  const reverseAllowed = new Set(['point.lat', 'point.lon', 'size']);
+  const allowedKeys = endpoint === 'reverse' ? reverseAllowed : sharedAllowed;
+
+  for (const key of allowedKeys) {
+    const value = getSingleQueryParam(query[key]);
+    if (value === null) continue;
+    if (value.length > 140) return null;
+    params.set(key, value);
+  }
+
+  const sizeValue = getSingleQueryParam(query.size);
+  const size = parseInt(sizeValue || '5', 10);
+  params.set('size', String(Math.min(Math.max(Number.isFinite(size) ? size : 5, 1), 10)));
+
+  if (endpoint !== 'reverse' && !params.has('boundary.country')) {
+    params.set('boundary.country', 'PH');
+  }
+
+  if (endpoint === 'reverse') {
+    const lat = parseNumber(params.get('point.lat'));
+    const lon = parseNumber(params.get('point.lon'));
+    if (!isValidLatitude(lat) || !isValidLongitude(lon)) {
+      return null;
+    }
+  } else {
+    const text = params.get('text');
+    if (!text || text.trim().length < 2) {
+      return null;
+    }
+  }
+
+  return params;
+}
 
 exports.getRoute = functions
   .region('asia-southeast1')
   .https.onRequest(async (req, res) => {
-    // Allow CORS from the app domain
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    applyCors(req, res, {
+      methods: 'POST, OPTIONS',
+      headers: 'Content-Type, X-Firebase-AppCheck',
+    });
 
     if (req.method === 'OPTIONS') {
       return res.status(204).send('');
@@ -1071,7 +1219,16 @@ exports.getRoute = functions
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
+    if (!(await verifyHttpAppCheckToken(req, res))) {
+      return;
+    }
+
     const apiKey = process.env.OPENROUTE_API_KEY;
+    const payload = buildRoutePayload(req.body);
+
+    if (!payload) {
+      return res.status(400).json({ error: 'Invalid route payload' });
+    }
 
     if (!apiKey) {
       return res.status(200).json({
@@ -1083,12 +1240,13 @@ exports.getRoute = functions
     try {
       const response = await axios.post(
         'https://api.openrouteservice.org/v2/directions/driving-car',
-        req.body,
+        payload,
         {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': apiKey,
           },
+          timeout: 10000,
           validateStatus: null, // Forward all status codes
         }
       );
@@ -1109,5 +1267,58 @@ exports.getRoute = functions
         routes: [],
         error: 'Failed to reach routing service',
       });
+    }
+  });
+
+exports.geocode = functions
+  .region('asia-southeast1')
+  .https.onRequest(async (req, res) => {
+    applyCors(req, res, {
+      methods: 'GET, OPTIONS',
+      headers: 'Content-Type, X-Firebase-AppCheck',
+    });
+
+    if (req.method === 'OPTIONS') {
+      return res.status(204).send('');
+    }
+
+    if (req.method !== 'GET') {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    if (!(await verifyHttpAppCheckToken(req, res))) {
+      return;
+    }
+
+    const apiKey = process.env.OPENROUTE_API_KEY;
+    if (!apiKey) {
+      return res.status(200).json({ features: [] });
+    }
+
+    const endpoint = getSingleQueryParam(req.query.endpoint);
+    const allowedEndpoints = new Set(['search', 'autocomplete', 'reverse']);
+    if (!allowedEndpoints.has(endpoint)) {
+      return res.status(400).json({ error: 'Invalid endpoint' });
+    }
+
+    const params = buildGeocodeParams(endpoint, req.query);
+    if (!params) {
+      return res.status(400).json({ error: 'Invalid geocode parameters' });
+    }
+
+    params.set('api_key', apiKey);
+    const orsUrl = `https://api.openrouteservice.org/geocode/${endpoint}?${params.toString()}`;
+
+    try {
+      const response = await axios.get(orsUrl, {
+        timeout: 8000,
+        validateStatus: null,
+      });
+      if (response.status >= 200 && response.status < 300) {
+        return res.status(200).json(response.data);
+      }
+      return res.status(200).json({ features: [] });
+    } catch (error) {
+      return res.status(200).json({ features: [] });
     }
   });

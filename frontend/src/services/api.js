@@ -9,8 +9,6 @@ import {
   getDocs,
   doc,
   getDoc,
-  serverTimestamp,
-  setDoc,
 } from 'firebase/firestore';
 import {
   getRatingsForUser,
@@ -84,12 +82,7 @@ export async function getIdToken() {
 // Firebase-backed API surface.
 const api = {
   auth: {
-    // Role switching is handled directly in Firestore.
-    switchRole: async (role) => {
-      const user = requireAuthUser();
-      await setDoc(doc(db, 'users', user.uid), { role, updatedAt: serverTimestamp() }, { merge: true });
-      return { success: true };
-    },
+    switchRole: (role) => callFunction('switchUserRole', { role }),
     registerBroker: () => callFunction('brokerRegister', {}),
     getRecoveryStatus: () => callFunction('authGetRecoveryStatus', {}),
     generateRecoveryCodes: () => callFunction('authGenerateRecoveryCodes', {}),
@@ -224,12 +217,7 @@ const api = {
     reviewBrokerPayout: (requestId, decision, data = {}) =>
       callFunction('adminReviewBrokerPayout', { requestId, decision, ...data }),
 
-    deleteRating: (ratingId, data) => callFunction('adminDeleteRating', { ratingId, ...data }),
-
-    getSettings: () => callFunction('adminGetSettings', {}),
-    updateSettings: (settings) => callFunction('adminUpdateSettings', { settings }),
-
-    getOutstandingFees: () => callFunction('adminGetOutstandingFees', {}),
+    getOutstandingFees: (params) => callFunction('adminGetOutstandingFees', params || {}),
   },
 };
 

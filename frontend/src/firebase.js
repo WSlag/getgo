@@ -10,6 +10,7 @@ import {
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -23,9 +24,20 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+let appCheck = null;
 
 // Detect emulator mode from environment variable
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+
+if (!useEmulator && typeof window !== 'undefined' && import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY) {
+  if (import.meta.env.DEV) {
+    window.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
+  appCheck = initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
 
 // Initialize services
 export const auth = getAuth(app);
@@ -67,5 +79,6 @@ if (typeof window !== 'undefined' && !useEmulator) {
   analytics = getAnalytics(app);
 }
 export { analytics };
+export { appCheck };
 
 export default app;

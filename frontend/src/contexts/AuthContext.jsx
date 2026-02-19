@@ -329,46 +329,12 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Switch user role
+  // Switch user role (server-authoritative via Cloud Function)
   const switchRole = async (newRole) => {
     try {
       if (!authUser || !userProfile) throw new Error('Not authenticated');
 
-      // Update role directly in Firestore (no Express backend needed)
-      const userRef = doc(db, 'users', authUser.uid);
-      await setDoc(userRef, { role: newRole, updatedAt: serverTimestamp() }, { merge: true });
-
-      // Create role profile if it doesn't exist
-      if (newRole === 'shipper') {
-        const shipperRef = doc(db, 'users', authUser.uid, 'shipperProfile', 'profile');
-        const shipperSnap = await getDoc(shipperRef);
-        if (!shipperSnap.exists()) {
-          await setDoc(shipperRef, {
-            businessName: userProfile.name,
-            businessAddress: null,
-            businessType: null,
-            totalTransactions: 0,
-            membershipTier: 'NEW',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-        }
-      } else if (newRole === 'trucker') {
-        const truckerRef = doc(db, 'users', authUser.uid, 'truckerProfile', 'profile');
-        const truckerSnap = await getDoc(truckerRef);
-        if (!truckerSnap.exists()) {
-          await setDoc(truckerRef, {
-            businessName: userProfile.name,
-            licenseNumber: null,
-            licenseExpiry: null,
-            rating: 0,
-            totalTrips: 0,
-            badge: 'STARTER',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-        }
-      }
+      await api.auth.switchRole(newRole);
 
       return { success: true };
     } catch (error) {

@@ -193,11 +193,7 @@ service cloud.firestore {
     match /cargoListings/{listingId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
-      // Allow owner to update, OR allow authenticated users to increment bidCount only
-      allow update: if isAuth() && (
-        resource.data.userId == request.auth.uid ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bidCount', 'updatedAt']))
-      );
+      allow update: if isAuth() && resource.data.userId == request.auth.uid;
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
 
@@ -205,11 +201,7 @@ service cloud.firestore {
     match /truckListings/{listingId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
-      // Allow owner to update, OR allow authenticated users to increment bidCount only
-      allow update: if isAuth() && (
-        resource.data.userId == request.auth.uid ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bidCount', 'updatedAt']))
-      );
+      allow update: if isAuth() && resource.data.userId == request.auth.uid;
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
 

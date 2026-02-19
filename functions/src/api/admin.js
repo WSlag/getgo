@@ -5,19 +5,27 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { verifyAdmin } = require('../utils/adminAuth');
 
-// Helper: Verify admin role
-async function verifyAdmin(context) {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+function safeErrorMessage(error) {
+  if (!error) return 'Unknown error';
+  if (typeof error === 'string') return error;
+  if (error.response) {
+    return `HTTP ${error.response.status}: ${error.response.statusText || 'upstream error'}`;
   }
+  return error.message || 'Unknown error';
+}
 
-  // Check custom claims
-  if (!context.auth.token.admin) {
-    throw new functions.https.HttpsError('permission-denied', 'Admin access required');
-  }
+function parseLimit(value, fallbackLimit) {
+  const parsed = parseInt(value, 10);
+  const base = Number.isFinite(parsed) ? parsed : fallbackLimit;
+  return Math.min(Math.max(base, 1), 500);
+}
 
-  return true;
+async function resolveCursor(db, collectionName, cursorId) {
+  if (!cursorId || typeof cursorId !== 'string') return null;
+  const cursorDoc = await db.collection(collectionName).doc(cursorId).get();
+  return cursorDoc.exists ? cursorDoc : null;
 }
 
 /**
@@ -41,9 +49,9 @@ exports.adminGetDashboardStats = functions.region('asia-southeast1').https.onCal
     .count()
     .get();
 
-  // Get total wallet balance (sum across all users)
+  // Get total wallet balance (sum across all users, capped for safety)
   let totalWalletBalance = 0;
-  const walletsSnap = await db.collectionGroup('wallet').get();
+  const walletsSnap = await db.collectionGroup('wallet').limit(10000).get();
   walletsSnap.docs.forEach(doc => {
     totalWalletBalance += doc.data().balance || 0;
   });
@@ -89,8 +97,9 @@ exports.adminGetDashboardStats = functions.region('asia-southeast1').https.onCal
 exports.adminGetPendingPayments = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   await verifyAdmin(context);
 
-  const { status = 'manual_review', limit = 50 } = data || {};
+  const { status = 'manual_review', limit = 50, cursor: cursorId } = data || {};
   const db = admin.firestore();
+  const safeLimit = parseLimit(limit, 50);
 
   let query = db.collection('paymentSubmissions');
 
@@ -98,9 +107,15 @@ exports.adminGetPendingPayments = functions.region('asia-southeast1').https.onCa
     query = query.where('status', '==', status);
   }
 
-  query = query.orderBy('createdAt', 'desc').limit(limit);
+  query = query.orderBy('createdAt', 'desc');
+  const cursorDoc = await resolveCursor(db, 'paymentSubmissions', cursorId);
+  if (cursorDoc) {
+    query = query.startAfter(cursorDoc);
+  }
+  query = query.limit(safeLimit);
 
   const snapshot = await query.get();
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
 
   // Enrich submissions with order and user data
   const submissions = await Promise.all(snapshot.docs.map(async (doc) => {
@@ -117,7 +132,11 @@ exports.adminGetPendingPayments = functions.region('asia-southeast1').https.onCa
           submission.bidId = orderData.bidId;
         }
       } catch (error) {
-        console.error('Error fetching order:', error);
+        console.error(
+          'Error fetching order [orderId=%s]: %s',
+          submission.orderId,
+          safeErrorMessage(error)
+        );
       }
     }
 
@@ -131,14 +150,22 @@ exports.adminGetPendingPayments = functions.region('asia-southeast1').https.onCa
           submission.userEmail = userData.email;
         }
       } catch (error) {
-        console.error('Error fetching user:', error);
+        console.error(
+          'Error fetching user [userId=%s]: %s',
+          submission.userId,
+          safeErrorMessage(error)
+        );
       }
     }
 
     return submission;
   }));
 
-  return { submissions, total: submissions.length };
+  return {
+    submissions,
+    total: submissions.length,
+    nextCursor: submissions.length === safeLimit && lastDoc ? lastDoc.id : null,
+  };
 });
 
 /**
@@ -147,8 +174,9 @@ exports.adminGetPendingPayments = functions.region('asia-southeast1').https.onCa
 exports.adminGetUsers = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   await verifyAdmin(context);
 
-  const { role, limit = 100, offset = 0 } = data || {};
+  const { role, limit = 100, cursor: cursorId } = data || {};
   const db = admin.firestore();
+  const safeLimit = parseLimit(limit, 100);
 
   let query = db.collection('users');
 
@@ -156,12 +184,22 @@ exports.adminGetUsers = functions.region('asia-southeast1').https.onCall(async (
     query = query.where('role', '==', role);
   }
 
-  query = query.orderBy('createdAt', 'desc').limit(limit);
+  query = query.orderBy('createdAt', 'desc');
+  const cursorDoc = await resolveCursor(db, 'users', cursorId);
+  if (cursorDoc) {
+    query = query.startAfter(cursorDoc);
+  }
+  query = query.limit(safeLimit);
 
   const snapshot = await query.get();
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
   const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-  return { users, total: users.length };
+  return {
+    users,
+    total: users.length,
+    nextCursor: users.length === safeLimit && lastDoc ? lastDoc.id : null,
+  };
 });
 
 /**
@@ -191,7 +229,7 @@ exports.adminSuspendUser = functions.region('asia-southeast1').https.onCall(asyn
   try {
     await admin.auth().updateUser(userId, { disabled: true });
   } catch (error) {
-    console.error('Error disabling auth account:', error);
+    console.error('Error disabling auth account [userId=%s]: %s', userId, safeErrorMessage(error));
   }
 
   // Log admin action
@@ -235,7 +273,7 @@ exports.adminActivateUser = functions.region('asia-southeast1').https.onCall(asy
   try {
     await admin.auth().updateUser(userId, { disabled: false });
   } catch (error) {
-    console.error('Error enabling auth account:', error);
+    console.error('Error enabling auth account [userId=%s]: %s', userId, safeErrorMessage(error));
   }
 
   // Log admin action
@@ -431,8 +469,9 @@ exports.adminResolveDispute = functions.region('asia-southeast1').https.onCall(a
 exports.adminGetContracts = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   await verifyAdmin(context);
 
-  const { status, limit = 100 } = data || {};
+  const { status, limit = 100, cursor: cursorId } = data || {};
   const db = admin.firestore();
+  const safeLimit = parseLimit(limit, 100);
 
   let query = db.collection('contracts');
 
@@ -440,12 +479,22 @@ exports.adminGetContracts = functions.region('asia-southeast1').https.onCall(asy
     query = query.where('status', '==', status);
   }
 
-  query = query.orderBy('createdAt', 'desc').limit(limit);
+  query = query.orderBy('createdAt', 'desc');
+  const cursorDoc = await resolveCursor(db, 'contracts', cursorId);
+  if (cursorDoc) {
+    query = query.startAfter(cursorDoc);
+  }
+  query = query.limit(safeLimit);
 
   const snapshot = await query.get();
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
   const contracts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-  return { contracts, total: contracts.length };
+  return {
+    contracts,
+    total: contracts.length,
+    nextCursor: contracts.length === safeLimit && lastDoc ? lastDoc.id : null,
+  };
 });
 
 /**
@@ -455,15 +504,23 @@ exports.adminGetContracts = functions.region('asia-southeast1').https.onCall(asy
 exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   await verifyAdmin(context);
 
-  const { limit = 100 } = data || {};
+  const { limit = 100, cursor: cursorId } = data || {};
   const db = admin.firestore();
+  const safeLimit = parseLimit(limit, 100);
 
   // Query contracts with unpaid platform fees
-  const unpaidContracts = await db.collection('contracts')
+  let query = db.collection('contracts')
     .where('platformFeePaid', '==', false)
-    .orderBy('platformFeeDueDate', 'asc')
-    .limit(limit)
-    .get();
+    .orderBy('platformFeeDueDate', 'asc');
+
+  const cursorDoc = await resolveCursor(db, 'contracts', cursorId);
+  if (cursorDoc) {
+    query = query.startAfter(cursorDoc);
+  }
+  query = query.limit(safeLimit);
+
+  const unpaidContracts = await query.get();
+  const lastDoc = unpaidContracts.docs[unpaidContracts.docs.length - 1] || null;
 
   // Enrich contracts with trucker data
   const contracts = await Promise.all(unpaidContracts.docs.map(async (doc) => {
@@ -482,7 +539,11 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
           contract.truckerOutstandingTotal = truckerData.outstandingPlatformFees || 0;
         }
       } catch (error) {
-        console.error('Error fetching trucker data:', error);
+        console.error(
+          'Error fetching trucker data [userId=%s]: %s',
+          contract.platformFeePayerId,
+          safeErrorMessage(error)
+        );
       }
     }
 
@@ -524,6 +585,8 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
 
   return {
     contracts,
+    total: contracts.length,
+    nextCursor: contracts.length === safeLimit && lastDoc ? lastDoc.id : null,
     summary: {
       totalContracts: contracts.length,
       totalOutstanding,

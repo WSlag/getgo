@@ -27,8 +27,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
-import { collection, getDocs, doc, updateDoc, query, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase';
+import api from '@/services/api';
 
 // Role badge component
 function RoleBadge({ role }) {
@@ -197,14 +196,17 @@ export function UserManagement() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      const usersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setUsers(usersData);
+      const allUsers = [];
+      let cursor = null;
+
+      do {
+        const response = await api.admin.getUsers({ limit: 500, cursor });
+        const pageUsers = response?.users || [];
+        allUsers.push(...pageUsers);
+        cursor = response?.nextCursor || null;
+      } while (cursor && allUsers.length < 5000);
+
+      setUsers(allUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -220,11 +222,8 @@ export function UserManagement() {
   const handleSuspend = async (userId) => {
     setActionLoading(true);
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        isActive: false,
-        suspendedAt: new Date(),
-      });
-      fetchUsers();
+      await api.admin.suspendUser(userId, { reason: 'Suspended via admin dashboard' });
+      await fetchUsers();
       setShowDetailModal(false);
     } catch (error) {
       console.error('Error suspending user:', error);
@@ -237,11 +236,8 @@ export function UserManagement() {
   const handleActivate = async (userId) => {
     setActionLoading(true);
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        isActive: true,
-        suspendedAt: null,
-      });
-      fetchUsers();
+      await api.admin.activateUser(userId);
+      await fetchUsers();
       setShowDetailModal(false);
     } catch (error) {
       console.error('Error activating user:', error);
@@ -254,13 +250,8 @@ export function UserManagement() {
   const handleToggleAdmin = async (userId, grantAdmin) => {
     setActionLoading(true);
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        isAdmin: grantAdmin,
-        role: grantAdmin ? 'admin' : selectedUser?.role || 'shipper',
-        adminGrantedAt: grantAdmin ? new Date() : null,
-        adminGrantedBy: grantAdmin ? 'ADMIN_CONSOLE' : null,
-      });
-      fetchUsers();
+      await api.admin.toggleAdmin(userId, grantAdmin);
+      await fetchUsers();
       setShowDetailModal(false);
     } catch (error) {
       console.error('Error toggling admin:', error);

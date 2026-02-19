@@ -27,6 +27,13 @@ import { uploadPaymentScreenshot, createPaymentSubmission } from '@/services/fir
 import { useOrderSubmission } from '@/hooks/usePaymentSubmission';
 import api from '@/services/api';
 
+const generateIdempotencyKey = (prefix, entityId) => {
+  const randomPart = typeof globalThis.crypto?.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}:${entityId}:${randomPart}`;
+};
+
 /**
  * GCashPaymentModal - Multi-step platform fee payment via GCash QR
  *
@@ -52,6 +59,7 @@ export function GCashPaymentModal({
   const [preview, setPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const createOrderRequestKeyRef = useRef(null);
 
   // Watch payment submission status
   const { submission, loading: submissionLoading } = useOrderSubmission(order?.orderId);
@@ -70,9 +78,15 @@ export function GCashPaymentModal({
       setStep('info');
       setOrder(null);
       setError(null);
+      createOrderRequestKeyRef.current = null;
       clearFile();
+      return;
     }
-  }, [open]);
+
+    if (bid?.id && !createOrderRequestKeyRef.current) {
+      createOrderRequestKeyRef.current = generateIdempotencyKey('platform_fee_order', bid.id);
+    }
+  }, [open, bid?.id]);
 
   // Watch for payment approval and return control to parent
   useEffect(() => {
@@ -101,7 +115,14 @@ export function GCashPaymentModal({
     setError(null);
 
     try {
-      const result = await api.wallet.createPlatformFeeOrder({ bidId: bid.id });
+      if (!createOrderRequestKeyRef.current) {
+        createOrderRequestKeyRef.current = generateIdempotencyKey('platform_fee_order', bid.id);
+      }
+
+      const result = await api.wallet.createPlatformFeeOrder({
+        bidId: bid.id,
+        idempotencyKey: createOrderRequestKeyRef.current,
+      });
       setOrder(result.order);
       setStep('qr');
     } catch (err) {
