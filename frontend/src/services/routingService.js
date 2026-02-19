@@ -5,6 +5,8 @@
  * Calls are proxied through a Firebase Cloud Function to avoid CORS restrictions.
  */
 
+import { getAppCheckHeaders } from './appCheckService';
+
 const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'asia-southeast1';
 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 const emulatorHost = import.meta.env.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
@@ -113,10 +115,12 @@ export const fetchRoute = async (origin, destination) => {
         return cacheFallbackAndReturn();
       }
 
+      const appCheckHeaders = await getAppCheckHeaders();
       const response = await fetch(ROUTE_PROXY_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...appCheckHeaders,
         },
         body: JSON.stringify({
           coordinates: [
