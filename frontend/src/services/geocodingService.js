@@ -4,6 +4,7 @@
  */
 
 import { getAppCheckHeaders } from './appCheckService';
+import { resolveFunctionProxyUrl } from './proxyUrlService';
 
 const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'asia-southeast1';
 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
@@ -11,12 +12,14 @@ const emulatorHost = import.meta.env.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
 const configuredGeocodeProxyUrl = import.meta.env.VITE_GEOCODE_PROXY_URL;
 
-const GEOCODE_PROXY_URL = configuredGeocodeProxyUrl ||
-  (projectId
-    ? (useEmulator
-      ? `http://${emulatorHost}:5001/${projectId}/${functionsRegion}/geocode`
-      : `https://${functionsRegion}-${projectId}.cloudfunctions.net/geocode`)
-    : null);
+const GEOCODE_PROXY_URL = resolveFunctionProxyUrl({
+  configuredUrl: configuredGeocodeProxyUrl,
+  projectId,
+  functionsRegion,
+  emulatorHost,
+  useEmulator,
+  functionName: 'geocode',
+});
 
 const geocodeCache = new Map();
 

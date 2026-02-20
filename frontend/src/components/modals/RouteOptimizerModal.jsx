@@ -36,7 +36,7 @@ export function RouteOptimizerModal({
   onSaveRoute,
   onApplySavedRoute,
   onDeleteSavedRoute,
-  darkMode = false,
+  darkMode: _darkMode = false,
 }) {
   const [origin, setOrigin] = useState(initialOrigin || '');
   const [destination, setDestination] = useState(initialDestination || '');
@@ -57,7 +57,9 @@ export function RouteOptimizerModal({
   // Load popular routes on mount
   useEffect(() => {
     if (open) {
-      fetchPopularRoutes();
+      fetchPopularRoutes().catch(() => {
+        // Hook state already captures and surfaces the error.
+      });
     }
   }, [open, fetchPopularRoutes]);
 
@@ -73,12 +75,16 @@ export function RouteOptimizerModal({
   const handleSearch = async () => {
     if (!origin.trim()) return;
 
-    await findBackload({
-      origin: origin.trim(),
-      destination: destination.trim() || undefined,
-      maxDetourKm: maxDetour,
-      type: searchType,
-    });
+    try {
+      await findBackload({
+        origin: origin.trim(),
+        destination: destination.trim() || undefined,
+        maxDetourKm: maxDetour,
+        type: searchType,
+      });
+    } catch {
+      // Hook state already captures and surfaces the error.
+    }
   };
 
   const handlePopularRouteClick = (route) => {
@@ -278,9 +284,9 @@ export function RouteOptimizerModal({
                       Top Recommendations
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '6px' : '8px' }}>
-                      {backloadResults.recommendations.map((rec, idx) => (
+                      {backloadResults.recommendations.map((rec) => (
                         <div
-                          key={rec.id}
+                          key={`${rec.type}-${rec.id || rec.route}`}
                           className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800"
                           style={{ padding: isMobile ? '10px' : '12px' }}
                         >
@@ -442,4 +448,3 @@ export function RouteOptimizerModal({
 }
 
 export default RouteOptimizerModal;
-
