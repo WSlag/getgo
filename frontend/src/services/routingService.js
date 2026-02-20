@@ -6,6 +6,7 @@
  */
 
 import { getAppCheckHeaders } from './appCheckService';
+import { resolveFunctionProxyUrl } from './proxyUrlService';
 
 const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'asia-southeast1';
 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
@@ -13,12 +14,14 @@ const emulatorHost = import.meta.env.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
 const configuredRouteProxyUrl = import.meta.env.VITE_ROUTE_PROXY_URL;
 
-const ROUTE_PROXY_URL = configuredRouteProxyUrl ||
-  (projectId
-    ? (useEmulator
-      ? `http://${emulatorHost}:5001/${projectId}/${functionsRegion}/getRoute`
-      : `https://${functionsRegion}-${projectId}.cloudfunctions.net/getRoute`)
-    : null);
+const ROUTE_PROXY_URL = resolveFunctionProxyUrl({
+  configuredUrl: configuredRouteProxyUrl,
+  projectId,
+  functionsRegion,
+  emulatorHost,
+  useEmulator,
+  functionName: 'getRoute',
+});
 
 // Simple in-memory cache for routes
 const routeCache = new Map();
