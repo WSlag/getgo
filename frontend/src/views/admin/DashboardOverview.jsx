@@ -16,8 +16,20 @@ import {
 import { StatCard, StatCardSkeleton } from '@/components/admin/StatCard';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import api from '@/services/api';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/firebase';
+
+function formatTimeAgo(date) {
+  const now = new Date();
+  const diff = now - date;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 export function DashboardOverview({ badges, onNavigate }) {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
@@ -91,13 +103,34 @@ export function DashboardOverview({ badges, onNavigate }) {
       });
       setKpiSummary(marketplaceKpis?.summary || null);
 
-      // Recent activity uses static mock data; a real activity feed is not yet implemented
-      setRecentActivity([
-        { type: 'payment', message: 'New payment submission received', time: '2 mins ago', icon: CreditCard, color: 'text-blue-500' },
-        { type: 'user', message: 'New trucker registered', time: '15 mins ago', icon: Users, color: 'text-green-500' },
-        { type: 'contract', message: 'Contract #1234 completed', time: '1 hour ago', icon: CheckCircle2, color: 'text-green-500' },
-        { type: 'listing', message: 'New cargo listing posted', time: '2 hours ago', icon: Package, color: 'text-orange-500' },
-      ]);
+      // Fetch recent activity from real data
+      const activityItems = [];
+      try {
+        const [recentPayments, recentContracts, recentUsers] = await Promise.all([
+          getDocs(query(collection(db, 'paymentSubmissions'), orderBy('createdAt', 'desc'), limit(2))),
+          getDocs(query(collection(db, 'contracts'), orderBy('createdAt', 'desc'), limit(2))),
+          getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(2))),
+        ]);
+        recentPayments.forEach(doc => {
+          const d = doc.data();
+          const ago = formatTimeAgo(d.createdAt?.toDate?.() || new Date());
+          activityItems.push({ type: 'payment', message: `Payment submission (${d.status || 'pending'})`, time: ago, icon: CreditCard, color: 'text-blue-500', ts: d.createdAt?.toMillis?.() || 0 });
+        });
+        recentContracts.forEach(doc => {
+          const d = doc.data();
+          const ago = formatTimeAgo(d.createdAt?.toDate?.() || new Date());
+          activityItems.push({ type: 'contract', message: `Contract ${d.status || 'created'}`, time: ago, icon: FileText, color: 'text-purple-500', ts: d.createdAt?.toMillis?.() || 0 });
+        });
+        recentUsers.forEach(doc => {
+          const d = doc.data();
+          const ago = formatTimeAgo(d.createdAt?.toDate?.() || new Date());
+          activityItems.push({ type: 'user', message: `New ${d.role || 'user'} registered`, time: ago, icon: Users, color: 'text-green-500', ts: d.createdAt?.toMillis?.() || 0 });
+        });
+        activityItems.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      } catch (e) {
+        console.error('Error fetching recent activity:', e);
+      }
+      setRecentActivity(activityItems.slice(0, 6));
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

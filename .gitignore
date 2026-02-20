@@ -37,6 +37,13 @@ npm-debug.log*
 
 # Testing
 playwright-report/
+playwright-report-remote/
 test-results/
 emulator-data/
 .firebase/
+
+# Build artifacts and archives
+*.tar.gz
+*.zip
+google-cloud-sdk/
+-Context

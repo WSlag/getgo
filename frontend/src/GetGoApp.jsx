@@ -46,6 +46,7 @@ import { useBrokerOnboarding } from './hooks/useBrokerOnboarding';
 import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
+import ErrorBoundary from '@/components/shared/ErrorBoundary';
 
 // View Components
 import { HomeView } from '@/views/HomeView';
@@ -1265,86 +1266,94 @@ export default function GetGoApp() {
 
         {/* Main Content */}
         {activeTab === 'home' && (
-          <HomeView
-            activeMarket={activeMarket}
-            onMarketChange={setActiveMarket}
-            cargoListings={filteredCargoListings}
-            truckListings={filteredTruckListings}
-            filterStatus={filterStatus}
-            onFilterChange={setFilterStatus}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onViewCargoDetails={handleViewCargoDetails}
-            onViewTruckDetails={handleViewTruckDetails}
-            onBidCargo={handleBidCargo}
-            onBookTruck={handleBookTruck}
-            onContactShipper={handleContactShipper}
-            onContactTrucker={handleContactTrucker}
-            onViewMap={handleViewMap}
-            currentRole={userRole}
-            currentUserId={authUser?.uid}
-            darkMode={darkMode}
-            activeShipments={activeShipments.filter(s => s.status !== 'delivered')}
-            onTrackLive={handleTrackLive}
-            onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
-            currentUser={currentUser}
-            savedSearches={savedSearches}
-            onSaveCurrentSearch={handleSaveCurrentSearch}
-            onApplySavedSearch={handleApplySavedSearch}
-            onDeleteSavedSearch={handleDeleteSavedSearch}
-            onNavigateToContracts={(filter) => {
-              setContractFilter(filter || 'all');
-              setActiveTab('contracts');
-            }}
-            isBroker={isBroker}
-            shouldShowBrokerCard={shouldShowBrokerCard}
-            onDismissBrokerCard={handleDismissBrokerCard}
-            onActivateBroker={handleActivateBroker}
-          />
+          <ErrorBoundary>
+            <HomeView
+              activeMarket={activeMarket}
+              onMarketChange={setActiveMarket}
+              cargoListings={filteredCargoListings}
+              truckListings={filteredTruckListings}
+              filterStatus={filterStatus}
+              onFilterChange={setFilterStatus}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onViewCargoDetails={handleViewCargoDetails}
+              onViewTruckDetails={handleViewTruckDetails}
+              onBidCargo={handleBidCargo}
+              onBookTruck={handleBookTruck}
+              onContactShipper={handleContactShipper}
+              onContactTrucker={handleContactTrucker}
+              onViewMap={handleViewMap}
+              currentRole={userRole}
+              currentUserId={authUser?.uid}
+              darkMode={darkMode}
+              activeShipments={activeShipments.filter(s => s.status !== 'delivered')}
+              onTrackLive={handleTrackLive}
+              onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
+              currentUser={currentUser}
+              savedSearches={savedSearches}
+              onSaveCurrentSearch={handleSaveCurrentSearch}
+              onApplySavedSearch={handleApplySavedSearch}
+              onDeleteSavedSearch={handleDeleteSavedSearch}
+              onNavigateToContracts={(filter) => {
+                setContractFilter(filter || 'all');
+                setActiveTab('contracts');
+              }}
+              isBroker={isBroker}
+              shouldShowBrokerCard={shouldShowBrokerCard}
+              onDismissBrokerCard={handleDismissBrokerCard}
+              onActivateBroker={handleActivateBroker}
+            />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'activity' && (
-          <ActivityView
-            currentUser={currentUser}
-            currentRole={userRole}
-            darkMode={darkMode}
-            onOpenChat={(bid, listing) => {
-              openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
-            }}
-            onOpenContract={handleOpenContract}
-            unreadBids={unreadBids}
-            pendingContractsCount={pendingContractsCount}
-          />
+          <ErrorBoundary>
+            <ActivityView
+              currentUser={currentUser}
+              currentRole={userRole}
+              darkMode={darkMode}
+              onOpenChat={(bid, listing) => {
+                openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
+              }}
+              onOpenContract={handleOpenContract}
+              unreadBids={unreadBids}
+              pendingContractsCount={pendingContractsCount}
+            />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'tracking' && (
-          <TrackingView
-            shipments={activeShipments}
-            activeShipments={activeShipments.filter(s => s.status !== 'delivered')}
-            deliveredShipments={activeShipments.filter(s => s.status === 'delivered')}
-            loading={false}
-            currentRole={userRole}
-            currentUserId={authUser?.uid}
-            darkMode={darkMode}
-            onLocationUpdate={emitShipmentUpdate}
-          />
+          <ErrorBoundary>
+            <TrackingView
+              shipments={activeShipments}
+              activeShipments={activeShipments.filter(s => s.status !== 'delivered')}
+              deliveredShipments={activeShipments.filter(s => s.status === 'delivered')}
+              loading={false}
+              currentRole={userRole}
+              currentUserId={authUser?.uid}
+              darkMode={darkMode}
+              onLocationUpdate={emitShipmentUpdate}
+            />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'notifications' && authUser && (
-          <NotificationsView
-            notifications={firebaseNotifications}
-            loading={false}
-            unreadCount={unreadNotifications}
-            currentUserId={authUser?.uid}
-            onMarkAsRead={markNotificationRead}
-            onMarkAllAsRead={markAllNotificationsRead}
-            onOpenBid={handleOpenBidFromNotification}
-            onOpenChat={handleOpenChatFromNotification}
-            onOpenListing={handleOpenListingFromNotification}
-            onOpenContract={handleOpenContract}
-            onPayPlatformFee={handlePayPlatformFee}
-            darkMode={darkMode}
-          />
+          <ErrorBoundary>
+            <NotificationsView
+              notifications={firebaseNotifications}
+              loading={false}
+              unreadCount={unreadNotifications}
+              currentUserId={authUser?.uid}
+              onMarkAsRead={markNotificationRead}
+              onMarkAllAsRead={markAllNotificationsRead}
+              onOpenBid={handleOpenBidFromNotification}
+              onOpenChat={handleOpenChatFromNotification}
+              onOpenListing={handleOpenListingFromNotification}
+              onOpenContract={handleOpenContract}
+              onPayPlatformFee={handlePayPlatformFee}
+              darkMode={darkMode}
+            />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'notifications' && !authUser && (
@@ -1358,33 +1367,37 @@ export default function GetGoApp() {
           </main>
         )}
 
-        {activeTab === 'profile' && <ProfilePage />}
+        {activeTab === 'profile' && <ErrorBoundary><ProfilePage /></ErrorBoundary>}
 
         {activeTab === 'broker' && (
-          <BrokerView
-            authUser={authUser}
-            isBroker={isBroker}
-            brokerProfile={brokerProfile}
-            onBrokerRegistered={() => {
-              showToast({
-                type: 'success',
-                title: 'Broker Activated',
-                message: 'You can now share your referral link and request payouts.',
-              });
-            }}
-            onToast={showToast}
-          />
+          <ErrorBoundary>
+            <BrokerView
+              authUser={authUser}
+              isBroker={isBroker}
+              brokerProfile={brokerProfile}
+              onBrokerRegistered={() => {
+                showToast({
+                  type: 'success',
+                  title: 'Broker Activated',
+                  message: 'You can now share your referral link and request payouts.',
+                });
+              }}
+              onToast={showToast}
+            />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'bids' && authUser && (
-          <BidsView
-            currentUser={authUser}
-            currentRole={userRole}
-            onOpenChat={(bid, listing) => {
-              openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
-            }}
-            darkMode={darkMode}
-          />
+          <ErrorBoundary>
+            <BidsView
+              currentUser={authUser}
+              currentRole={userRole}
+              onOpenChat={(bid, listing) => {
+                openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
+              }}
+              darkMode={darkMode}
+            />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'bids' && !authUser && (
@@ -1399,13 +1412,15 @@ export default function GetGoApp() {
         )}
 
         {activeTab === 'messages' && authUser && (
-          <ChatView
-            currentUser={authUser}
-            onOpenChat={(bid, listing, type) => {
-              openModal('chat', { bid, listing, type, bidId: bid.id });
-            }}
-            darkMode={darkMode}
-          />
+          <ErrorBoundary>
+            <ChatView
+              currentUser={authUser}
+              onOpenChat={(bid, listing, type) => {
+                openModal('chat', { bid, listing, type, bidId: bid.id });
+              }}
+              darkMode={darkMode}
+            />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'messages' && !authUser && (
@@ -1420,23 +1435,29 @@ export default function GetGoApp() {
         )}
 
         {activeTab === 'contracts' && (
-          <ContractsView
-            darkMode={darkMode}
-            currentUser={{ id: authUser?.uid, ...userProfile }}
-            onOpenContract={handleOpenContract}
-            initialFilter={contractFilter}
-          />
+          <ErrorBoundary>
+            <ContractsView
+              darkMode={darkMode}
+              currentUser={{ id: authUser?.uid, ...userProfile }}
+              onOpenContract={handleOpenContract}
+              initialFilter={contractFilter}
+            />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'adminPayments' && isAdmin && (
-          <AdminPaymentsView
-            darkMode={darkMode}
-            onVerifyContracts={() => setActiveTab('contractVerification')}
-          />
+          <ErrorBoundary>
+            <AdminPaymentsView
+              darkMode={darkMode}
+              onVerifyContracts={() => setActiveTab('contractVerification')}
+            />
+          </ErrorBoundary>
         )}
 
         {activeTab === 'contractVerification' && isAdmin && (
-          <ContractVerificationView darkMode={darkMode} />
+          <ErrorBoundary>
+            <ContractVerificationView darkMode={darkMode} />
+          </ErrorBoundary>
         )}
       </div>
 
@@ -1451,6 +1472,7 @@ export default function GetGoApp() {
       />
 
       {/* Modals */}
+      <ErrorBoundary>
       <PostModal
         open={modals.post}
         onClose={() => closeModal('post')}
@@ -1894,6 +1916,7 @@ export default function GetGoApp() {
           </div>
         ))}
       </div>
+      </ErrorBoundary>
 
       {/* Socket Connection Indicator (dev mode) */}
       {import.meta.env.DEV && (

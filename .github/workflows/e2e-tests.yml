@@ -28,10 +28,6 @@ jobs:
         working-directory: ./frontend
         run: npm install
 
-      - name: Install backend dependencies
-        working-directory: ./backend
-        run: npm install
-
       - name: Install functions dependencies
         working-directory: ./functions
         run: npm install

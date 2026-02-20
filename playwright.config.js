@@ -68,16 +68,6 @@ export default defineConfig({
       stderr: 'pipe',
     },
 
-    // Backend API server
-    {
-      command: 'cd backend && npm run dev',
-      url: 'http://127.0.0.1:3001/api/health',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-
     // Firebase Emulators (auth + firestore only — skips functions/storage for faster startup)
     {
       command: 'firebase emulators:start --only auth,firestore',

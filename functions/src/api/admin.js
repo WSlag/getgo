@@ -117,49 +117,46 @@ exports.adminGetPendingPayments = functions.region('asia-southeast1').https.onCa
   const snapshot = await query.get();
   const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
 
-  // Enrich submissions with order and user data
-  const submissions = await Promise.all(snapshot.docs.map(async (doc) => {
-    const submission = { id: doc.id, ...doc.data() };
+  // Batch-fetch related order and user data to avoid N+1 queries
+  const rawSubmissions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const orderIds = [...new Set(rawSubmissions.map(s => s.orderId).filter(Boolean))];
+  const userIds = [...new Set(rawSubmissions.map(s => s.userId).filter(Boolean))];
 
-    // Fetch order data
-    if (submission.orderId) {
-      try {
-        const orderDoc = await db.collection('orders').doc(submission.orderId).get();
-        if (orderDoc.exists) {
-          const orderData = orderDoc.data();
-          submission.orderAmount = orderData.amount;
-          submission.orderType = orderData.type;
-          submission.bidId = orderData.bidId;
-        }
-      } catch (error) {
-        console.error(
-          'Error fetching order [orderId=%s]: %s',
-          submission.orderId,
-          safeErrorMessage(error)
-        );
-      }
+  const orderMap = {};
+  const userMap = {};
+
+  try {
+    if (orderIds.length) {
+      const orderDocs = await db.getAll(...orderIds.map(id => db.collection('orders').doc(id)));
+      orderDocs.forEach(d => { if (d.exists) orderMap[d.id] = d.data(); });
     }
+  } catch (error) {
+    console.error('Error batch-fetching orders: %s', safeErrorMessage(error));
+  }
 
-    // Fetch user data
-    if (submission.userId) {
-      try {
-        const userDoc = await db.collection('users').doc(submission.userId).get();
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          submission.userName = userData.displayName || userData.email || 'Unknown User';
-          submission.userEmail = userData.email;
-        }
-      } catch (error) {
-        console.error(
-          'Error fetching user [userId=%s]: %s',
-          submission.userId,
-          safeErrorMessage(error)
-        );
-      }
+  try {
+    if (userIds.length) {
+      const userDocs = await db.getAll(...userIds.map(id => db.collection('users').doc(id)));
+      userDocs.forEach(d => { if (d.exists) userMap[d.id] = d.data(); });
     }
+  } catch (error) {
+    console.error('Error batch-fetching users: %s', safeErrorMessage(error));
+  }
 
+  const submissions = rawSubmissions.map(submission => {
+    if (submission.orderId && orderMap[submission.orderId]) {
+      const orderData = orderMap[submission.orderId];
+      submission.orderAmount = orderData.amount;
+      submission.orderType = orderData.type;
+      submission.bidId = orderData.bidId;
+    }
+    if (submission.userId && userMap[submission.userId]) {
+      const userData = userMap[submission.userId];
+      submission.userName = userData.displayName || userData.email || 'Unknown User';
+      submission.userEmail = userData.email;
+    }
     return submission;
-  }));
+  });
 
   return {
     submissions,
@@ -412,6 +409,7 @@ exports.adminGetFinancialSummary = functions.region('asia-southeast1').https.onC
   // Get GMV (Gross Merchandise Value) from contracts
   const contractsSnap = await db.collection('contracts')
     .where('status', 'in', ['signed', 'completed'])
+    .limit(500)
     .get();
 
   let gmv = 0;
@@ -522,29 +520,28 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
   const unpaidContracts = await query.get();
   const lastDoc = unpaidContracts.docs[unpaidContracts.docs.length - 1] || null;
 
-  // Enrich contracts with trucker data
-  const contracts = await Promise.all(unpaidContracts.docs.map(async (doc) => {
-    const contract = { id: doc.id, ...doc.data() };
+  // Batch-fetch trucker data to avoid N+1 queries
+  const rawContracts = unpaidContracts.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const payerIds = [...new Set(rawContracts.map(c => c.platformFeePayerId).filter(Boolean))];
 
-    // Fetch trucker (platform fee payer) data
-    if (contract.platformFeePayerId) {
-      try {
-        const truckerDoc = await db.collection('users').doc(contract.platformFeePayerId).get();
-        if (truckerDoc.exists) {
-          const truckerData = truckerDoc.data();
-          contract.truckerName = truckerData.displayName || truckerData.name || 'Unknown';
-          contract.truckerEmail = truckerData.email;
-          contract.truckerPhone = truckerData.phone;
-          contract.truckerAccountStatus = truckerData.accountStatus || 'active';
-          contract.truckerOutstandingTotal = truckerData.outstandingPlatformFees || 0;
-        }
-      } catch (error) {
-        console.error(
-          'Error fetching trucker data [userId=%s]: %s',
-          contract.platformFeePayerId,
-          safeErrorMessage(error)
-        );
-      }
+  const truckerMap = {};
+  try {
+    if (payerIds.length) {
+      const truckerDocs = await db.getAll(...payerIds.map(id => db.collection('users').doc(id)));
+      truckerDocs.forEach(d => { if (d.exists) truckerMap[d.id] = d.data(); });
+    }
+  } catch (error) {
+    console.error('Error batch-fetching truckers: %s', safeErrorMessage(error));
+  }
+
+  const contracts = rawContracts.map(contract => {
+    if (contract.platformFeePayerId && truckerMap[contract.platformFeePayerId]) {
+      const truckerData = truckerMap[contract.platformFeePayerId];
+      contract.truckerName = truckerData.displayName || truckerData.name || 'Unknown';
+      contract.truckerEmail = truckerData.email;
+      contract.truckerPhone = truckerData.phone;
+      contract.truckerAccountStatus = truckerData.accountStatus || 'active';
+      contract.truckerOutstandingTotal = truckerData.outstandingPlatformFees || 0;
     }
 
     // Calculate days overdue
@@ -557,7 +554,7 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
     }
 
     return contract;
-  }));
+  });
 
   // Calculate totals
   const totalOutstanding = contracts.reduce((sum, c) => sum + (c.platformFee || 0), 0);

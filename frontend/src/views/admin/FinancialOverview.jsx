@@ -12,7 +12,7 @@ import { PesoIcon } from '@/components/ui/PesoIcon';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, where, Timestamp, limit } from 'firebase/firestore';
 import { db } from '@/firebase';
 import api from '@/services/api';
 
@@ -118,16 +118,27 @@ export function FinancialOverview() {
         pendingPayouts: 0, // Payout request tracking not yet implemented
       });
 
-      // Fetch recent transactions (mock for now)
-      // In production, this would come from a walletTransactions collection
-      const mockTransactions = [
-        { id: '1', type: 'topup', amount: 5000, userId: 'user1', userName: 'Juan Cruz', createdAt: new Date() },
-        { id: '2', type: 'fee', amount: 250, userId: 'user2', userName: 'Maria Santos', createdAt: new Date(Date.now() - 3600000) },
-        { id: '3', type: 'topup', amount: 10000, userId: 'user3', userName: 'Pedro Garcia', createdAt: new Date(Date.now() - 7200000) },
-        { id: '4', type: 'payout', amount: 15000, userId: 'user4', userName: 'Ana Reyes', createdAt: new Date(Date.now() - 86400000) },
-        { id: '5', type: 'refund', amount: 3000, userId: 'user5', userName: 'Jose Lopez', createdAt: new Date(Date.now() - 172800000) },
-      ];
-      setTransactions(mockTransactions);
+      // Fetch recent approved payment submissions as transactions
+      const recentPaymentsSnapshot = await getDocs(
+        query(
+          collection(db, 'paymentSubmissions'),
+          where('status', '==', 'approved'),
+          orderBy('resolvedAt', 'desc'),
+          limit(20)
+        )
+      );
+      const txData = recentPaymentsSnapshot.docs.map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          type: 'fee',
+          amount: (d.orderAmount || d.amount || 0) * PLATFORM_FEE_RATE,
+          userId: d.userId || '',
+          userName: d.userName || d.userId?.slice(0, 12) || 'Unknown',
+          createdAt: d.resolvedAt?.toDate?.() || d.createdAt?.toDate?.() || new Date(),
+        };
+      });
+      setTransactions(txData);
 
     } catch (error) {
       console.error('Error fetching financial data:', error);
