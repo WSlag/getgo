@@ -54,17 +54,6 @@ export function RatingsManagement() {
         ...doc.data(),
       }));
 
-      // Add mock data if empty
-      if (ratingsData.length === 0) {
-        ratingsData.push(
-          { id: '1', raterName: 'Juan Cruz', ratedUserName: 'Pedro Santos', contractNumber: 'CTR-001', score: 5, comment: 'Excellent service! Very professional and on-time delivery.', createdAt: new Date() },
-          { id: '2', raterName: 'Maria Garcia', ratedUserName: 'Jose Lopez', contractNumber: 'CTR-002', score: 4, comment: 'Good delivery, minor delay but communicated well.', createdAt: new Date(Date.now() - 86400000) },
-          { id: '3', raterName: 'Ana Reyes', ratedUserName: 'Carlos Tan', contractNumber: 'CTR-003', score: 5, comment: 'Perfect! Would definitely recommend.', createdAt: new Date(Date.now() - 172800000) },
-          { id: '4', raterName: 'Roberto Cruz', ratedUserName: 'Lisa Garcia', contractNumber: 'CTR-004', score: 2, comment: 'Late delivery and cargo was slightly damaged.', createdAt: new Date(Date.now() - 259200000), flagged: true },
-          { id: '5', raterName: 'Teresa Santos', ratedUserName: 'Miguel Reyes', contractNumber: 'CTR-005', score: 5, comment: 'Best trucker I\'ve worked with!', createdAt: new Date(Date.now() - 345600000) },
-        );
-      }
-
       setRatings(ratingsData);
 
       // Calculate stats

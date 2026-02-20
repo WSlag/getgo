@@ -199,15 +199,6 @@ export function DisputesManagement() {
         };
       });
 
-      // Add mock data for demonstration
-      if (disputesData.length === 0) {
-        disputesData.push(
-          { id: '1', contractNumber: 'CTR-001', reason: 'Cargo damage', status: 'open', filedAt: new Date(), shipperName: 'Juan Cruz', truckerName: 'Pedro Santos' },
-          { id: '2', contractNumber: 'CTR-002', reason: 'Late delivery', status: 'investigating', filedAt: new Date(Date.now() - 86400000), shipperName: 'Maria Garcia', truckerName: 'Jose Lopez' },
-          { id: '3', contractNumber: 'CTR-003', reason: 'Payment issue', status: 'resolved', filedAt: new Date(Date.now() - 172800000), resolvedAt: new Date(), resolution: 'In favor of Shipper', shipperName: 'Ana Reyes', truckerName: 'Carlos Tan' },
-        );
-      }
-
       setDisputes(disputesData);
       setStats({
         total: disputesData.length,

@@ -6,6 +6,7 @@ import KargaMarketplace from './KargaMarketplace';
 import { Loader2 } from 'lucide-react';
 import { Logo } from '@/components/shared/Logo';
 import { PWAUpdateNotification } from '@/components/shared/PWAUpdateNotification';
+import ErrorBoundary from '@/components/shared/ErrorBoundary';
 
 // Feature flag to switch between old and new UI
 const USE_NEW_UI = true;
@@ -68,10 +69,12 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-      <PWAUpdateNotification />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+        <PWAUpdateNotification />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
