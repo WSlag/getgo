@@ -16,16 +16,31 @@ export function useRouteOptimizer() {
     }
 
     const matches = Array.isArray(result.matches) ? result.matches : [];
+    const cargoMatches = Array.isArray(result.cargoMatches) ? result.cargoMatches : matches;
+    const truckMatches = Array.isArray(result.truckMatches) ? result.truckMatches : [];
     const maxDetourKm = Number(params.maxDetourKm || 50);
 
-    const cargo = matches.map((match) => ({
+    const cargo = cargoMatches.map((match) => ({
       ...match,
       routeDistance: Number(match.routeDistance || 0),
       originDistance: Number(match.originDistance || 0),
+      destDistance: match.destDistance === null || match.destDistance === undefined
+        ? null
+        : Number(match.destDistance || 0),
       matchScore: Number(match.matchScore || 0),
     }));
 
-    const recommendations = cargo
+    const trucks = truckMatches.map((match) => ({
+      ...match,
+      routeDistance: Number(match.routeDistance || 0),
+      originDistance: Number(match.originDistance || 0),
+      destDistance: match.destDistance === null || match.destDistance === undefined
+        ? null
+        : Number(match.destDistance || 0),
+      matchScore: Number(match.matchScore || 0),
+    }));
+
+    const recommendations = [...cargo, ...trucks]
       .slice()
       .sort((a, b) => b.matchScore - a.matchScore)
       .slice(0, 5)
@@ -33,11 +48,11 @@ export function useRouteOptimizer() {
         const etaSavedMinutes = Math.max(0, Math.round(((maxDetourKm - item.originDistance) / 50) * 60));
         return {
           id: item.id,
-          type: 'cargo',
+          type: item.listingType || (trucks.includes(item) ? 'truck' : 'cargo'),
           route: `${item.origin} -> ${item.destination}`,
           price: Number(item.askingPrice || 0),
           originDistance: item.originDistance,
-          destDistance: null,
+          destDistance: item.destDistance,
           matchScore: item.matchScore,
           etaSavedMinutes,
           reason: `${Math.round(item.matchScore)}% route match`,
@@ -45,10 +60,10 @@ export function useRouteOptimizer() {
       });
 
     return {
-      totalMatches: Number(result.total || cargo.length || 0),
+      totalMatches: Number(result.total || (cargo.length + trucks.length)),
       maxDetourKm,
       cargo,
-      trucks: [],
+      trucks,
       recommendations,
     };
   }, []);
@@ -65,7 +80,7 @@ export function useRouteOptimizer() {
     return routes.map((route) => ({
       ...route,
       count: Number(route.count || 0),
-      distance: Number(route.distance || 0),
+      distance: Number(route.distance || route.distanceKm || 0),
     }));
   }, []);
 
@@ -75,8 +90,17 @@ export function useRouteOptimizer() {
     setError(null);
 
     try {
-      const result = await api.optimize.findBackload(params);
-      const normalized = normalizeBackloadResult(result, params);
+      const origin = String(params?.origin || '').trim();
+      const destination = String(params?.destination || '').trim();
+      const requestParams = {
+        ...(params || {}),
+        origin,
+        // Backward compatibility: older backend revisions require destination.
+        destination: destination || origin,
+      };
+
+      const result = await api.optimize.findBackload(requestParams);
+      const normalized = normalizeBackloadResult(result, requestParams);
       setBackloadResults(normalized);
       return normalized;
     } catch (err) {
