@@ -37,6 +37,14 @@ const cityCoordinates = {
   'Bacolod City': { lat: 10.6407, lng: 122.9688 },
 };
 
+const ROUTE_OPTIMIZER_TYPE = Object.freeze({
+  BOTH: 'both',
+  CARGO: 'cargo',
+  TRUCK: 'truck',
+});
+
+const ACTIVE_TRUCK_STATUSES = ['open', 'available', 'waiting', 'in_transit'];
+
 function getCoordinates(cityName) {
   if (!cityName) return { lat: 7.5, lng: 124.5 };
   const normalized = Object.keys(cityCoordinates).find(
@@ -44,6 +52,84 @@ function getCoordinates(cityName) {
       cityName.toLowerCase().includes(key.toLowerCase().split(' ')[0])
   );
   return cityCoordinates[normalized] || { lat: 7.5, lng: 124.5 };
+}
+
+function parseCoordinate(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getReferenceCoordinates({ name, lat, lng }) {
+  const parsedLat = parseCoordinate(lat);
+  const parsedLng = parseCoordinate(lng);
+  if (parsedLat !== null && parsedLng !== null) {
+    return { lat: parsedLat, lng: parsedLng };
+  }
+  return getCoordinates(name);
+}
+
+function clampDetourKm(value, fallback = 50) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(10, Math.min(200, parsed));
+}
+
+function normalizeRouteSearchType(type) {
+  const normalized = String(type || '').trim().toLowerCase();
+  if (normalized === ROUTE_OPTIMIZER_TYPE.CARGO) return ROUTE_OPTIMIZER_TYPE.CARGO;
+  if (normalized === ROUTE_OPTIMIZER_TYPE.TRUCK) return ROUTE_OPTIMIZER_TYPE.TRUCK;
+  return ROUTE_OPTIMIZER_TYPE.BOTH;
+}
+
+function toMatchedListing(listing, listingType, referenceCoords, maxDetourKm, destinationCoords = null) {
+  const listingOriginCoords = getReferenceCoordinates({
+    name: listing.origin,
+    lat: listing.originLat,
+    lng: listing.originLng,
+  });
+  const listingDestinationCoords = getReferenceCoordinates({
+    name: listing.destination,
+    lat: listing.destLat,
+    lng: listing.destLng,
+  });
+
+  const originDistance = calculateDistance(
+    referenceCoords.lat,
+    referenceCoords.lng,
+    listingOriginCoords.lat,
+    listingOriginCoords.lng
+  );
+  const destinationDistance = destinationCoords
+    ? calculateDistance(
+      destinationCoords.lat,
+      destinationCoords.lng,
+      listingDestinationCoords.lat,
+      listingDestinationCoords.lng
+    )
+    : null;
+  const scoringDistance = destinationDistance === null
+    ? originDistance
+    : ((originDistance * 0.65) + (destinationDistance * 0.35));
+
+  if (scoringDistance > maxDetourKm) {
+    return null;
+  }
+
+  const routeDistance = calculateDistance(
+    listingOriginCoords.lat,
+    listingOriginCoords.lng,
+    listingDestinationCoords.lat,
+    listingDestinationCoords.lng
+  );
+
+  return {
+    ...listing,
+    listingType,
+    routeDistance: Math.round(routeDistance),
+    originDistance: Math.round(originDistance),
+    destDistance: destinationDistance === null ? null : Math.round(destinationDistance),
+    matchScore: Math.max(0, Math.round(100 - ((scoringDistance / maxDetourKm) * 100))),
+  };
 }
 
 /**
@@ -55,58 +141,97 @@ exports.findBackloadOpportunities = functions.region('asia-southeast1').https.on
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
   }
 
-  const { origin, destination, originLat, originLng, destLat, destLng, maxDetourKm = 50 } = data;
+  const {
+    origin,
+    destination,
+    originLat,
+    originLng,
+    destLat,
+    destLng,
+    maxDetourKm = 50,
+    type,
+  } = data || {};
 
-  if (!origin || !destination) {
-    throw new functions.https.HttpsError('invalid-argument', 'Origin and destination are required');
+  if (!origin) {
+    throw new functions.https.HttpsError('invalid-argument', 'Origin is required');
   }
 
   const db = admin.firestore();
+  const normalizedType = normalizeRouteSearchType(type);
+  const boundedDetourKm = clampDetourKm(maxDetourKm, 50);
 
-  // Use provided coordinates or look them up
-  const destCoords = destLat && destLng
-    ? { lat: destLat, lng: destLng }
-    : getCoordinates(destination);
-
-  // Get open cargo listings
-  const listingsSnap = await db.collection('cargoListings')
-    .where('status', '==', 'open')
-    .limit(100)
-    .get();
-
-  const matches = [];
-
-  listingsSnap.docs.forEach(doc => {
-    const listing = { id: doc.id, ...doc.data() };
-
-    // Calculate distance from listing origin to trucker's destination
-    const listingOriginCoords = listing.originLat && listing.originLng
-      ? { lat: listing.originLat, lng: listing.originLng }
-      : getCoordinates(listing.origin);
-
-    const distance = calculateDistance(
-      destCoords.lat,
-      destCoords.lng,
-      listingOriginCoords.lat,
-      listingOriginCoords.lng
-    );
-
-    // If listing origin is within detour range of trucker's destination
-    if (distance <= maxDetourKm) {
-      matches.push({
-        ...listing,
-        originDistance: Math.round(distance),
-        matchScore: 100 - (distance / maxDetourKm) * 100, // Higher score for closer matches
-      });
-    }
+  const originCoords = getReferenceCoordinates({
+    name: origin,
+    lat: originLat,
+    lng: originLng,
   });
+  const destinationCoords = destination
+    ? getReferenceCoordinates({
+      name: destination,
+      lat: destLat,
+      lng: destLng,
+    })
+    : null;
+  const searchReferenceCoords = destinationCoords || originCoords;
 
-  // Sort by match score (distance)
-  matches.sort((a, b) => b.matchScore - a.matchScore);
+  const shouldIncludeCargo = normalizedType !== ROUTE_OPTIMIZER_TYPE.TRUCK;
+  const shouldIncludeTrucks = normalizedType !== ROUTE_OPTIMIZER_TYPE.CARGO;
+
+  const [cargoSnap, truckSnap] = await Promise.all([
+    shouldIncludeCargo
+      ? db.collection('cargoListings')
+        .where('status', '==', 'open')
+        .limit(150)
+        .get()
+      : Promise.resolve(null),
+    shouldIncludeTrucks
+      ? db.collection('truckListings')
+        .where('status', 'in', ACTIVE_TRUCK_STATUSES)
+        .limit(150)
+        .get()
+      : Promise.resolve(null),
+  ]);
+
+  const cargoMatches = [];
+  if (cargoSnap) {
+    cargoSnap.docs.forEach((doc) => {
+      const listing = { id: doc.id, ...doc.data() };
+      const match = toMatchedListing(
+        listing,
+        ROUTE_OPTIMIZER_TYPE.CARGO,
+        searchReferenceCoords,
+        boundedDetourKm,
+        destinationCoords
+      );
+      if (match) cargoMatches.push(match);
+    });
+  }
+
+  const truckMatches = [];
+  if (truckSnap) {
+    truckSnap.docs.forEach((doc) => {
+      const listing = { id: doc.id, ...doc.data() };
+      const match = toMatchedListing(
+        listing,
+        ROUTE_OPTIMIZER_TYPE.TRUCK,
+        searchReferenceCoords,
+        boundedDetourKm,
+        destinationCoords
+      );
+      if (match) truckMatches.push(match);
+    });
+  }
+
+  cargoMatches.sort((a, b) => b.matchScore - a.matchScore);
+  truckMatches.sort((a, b) => b.matchScore - a.matchScore);
 
   return {
-    matches: matches.slice(0, 20), // Return top 20 matches
-    total: matches.length,
+    matches: cargoMatches.slice(0, 20),
+    cargoMatches: cargoMatches.slice(0, 20),
+    truckMatches: truckMatches.slice(0, 20),
+    total: cargoMatches.length + truckMatches.length,
+    maxDetourKm: boundedDetourKm,
+    type: normalizedType,
   };
 });
 
@@ -154,6 +279,12 @@ exports.getPopularRoutes = functions.region('asia-southeast1').https.onCall(asyn
     destination: data.destination,
     count: data.count,
     averagePrice: Math.round(data.totalPrice / data.count),
+    distance: Math.round(calculateDistance(
+      getCoordinates(data.origin).lat,
+      getCoordinates(data.origin).lng,
+      getCoordinates(data.destination).lat,
+      getCoordinates(data.destination).lng
+    )),
   }));
 
   // Sort by frequency
