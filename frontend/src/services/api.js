@@ -110,6 +110,7 @@ const api = {
     create: (data) => callFunction('createContract', data),
     sign: (id) => callFunction('signContract', { contractId: id }),
     complete: (id) => callFunction('completeContract', { contractId: id }),
+    cancel: (id, reason) => callFunction('cancelContract', { contractId: id, reason }),
   },
 
   ratings: {
@@ -218,6 +219,7 @@ const api = {
 
     getBrokers: (params) => callFunction('adminGetBrokers', params || {}),
     updateBrokerTier: (brokerId, tier) => callFunction('adminUpdateBrokerTier', { brokerId, tier }),
+    getBrokerReferralReport: (params) => callFunction('adminGetBrokerReferralReport', params || {}),
     getBrokerPayoutRequests: (params) => callFunction('adminGetBrokerPayoutRequests', params || {}),
     reviewBrokerPayout: (requestId, decision, data = {}) =>
       callFunction('adminReviewBrokerPayout', { requestId, decision, ...data }),

@@ -86,7 +86,7 @@ export function AdminHeader({
               onClick={onRefresh}
               disabled={refreshing}
               className={cn(
-                'p-2.5 rounded-xl transition-all duration-200',
+                'p-2.5 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95',
                 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700',
                 'text-gray-600 dark:text-gray-400',
                 refreshing && 'cursor-not-allowed'
@@ -100,7 +100,7 @@ export function AdminHeader({
           <button
             onClick={onToggleDarkMode}
             className={cn(
-              'p-2.5 rounded-xl transition-all duration-200',
+              'p-2.5 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95',
               'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700',
               'text-gray-600 dark:text-gray-400'
             )}

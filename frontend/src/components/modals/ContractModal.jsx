@@ -165,6 +165,18 @@ export function ContractModal({
     ? `Declared Value of ${formatPrice(liabilityCap)}`
     : `default cap of ${formatPrice(liabilityCap)} (no declared value)`;
   const netAmount = Number(contract.agreedPrice) - Number(contract.platformFee);
+  const formatPercent = (percent) =>
+    Number(percent).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+  const configuredFeePercent = Number(contract.platformFeePercentage);
+  const effectiveFeePercent = Number(contract.agreedPrice) > 0
+    ? (Number(contract.platformFee || 0) / Number(contract.agreedPrice)) * 100
+    : null;
+  const feePercentForLabel = Number.isFinite(configuredFeePercent) && configuredFeePercent >= 0
+    ? configuredFeePercent
+    : (Number.isFinite(effectiveFeePercent) ? effectiveFeePercent : null);
+  const platformFeeLabel = feePercentForLabel === null
+    ? 'Platform Service Fee'
+    : `Platform Service Fee (${formatPercent(feePercentForLabel)}%)`;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -404,7 +416,7 @@ export function ContractModal({
             {/* Platform Service Fee - Only visible to Trucker */}
             {isTrucker && (
               <div className="flex justify-between" style={{ fontSize: isMobile ? '12px' : '13px', marginBottom: isMobile ? '6px' : '8px' }}>
-                <span style={{ color: '#6b7280' }}>Platform Service Fee (5%)</span>
+                <span style={{ color: '#6b7280' }}>{platformFeeLabel}</span>
                 <span style={{ fontWeight: '500', color: '#dc2626' }}>-{formatPrice(contract.platformFee)}</span>
               </div>
             )}
@@ -663,6 +675,5 @@ export function ContractModal({
 }
 
 export default ContractModal;
-
 
 

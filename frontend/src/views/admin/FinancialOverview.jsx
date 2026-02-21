@@ -265,25 +265,25 @@ export function FinancialOverview() {
           title="Today's Revenue"
           value={`₱${formatPrice(stats.todayRevenue)}`}
           icon={PesoIcon}
-          iconColor="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+          iconColor="bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30"
         />
         <StatCard
           title="This Week"
           value={`₱${formatPrice(stats.weekRevenue)}`}
           icon={TrendingUp}
-          iconColor="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+          iconColor="bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30"
         />
         <StatCard
           title="This Month"
           value={`₱${formatPrice(stats.monthRevenue)}`}
           icon={Calendar}
-          iconColor="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+          iconColor="bg-gradient-to-br from-purple-400 to-purple-600 shadow-purple-500/30"
         />
         <StatCard
           title="All Time"
           value={`₱${formatPrice(stats.totalRevenue)}`}
           icon={PesoIcon}
-          iconColor="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
+          iconColor="bg-gradient-to-br from-orange-400 to-orange-600 shadow-orange-500/30"
         />
       </div>
 
@@ -294,14 +294,14 @@ export function FinancialOverview() {
           value={`₱${formatPrice(stats.totalWalletBalance)}`}
           subtitle="Combined balance of all users"
           icon={Wallet}
-          iconColor="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+          iconColor="bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30"
         />
         <StatCard
           title="Pending Payouts"
           value={`₱${formatPrice(stats.pendingPayouts)}`}
           subtitle="Awaiting processing"
           icon={CreditCard}
-          iconColor="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
+          iconColor="bg-gradient-to-br from-yellow-400 to-yellow-600 shadow-yellow-500/30"
         />
       </div>
 

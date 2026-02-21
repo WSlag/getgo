@@ -1181,6 +1181,7 @@ exports.adminGetBrokers = referralFunctions.adminGetBrokers;
 exports.adminUpdateBrokerTier = referralFunctions.adminUpdateBrokerTier;
 exports.adminGetBrokerPayoutRequests = referralFunctions.adminGetBrokerPayoutRequests;
 exports.adminReviewBrokerPayout = referralFunctions.adminReviewBrokerPayout;
+exports.adminGetBrokerReferralReport = referralFunctions.adminGetBrokerReferralReport;
 
 // =============================================================================
 // ROUTE OPTIMIZATION FUNCTIONS

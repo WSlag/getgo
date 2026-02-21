@@ -114,7 +114,12 @@ function toDateValue(value) {
 
 function getDueStatus(contract) {
   const dueDate = toDateValue(contract?.platformFeeDueDate);
-  if (!dueDate) return { state: 'unknown', label: 'No due date', days: null, dueDate: null };
+  if (!dueDate) {
+    if (contract?.platformFeeStatus === 'overdue') {
+      return { state: 'overdue', label: 'Overdue', days: null, dueDate: null };
+    }
+    return { state: 'unknown', label: 'No due date', days: null, dueDate: null };
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -124,7 +129,12 @@ function getDueStatus(contract) {
 
   const dayDiff = Math.round((today.getTime() - dueDay.getTime()) / DAY_IN_MS);
   if (dayDiff > 0 || contract?.platformFeeStatus === 'overdue') {
-    return { state: 'overdue', label: `Overdue by ${dayDiff}d`, days: dayDiff, dueDate };
+    return {
+      state: 'overdue',
+      label: dayDiff > 0 ? `Overdue by ${dayDiff}d` : 'Overdue',
+      days: dayDiff > 0 ? dayDiff : null,
+      dueDate,
+    };
   }
   if (dayDiff === 0) {
     return { state: 'due_today', label: 'Due today', days: 0, dueDate };
@@ -618,7 +628,7 @@ export function PaymentsView({ className }) {
           {row.fraudFlags?.slice(0, 2).map((flag, idx) => (
             <span
               key={idx}
-              className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-xs"
+              className="px-1.5 py-0.5 bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30 rounded text-xs"
             >
               {normalizeFraudFlag(flag).label.replace(/_/g, ' ').slice(0, 12)}
             </span>
@@ -757,25 +767,25 @@ export function PaymentsView({ className }) {
             title="Pending Review"
             value={resolvedStats.pendingReview || 0}
             icon={AlertTriangle}
-            iconColor="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
+            iconColor="bg-gradient-to-br from-yellow-400 to-yellow-600 shadow-yellow-500/30"
           />
           <StatCard
             title="Approved Today"
             value={resolvedStats.approvedToday || 0}
             icon={CheckCircle2}
-            iconColor="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+            iconColor="bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30"
           />
           <StatCard
             title="Rejected Today"
             value={resolvedStats.rejectedToday || 0}
             icon={XCircle}
-            iconColor="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+            iconColor="bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30"
           />
           <StatCard
             title="Total Today"
             value={`PHP ${formatPrice(resolvedStats.totalAmountToday || 0)}`}
             icon={PesoIcon}
-            iconColor="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+            iconColor="bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30"
           />
         </div>
       )}
@@ -839,25 +849,25 @@ export function PaymentsView({ className }) {
             title="Unpaid Fees"
             value={outstandingSummary?.totalContracts || outstandingContracts.length}
             icon={Clock}
-            iconColor="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+            iconColor="bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30"
           />
           <StatCard
             title="Due Soon"
             value={dueSoonCount}
             icon={AlertTriangle}
-            iconColor="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
+            iconColor="bg-gradient-to-br from-yellow-400 to-yellow-600 shadow-yellow-500/30"
           />
           <StatCard
             title="Overdue"
             value={outstandingSummary?.overdueCount || 0}
             icon={XCircle}
-            iconColor="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+            iconColor="bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30"
           />
           <StatCard
             title="Total Outstanding"
             value={`PHP ${formatPrice(outstandingSummary?.totalOutstanding || 0)}`}
             icon={PesoIcon}
-            iconColor="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+            iconColor="bg-gradient-to-br from-purple-400 to-purple-600 shadow-purple-500/30"
           />
         </div>
 

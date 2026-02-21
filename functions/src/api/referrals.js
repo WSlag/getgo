@@ -6,6 +6,7 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 const {
   loadPlatformSettings,
   shouldBlockForMaintenance,
@@ -34,6 +35,33 @@ function buildBrokerCodePrefix(role) {
 function roundToCents(value) {
   const n = Number(value || 0);
   return Math.round(n * 100) / 100;
+}
+
+function toDate(value) {
+  if (!value) return null;
+  if (value.toDate && typeof value.toDate === 'function') return value.toDate();
+  if (typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function toTimestampNumber(value) {
+  const dateValue = toDate(value);
+  return dateValue ? dateValue.getTime() : 0;
+}
+
+function resolveCommissionRate(tier, settings) {
+  const normalizedTier = String(tier || 'STARTER').toUpperCase();
+  const rates = settings?.referralCommission || {};
+  const configuredRate =
+    rates[normalizedTier] ??
+    rates[normalizedTier.toLowerCase()] ??
+    rates[(normalizedTier.charAt(0) + normalizedTier.slice(1).toLowerCase())];
+  const parsedRate = Number(configuredRate);
+  if (Number.isFinite(parsedRate) && parsedRate > 0) {
+    return parsedRate;
+  }
+  return DEFAULT_REFERRAL_RATES[normalizedTier] || DEFAULT_REFERRAL_RATES.STARTER;
 }
 
 async function assertReferralProgramEnabled(db, context) {
@@ -102,7 +130,7 @@ async function notifyAllAdmins(db, payload) {
     batch.set(notifRef, {
       ...payload,
       isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
   });
 
@@ -155,7 +183,7 @@ exports.brokerRegister = functions.region(REGION).https.onCall(async (data, cont
     referralCode = await generateUniqueReferralCode(db, user.role);
   }
 
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
   const profile = {
     userId,
     sourceRole: user.role || null,
@@ -230,7 +258,7 @@ exports.brokerApplyReferralCode = functions.region(REGION).https.onCall(async (d
 
   const brokerRef = db.collection('brokers').doc(brokerId);
   const brokerProfileRef = db.collection('users').doc(brokerId).collection('brokerProfile').doc('profile');
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
 
   await db.runTransaction(async (tx) => {
     const [existingReferral, referredUserDoc] = await Promise.all([
@@ -271,12 +299,12 @@ exports.brokerApplyReferralCode = functions.region(REGION).https.onCall(async (d
     });
 
     tx.update(brokerRef, {
-      totalReferrals: admin.firestore.FieldValue.increment(1),
+      totalReferrals: FieldValue.increment(1),
       updatedAt: now,
     });
 
     tx.set(brokerProfileRef, {
-      totalReferrals: admin.firestore.FieldValue.increment(1),
+      totalReferrals: FieldValue.increment(1),
       updatedAt: now,
     }, { merge: true });
   });
@@ -295,7 +323,7 @@ exports.brokerApplyReferralCode = functions.region(REGION).https.onCall(async (d
       referralCode,
     },
     isRead: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
 
   return { success: true, brokerId, referralCode };
@@ -318,9 +346,9 @@ exports.brokerGetDashboard = functions.region(REGION).https.onCall(async (data, 
   }
 
   const [referralsSnap, commissionsSnap, payoutsSnap] = await Promise.all([
-    db.collection('brokerReferrals').where('brokerId', '==', userId).limit(100).get(),
-    db.collection('brokerCommissions').where('brokerId', '==', userId).limit(100).get(),
-    db.collection('brokerPayoutRequests').where('brokerId', '==', userId).limit(100).get(),
+    db.collection('brokerReferrals').where('brokerId', '==', userId).orderBy('createdAt', 'desc').limit(100).get(),
+    db.collection('brokerCommissions').where('brokerId', '==', userId).orderBy('createdAt', 'desc').limit(100).get(),
+    db.collection('brokerPayoutRequests').where('brokerId', '==', userId).orderBy('createdAt', 'desc').limit(100).get(),
   ]);
 
   const referrals = referralsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -371,7 +399,7 @@ exports.brokerRequestPayout = functions.region(REGION).https.onCall(async (data,
   const brokerRef = db.collection('brokers').doc(brokerId);
   const brokerProfileRef = db.collection('users').doc(brokerId).collection('brokerProfile').doc('profile');
   const payoutRef = db.collection('brokerPayoutRequests').doc();
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
 
   await db.runTransaction(async (tx) => {
     const brokerDoc = await tx.get(brokerRef);
@@ -495,7 +523,7 @@ exports.adminUpdateBrokerTier = functions.region(REGION).https.onCall(async (dat
   const db = admin.firestore();
   const brokerRef = db.collection('brokers').doc(brokerId);
   const brokerProfileRef = db.collection('users').doc(brokerId).collection('brokerProfile').doc('profile');
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
 
   await db.runTransaction(async (tx) => {
     const brokerDoc = await tx.get(brokerRef);
@@ -524,7 +552,7 @@ exports.adminUpdateBrokerTier = functions.region(REGION).https.onCall(async (dat
     message: `Your broker tier has been updated to ${tier}.`,
     data: { tier, updatedBy: context.auth.uid },
     isRead: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
 
   return { success: true };
@@ -538,13 +566,17 @@ exports.adminGetBrokerPayoutRequests = functions.region(REGION).https.onCall(asy
 
   const db = admin.firestore();
   const limit = Math.min(Math.max(Number(data?.limit || 100), 1), 500);
-  const status = String(data?.status || '').trim();
+  const status = String(data?.status || '').trim().toLowerCase();
+  const allowedStatuses = new Set(['pending', 'approved', 'rejected', 'all', '']);
+  if (!allowedStatuses.has(status)) {
+    throw new functions.https.HttpsError('invalid-argument', 'status must be all, pending, approved, or rejected');
+  }
 
   let query = db.collection('brokerPayoutRequests');
   if (status && status !== 'all') {
     query = query.where('status', '==', status);
   }
-  query = query.limit(limit);
+  query = query.orderBy('createdAt', 'desc').limit(limit);
 
   const snap = await query.get();
   const requests = await Promise.all(snap.docs.map(async (doc) => {
@@ -595,7 +627,7 @@ exports.adminReviewBrokerPayout = functions.region(REGION).https.onCall(async (d
 
   const db = admin.firestore();
   const requestRef = db.collection('brokerPayoutRequests').doc(requestId);
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
 
   let brokerId = null;
 
@@ -671,9 +703,156 @@ exports.adminReviewBrokerPayout = functions.region(REGION).https.onCall(async (d
         : 'Your payout request was rejected. The amount has been returned to your available balance.',
       data: { requestId, decision, notes: notes || null },
       isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
   }
 
   return { success: true };
+});
+
+/**
+ * Admin: broker referral quality report.
+ * Highlights contracts cancelled before platform-fee payment where fee payer was referred.
+ */
+exports.adminGetBrokerReferralReport = functions.region(REGION).https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const db = admin.firestore();
+  const scanLimit = Math.min(Math.max(Number(data?.scanLimit || 1000), 100), 5000);
+  const recentLimit = Math.min(Math.max(Number(data?.recentLimit || 30), 1), 100);
+
+  const [cancelledContractsSnap, settingsDoc] = await Promise.all([
+    db.collection('contracts').where('status', '==', 'cancelled').limit(scanLimit).get(),
+    db.collection('settings').doc('platform').get(),
+  ]);
+
+  const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
+  const cancelledContracts = cancelledContractsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const unpaidCancelledContracts = cancelledContracts.filter((contract) => (
+    contract.platformFeePaid !== true &&
+    !!contract.platformFeePayerId
+  ));
+
+  const feePayerIds = [...new Set(unpaidCancelledContracts.map((contract) => contract.platformFeePayerId).filter(Boolean))];
+  const referralMap = new Map();
+  if (feePayerIds.length > 0) {
+    const referralDocs = await db.getAll(
+      ...feePayerIds.map((uid) => db.collection('brokerReferrals').doc(uid))
+    );
+    referralDocs.forEach((doc) => {
+      if (doc.exists) {
+        referralMap.set(doc.id, doc.data() || {});
+      }
+    });
+  }
+
+  const referredCancelledContracts = unpaidCancelledContracts.filter((contract) =>
+    referralMap.has(contract.platformFeePayerId)
+  );
+
+  const brokerIds = [...new Set(referredCancelledContracts.map((contract) =>
+    referralMap.get(contract.platformFeePayerId)?.brokerId
+  ).filter(Boolean))];
+
+  const brokerMap = new Map();
+  const brokerUserMap = new Map();
+  if (brokerIds.length > 0) {
+    const [brokerDocs, brokerUserDocs] = await Promise.all([
+      db.getAll(...brokerIds.map((brokerId) => db.collection('brokers').doc(brokerId))),
+      db.getAll(...brokerIds.map((brokerId) => db.collection('users').doc(brokerId))),
+    ]);
+
+    brokerDocs.forEach((doc) => {
+      if (doc.exists) {
+        brokerMap.set(doc.id, doc.data() || {});
+      }
+    });
+
+    brokerUserDocs.forEach((doc) => {
+      if (doc.exists) {
+        brokerUserMap.set(doc.id, doc.data() || {});
+      }
+    });
+  }
+
+  let totalWaivedPlatformFees = 0;
+  let totalEstimatedCommissionLost = 0;
+  let cargoCount = 0;
+  let truckCount = 0;
+
+  const brokerBreakdownMap = new Map();
+  const recentContracts = referredCancelledContracts.map((contract) => {
+    const referral = referralMap.get(contract.platformFeePayerId) || {};
+    const brokerId = referral.brokerId || null;
+    const broker = brokerId ? (brokerMap.get(brokerId) || {}) : {};
+    const brokerUser = brokerId ? (brokerUserMap.get(brokerId) || {}) : {};
+    const platformFee = Number(contract.platformFee || 0);
+    const brokerTier = String(broker.tier || 'STARTER').toUpperCase();
+    const commissionRate = resolveCommissionRate(brokerTier, settings);
+    const estimatedCommissionLost = roundToCents(platformFee * (commissionRate / 100));
+
+    totalWaivedPlatformFees += platformFee;
+    totalEstimatedCommissionLost += estimatedCommissionLost;
+
+    const listingType = String(contract.listingType || '').toLowerCase();
+    if (listingType === 'cargo') cargoCount += 1;
+    else if (listingType === 'truck') truckCount += 1;
+
+    if (brokerId) {
+      const existing = brokerBreakdownMap.get(brokerId) || {
+        brokerId,
+        brokerName: brokerUser.name || null,
+        brokerPhone: brokerUser.phone || null,
+        brokerCode: broker.referralCode || null,
+        tier: brokerTier,
+        contractsCancelledUnpaid: 0,
+        waivedPlatformFees: 0,
+        estimatedCommissionLost: 0,
+      };
+      existing.contractsCancelledUnpaid += 1;
+      existing.waivedPlatformFees = roundToCents(existing.waivedPlatformFees + platformFee);
+      existing.estimatedCommissionLost = roundToCents(existing.estimatedCommissionLost + estimatedCommissionLost);
+      brokerBreakdownMap.set(brokerId, existing);
+    }
+
+    return {
+      contractId: contract.id,
+      contractNumber: contract.contractNumber || null,
+      listingType: listingType || 'unknown',
+      platformFee,
+      platformFeeStatus: contract.platformFeeStatus || 'waived',
+      platformFeePayerId: contract.platformFeePayerId || null,
+      brokerId,
+      brokerName: brokerUser.name || null,
+      brokerCode: referral.brokerCode || broker.referralCode || null,
+      brokerTier,
+      commissionRate,
+      estimatedCommissionLost,
+      cancelledAt: contract.cancelledAt || contract.updatedAt || contract.createdAt || null,
+    };
+  })
+    .sort((a, b) => toTimestampNumber(b.cancelledAt) - toTimestampNumber(a.cancelledAt))
+    .slice(0, recentLimit);
+
+  const brokerBreakdown = [...brokerBreakdownMap.values()]
+    .sort((a, b) => (
+      b.contractsCancelledUnpaid - a.contractsCancelledUnpaid ||
+      b.waivedPlatformFees - a.waivedPlatformFees
+    ))
+    .slice(0, 20);
+
+  return {
+    summary: {
+      scannedCancelledContracts: cancelledContracts.length,
+      unpaidCancelledContracts: unpaidCancelledContracts.length,
+      referredCancelledUnpaidContracts: referredCancelledContracts.length,
+      cargoCancelledUnpaidContracts: cargoCount,
+      truckCancelledUnpaidContracts: truckCount,
+      waivedPlatformFees: roundToCents(totalWaivedPlatformFees),
+      estimatedCommissionLost: roundToCents(totalEstimatedCommissionLost),
+      note: 'Cancelled contracts with unpaid platform fee are waived and do not generate broker commission.',
+    },
+    recentContracts,
+    brokerBreakdown,
+  };
 });

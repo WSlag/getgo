@@ -53,11 +53,17 @@ export function AdminDashboard({ onBackToApp }) {
   const [refreshing, setRefreshing] = useState(false);
 
   // Fetch badge counts
-  const fetchBadges = useCallback(async () => {
+  const fetchBadges = useCallback(async (brokerPayoutRequests) => {
     try {
+      const pendingRequests = Array.isArray(brokerPayoutRequests)
+        ? brokerPayoutRequests.filter((request) => request.status === 'pending')
+        : null;
+
       const [stats, brokerPayouts] = await Promise.all([
         api.admin.getPaymentStats(),
-        api.admin.getBrokerPayoutRequests({ status: 'pending', limit: 300 }),
+        pendingRequests
+          ? Promise.resolve({ requests: pendingRequests })
+          : api.admin.getBrokerPayoutRequests({ status: 'pending', limit: 500 }),
       ]);
       const resolvedStats = stats?.stats || stats || {};
       setBadges({
@@ -131,7 +137,7 @@ export function AdminDashboard({ onBackToApp }) {
       case 'referrals':
         return <ReferralManagement />;
       case 'brokerPayouts':
-        return <BrokerPayoutsView />;
+        return <BrokerPayoutsView onRequestsUpdated={fetchBadges} />;
       case 'ratings':
         return <RatingsManagement />;
       case 'settings':

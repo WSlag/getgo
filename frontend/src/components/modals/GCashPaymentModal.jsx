@@ -1,7 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Wallet,
-  CreditCard,
   Loader2,
   AlertCircle,
   CheckCircle2,
@@ -62,15 +60,29 @@ export function GCashPaymentModal({
   const createOrderRequestKeyRef = useRef(null);
 
   // Watch payment submission status
-  const { submission, loading: submissionLoading } = useOrderSubmission(order?.orderId);
+  const { submission } = useOrderSubmission(order?.orderId);
 
-  const { bid, listing, platformFee } = data || {};
+  const { bid, listing, platformFee, contract } = data || {};
   const agreedPrice = bid?.price || 0;
+  const configuredFeePercent = Number(contract?.platformFeePercentage);
 
   const formatPrice = (price) => {
     if (!price) return 'PHP 0';
     return `PHP ${Number(price).toLocaleString()}`;
   };
+
+  const formatPercent = (percent) =>
+    Number(percent).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+
+  const effectiveFeePercent = agreedPrice > 0
+    ? (Number(platformFee || 0) / Number(agreedPrice)) * 100
+    : null;
+  const feePercentForLabel = Number.isFinite(configuredFeePercent) && configuredFeePercent >= 0
+    ? configuredFeePercent
+    : (Number.isFinite(effectiveFeePercent) ? effectiveFeePercent : null);
+  const platformFeeLabel = feePercentForLabel === null
+    ? 'Platform Fee'
+    : `Platform Fee (${formatPercent(feePercentForLabel)}%)`;
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -223,7 +235,7 @@ export function GCashPaymentModal({
             </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '14px', color: '#6b7280' }}>Platform Fee (5%)</span>
+            <span style={{ fontSize: '14px', color: '#6b7280' }}>{platformFeeLabel}</span>
             <span style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
               {formatPrice(platformFee)}
             </span>

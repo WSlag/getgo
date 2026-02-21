@@ -145,7 +145,7 @@ export function useContractByBid(bidId) {
   return { contract, loading, error };
 }
 
-// Hook for contract actions (create, sign, complete)
+// Hook for contract actions (create, sign, complete, cancel)
 export function useContractActions() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -192,6 +192,20 @@ export function useContractActions() {
     }
   }, []);
 
+  const cancelContract = useCallback(async (contractId, reason) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api.contracts.cancel(contractId, reason);
+      setLoading(false);
+      return result;
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+      throw err;
+    }
+  }, []);
+
   const fetchContracts = useCallback(async (params = {}) => {
     setLoading(true);
     setError(null);
@@ -226,6 +240,7 @@ export function useContractActions() {
     createContract,
     signContract,
     completeContract,
+    cancelContract,
     fetchContracts,
     fetchContract,
   };

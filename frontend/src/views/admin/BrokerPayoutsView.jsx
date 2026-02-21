@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, Landmark, XCircle } from 'lucide-react';
 import api from '@/services/api';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
@@ -24,7 +24,7 @@ function currency(value) {
   return `PHP ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function BrokerPayoutsView() {
+export function BrokerPayoutsView({ onRequestsUpdated }) {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState('');
@@ -33,37 +33,44 @@ export function BrokerPayoutsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
 
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const response = await api.admin.getBrokerPayoutRequests({
-        status: statusFilter === 'all' ? 'all' : statusFilter,
-        limit: 300,
+        status: 'all',
+        limit: 500,
       });
-      setRequests(response?.requests || []);
+      const nextRequests = response?.requests || [];
+      setRequests(nextRequests);
+      onRequestsUpdated?.(nextRequests);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load broker payout requests');
       setRequests([]);
+      onRequestsUpdated?.([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [onRequestsUpdated]);
 
   useEffect(() => {
     loadRequests();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter]);
+    const interval = setInterval(loadRequests, 30000);
+    return () => clearInterval(interval);
+  }, [loadRequests]);
 
   const filtered = useMemo(() => {
-    if (!searchQuery) return requests;
+    const byStatus = statusFilter === 'all'
+      ? requests
+      : requests.filter((row) => row.status === statusFilter);
+    if (!searchQuery) return byStatus;
     const q = searchQuery.toLowerCase();
-    return requests.filter((row) => (
+    return byStatus.filter((row) => (
       row.broker?.name?.toLowerCase().includes(q) ||
       row.broker?.phone?.toLowerCase().includes(q) ||
       row.id?.toLowerCase().includes(q)
     ));
-  }, [requests, searchQuery]);
+  }, [requests, searchQuery, statusFilter]);
 
   const stats = useMemo(() => ({
     pending: requests.filter((r) => r.status === 'pending').length,
@@ -157,7 +164,7 @@ export function BrokerPayoutsView() {
             size="sm"
             disabled={row.status !== 'pending' || actingId === row.id}
             onClick={() => reviewRequest(row, 'approve')}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-sm hover:scale-105 active:scale-95 transition-all duration-300"
           >
             Approve
           </Button>
@@ -188,25 +195,25 @@ export function BrokerPayoutsView() {
           title="Pending Requests"
           value={stats.pending}
           icon={Clock3}
-          iconColor="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
+          iconColor="bg-gradient-to-br from-yellow-400 to-yellow-600 shadow-yellow-500/30"
         />
         <StatCard
           title="Pending Amount"
           value={currency(stats.pendingAmount)}
           icon={Landmark}
-          iconColor="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
+          iconColor="bg-gradient-to-br from-orange-400 to-orange-600 shadow-orange-500/30"
         />
         <StatCard
           title="Approved"
           value={stats.approved}
           icon={CheckCircle2}
-          iconColor="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+          iconColor="bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30"
         />
         <StatCard
           title="Rejected"
           value={stats.rejected}
           icon={XCircle}
-          iconColor="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+          iconColor="bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30"
         />
       </div>
 
