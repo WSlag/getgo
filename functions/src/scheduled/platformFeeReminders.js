@@ -29,8 +29,12 @@ exports.sendPlatformFeeReminders = onSchedule(
     for (const doc of unpaidContracts.docs) {
       const contract = { id: doc.id, ...doc.data() };
 
-      // Skip cancelled and draft contracts
-      if (contract.status === 'cancelled' || contract.status === 'draft') {
+      // Skip contracts that do not carry payable fees.
+      if (
+        contract.status === 'cancelled' ||
+        contract.status === 'draft' ||
+        contract.platformFeeStatus === 'waived'
+      ) {
         continue;
       }
 

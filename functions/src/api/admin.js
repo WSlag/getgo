@@ -37,6 +37,116 @@ function parseLimit(value, fallbackLimit) {
   return Math.min(Math.max(base, 1), 500);
 }
 
+function isPayableOutstandingContract(contract = {}) {
+  if (contract.platformFeePaid === true) return false;
+  if (Number(contract.platformFee || 0) <= 0) return false;
+  if (contract.status === 'cancelled') return false;
+  if (contract.platformFeeStatus === 'waived') return false;
+  return true;
+}
+
+function normalizeStringArray(values) {
+  if (!Array.isArray(values)) return [];
+  return values.filter((value) => typeof value === 'string').sort();
+}
+
+function arraysEqual(a = [], b = []) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+async function reconcileUserOutstandingState(db, userId) {
+  const userRef = db.collection('users').doc(userId);
+  const [userDoc, unpaidContractsSnap] = await Promise.all([
+    userRef.get(),
+    db.collection('contracts')
+      .where('platformFeePayerId', '==', userId)
+      .where('platformFeePaid', '==', false)
+      .get(),
+  ]);
+
+  if (!userDoc.exists) {
+    return {
+      userId,
+      changed: false,
+      skipped: 'user_not_found',
+    };
+  }
+
+  const userData = userDoc.data() || {};
+  const payableContracts = unpaidContractsSnap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter(isPayableOutstandingContract);
+
+  const outstandingTotal = payableContracts.reduce(
+    (sum, contract) => sum + Number(contract.platformFee || 0),
+    0
+  );
+  const outstandingContractIds = payableContracts.map((contract) => contract.id);
+
+  const currentOutstanding = Number(userData.outstandingPlatformFees || 0);
+  const existingContractIds = normalizeStringArray(userData.outstandingFeeContracts);
+  const sortedOutstandingIds = normalizeStringArray(outstandingContractIds);
+
+  const shouldUnsuspend = (
+    userData.accountStatus === 'suspended' &&
+    userData.suspensionReason === 'unpaid_platform_fees' &&
+    outstandingTotal <= 0
+  );
+
+  const needsOutstandingUpdate = (
+    currentOutstanding !== outstandingTotal ||
+    !arraysEqual(existingContractIds, sortedOutstandingIds)
+  );
+
+  if (!needsOutstandingUpdate && !shouldUnsuspend) {
+    return {
+      userId,
+      changed: false,
+      outstandingTotal,
+      outstandingContracts: outstandingContractIds.length,
+      unsuspended: false,
+    };
+  }
+
+  const updates = {
+    outstandingPlatformFees: outstandingTotal,
+    outstandingFeeContracts: outstandingContractIds,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (shouldUnsuspend) {
+    updates.accountStatus = 'active';
+    updates.suspensionReason = null;
+    updates.suspendedAt = null;
+    updates.unsuspendedAt = admin.firestore.FieldValue.serverTimestamp();
+  }
+
+  await userRef.update(updates);
+
+  if (shouldUnsuspend) {
+    await db.collection(`users/${userId}/notifications`).doc().set({
+      type: 'ACCOUNT_UNSUSPENDED',
+      title: 'Account Reactivated',
+      message: 'Your account has been reactivated. No outstanding platform fees remain.',
+      data: { source: 'admin_reconcile_outstanding_fees' },
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  return {
+    userId,
+    changed: true,
+    outstandingTotal,
+    outstandingContracts: outstandingContractIds.length,
+    unsuspended: shouldUnsuspend,
+  };
+}
+
 async function resolveCursor(db, collectionName, cursorId) {
   if (!cursorId || typeof cursorId !== 'string') return null;
   const cursorDoc = await db.collection(collectionName).doc(cursorId).get();
@@ -660,7 +770,9 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
   const lastDoc = unpaidContracts.docs[unpaidContracts.docs.length - 1] || null;
 
   // Batch-fetch trucker data to avoid N+1 queries
-  const rawContracts = unpaidContracts.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+  const rawContracts = unpaidContracts.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(isPayableOutstandingContract)
     .sort((a, b) => {
       const dueDelta = toComparableTimestamp(a.platformFeeDueDate) - toComparableTimestamp(b.platformFeeDueDate);
       if (dueDelta !== 0) return dueDelta;
@@ -725,7 +837,7 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
       suspendedAt: user.suspendedAt,
       contractIds: user.outstandingFeeContracts || [],
     };
-  });
+  }).filter((user) => user.outstandingFees > 0 || user.contractIds.length > 0);
 
   return {
     contracts,
@@ -739,6 +851,65 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
       suspendedUsers: suspendedUsersList.length,
     },
     suspendedUsers: suspendedUsersList,
+  };
+});
+
+/**
+ * Reconcile outstanding platform-fee balances and unpaid-fee suspension state.
+ * - If userId is provided: reconciles that user only.
+ * - Otherwise: reconciles up to `limit` candidate users from unpaid contracts + suspended unpaid-fee users.
+ */
+exports.adminReconcileOutstandingFees = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const { userId, limit = 200 } = data || {};
+  const db = admin.firestore();
+
+  if (userId) {
+    const result = await reconcileUserOutstandingState(db, String(userId));
+    return {
+      mode: 'single',
+      results: [result],
+      totalUsersScanned: 1,
+      totalUsersChanged: result.changed ? 1 : 0,
+    };
+  }
+
+  const safeLimit = parseLimit(limit, 200);
+  const [suspendedUsersSnap, unpaidContractsSnap] = await Promise.all([
+    db.collection('users')
+      .where('suspensionReason', '==', 'unpaid_platform_fees')
+      .limit(safeLimit)
+      .get(),
+    db.collection('contracts')
+      .where('platformFeePaid', '==', false)
+      .limit(safeLimit * 5)
+      .get(),
+  ]);
+
+  const candidateUserIds = new Set();
+  suspendedUsersSnap.docs.forEach((doc) => candidateUserIds.add(doc.id));
+  unpaidContractsSnap.docs.forEach((doc) => {
+    const contract = doc.data() || {};
+    if (contract.platformFeePayerId) {
+      candidateUserIds.add(contract.platformFeePayerId);
+    }
+  });
+
+  const userIds = Array.from(candidateUserIds).slice(0, safeLimit);
+  const results = [];
+  for (const candidateUserId of userIds) {
+    // Sequential updates keep Firestore write pressure predictable in callable context.
+    // eslint-disable-next-line no-await-in-loop
+    const result = await reconcileUserOutstandingState(db, candidateUserId);
+    results.push(result);
+  }
+
+  return {
+    mode: 'batch',
+    totalUsersScanned: results.length,
+    totalUsersChanged: results.filter((item) => item.changed).length,
+    results,
   };
 });
 
