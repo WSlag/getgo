@@ -46,6 +46,8 @@ export function useConversations(userId) {
     const bidMap = new Map();
     const messagesByBid = new Map();
     const messageUnsubs = new Map();
+    const messageRetryCounts = new Map();
+    const messageRetryTimers = new Map();
     let bidderDocs = [];
     let ownerDocs = [];
     let disposed = false;
@@ -86,6 +88,12 @@ export function useConversations(userId) {
         unsubscribe();
         messageUnsubs.delete(bidId);
       }
+      const retryTimer = messageRetryTimers.get(bidId);
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        messageRetryTimers.delete(bidId);
+      }
+      messageRetryCounts.delete(bidId);
       messagesByBid.delete(bidId);
     };
 
@@ -105,6 +113,7 @@ export function useConversations(userId) {
             ...docSnap.data(),
             createdAt: toDate(docSnap.data().createdAt),
           }));
+          messageRetryCounts.delete(bidId);
           messagesByBid.set(bidId, messages);
           recompute();
         },
@@ -112,6 +121,22 @@ export function useConversations(userId) {
           console.error(`Error subscribing messages for bid ${bidId}:`, err);
           messagesByBid.set(bidId, []);
           recompute();
+
+          if (err?.code === 'permission-denied' && !disposed && bidMap.has(bidId)) {
+            const attempts = (messageRetryCounts.get(bidId) || 0) + 1;
+            if (attempts <= 3 && !messageRetryTimers.has(bidId)) {
+              messageRetryCounts.set(bidId, attempts);
+              const delayMs = attempts * 1000;
+              const timer = setTimeout(() => {
+                messageRetryTimers.delete(bidId);
+                const bid = bidMap.get(bidId);
+                if (!disposed && bid && bid.hasPendingWrites !== true) {
+                  subscribeBidMessages(bidId);
+                }
+              }, delayMs);
+              messageRetryTimers.set(bidId, timer);
+            }
+          }
         }
       );
 
@@ -121,14 +146,24 @@ export function useConversations(userId) {
     const syncBids = () => {
       const merged = new Map();
       [...bidderDocs, ...ownerDocs].forEach((docSnap) => {
-        if (merged.has(docSnap.id)) return;
         const bidData = docSnap.data();
-        merged.set(docSnap.id, {
+        const isParticipant = bidData?.bidderId === userId || bidData?.listingOwnerId === userId;
+        if (!isParticipant) return;
+
+        const existing = merged.get(docSnap.id);
+        const nextBid = {
           id: docSnap.id,
           ...bidData,
           createdAt: toDate(bidData.createdAt),
           updatedAt: toDate(bidData.updatedAt),
-        });
+          hasPendingWrites: docSnap.metadata.hasPendingWrites === true,
+        };
+
+        // Prefer server-acknowledged bid snapshots when duplicate docs appear
+        // from both bidder/owner listeners.
+        if (!existing || (existing.hasPendingWrites && !nextBid.hasPendingWrites)) {
+          merged.set(docSnap.id, nextBid);
+        }
       });
 
       for (const bidId of bidMap.keys()) {
@@ -140,6 +175,10 @@ export function useConversations(userId) {
 
       merged.forEach((bid, bidId) => {
         bidMap.set(bidId, bid);
+        if (bid.hasPendingWrites) {
+          unsubscribeBidMessages(bidId);
+          return;
+        }
         subscribeBidMessages(bidId);
       });
 
@@ -157,6 +196,7 @@ export function useConversations(userId) {
 
     const bidderUnsub = onSnapshot(
       query(collection(db, 'bids'), where('bidderId', '==', userId)),
+      { includeMetadataChanges: true },
       (snapshot) => {
         bidderDocs = snapshot.docs;
         syncBids();
@@ -170,6 +210,7 @@ export function useConversations(userId) {
 
     const ownerUnsub = onSnapshot(
       query(collection(db, 'bids'), where('listingOwnerId', '==', userId)),
+      { includeMetadataChanges: true },
       (snapshot) => {
         ownerDocs = snapshot.docs;
         syncBids();
@@ -187,6 +228,9 @@ export function useConversations(userId) {
       ownerUnsub();
       messageUnsubs.forEach((unsubscribe) => unsubscribe());
       messageUnsubs.clear();
+      messageRetryTimers.forEach((timer) => clearTimeout(timer));
+      messageRetryTimers.clear();
+      messageRetryCounts.clear();
       bidMap.clear();
       messagesByBid.clear();
     };
