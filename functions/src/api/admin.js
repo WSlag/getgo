@@ -6,6 +6,12 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { verifyAdmin } = require('../utils/adminAuth');
+const {
+  loadPlatformSettings,
+  savePlatformSettings,
+  mergePlatformSettings,
+  validatePlatformSettingsPatch,
+} = require('../config/platformSettings');
 
 function safeErrorMessage(error) {
   if (!error) return 'Unknown error';
@@ -27,6 +33,49 @@ async function resolveCursor(db, collectionName, cursorId) {
   const cursorDoc = await db.collection(collectionName).doc(cursorId).get();
   return cursorDoc.exists ? cursorDoc : null;
 }
+
+/**
+ * Get platform/system settings.
+ */
+exports.adminGetSystemSettings = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+  const db = admin.firestore();
+  const settings = await loadPlatformSettings(db, { forceRefresh: true });
+  return { settings };
+});
+
+/**
+ * Update platform/system settings.
+ */
+exports.adminUpdateSystemSettings = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const patch = data?.settings;
+  if (!patch || typeof patch !== 'object') {
+    throw new functions.https.HttpsError('invalid-argument', 'settings object is required');
+  }
+
+  try {
+    validatePlatformSettingsPatch(patch);
+  } catch (error) {
+    throw new functions.https.HttpsError('invalid-argument', error.message || 'Invalid settings payload');
+  }
+
+  const db = admin.firestore();
+  const current = await loadPlatformSettings(db, { forceRefresh: true });
+  const merged = mergePlatformSettings(current, patch);
+  const saved = await savePlatformSettings(db, merged, context.auth.uid);
+
+  await db.collection('adminLogs').add({
+    action: 'UPDATE_SYSTEM_SETTINGS',
+    targetId: 'settings/platform',
+    performedBy: context.auth.uid,
+    performedAt: admin.firestore.FieldValue.serverTimestamp(),
+    changes: patch,
+  });
+
+  return { success: true, settings: saved };
+});
 
 /**
  * Get Dashboard Statistics

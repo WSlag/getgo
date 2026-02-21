@@ -6,8 +6,12 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const {
+  loadPlatformSettings,
+  calculatePlatformFeeAmount,
+  shouldBlockForMaintenance,
+} = require('../config/platformSettings');
 
-const PLATFORM_FEE_RATE = 0.05; // 5%
 const IDEMPOTENCY_COLLECTION = 'idempotency';
 const ACTIVE_PLATFORM_FEE_ORDER_STATUSES = new Set(['awaiting_upload', 'pending', 'submitted', 'processing']);
 const isProductionRuntime = process.env.NODE_ENV === 'production';
@@ -24,7 +28,7 @@ if (isProductionRuntime && (!process.env.GCASH_ACCOUNT_NUMBER || !process.env.GC
   console.warn('GCash env vars missing at module init; wallet calls will fail until env is configured.');
 }
 
-const GCASH_CONFIG = {
+const BASE_GCASH_CONFIG = {
   accountNumber: process.env.GCASH_ACCOUNT_NUMBER || null,
   accountName: process.env.GCASH_ACCOUNT_NAME || null,
   qrCodeUrl: process.env.GCASH_QR_URL || null,
@@ -33,8 +37,19 @@ const GCASH_CONFIG = {
   orderExpiryMinutes: 30,
 };
 
-function assertGcashConfigured() {
-  if (!GCASH_CONFIG.accountNumber || !GCASH_CONFIG.accountName) {
+function resolveRuntimeGcashConfig(platformSettings = null) {
+  return {
+    accountNumber: platformSettings?.gcash?.accountNumber || BASE_GCASH_CONFIG.accountNumber,
+    accountName: platformSettings?.gcash?.accountName || BASE_GCASH_CONFIG.accountName,
+    qrCodeUrl: platformSettings?.gcash?.qrCodeUrl || BASE_GCASH_CONFIG.qrCodeUrl,
+    maxDailyTopup: BASE_GCASH_CONFIG.maxDailyTopup,
+    maxDailySubmissions: BASE_GCASH_CONFIG.maxDailySubmissions,
+    orderExpiryMinutes: BASE_GCASH_CONFIG.orderExpiryMinutes,
+  };
+}
+
+function assertGcashConfigured(gcashConfig) {
+  if (!gcashConfig.accountNumber || !gcashConfig.accountName) {
     throw new HttpsError(
       'failed-precondition',
       'GCash configuration is missing. Contact support.'
@@ -82,30 +97,30 @@ function timestampToMillis(value) {
   return 0;
 }
 
-function buildPlatformOrderResponse(orderData) {
+function buildPlatformOrderResponse(orderData, gcashConfig) {
   const expiresAtDate = orderData.expiresAt?.toDate ? orderData.expiresAt.toDate() : null;
   return {
     orderId: orderData.orderId,
     bidId: orderData.bidId,
     amount: orderData.amount,
-    gcashAccountNumber: maskPhoneNumber(orderData.gcashAccountNumber || GCASH_CONFIG.accountNumber),
-    gcashAccountName: orderData.gcashAccountName || GCASH_CONFIG.accountName,
-    gcashQrUrl: orderData.gcashQrUrl || GCASH_CONFIG.qrCodeUrl,
+    gcashAccountNumber: maskPhoneNumber(orderData.gcashAccountNumber || gcashConfig.accountNumber),
+    gcashAccountName: orderData.gcashAccountName || gcashConfig.accountName,
+    gcashQrUrl: orderData.gcashQrUrl || gcashConfig.qrCodeUrl,
     expiresAt: expiresAtDate ? expiresAtDate.toISOString() : null,
-    expiresInMinutes: GCASH_CONFIG.orderExpiryMinutes,
+    expiresInMinutes: gcashConfig.orderExpiryMinutes,
   };
 }
 
-function buildTopUpOrderResponse(orderData) {
+function buildTopUpOrderResponse(orderData, gcashConfig) {
   const expiresAtDate = orderData.expiresAt?.toDate ? orderData.expiresAt.toDate() : null;
   return {
     orderId: orderData.orderId,
     amount: parseFloat(orderData.amount),
-    gcashAccountNumber: maskPhoneNumber(orderData.gcashAccountNumber || GCASH_CONFIG.accountNumber),
-    gcashAccountName: orderData.gcashAccountName || GCASH_CONFIG.accountName,
-    gcashQrUrl: orderData.gcashQrUrl || GCASH_CONFIG.qrCodeUrl,
+    gcashAccountNumber: maskPhoneNumber(orderData.gcashAccountNumber || gcashConfig.accountNumber),
+    gcashAccountName: orderData.gcashAccountName || gcashConfig.accountName,
+    gcashQrUrl: orderData.gcashQrUrl || gcashConfig.qrCodeUrl,
     expiresAt: expiresAtDate ? expiresAtDate.toISOString() : null,
-    expiresInMinutes: GCASH_CONFIG.orderExpiryMinutes,
+    expiresInMinutes: gcashConfig.orderExpiryMinutes,
   };
 }
 
@@ -129,7 +144,6 @@ exports.createPlatformFeeOrder = onCall(
     if (!context.auth) {
       throw new HttpsError('unauthenticated', 'Must be authenticated');
     }
-    assertGcashConfigured();
 
     const { bidId, idempotencyKey: rawIdempotencyKey } = data;
     const userId = context.auth.uid;
@@ -140,6 +154,16 @@ exports.createPlatformFeeOrder = onCall(
     }
 
   const db = admin.firestore();
+  const platformSettings = await loadPlatformSettings(db);
+  const runtimeGcashConfig = resolveRuntimeGcashConfig(platformSettings);
+  assertGcashConfigured(runtimeGcashConfig);
+  if (shouldBlockForMaintenance(platformSettings, context.auth?.token)) {
+    throw new HttpsError('failed-precondition', 'Platform is currently under maintenance');
+  }
+  if (platformSettings?.features?.paymentVerificationEnabled === false) {
+    throw new HttpsError('failed-precondition', 'GCash payment verification is currently disabled');
+  }
+
   const lockRef = getIdempotencyLockRef(db, userId, 'createPlatformFeeOrder', idempotencyKey);
 
   const result = await db.runTransaction(async (tx) => {
@@ -206,7 +230,7 @@ exports.createPlatformFeeOrder = onCall(
     }
 
     // Use contract fee when available to avoid pricing drift
-    const platformFee = contract?.platformFee || Math.round(bid.price * PLATFORM_FEE_RATE);
+    const platformFee = contract?.platformFee || calculatePlatformFeeAmount(bid.price, platformSettings);
 
     // Check if fee already paid
     const existingFeeSnap = await tx.get(
@@ -267,7 +291,7 @@ exports.createPlatformFeeOrder = onCall(
 
     // Create order
     const orderId = generateOrderId();
-    const expiresAt = new Date(Date.now() + GCASH_CONFIG.orderExpiryMinutes * 60 * 1000);
+    const expiresAt = new Date(Date.now() + runtimeGcashConfig.orderExpiryMinutes * 60 * 1000);
 
     const contractId = contract?.id || null;
     if (contractRef) {
@@ -289,10 +313,10 @@ exports.createPlatformFeeOrder = onCall(
       amount: platformFee,
       method: 'gcash',
       status: 'awaiting_upload',
-      gcashAccountNumber: GCASH_CONFIG.accountNumber,
-      gcashAccountName: GCASH_CONFIG.accountName,
-      expectedReceiverName: GCASH_CONFIG.accountName,
-      gcashQrUrl: GCASH_CONFIG.qrCodeUrl,
+      gcashAccountNumber: runtimeGcashConfig.accountNumber,
+      gcashAccountName: runtimeGcashConfig.accountName,
+      expectedReceiverName: runtimeGcashConfig.accountName,
+      gcashQrUrl: runtimeGcashConfig.qrCodeUrl,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -316,7 +340,7 @@ exports.createPlatformFeeOrder = onCall(
     return {
       success: true,
       reused: result.reused,
-      order: buildPlatformOrderResponse(result.orderData),
+      order: buildPlatformOrderResponse(result.orderData, runtimeGcashConfig),
     };
   }
 );
@@ -334,7 +358,6 @@ exports.createTopUpOrder = onCall(
     if (!context.auth) {
       throw new HttpsError('unauthenticated', 'Must be authenticated');
     }
-    assertGcashConfigured();
 
     const { amount, idempotencyKey: rawIdempotencyKey } = data;
     const userId = context.auth.uid;
@@ -344,14 +367,24 @@ exports.createTopUpOrder = onCall(
       throw new HttpsError('invalid-argument', 'Valid amount is required');
     }
 
-  if (amount > GCASH_CONFIG.maxDailyTopup) {
+  const db = admin.firestore();
+  const platformSettings = await loadPlatformSettings(db);
+  const runtimeGcashConfig = resolveRuntimeGcashConfig(platformSettings);
+  assertGcashConfigured(runtimeGcashConfig);
+  if (shouldBlockForMaintenance(platformSettings, context.auth?.token)) {
+    throw new HttpsError('failed-precondition', 'Platform is currently under maintenance');
+  }
+  if (platformSettings?.features?.paymentVerificationEnabled === false) {
+    throw new HttpsError('failed-precondition', 'GCash payment verification is currently disabled');
+  }
+
+  if (amount > runtimeGcashConfig.maxDailyTopup) {
     throw new HttpsError(
       'invalid-argument',
-      `Maximum top-up amount is ₱${GCASH_CONFIG.maxDailyTopup.toLocaleString()}`
+      `Maximum top-up amount is ₱${runtimeGcashConfig.maxDailyTopup.toLocaleString()}`
     );
   }
 
-  const db = admin.firestore();
   const lockRef = getIdempotencyLockRef(db, userId, 'createTopUpOrder', idempotencyKey);
 
   const result = await db.runTransaction(async (tx) => {
@@ -382,16 +415,16 @@ exports.createTopUpOrder = onCall(
         .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(today))
     );
 
-    if (todayOrdersSnapshot.size >= GCASH_CONFIG.maxDailySubmissions) {
+    if (todayOrdersSnapshot.size >= runtimeGcashConfig.maxDailySubmissions) {
       throw new HttpsError(
         'resource-exhausted',
-        `Daily limit reached. Maximum ${GCASH_CONFIG.maxDailySubmissions} top-up attempts per day.`
+        `Daily limit reached. Maximum ${runtimeGcashConfig.maxDailySubmissions} top-up attempts per day.`
       );
     }
 
     // Create order
     const orderId = generateOrderId();
-    const expiresAt = new Date(Date.now() + GCASH_CONFIG.orderExpiryMinutes * 60 * 1000);
+    const expiresAt = new Date(Date.now() + runtimeGcashConfig.orderExpiryMinutes * 60 * 1000);
 
     const orderData = {
       orderId,
@@ -400,10 +433,10 @@ exports.createTopUpOrder = onCall(
       amount: parseFloat(amount),
       method: 'gcash',
       status: 'awaiting_upload',
-      gcashAccountNumber: GCASH_CONFIG.accountNumber,
-      gcashAccountName: GCASH_CONFIG.accountName,
-      expectedReceiverName: GCASH_CONFIG.accountName,
-      gcashQrUrl: GCASH_CONFIG.qrCodeUrl,
+      gcashAccountNumber: runtimeGcashConfig.accountNumber,
+      gcashAccountName: runtimeGcashConfig.accountName,
+      expectedReceiverName: runtimeGcashConfig.accountName,
+      gcashQrUrl: runtimeGcashConfig.qrCodeUrl,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -427,7 +460,7 @@ exports.createTopUpOrder = onCall(
     return {
       success: true,
       reused: result.reused,
-      order: buildTopUpOrderResponse(result.orderData),
+      order: buildTopUpOrderResponse(result.orderData, runtimeGcashConfig),
     };
   }
 );
@@ -444,14 +477,17 @@ exports.getGcashConfig = onCall(
     if (!context.auth) {
       throw new HttpsError('unauthenticated', 'Must be authenticated');
     }
-    assertGcashConfigured();
+    const runtimeSettings = await loadPlatformSettings(admin.firestore());
+    const runtimeGcashConfig = resolveRuntimeGcashConfig(runtimeSettings);
+    assertGcashConfigured(runtimeGcashConfig);
 
     return {
-      accountName: GCASH_CONFIG.accountName,
-      accountNumber: maskPhoneNumber(GCASH_CONFIG.accountNumber),
-      qrCodeUrl: GCASH_CONFIG.qrCodeUrl,
-      maxDailyTopup: GCASH_CONFIG.maxDailyTopup,
-      orderExpiryMinutes: GCASH_CONFIG.orderExpiryMinutes,
+      accountName: runtimeGcashConfig.accountName,
+      accountNumber: maskPhoneNumber(runtimeGcashConfig.accountNumber),
+      qrCodeUrl: runtimeGcashConfig.qrCodeUrl,
+      maxDailyTopup: runtimeGcashConfig.maxDailyTopup,
+      orderExpiryMinutes: runtimeGcashConfig.orderExpiryMinutes,
+      paymentVerificationEnabled: runtimeSettings?.features?.paymentVerificationEnabled !== false,
     };
   }
 );
@@ -531,4 +567,5 @@ exports.getPendingOrders = onCall(
     return { orders };
   }
 );
+
 

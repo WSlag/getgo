@@ -27,6 +27,7 @@ const {
 } = require('./src/services/fraud');
 const { createContractFromApprovedFee } = require('./src/services/contractCreation');
 const { isTrustedPaymentScreenshotUrl } = require('./src/utils/storageUrl');
+const { loadPlatformSettings } = require('./src/config/platformSettings');
 
 const { verifyAdmin } = require('./src/utils/adminAuth');
 
@@ -178,7 +179,14 @@ exports.processPaymentSubmission = onDocumentCreated(
       });
 
       // Step 9: Determine final status
-      const finalStatus = determineFinalStatus(validationResults, fraudResults);
+      let finalStatus = determineFinalStatus(validationResults, fraudResults);
+      const platformSettings = await loadPlatformSettings(db);
+      if (
+        finalStatus === 'approved' &&
+        platformSettings?.features?.autoApproveLowRiskPayments === false
+      ) {
+        finalStatus = 'manual_review';
+      }
 
       // Step 10: Update submission with all results
       const updateData = {
@@ -731,11 +739,50 @@ exports.getPaymentStats = onCall(
 
     const approvedToday = approvedTodaySnapshot.size;
     const rejectedToday = rejectedTodaySnapshot.size;
+
+    const parseAmount = (raw) => {
+      if (raw === null || raw === undefined) return 0;
+      if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+      if (typeof raw === 'string') {
+        const normalized = raw.replace(/[^0-9.-]/g, '');
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+      return 0;
+    };
+
     let totalAmountToday = 0;
+    const fallbackOrderIds = [];
+
     approvedTodaySnapshot.docs.forEach((docSnap) => {
       const submission = docSnap.data() || {};
-      totalAmountToday += Number(submission.orderAmount || submission.amount || 0);
+      const candidateAmount =
+        parseAmount(submission.orderAmount) ||
+        parseAmount(submission.amount) ||
+        parseAmount(submission.extractedData?.amount);
+
+      if (candidateAmount > 0) {
+        totalAmountToday += candidateAmount;
+      } else if (submission.orderId) {
+        fallbackOrderIds.push(submission.orderId);
+      }
     });
+
+    if (fallbackOrderIds.length > 0) {
+      try {
+        const uniqueOrderIds = [...new Set(fallbackOrderIds)];
+        const orderRefs = uniqueOrderIds.map((orderId) => db.collection('orders').doc(orderId));
+        const orderDocs = await db.getAll(...orderRefs);
+
+        orderDocs.forEach((orderDoc) => {
+          if (!orderDoc.exists) return;
+          const order = orderDoc.data() || {};
+          totalAmountToday += parseAmount(order.amount);
+        });
+      } catch (error) {
+        console.error('Error resolving order amounts for payment stats:', safeErrorMessage(error));
+      }
+    }
 
     const payload = {
       pending: pending.data().count,
@@ -1089,6 +1136,8 @@ exports.getPendingRatings = ratingFunctions.getPendingRatings;
 
 const adminFunctions = require('./src/api/admin');
 exports.adminGetDashboardStats = adminFunctions.adminGetDashboardStats;
+exports.adminGetSystemSettings = adminFunctions.adminGetSystemSettings;
+exports.adminUpdateSystemSettings = adminFunctions.adminUpdateSystemSettings;
 exports.adminGetPendingPayments = adminFunctions.adminGetPendingPayments;
 exports.adminGetUsers = adminFunctions.adminGetUsers;
 exports.adminSuspendUser = adminFunctions.adminSuspendUser;

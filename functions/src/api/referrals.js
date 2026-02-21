@@ -6,6 +6,10 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const {
+  loadPlatformSettings,
+  shouldBlockForMaintenance,
+} = require('../config/platformSettings');
 
 const REGION = 'asia-southeast1';
 const MIN_PAYOUT_AMOUNT = 500;
@@ -30,6 +34,19 @@ function buildBrokerCodePrefix(role) {
 function roundToCents(value) {
   const n = Number(value || 0);
   return Math.round(n * 100) / 100;
+}
+
+async function assertReferralProgramEnabled(db, context) {
+  const settings = await loadPlatformSettings(db);
+  if (shouldBlockForMaintenance(settings, context?.auth?.token)) {
+    throw new functions.https.HttpsError('failed-precondition', 'Platform is currently under maintenance');
+  }
+  if (settings?.features?.referralProgramEnabled === false) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Referral program is currently disabled by admin'
+    );
+  }
 }
 
 async function verifyAdmin(context) {
@@ -103,6 +120,7 @@ exports.brokerRegister = functions.region(REGION).https.onCall(async (data, cont
   }
 
   const db = admin.firestore();
+  await assertReferralProgramEnabled(db, context);
   const userId = context.auth.uid;
   const userRef = db.collection('users').doc(userId);
   const brokerRef = db.collection('brokers').doc(userId);
@@ -190,6 +208,7 @@ exports.brokerApplyReferralCode = functions.region(REGION).https.onCall(async (d
   }
 
   const db = admin.firestore();
+  await assertReferralProgramEnabled(db, context);
   const referredUserId = context.auth.uid;
   const referralRef = db.collection('brokerReferrals').doc(referredUserId);
   const referredUserRef = db.collection('users').doc(referredUserId);
@@ -330,6 +349,10 @@ exports.brokerRequestPayout = functions.region(REGION).https.onCall(async (data,
   }
 
   const db = admin.firestore();
+  const settings = await loadPlatformSettings(db);
+  if (shouldBlockForMaintenance(settings, context?.auth?.token)) {
+    throw new functions.https.HttpsError('failed-precondition', 'Platform is currently under maintenance');
+  }
   const brokerId = context.auth.uid;
   const amount = roundToCents(data?.amount);
   const method = String(data?.method || 'gcash').toLowerCase();

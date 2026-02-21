@@ -6,8 +6,6 @@ import {
   XCircle,
   Clock,
   Eye,
-  Search,
-  RefreshCw,
   ExternalLink,
   AlertCircle,
   Loader2,
@@ -103,14 +101,40 @@ function FraudScoreIndicator({ score }) {
   );
 }
 
-// Fraud score badge (compact version)
-function FraudScoreBadge({ score }) {
-  const style = getFraudScoreStyle(score);
-  return (
-    <span className={cn('px-2 py-1 rounded-lg text-xs font-bold', style.bg, style.color)}>
-      Score: {score}
-    </span>
-  );
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+function toDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  if (typeof value?.seconds === 'number') return new Date(value.seconds * 1000);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getDueStatus(contract) {
+  const dueDate = toDateValue(contract?.platformFeeDueDate);
+  if (!dueDate) return { state: 'unknown', label: 'No due date', days: null, dueDate: null };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dueDay = new Date(dueDate);
+  dueDay.setHours(0, 0, 0, 0);
+
+  const dayDiff = Math.round((today.getTime() - dueDay.getTime()) / DAY_IN_MS);
+  if (dayDiff > 0 || contract?.platformFeeStatus === 'overdue') {
+    return { state: 'overdue', label: `Overdue by ${dayDiff}d`, days: dayDiff, dueDate };
+  }
+  if (dayDiff === 0) {
+    return { state: 'due_today', label: 'Due today', days: 0, dueDate };
+  }
+
+  const daysUntilDue = Math.abs(dayDiff);
+  if (daysUntilDue <= 3) {
+    return { state: 'due_soon', label: `Due in ${daysUntilDue}d`, days: daysUntilDue, dueDate };
+  }
+  return { state: 'upcoming', label: `Due in ${daysUntilDue}d`, days: daysUntilDue, dueDate };
 }
 
 // Payment detail modal
@@ -397,15 +421,26 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
 export function PaymentsView({ className }) {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [submissions, setSubmissions] = useState([]);
+  const [outstandingContracts, setOutstandingContracts] = useState([]);
+  const [outstandingSummary, setOutstandingSummary] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [outstandingLoading, setOutstandingLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [outstandingError, setOutstandingError] = useState(null);
   const [filter, setFilter] = useState('manual_review');
+  const [outstandingFilter, setOutstandingFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [outstandingSearchQuery, setOutstandingSearchQuery] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const resolvedStats = stats?.stats || stats || {};
+
+  const dueSoonCount = outstandingContracts.filter((contract) => {
+    const due = getDueStatus(contract);
+    return due.state === 'due_today' || due.state === 'due_soon';
+  }).length;
 
   // Fetch pending submissions
   const fetchSubmissions = async () => {
@@ -432,10 +467,29 @@ export function PaymentsView({ className }) {
     }
   };
 
+  const fetchOutstandingFees = async () => {
+    setOutstandingLoading(true);
+    setOutstandingError(null);
+    try {
+      const data = await api.admin.getOutstandingFees({ limit: 300 });
+      setOutstandingContracts(data.contracts || []);
+      setOutstandingSummary(data.summary || null);
+    } catch (err) {
+      console.error('Error fetching outstanding platform fees:', err);
+      setOutstandingError(err.message || 'Failed to load outstanding platform fees');
+    } finally {
+      setOutstandingLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchSubmissions();
     fetchStats();
   }, [filter]);
+
+  useEffect(() => {
+    fetchOutstandingFees();
+  }, []);
 
   // Handle approve
   const handleApprove = async (submissionId, notes) => {
@@ -446,6 +500,7 @@ export function PaymentsView({ className }) {
       setSelectedSubmission(null);
       fetchSubmissions();
       fetchStats();
+      fetchOutstandingFees();
     } catch (err) {
       console.error('Error approving payment:', err);
       setError(err.message || 'Failed to approve payment');
@@ -463,6 +518,7 @@ export function PaymentsView({ className }) {
       setSelectedSubmission(null);
       fetchSubmissions();
       fetchStats();
+      fetchOutstandingFees();
     } catch (err) {
       console.error('Error rejecting payment:', err);
       setError(err.message || 'Failed to reject payment');
@@ -485,6 +541,30 @@ export function PaymentsView({ className }) {
       s.orderId?.toLowerCase().includes(query) ||
       s.userId?.toLowerCase().includes(query) ||
       s.extractedData?.referenceNumber?.toLowerCase().includes(query)
+    );
+  });
+
+  const filteredOutstandingContracts = outstandingContracts.filter((contract) => {
+    const due = getDueStatus(contract);
+
+    if (outstandingFilter === 'due_soon' && !(due.state === 'due_today' || due.state === 'due_soon')) {
+      return false;
+    }
+    if (outstandingFilter === 'overdue' && due.state !== 'overdue') {
+      return false;
+    }
+    if (outstandingFilter === 'suspended' && contract.truckerAccountStatus !== 'suspended') {
+      return false;
+    }
+
+    if (!outstandingSearchQuery) return true;
+    const query = outstandingSearchQuery.toLowerCase();
+    return (
+      contract.contractNumber?.toLowerCase().includes(query) ||
+      contract.id?.toLowerCase().includes(query) ||
+      contract.truckerName?.toLowerCase().includes(query) ||
+      contract.truckerEmail?.toLowerCase().includes(query) ||
+      contract.platformFeePayerId?.toLowerCase().includes(query)
     );
   });
 
@@ -580,6 +660,94 @@ export function PaymentsView({ className }) {
     },
   ];
 
+  const outstandingColumns = [
+    {
+      key: 'contract',
+      header: 'Contract',
+      render: (_, row) => (
+        <div>
+          <p className="font-medium text-gray-900 dark:text-white text-sm">
+            {row.contractNumber || row.id?.slice(0, 10)}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+            {row.id?.slice(0, 12)}...
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'trucker',
+      header: 'Trucker',
+      render: (_, row) => (
+        <div>
+          <p className="font-medium text-gray-900 dark:text-white text-sm">
+            {row.truckerName || 'Unknown'}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {row.truckerEmail || row.platformFeePayerId?.slice(0, 12) || 'No email'}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'fee',
+      header: 'Platform Fee',
+      render: (_, row) => (
+        <span className="font-semibold text-gray-900 dark:text-white">
+          PHP {formatPrice(row.platformFee || 0)}
+        </span>
+      ),
+    },
+    {
+      key: 'dueDate',
+      header: 'Due Date',
+      render: (_, row) => {
+        const due = getDueStatus(row);
+        return (
+          <div>
+            <p className="text-sm text-gray-900 dark:text-white">
+              {due.dueDate ? formatDate(due.dueDate, { year: undefined }) : 'N/A'}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{due.label}</p>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'status',
+      header: 'Fee Status',
+      render: (_, row) => {
+        const due = getDueStatus(row);
+        const config = {
+          overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+          due_today: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+          due_soon: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+          upcoming: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+          unknown: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+        };
+        return (
+          <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium', config[due.state] || config.unknown)}>
+            {due.label}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'account',
+      header: 'Account',
+      render: (_, row) => (
+        <span className={cn(
+          'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium',
+          row.truckerAccountStatus === 'suspended'
+            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+        )}>
+          {row.truckerAccountStatus === 'suspended' ? 'Suspended' : 'Active'}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className={className} style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
       {/* Stats Cards */}
@@ -605,7 +773,7 @@ export function PaymentsView({ className }) {
           />
           <StatCard
             title="Total Today"
-            value={`₱${formatPrice(resolvedStats.totalAmountToday || 0)}`}
+            value={`PHP ${formatPrice(resolvedStats.totalAmountToday || 0)}`}
             icon={PesoIcon}
             iconColor="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
           />
@@ -652,6 +820,86 @@ export function PaymentsView({ className }) {
           </>
         }
       />
+
+      {/* Outstanding Platform Fees */}
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Platform Fee Dues
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              All unpaid platform fees, including due and overdue balances.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
+          <StatCard
+            title="Unpaid Fees"
+            value={outstandingSummary?.totalContracts || outstandingContracts.length}
+            icon={Clock}
+            iconColor="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+          />
+          <StatCard
+            title="Due Soon"
+            value={dueSoonCount}
+            icon={AlertTriangle}
+            iconColor="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
+          />
+          <StatCard
+            title="Overdue"
+            value={outstandingSummary?.overdueCount || 0}
+            icon={XCircle}
+            iconColor="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+          />
+          <StatCard
+            title="Total Outstanding"
+            value={`PHP ${formatPrice(outstandingSummary?.totalOutstanding || 0)}`}
+            icon={PesoIcon}
+            iconColor="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+          />
+        </div>
+
+        {outstandingError && (
+          <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+              <AlertCircle className="size-5" />
+              <span>{outstandingError}</span>
+            </div>
+          </div>
+        )}
+
+        <DataTable
+          columns={outstandingColumns}
+          data={filteredOutstandingContracts}
+          loading={outstandingLoading}
+          emptyMessage="No outstanding platform fees found"
+          emptyIcon={CheckCircle2}
+          searchable
+          searchQuery={outstandingSearchQuery}
+          onSearchChange={setOutstandingSearchQuery}
+          searchPlaceholder="Search by contract, trucker, email, or payer ID..."
+          filters={(
+            <>
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'due_soon', label: 'Due Soon' },
+                { id: 'overdue', label: 'Overdue' },
+                { id: 'suspended', label: 'Suspended' },
+              ].map(({ id, label }) => (
+                <FilterButton
+                  key={id}
+                  active={outstandingFilter === id}
+                  onClick={() => setOutstandingFilter(id)}
+                >
+                  {label}
+                </FilterButton>
+              ))}
+            </>
+          )}
+        />
+      </div>
 
       {/* Payment Detail Modal */}
       <PaymentDetailModal
