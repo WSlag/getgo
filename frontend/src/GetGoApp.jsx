@@ -373,6 +373,7 @@ export default function GetGoApp() {
   // Create currentUser object for suspension banner and other features
   const currentUser = authUser && userProfile ? {
     id: authUser.uid,
+    uid: authUser.uid,
     ...userProfile
   } : null;
   const isAccountSuspended = currentUser?.accountStatus === 'suspended' || currentUser?.isActive === false;

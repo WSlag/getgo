@@ -14,7 +14,8 @@ export function BidsView({
   darkMode = false,
   embedded = false, // Skip header when embedded in ActivityView
 }) {
-  const { bids, loading } = useMyBids(currentUser?.uid);
+  const userId = currentUser?.uid || currentUser?.id;
+  const { bids, loading } = useMyBids(userId);
   const isMobile = useMediaQuery('(max-width: 1023px)');
 
   const formatPrice = (price) => {
