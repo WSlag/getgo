@@ -13,8 +13,9 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, getDocs, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '@/firebase';
+import api from '@/services/api';
 
 // Status badge
 function StatusBadge({ status }) {
@@ -115,13 +116,10 @@ export function ListingsManagement() {
   // Handle deactivate listing
   const handleDeactivate = async (listing) => {
     try {
-      const collectionName = listing.type === 'cargo' ? 'cargoListings' : 'truckListings';
-      await updateDoc(doc(db, collectionName, listing.id), {
-        status: 'deactivated',
-        deactivatedAt: new Date(),
-        deactivatedBy: 'ADMIN',
+      await api.admin.deactivateListing(listing.id, listing.type, {
+        reason: 'Deactivated via admin dashboard',
       });
-      fetchListings();
+      await fetchListings();
     } catch (error) {
       console.error('Error deactivating listing:', error);
     }

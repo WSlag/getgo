@@ -205,6 +205,9 @@ const api = {
     toggleAdmin: (userId, grant) => callFunction('adminToggleAdmin', { userId, grant }),
 
     getContracts: (params) => callFunction('adminGetContracts', params || {}),
+    deactivateListing: (listingId, listingType, data = {}) =>
+      callFunction('adminDeactivateListing', { listingId, listingType, ...data }),
+    deleteRating: (ratingId) => callFunction('adminDeleteRating', { ratingId }),
 
     getFinancialSummary: () => callFunction('adminGetFinancialSummary', {}),
     getMarketplaceKpis: (params) => callFunction('adminGetMarketplaceKpis', params || {}),

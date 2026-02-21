@@ -3,17 +3,22 @@
  * Sends notifications when bids are created, accepted, or rejected
  */
 
-const functions = require('firebase-functions');
+const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 
 /**
  * Notify listing owner when a new bid is placed
  */
-exports.onBidCreated = functions.region('asia-southeast1').firestore
-  .document('bids/{bidId}')
-  .onCreate(async (snap, context) => {
+exports.onBidCreated = onDocumentCreated(
+  {
+    region: 'asia-southeast1',
+    document: 'bids/{bidId}',
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return null;
     const bid = snap.data();
-    const bidId = context.params.bidId;
+    const bidId = event.params.bidId;
     const db = admin.firestore();
 
     // Get bidder name
@@ -67,17 +72,23 @@ exports.onBidCreated = functions.region('asia-southeast1').firestore
     }
 
     return null;
-  });
+  }
+);
 
 /**
  * Notify both parties when a bid is accepted or rejected
  */
-exports.onBidStatusChanged = functions.region('asia-southeast1').firestore
-  .document('bids/{bidId}')
-  .onUpdate(async (change, context) => {
+exports.onBidStatusChanged = onDocumentUpdated(
+  {
+    region: 'asia-southeast1',
+    document: 'bids/{bidId}',
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) return null;
     const before = change.before.data();
     const after = change.after.data();
-    const bidId = context.params.bidId;
+    const bidId = event.params.bidId;
 
     // Only trigger if status changed
     if (before.status === after.status) {
@@ -137,18 +148,24 @@ exports.onBidStatusChanged = functions.region('asia-southeast1').firestore
     }
 
     return null;
-  });
+  }
+);
 
 /**
  * Create contract immediately when bid is accepted
  * No payment blocking - contract created right away
  */
-exports.onBidAccepted = functions.region('asia-southeast1').firestore
-  .document('bids/{bidId}')
-  .onUpdate(async (change, context) => {
+exports.onBidAccepted = onDocumentUpdated(
+  {
+    region: 'asia-southeast1',
+    document: 'bids/{bidId}',
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) return null;
     const before = change.before.data();
     const after = change.after.data();
-    const bidId = context.params.bidId;
+    const bidId = event.params.bidId;
 
     // Only trigger when status changes to 'accepted'
     if (before.status !== 'accepted' && after.status === 'accepted') {
@@ -201,4 +218,5 @@ exports.onBidAccepted = functions.region('asia-southeast1').firestore
     }
 
     return null;
-  });
+  }
+);

@@ -3,7 +3,7 @@
  * Handles wallet operations: platform fee payment, top-up orders, GCash config
  */
 
-const functions = require('firebase-functions');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
 
@@ -15,7 +15,7 @@ const isProductionRuntime = process.env.NODE_ENV === 'production';
 function checkAppToken(context) {
   if (process.env.APP_CHECK_ENFORCED !== 'true') return;
   if (context.app === undefined) {
-    throw new functions.https.HttpsError('failed-precondition', 'App Check verification required');
+    throw new HttpsError('failed-precondition', 'App Check verification required');
   }
 }
 
@@ -35,7 +35,7 @@ const GCASH_CONFIG = {
 
 function assertGcashConfigured() {
   if (!GCASH_CONFIG.accountNumber || !GCASH_CONFIG.accountName) {
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       'failed-precondition',
       'GCash configuration is missing. Contact support.'
     );
@@ -54,15 +54,15 @@ function normalizeIdempotencyKey(rawKey) {
     return null;
   }
   if (typeof rawKey !== 'string') {
-    throw new functions.https.HttpsError('invalid-argument', 'idempotencyKey must be a string');
+    throw new HttpsError('invalid-argument', 'idempotencyKey must be a string');
   }
 
   const trimmed = rawKey.trim();
   if (!trimmed) {
-    throw new functions.https.HttpsError('invalid-argument', 'idempotencyKey cannot be empty');
+    throw new HttpsError('invalid-argument', 'idempotencyKey cannot be empty');
   }
   if (trimmed.length > 128) {
-    throw new functions.https.HttpsError('invalid-argument', 'idempotencyKey must be at most 128 characters');
+    throw new HttpsError('invalid-argument', 'idempotencyKey must be at most 128 characters');
   }
   return trimmed;
 }
@@ -119,21 +119,25 @@ function maskPhoneNumber(phone) {
  * Create Platform Fee Payment Order (GCash Screenshot Verification)
  * Replaces wallet-based platform fee payment
  */
-exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  checkAppToken(context);
+exports.createPlatformFeeOrder = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const data = request.data || {};
+    const context = request;
+    checkAppToken(context);
 
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
-  }
-  assertGcashConfigured();
+    if (!context.auth) {
+      throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
+    assertGcashConfigured();
 
-  const { bidId, idempotencyKey: rawIdempotencyKey } = data;
-  const userId = context.auth.uid;
-  const idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
+    const { bidId, idempotencyKey: rawIdempotencyKey } = data;
+    const userId = context.auth.uid;
+    const idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
 
-  if (!bidId) {
-    throw new functions.https.HttpsError('invalid-argument', 'Bid ID is required');
-  }
+    if (!bidId) {
+      throw new HttpsError('invalid-argument', 'Bid ID is required');
+    }
 
   const db = admin.firestore();
   const lockRef = getIdempotencyLockRef(db, userId, 'createPlatformFeeOrder', idempotencyKey);
@@ -148,7 +152,7 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
           if (lockedOrderDoc.exists) {
             const existingLockedOrder = { id: lockedOrderDoc.id, ...lockedOrderDoc.data() };
             if (existingLockedOrder.userId !== userId) {
-              throw new functions.https.HttpsError('permission-denied', 'Idempotency key belongs to a different user');
+              throw new HttpsError('permission-denied', 'Idempotency key belongs to a different user');
             }
             return { orderData: existingLockedOrder, reused: true };
           }
@@ -159,7 +163,7 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
     // Validate bid exists
     const bidDoc = await tx.get(db.collection('bids').doc(bidId));
     if (!bidDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Bid not found');
+      throw new HttpsError('not-found', 'Bid not found');
     }
 
     const bid = { id: bidDoc.id, ...bidDoc.data() };
@@ -177,7 +181,7 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
 
     // Backward compatibility: allow payment from accepted/contracted bids even if contract is missing
     if (!contract && bid.status !== 'accepted' && bid.status !== 'contracted') {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'failed-precondition',
         'Platform fee can only be paid for accepted/contracted bids'
       );
@@ -185,7 +189,7 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
 
     // Fast path when contract already marked as paid
     if (contract?.platformFeePaid) {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'already-exists',
         'Platform fee already paid for this contract'
       );
@@ -198,7 +202,7 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
 
     // Verify the user is the trucker
     if (expectedPayerId !== userId) {
-      throw new functions.https.HttpsError('permission-denied', 'Only the trucker can pay the platform fee');
+      throw new HttpsError('permission-denied', 'Only the trucker can pay the platform fee');
     }
 
     // Use contract fee when available to avoid pricing drift
@@ -213,7 +217,7 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
     );
 
     if (!existingFeeSnap.empty) {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'already-exists',
         'Platform fee already paid for this bid'
       );
@@ -309,34 +313,39 @@ exports.createPlatformFeeOrder = functions.region('asia-southeast1').https.onCal
     return { orderData, reused: false };
   });
 
-  return {
-    success: true,
-    reused: result.reused,
-    order: buildPlatformOrderResponse(result.orderData),
-  };
-});
+    return {
+      success: true,
+      reused: result.reused,
+      order: buildPlatformOrderResponse(result.orderData),
+    };
+  }
+);
 
 /**
  * Create Top-Up Order (GCash Screenshot Verification)
  */
-exports.createTopUpOrder = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  checkAppToken(context);
+exports.createTopUpOrder = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const data = request.data || {};
+    const context = request;
+    checkAppToken(context);
 
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
-  }
-  assertGcashConfigured();
+    if (!context.auth) {
+      throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
+    assertGcashConfigured();
 
-  const { amount, idempotencyKey: rawIdempotencyKey } = data;
-  const userId = context.auth.uid;
-  const idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
+    const { amount, idempotencyKey: rawIdempotencyKey } = data;
+    const userId = context.auth.uid;
+    const idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
 
-  if (!amount || amount <= 0) {
-    throw new functions.https.HttpsError('invalid-argument', 'Valid amount is required');
-  }
+    if (!amount || amount <= 0) {
+      throw new HttpsError('invalid-argument', 'Valid amount is required');
+    }
 
   if (amount > GCASH_CONFIG.maxDailyTopup) {
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       'invalid-argument',
       `Maximum top-up amount is ₱${GCASH_CONFIG.maxDailyTopup.toLocaleString()}`
     );
@@ -355,7 +364,7 @@ exports.createTopUpOrder = functions.region('asia-southeast1').https.onCall(asyn
           if (lockedOrderDoc.exists) {
             const existingLockedOrder = { id: lockedOrderDoc.id, ...lockedOrderDoc.data() };
             if (existingLockedOrder.userId !== userId) {
-              throw new functions.https.HttpsError('permission-denied', 'Idempotency key belongs to a different user');
+              throw new HttpsError('permission-denied', 'Idempotency key belongs to a different user');
             }
             return { orderData: existingLockedOrder, reused: true };
           }
@@ -374,7 +383,7 @@ exports.createTopUpOrder = functions.region('asia-southeast1').https.onCall(asyn
     );
 
     if (todayOrdersSnapshot.size >= GCASH_CONFIG.maxDailySubmissions) {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'resource-exhausted',
         `Daily limit reached. Maximum ${GCASH_CONFIG.maxDailySubmissions} top-up attempts per day.`
       );
@@ -415,62 +424,71 @@ exports.createTopUpOrder = functions.region('asia-southeast1').https.onCall(asyn
     return { orderData, reused: false };
   });
 
-  return {
-    success: true,
-    reused: result.reused,
-    order: buildTopUpOrderResponse(result.orderData),
-  };
-});
+    return {
+      success: true,
+      reused: result.reused,
+      order: buildTopUpOrderResponse(result.orderData),
+    };
+  }
+);
 
 /**
  * Get GCash Configuration
  */
-exports.getGcashConfig = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  checkAppToken(context);
+exports.getGcashConfig = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const context = request;
+    checkAppToken(context);
 
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+    if (!context.auth) {
+      throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
+    assertGcashConfigured();
+
+    return {
+      accountName: GCASH_CONFIG.accountName,
+      accountNumber: maskPhoneNumber(GCASH_CONFIG.accountNumber),
+      qrCodeUrl: GCASH_CONFIG.qrCodeUrl,
+      maxDailyTopup: GCASH_CONFIG.maxDailyTopup,
+      orderExpiryMinutes: GCASH_CONFIG.orderExpiryMinutes,
+    };
   }
-  assertGcashConfigured();
-
-  return {
-    accountName: GCASH_CONFIG.accountName,
-    accountNumber: maskPhoneNumber(GCASH_CONFIG.accountNumber),
-    qrCodeUrl: GCASH_CONFIG.qrCodeUrl,
-    maxDailyTopup: GCASH_CONFIG.maxDailyTopup,
-    orderExpiryMinutes: GCASH_CONFIG.orderExpiryMinutes,
-  };
-});
+);
 
 // Wallet payout functionality removed - direct GCash payment only
 
 /**
  * Get a single order by ID
  */
-exports.getOrder = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  checkAppToken(context);
+exports.getOrder = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const data = request.data || {};
+    const context = request;
+    checkAppToken(context);
 
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
-  }
+    if (!context.auth) {
+      throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
 
-  const { orderId } = data;
-  if (!orderId) {
-    throw new functions.https.HttpsError('invalid-argument', 'orderId is required');
-  }
+    const { orderId } = data;
+    if (!orderId) {
+      throw new HttpsError('invalid-argument', 'orderId is required');
+    }
 
   const db = admin.firestore();
   const orderDoc = await db.collection('orders').doc(orderId).get();
 
   if (!orderDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Order not found');
+    throw new HttpsError('not-found', 'Order not found');
   }
 
   const order = { id: orderDoc.id, ...orderDoc.data() };
 
   // Security: only the order owner can view it
   if (order.userId !== context.auth.uid) {
-    throw new functions.https.HttpsError('permission-denied', 'Access denied');
+    throw new HttpsError('permission-denied', 'Access denied');
   }
 
   // Get latest payment submission for this order
@@ -484,18 +502,22 @@ exports.getOrder = functions.region('asia-southeast1').https.onCall(async (data,
     ? null
     : { id: submissionsSnap.docs[0].id, ...submissionsSnap.docs[0].data() };
 
-  return { order, latestSubmission };
-});
+    return { order, latestSubmission };
+  }
+);
 
 /**
  * Get current user's pending orders
  */
-exports.getPendingOrders = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  checkAppToken(context);
+exports.getPendingOrders = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const context = request;
+    checkAppToken(context);
 
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
-  }
+    if (!context.auth) {
+      throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
 
   const db = admin.firestore();
   const ordersSnap = await db.collection('orders')
@@ -505,6 +527,8 @@ exports.getPendingOrders = functions.region('asia-southeast1').https.onCall(asyn
     .limit(20)
     .get();
 
-  const orders = ordersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  return { orders };
-});
+    const orders = ordersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return { orders };
+  }
+);
+

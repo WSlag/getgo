@@ -2,7 +2,7 @@
  * Referral / Commission Firestore triggers
  */
 
-const functions = require('firebase-functions');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 
 const REGION = 'asia-southeast1';
@@ -34,11 +34,16 @@ function resolveTierRate(tier, settings) {
  * Create broker commission when a platform fee is recorded as completed.
  * Commission base: paid platform fee amount.
  */
-exports.onPlatformFeeCompleted = functions.region(REGION).firestore
-  .document('platformFees/{feeId}')
-  .onCreate(async (snap, context) => {
+exports.onPlatformFeeCompleted = onDocumentCreated(
+  {
+    region: REGION,
+    document: 'platformFees/{feeId}',
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return null;
     const db = admin.firestore();
-    const feeId = context.params.feeId;
+    const feeId = event.params.feeId;
     const fee = snap.data() || {};
 
     if (fee.status !== 'completed') {
@@ -155,5 +160,5 @@ exports.onPlatformFeeCompleted = functions.region(REGION).firestore
     }
 
     return null;
-  });
-
+  }
+);

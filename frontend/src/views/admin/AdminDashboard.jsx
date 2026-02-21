@@ -59,8 +59,9 @@ export function AdminDashboard({ onBackToApp }) {
         api.admin.getPaymentStats(),
         api.admin.getBrokerPayoutRequests({ status: 'pending', limit: 300 }),
       ]);
+      const resolvedStats = stats?.stats || stats || {};
       setBadges({
-        pendingPayments: stats?.stats?.pendingReview || 0,
+        pendingPayments: resolvedStats.pendingReview || 0,
         openDisputes: 0, // Dispute tracking endpoint not yet implemented
         pendingBrokerPayouts: brokerPayouts?.requests?.length || 0,
       });

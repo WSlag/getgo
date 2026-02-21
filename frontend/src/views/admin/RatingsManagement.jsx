@@ -13,8 +13,9 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, getDocs, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '@/firebase';
+import api from '@/services/api';
 
 // Star rating display
 function StarRating({ score }) {
@@ -84,8 +85,8 @@ export function RatingsManagement() {
     if (!confirm('Are you sure you want to delete this rating?')) return;
 
     try {
-      await deleteDoc(doc(db, 'ratings', ratingId));
-      fetchRatings();
+      await api.admin.deleteRating(ratingId);
+      await fetchRatings();
     } catch (error) {
       console.error('Error deleting rating:', error);
     }

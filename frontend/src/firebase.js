@@ -10,7 +10,7 @@ import {
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, ReCaptchaV3Provider } from 'firebase/app-check';
 
 const firebaseEnvMap = {
   apiKey: 'VITE_FIREBASE_API_KEY',
@@ -69,22 +69,42 @@ let appCheck = null;
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
 const appCheckEnabled = import.meta.env.VITE_ENABLE_APPCHECK !== 'false';
 const appCheckDebugEnabled = import.meta.env.VITE_APPCHECK_DEBUG === 'true' || import.meta.env.DEV;
-const recaptchaEnterpriseKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY;
+const appCheckProviderName = (import.meta.env.VITE_APPCHECK_PROVIDER || 'enterprise').toLowerCase();
+const appCheckSiteKey =
+  import.meta.env.VITE_APPCHECK_SITE_KEY || import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY;
+const appCheckProviderMap = {
+  enterprise: () => new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+  v3: () => new ReCaptchaV3Provider(appCheckSiteKey),
+};
+const appCheckProviderFactory = appCheckProviderMap[appCheckProviderName];
+const appCheckProvider = appCheckSiteKey && appCheckProviderFactory ? appCheckProviderFactory() : null;
+const appCheckProviderOff = appCheckProviderName === 'off';
+const shouldInitializeAppCheck =
+  !useEmulator &&
+  appCheckEnabled &&
+  !appCheckProviderOff &&
+  typeof window !== 'undefined' &&
+  appCheckSiteKey &&
+  appCheckProvider;
 
-if (!useEmulator && appCheckEnabled && typeof window !== 'undefined' && recaptchaEnterpriseKey) {
+if (shouldInitializeAppCheck) {
   if (appCheckDebugEnabled) {
     window.FIREBASE_APPCHECK_DEBUG_TOKEN = window.FIREBASE_APPCHECK_DEBUG_TOKEN || true;
   }
   appCheck = initializeAppCheck(app, {
-    provider: new ReCaptchaEnterpriseProvider(recaptchaEnterpriseKey),
+    provider: appCheckProvider,
     isTokenAutoRefreshEnabled: true,
   });
 } else if (import.meta.env.DEV && !useEmulator) {
   const reason = !appCheckEnabled
     ? 'VITE_ENABLE_APPCHECK=false'
-    : !recaptchaEnterpriseKey
-      ? 'missing VITE_RECAPTCHA_ENTERPRISE_KEY'
-      : 'non-browser runtime';
+    : appCheckProviderOff
+      ? 'VITE_APPCHECK_PROVIDER=off'
+      : !appCheckSiteKey
+        ? 'missing VITE_APPCHECK_SITE_KEY (or VITE_RECAPTCHA_ENTERPRISE_KEY)'
+        : !appCheckProvider
+          ? `unsupported VITE_APPCHECK_PROVIDER=${appCheckProviderName}`
+          : 'non-browser runtime';
   console.info(`[firebase] App Check not initialized (${reason}).`);
 }
 

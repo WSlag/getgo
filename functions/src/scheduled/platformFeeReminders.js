@@ -4,14 +4,16 @@
  * Sends reminders on Day 1, 2 and suspends accounts on Day 3
  */
 
-const functions = require('firebase-functions');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
 
-exports.sendPlatformFeeReminders = functions
-  .region('asia-southeast1')
-  .pubsub.schedule('0 9 * * *')  // Every day at 9 AM
-  .timeZone('Asia/Manila')
-  .onRun(async (context) => {
+exports.sendPlatformFeeReminders = onSchedule(
+  {
+    region: 'asia-southeast1',
+    schedule: '0 9 * * *', // Every day at 9 AM
+    timeZone: 'Asia/Manila',
+  },
+  async () => {
     const db = admin.firestore();
     const now = new Date();
 
@@ -163,4 +165,5 @@ exports.sendPlatformFeeReminders = functions
       }
     }
     return null;
-  });
+  }
+);
