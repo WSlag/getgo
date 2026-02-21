@@ -12,15 +12,54 @@ import { getAnalytics } from 'firebase/analytics';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+const firebaseEnvMap = {
+  apiKey: 'VITE_FIREBASE_API_KEY',
+  authDomain: 'VITE_FIREBASE_AUTH_DOMAIN',
+  projectId: 'VITE_FIREBASE_PROJECT_ID',
+  storageBucket: 'VITE_FIREBASE_STORAGE_BUCKET',
+  messagingSenderId: 'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  appId: 'VITE_FIREBASE_APP_ID',
+  measurementId: 'VITE_FIREBASE_MEASUREMENT_ID',
 };
+
+const firebaseFallbackConfig = {
+  apiKey: 'AIzaSyDK0-bmmPsuScseGdhN4wj71knEEeicpGs',
+  authDomain: 'karga-ph.firebaseapp.com',
+  projectId: 'karga-ph',
+  storageBucket: 'karga-ph.firebasestorage.app',
+  messagingSenderId: '580800488549',
+  appId: '1:580800488549:web:3b5051b8c1ec0c8ba9128c',
+  measurementId: 'G-WHFTRD15XC',
+};
+
+const firebaseConfig = Object.fromEntries(
+  Object.entries(firebaseEnvMap).map(([key, envKey]) => [key, import.meta.env[envKey] || firebaseFallbackConfig[key]])
+);
+
+const requiredFirebaseFields = ['apiKey', 'authDomain', 'projectId', 'appId'];
+const missingRequiredFirebaseFields = requiredFirebaseFields.filter((key) => !firebaseConfig[key]);
+
+if (missingRequiredFirebaseFields.length > 0) {
+  throw new Error(
+    `[firebase] Missing required Firebase config: ${missingRequiredFirebaseFields.join(
+      ', '
+    )}. Check frontend/.env VITE_FIREBASE_* values.`
+  );
+}
+
+if (import.meta.env.DEV) {
+  const missingFirebaseEnvVars = Object.entries(firebaseEnvMap)
+    .filter(([, envKey]) => !import.meta.env[envKey])
+    .map(([, envKey]) => envKey);
+
+  if (missingFirebaseEnvVars.length > 0) {
+    console.warn(
+      `[firebase] Missing env vars: ${missingFirebaseEnvVars.join(
+        ', '
+      )}. Using built-in fallback config for karga-ph.`
+    );
+  }
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -28,15 +67,25 @@ let appCheck = null;
 
 // Detect emulator mode from environment variable
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+const appCheckEnabled = import.meta.env.VITE_ENABLE_APPCHECK !== 'false';
+const appCheckDebugEnabled = import.meta.env.VITE_APPCHECK_DEBUG === 'true' || import.meta.env.DEV;
+const recaptchaEnterpriseKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY;
 
-if (!useEmulator && typeof window !== 'undefined' && import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY) {
-  if (import.meta.env.DEV) {
-    window.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+if (!useEmulator && appCheckEnabled && typeof window !== 'undefined' && recaptchaEnterpriseKey) {
+  if (appCheckDebugEnabled) {
+    window.FIREBASE_APPCHECK_DEBUG_TOKEN = window.FIREBASE_APPCHECK_DEBUG_TOKEN || true;
   }
   appCheck = initializeAppCheck(app, {
-    provider: new ReCaptchaEnterpriseProvider(import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY),
+    provider: new ReCaptchaEnterpriseProvider(recaptchaEnterpriseKey),
     isTokenAutoRefreshEnabled: true,
   });
+} else if (import.meta.env.DEV && !useEmulator) {
+  const reason = !appCheckEnabled
+    ? 'VITE_ENABLE_APPCHECK=false'
+    : !recaptchaEnterpriseKey
+      ? 'missing VITE_RECAPTCHA_ENTERPRISE_KEY'
+      : 'non-browser runtime';
+  console.info(`[firebase] App Check not initialized (${reason}).`);
 }
 
 // Initialize services
