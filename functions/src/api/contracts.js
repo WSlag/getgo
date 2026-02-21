@@ -819,7 +819,9 @@ exports.getContractByBid = functions.region('asia-southeast1').https.onCall(asyn
     .get();
 
   if (contractSnap.empty) {
-    throw new functions.https.HttpsError('not-found', 'Contract not found for this bid');
+    // No contract yet is an expected state for many bids; return a nullable payload
+    // so callers can poll safely without surfacing HTTP 404 noise.
+    return { contract: null };
   }
 
   const contractDoc = contractSnap.docs[0];
