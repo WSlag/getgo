@@ -19,12 +19,9 @@ function checkAppToken(context) {
   }
 }
 
-// GCash configuration
-if (isProductionRuntime && !process.env.GCASH_ACCOUNT_NUMBER) {
-  throw new Error('GCASH_ACCOUNT_NUMBER environment variable is required');
-}
-if (isProductionRuntime && !process.env.GCASH_ACCOUNT_NAME) {
-  throw new Error('GCASH_ACCOUNT_NAME environment variable is required');
+// Avoid module-load crashes during deployment discovery; enforce at call-time instead.
+if (isProductionRuntime && (!process.env.GCASH_ACCOUNT_NUMBER || !process.env.GCASH_ACCOUNT_NAME)) {
+  console.warn('GCash env vars missing at module init; wallet calls will fail until env is configured.');
 }
 
 const GCASH_CONFIG = {
@@ -479,7 +476,7 @@ exports.getOrder = functions.region('asia-southeast1').https.onCall(async (data,
   // Get latest payment submission for this order
   const submissionsSnap = await db.collection('paymentSubmissions')
     .where('orderId', '==', orderId)
-    .orderBy('submittedAt', 'desc')
+    .orderBy('createdAt', 'desc')
     .limit(1)
     .get();
 
@@ -503,7 +500,7 @@ exports.getPendingOrders = functions.region('asia-southeast1').https.onCall(asyn
   const db = admin.firestore();
   const ordersSnap = await db.collection('orders')
     .where('userId', '==', context.auth.uid)
-    .where('status', 'in', ['pending', 'submitted'])
+    .where('status', 'in', ['awaiting_upload', 'pending', 'submitted', 'processing'])
     .orderBy('createdAt', 'desc')
     .limit(20)
     .get();

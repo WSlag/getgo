@@ -8,8 +8,11 @@ build/
 
 # Environment files
 .env
+.env.*
 .env.local
 .env.*.local
+!.env.example
+!.env.*.example
 
 # Firebase service account key (NEVER commit this!)
 serviceAccountKey.json
