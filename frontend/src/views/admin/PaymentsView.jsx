@@ -147,6 +147,15 @@ function getDueStatus(contract) {
   return { state: 'upcoming', label: `Due in ${daysUntilDue}d`, days: daysUntilDue, dueDate };
 }
 
+function isPayableOutstandingContract(contract) {
+  if (!contract) return false;
+  if (contract.platformFeePaid === true) return false;
+  if (Number(contract.platformFee || 0) <= 0) return false;
+  if (contract.status === 'cancelled') return false;
+  if (contract.platformFeeStatus === 'waived') return false;
+  return true;
+}
+
 // Payment detail modal
 function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, loading }) {
   const [notes, setNotes] = useState('');
@@ -448,6 +457,9 @@ export function PaymentsView({ className }) {
   const resolvedStats = stats?.stats || stats || {};
 
   const dueSoonCount = outstandingContracts.filter((contract) => {
+    if (!isPayableOutstandingContract(contract)) {
+      return false;
+    }
     const due = getDueStatus(contract);
     return due.state === 'due_today' || due.state === 'due_soon';
   }).length;
@@ -555,6 +567,10 @@ export function PaymentsView({ className }) {
   });
 
   const filteredOutstandingContracts = outstandingContracts.filter((contract) => {
+    if (!isPayableOutstandingContract(contract)) {
+      return false;
+    }
+
     const due = getDueStatus(contract);
 
     if (outstandingFilter === 'due_soon' && !(due.state === 'due_today' || due.state === 'due_soon')) {

@@ -39,6 +39,66 @@ function composeFullAddress(city, streetAddress) {
   return `${streetAddress}, ${city}`;
 }
 
+function shouldCountContractAsOutstandingFee(contract = {}) {
+  if (contract.platformFeePaid === true) return false;
+  if (Number(contract.platformFee || 0) <= 0) return false;
+  if (contract.status === 'cancelled') return false;
+  if (contract.platformFeeStatus === 'waived') return false;
+  return true;
+}
+
+async function reconcilePlatformFeePayerAccount(db, feePayerId) {
+  if (!feePayerId) return null;
+
+  const [payerDoc, unpaidContractsSnap] = await Promise.all([
+    db.collection('users').doc(feePayerId).get(),
+    db.collection('contracts')
+      .where('platformFeePayerId', '==', feePayerId)
+      .where('platformFeePaid', '==', false)
+      .get(),
+  ]);
+
+  if (!payerDoc.exists) return null;
+
+  const payableContracts = unpaidContractsSnap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter(shouldCountContractAsOutstandingFee);
+
+  const recalculatedOutstanding = payableContracts.reduce(
+    (sum, activeContract) => sum + Number(activeContract.platformFee || 0),
+    0
+  );
+  const outstandingContractIds = payableContracts.map((activeContract) => activeContract.id);
+
+  const payerData = payerDoc.data() || {};
+  const shouldUnsuspend = (
+    payerData.accountStatus === 'suspended' &&
+    payerData.suspensionReason === 'unpaid_platform_fees' &&
+    recalculatedOutstanding <= 0
+  );
+
+  const payerUpdates = {
+    outstandingPlatformFees: recalculatedOutstanding,
+    outstandingFeeContracts: outstandingContractIds,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (shouldUnsuspend) {
+    payerUpdates.accountStatus = 'active';
+    payerUpdates.suspensionReason = null;
+    payerUpdates.suspendedAt = null;
+    payerUpdates.unsuspendedAt = admin.firestore.FieldValue.serverTimestamp();
+  }
+
+  await db.collection('users').doc(feePayerId).update(payerUpdates);
+
+  return {
+    feePayerId,
+    shouldUnsuspend,
+    recalculatedOutstanding,
+  };
+}
+
 // Helper: Fetch bid and listing data from Firestore
 async function getFirestoreBidData(bidId) {
   const db = admin.firestore();
@@ -614,21 +674,28 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
     cancellationUpdates.platformFeeStatus = 'waived';
     cancellationUpdates.platformFeeDueDate = null;
     cancellationUpdates.platformFeeBillingStartedAt = null;
-
-    // Deduct from user's outstanding fees if it was already counted
-    const feePayerId = contract.platformFeePayerId;
-    if (feePayerId) {
-      const payerDoc = await db.collection('users').doc(feePayerId).get();
-      const currentOutstanding = payerDoc.data()?.outstandingPlatformFees || 0;
-
-      await db.collection('users').doc(feePayerId).update({
-        outstandingPlatformFees: Math.max(0, currentOutstanding - (contract.platformFee || 0)),
-        outstandingFeeContracts: admin.firestore.FieldValue.arrayRemove(contractId),
-      });
-    }
+    cancellationUpdates.platformFeeReminders = [];
+    cancellationUpdates.overdueAt = null;
   }
 
   await db.collection('contracts').doc(contractId).update(cancellationUpdates);
+
+  // Recalculate fee payer debt from source-of-truth contracts to avoid stale suspension states.
+  let payerReconciliation = null;
+  if (contract.platformFeePayerId) {
+    payerReconciliation = await reconcilePlatformFeePayerAccount(db, contract.platformFeePayerId);
+
+    if (payerReconciliation?.shouldUnsuspend) {
+      await db.collection(`users/${contract.platformFeePayerId}/notifications`).doc().set({
+        type: 'ACCOUNT_UNSUSPENDED',
+        title: 'Account Reactivated',
+        message: 'Your account has been reactivated. No outstanding platform fees remain.',
+        data: { contractId },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+  }
 
   // Update listing status back to available
   if (contract.listingId) {
@@ -656,6 +723,8 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
   return {
     message: 'Contract cancelled successfully',
     platformFeeWaived: !contract.platformFeePaid,
+    outstandingAfterCancellation: payerReconciliation?.recalculatedOutstanding ?? null,
+    accountReactivated: payerReconciliation?.shouldUnsuspend === true,
   };
 });
 

@@ -1150,6 +1150,7 @@ exports.adminGetContracts = adminFunctions.adminGetContracts;
 exports.adminDeactivateListing = adminFunctions.adminDeactivateListing;
 exports.adminDeleteRating = adminFunctions.adminDeleteRating;
 exports.adminGetOutstandingFees = adminFunctions.adminGetOutstandingFees;
+exports.adminReconcileOutstandingFees = adminFunctions.adminReconcileOutstandingFees;
 exports.adminGetMarketplaceKpis = adminFunctions.adminGetMarketplaceKpis;
 
 // =============================================================================

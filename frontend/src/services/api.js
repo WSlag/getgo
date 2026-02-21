@@ -225,6 +225,7 @@ const api = {
       callFunction('adminReviewBrokerPayout', { requestId, decision, ...data }),
 
     getOutstandingFees: (params) => callFunction('adminGetOutstandingFees', params || {}),
+    reconcileOutstandingFees: (params) => callFunction('adminReconcileOutstandingFees', params || {}),
   },
 };
 

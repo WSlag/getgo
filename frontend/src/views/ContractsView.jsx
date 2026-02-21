@@ -70,6 +70,22 @@ const statusConfig = {
   },
 };
 
+function hasPayableUnpaidPlatformFee(contract, userId) {
+  if (!contract || !userId) return false;
+  if (contract.platformFeePayerId !== userId) return false;
+  if (contract.platformFeePaid !== false) return false;
+  if (contract.status === 'cancelled') return false;
+  if (contract.platformFeeStatus === 'waived') return false;
+  return true;
+}
+
+function shouldIncludeInFeeLedger(contract, userId) {
+  if (!contract || !userId) return false;
+  if (contract.platformFeePayerId !== userId) return false;
+  if (contract.platformFeePaid === true) return true;
+  return hasPayableUnpaidPlatformFee(contract, userId);
+}
+
 export function ContractsView({ darkMode, currentUser, onOpenContract, initialFilter = 'all', embedded = false }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const [contracts, setContracts] = useState([]);
@@ -100,7 +116,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
       // Status filter
       if (filterStatus === 'unpaid_fees') {
         // Show contracts with unpaid platform fees where current user is the payer
-        if (contract.platformFeePaid !== false || contract.platformFeePayerId !== currentUser?.id) {
+        if (!hasPayableUnpaidPlatformFee(contract, currentUser?.id)) {
           return false;
         }
       } else if (filterStatus !== 'all' && contract.status !== filterStatus) {
@@ -130,7 +146,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
       signed: contracts.filter((c) => c.status === 'signed').length,
       in_transit: contracts.filter((c) => c.status === 'in_transit').length,
       completed: contracts.filter((c) => c.status === 'completed').length,
-      unpaid_fees: contracts.filter((c) => c.platformFeePaid === false && c.platformFeePayerId === currentUser?.id).length,
+      unpaid_fees: contracts.filter((c) => hasPayableUnpaidPlatformFee(c, currentUser?.id)).length,
     };
   }, [contracts, currentUser?.id]);
 
@@ -183,7 +199,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
   const feeLedgerRows = useMemo(() => {
     // Only show platform fee ledger for contracts where current user is the fee payer
     return [...contracts]
-      .filter((contract) => contract.platformFeePayerId === currentUser?.id)
+      .filter((contract) => shouldIncludeInFeeLedger(contract, currentUser?.id))
       .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
       .map((contract) => ({
         id: contract.id,
@@ -586,7 +602,7 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
                     )}
 
                     {/* Platform Fee Status Badge (only show to the fee payer) */}
-                    {!contract.platformFeePaid && contract.platformFeePayerId === currentUser?.id && (
+                    {hasPayableUnpaidPlatformFee(contract, currentUser?.id) && (
                       <div
                         className={cn(
                           'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium',
