@@ -8,7 +8,7 @@ export function StatCard({
   value,
   subtitle,
   icon: Icon,
-  iconColor = 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+  iconColor = 'bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30',
   trend,
   trendLabel,
   onClick,
@@ -23,14 +23,14 @@ export function StatCard({
       className={cn(
         'rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm',
         'text-left w-full',
-        onClick && 'hover:shadow-md hover:border-orange-300 dark:hover:border-orange-700 cursor-pointer transition-all duration-200',
+        onClick && 'hover:shadow-md hover:border-orange-300 dark:hover:border-orange-700 cursor-pointer transition-all duration-300 hover:scale-[1.01] active:scale-[0.99]',
         className
       )}
       style={{ padding: isDesktop ? '20px 24px' : '16px 20px' }}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
             {title}
           </p>
           <p className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white truncate">
@@ -65,8 +65,11 @@ export function StatCard({
           )}
         </div>
         {Icon && (
-          <div className={cn('rounded-xl p-3', iconColor)}>
-            <Icon className="size-6" />
+          <div className={cn(
+            'size-10 rounded-lg flex items-center justify-center shadow-lg flex-shrink-0',
+            iconColor
+          )}>
+            <Icon className="size-5 text-white" />
           </div>
         )}
       </div>
@@ -84,13 +87,13 @@ export function StatCardSkeleton({ className }) {
       )}
       style={{ padding: '16px 20px' }}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
-          <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
+          <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded mb-3" />
           <div className="h-8 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
-          <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
         </div>
-        <div className="size-12 bg-gray-200 dark:bg-gray-700 rounded-xl" />
+        <div className="size-10 bg-gray-200 dark:bg-gray-700 rounded-lg" />
       </div>
     </div>
   );

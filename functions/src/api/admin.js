@@ -22,6 +22,15 @@ function safeErrorMessage(error) {
   return error.message || 'Unknown error';
 }
 
+function toComparableTimestamp(value, fallback = Number.POSITIVE_INFINITY) {
+  if (!value) return fallback;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  if (value.seconds) return Number(value.seconds) * 1000;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
 function parseLimit(value, fallbackLimit) {
   const parsed = parseInt(value, 10);
   const base = Number.isFinite(parsed) ? parsed : fallbackLimit;
@@ -637,15 +646,13 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
   const { limit = 100, cursor: cursorId } = data || {};
   const db = admin.firestore();
   const safeLimit = parseLimit(limit, 100);
-
-  // Query contracts with unpaid platform fees
+  const cursorDoc = await resolveCursor(db, 'contracts', cursorId);
   let query = db.collection('contracts')
     .where('platformFeePaid', '==', false)
-    .orderBy('platformFeeDueDate', 'asc');
+    .orderBy(admin.firestore.FieldPath.documentId(), 'asc');
 
-  const cursorDoc = await resolveCursor(db, 'contracts', cursorId);
   if (cursorDoc) {
-    query = query.startAfter(cursorDoc);
+    query = query.startAfter(cursorDoc.id);
   }
   query = query.limit(safeLimit);
 
@@ -653,7 +660,12 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
   const lastDoc = unpaidContracts.docs[unpaidContracts.docs.length - 1] || null;
 
   // Batch-fetch trucker data to avoid N+1 queries
-  const rawContracts = unpaidContracts.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const rawContracts = unpaidContracts.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    .sort((a, b) => {
+      const dueDelta = toComparableTimestamp(a.platformFeeDueDate) - toComparableTimestamp(b.platformFeeDueDate);
+      if (dueDelta !== 0) return dueDelta;
+      return toComparableTimestamp(b.createdAt, 0) - toComparableTimestamp(a.createdAt, 0);
+    });
   const payerIds = [...new Set(rawContracts.map(c => c.platformFeePayerId).filter(Boolean))];
 
   const truckerMap = {};
@@ -683,6 +695,9 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
       const daysOverdue = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
       contract.daysOverdue = daysOverdue;
       contract.isOverdue = daysOverdue > 0;
+    } else if (contract.platformFeeStatus === 'overdue') {
+      contract.daysOverdue = null;
+      contract.isOverdue = true;
     }
 
     return contract;

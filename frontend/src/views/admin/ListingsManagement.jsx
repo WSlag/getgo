@@ -365,26 +365,26 @@ export function ListingsManagement() {
           value={stats.cargo}
           subtitle={`${stats.openCargo} open`}
           icon={Package}
-          iconColor="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+          iconColor="bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30"
         />
         <StatCard
           title="Total Trucks"
           value={stats.trucks}
           subtitle={`${stats.availableTrucks} available`}
           icon={Truck}
-          iconColor="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+          iconColor="bg-gradient-to-br from-purple-400 to-purple-600 shadow-purple-500/30"
         />
         <StatCard
           title="Open Cargo"
           value={stats.openCargo}
           icon={CheckCircle2}
-          iconColor="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+          iconColor="bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30"
         />
         <StatCard
           title="Available Trucks"
           value={stats.availableTrucks}
           icon={CheckCircle2}
-          iconColor="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+          iconColor="bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30"
         />
       </div>
 

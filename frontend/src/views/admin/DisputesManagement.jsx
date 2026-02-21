@@ -314,25 +314,25 @@ export function DisputesManagement() {
           title="Total Disputes"
           value={stats.total}
           icon={AlertTriangle}
-          iconColor="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+          iconColor="bg-gradient-to-br from-gray-400 to-gray-600 shadow-gray-500/30"
         />
         <StatCard
           title="Open"
           value={stats.open}
           icon={AlertTriangle}
-          iconColor="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+          iconColor="bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30"
         />
         <StatCard
           title="Investigating"
           value={stats.investigating}
           icon={Clock}
-          iconColor="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
+          iconColor="bg-gradient-to-br from-yellow-400 to-yellow-600 shadow-yellow-500/30"
         />
         <StatCard
           title="Resolved"
           value={stats.resolved}
           icon={CheckCircle2}
-          iconColor="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+          iconColor="bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30"
         />
       </div>
 

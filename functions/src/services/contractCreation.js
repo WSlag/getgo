@@ -194,6 +194,7 @@ By signing, both parties agree to these terms.
     contractNumber,
     agreedPrice: bid.price,
     platformFee,
+    platformFeePercentage: feePercent,
 
     // Platform fee tracking fields
     platformFeePaid: false,

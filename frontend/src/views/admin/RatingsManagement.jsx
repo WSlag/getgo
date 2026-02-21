@@ -156,7 +156,7 @@ export function RatingsManagement() {
             {row.comment || 'No comment'}
           </p>
           {row.flagged && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-xs mt-1">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30 rounded text-xs mt-1">
               <Flag className="size-3" />
               Flagged
             </span>
@@ -206,25 +206,25 @@ export function RatingsManagement() {
           title="Total Ratings"
           value={stats.total}
           icon={MessageSquare}
-          iconColor="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+          iconColor="bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30"
         />
         <StatCard
           title="Average Rating"
           value={stats.average}
           icon={Star}
-          iconColor="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
+          iconColor="bg-gradient-to-br from-yellow-400 to-yellow-600 shadow-yellow-500/30"
         />
         <StatCard
           title="5-Star Ratings"
           value={stats.fiveStars}
           icon={Star}
-          iconColor="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+          iconColor="bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30"
         />
         <StatCard
           title="Low Ratings (1-2)"
           value={stats.oneStars}
           icon={Flag}
-          iconColor="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+          iconColor="bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30"
         />
       </div>
 
