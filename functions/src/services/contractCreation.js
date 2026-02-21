@@ -4,8 +4,10 @@
  */
 
 const admin = require('firebase-admin');
-
-const PLATFORM_FEE_RATE = 0.05; // 5%
+const {
+  loadPlatformSettings,
+  calculatePlatformFeeAmount,
+} = require('../config/platformSettings');
 const UNVERIFIED_OUTSTANDING_CAP = 2000;
 const NEW_ACCOUNT_OUTSTANDING_CAP = 3000;
 const STANDARD_OUTSTANDING_CAP = 5000;
@@ -77,6 +79,7 @@ async function getFirestoreBidData(bidId) {
 async function createContractFromApprovedFee(bidId, userId, options = {}) {
   const { skipPaymentCheck: _skipPaymentCheck = false, createPlatformFeeDebt = false } = options;
   const db = admin.firestore();
+  const platformSettings = await loadPlatformSettings(db);
 
   // Fetch bid and listing from Firestore
   const bidData = await getFirestoreBidData(bidId);
@@ -113,7 +116,8 @@ async function createContractFromApprovedFee(bidId, userId, options = {}) {
     throw new Error('Only the listing owner can create the contract');
   }
 
-  const platformFee = Math.round(bid.price * PLATFORM_FEE_RATE);
+  const platformFee = calculatePlatformFeeAmount(bid.price, platformSettings);
+  const feePercent = Number(platformSettings?.platformFee?.percentage || 5);
   const declaredCargoValue = options.declaredCargoValue || listing.declaredValue || 100000;
 
   // Build default terms
@@ -132,7 +136,7 @@ The Trucker agrees to transport cargo from ${listing.origin} to ${listing.destin
 
 3. PAYMENT TERMS
 - Freight Rate: PHP ${Number(bid.price).toLocaleString()}
-- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - Payable by Trucker within 3 days of shipment pickup
+- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${feePercent.toFixed(2).replace(/\.00$/, '')}%) - Payable by Trucker within 3 days of shipment pickup
 - Payment Method: Direct payment from Shipper to Trucker
 - Payment Schedule: As agreed between parties (COD, advance, or partial)
 - Late Payment: Failure to pay platform fee within 3 days will result in account suspension until payment is received

@@ -4,6 +4,7 @@
 
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
+const { loadPlatformSettings } = require('../config/platformSettings');
 
 const REGION = 'asia-southeast1';
 const DEFAULT_REFERRAL_RATES = {
@@ -43,6 +44,10 @@ exports.onPlatformFeeCompleted = onDocumentCreated(
     const snap = event.data;
     if (!snap) return null;
     const db = admin.firestore();
+    const runtimeSettings = await loadPlatformSettings(db);
+    if (runtimeSettings?.features?.referralProgramEnabled === false) {
+      return null;
+    }
     const feeId = event.params.feeId;
     const fee = snap.data() || {};
 

@@ -5,8 +5,11 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-
-const PLATFORM_FEE_RATE = 0.05; // 5%
+const {
+  loadPlatformSettings,
+  calculatePlatformFeeAmount,
+  shouldBlockForMaintenance,
+} = require('../config/platformSettings');
 
 // Helper: Generate unique contract number
 function generateContractNumber() {
@@ -79,6 +82,10 @@ exports.createContract = functions.region('asia-southeast1').https.onCall(async 
   }
 
   const db = admin.firestore();
+  const platformSettings = await loadPlatformSettings(db);
+  if (shouldBlockForMaintenance(platformSettings, context.auth?.token)) {
+    throw new functions.https.HttpsError('failed-precondition', 'Platform is currently under maintenance');
+  }
 
   // Fetch bid and listing from Firestore
   const bidData = await getFirestoreBidData(bidId);
@@ -112,7 +119,8 @@ exports.createContract = functions.region('asia-southeast1').https.onCall(async 
     throw new functions.https.HttpsError('permission-denied', 'Only the listing owner can create the contract');
   }
 
-  const platformFee = Math.round(bid.price * PLATFORM_FEE_RATE);
+  const platformFee = calculatePlatformFeeAmount(bid.price, platformSettings);
+  const feePercent = Number(platformSettings?.platformFee?.percentage || 5);
 
   // Determine who is the trucker (platform fee payer)
   const platformFeePayerId = isCargo ? bid.bidderId : listingOwnerId;
@@ -135,7 +143,7 @@ The Trucker agrees to transport cargo from:
 
 3. PAYMENT TERMS
 - Freight Rate: PHP ${Number(bid.price).toLocaleString()}
-- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${(PLATFORM_FEE_RATE * 100).toFixed(0)}%) - Payable by Trucker within 3 days of shipment pickup
+- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${feePercent.toFixed(2).replace(/\.00$/, '')}%) - Payable by Trucker within 3 days of shipment pickup
 - Payment Method: Direct payment from Shipper to Trucker
 - Payment Schedule: As agreed between parties (COD, advance, or partial)
 - Late Payment: Failure to pay platform fee within 3 days will result in account suspension until payment is received
@@ -264,6 +272,10 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
   }
 
   const db = admin.firestore();
+  const platformSettings = await loadPlatformSettings(db);
+  if (shouldBlockForMaintenance(platformSettings, context.auth?.token)) {
+    throw new functions.https.HttpsError('failed-precondition', 'Platform is currently under maintenance');
+  }
 
   // Fetch contract
   const contractDoc = await db.collection('contracts').doc(contractId).get();
@@ -442,6 +454,10 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
   }
 
   const db = admin.firestore();
+  const platformSettings = await loadPlatformSettings(db);
+  if (shouldBlockForMaintenance(platformSettings, context.auth?.token)) {
+    throw new functions.https.HttpsError('failed-precondition', 'Platform is currently under maintenance');
+  }
 
   const contractDoc = await db.collection('contracts').doc(contractId).get();
   if (!contractDoc.exists) {
@@ -536,6 +552,10 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
   }
 
   const db = admin.firestore();
+  const platformSettings = await loadPlatformSettings(db);
+  if (shouldBlockForMaintenance(platformSettings, context.auth?.token)) {
+    throw new functions.https.HttpsError('failed-precondition', 'Platform is currently under maintenance');
+  }
   const contractDoc = await db.collection('contracts').doc(contractId).get();
 
   if (!contractDoc.exists) {

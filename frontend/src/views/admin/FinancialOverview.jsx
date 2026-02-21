@@ -12,11 +12,9 @@ import { PesoIcon } from '@/components/ui/PesoIcon';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, getDocs, query, orderBy, where, Timestamp, limit } from 'firebase/firestore';
+import { collection, collectionGroup, documentId, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db } from '@/firebase';
 import api from '@/services/api';
-
-const PLATFORM_FEE_RATE = 0.05;
 
 // Transaction type badge
 function TransactionTypeBadge({ type }) {
@@ -57,56 +55,94 @@ export function FinancialOverview() {
   const fetchFinancialData = async () => {
     setLoading(true);
     try {
-      // Fetch payment stats (non-blocking — don't let this break revenue calc)
-      let paymentStats = null;
-      try {
-        paymentStats = await api.admin.getPaymentStats();
-      } catch (e) {
-        console.warn('Could not fetch payment stats:', e);
-      }
-
-      // Calculate revenue from approved payments
+      // Align revenue windows with backend Manila day boundaries.
       const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+      const manilaMs = utcMs + (8 * 60 * 60 * 1000);
+      const manilaDate = new Date(manilaMs);
+      manilaDate.setHours(0, 0, 0, 0);
+      const today = new Date(manilaDate.getTime() - (8 * 60 * 60 * 1000));
       const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
       const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-      // Fetch payment submissions for revenue calculation
-      const paymentsSnapshot = await getDocs(
-        query(
-          collection(db, 'paymentSubmissions'),
-          where('status', '==', 'approved'),
-          orderBy('resolvedAt', 'desc')
-        )
-      );
+      const [paymentStatsResult, dashboardStatsResult] = await Promise.allSettled([
+        api.admin.getPaymentStats(),
+        api.admin.getDashboardStats(),
+      ]);
+      const paymentStats = paymentStatsResult.status === 'fulfilled' ? paymentStatsResult.value : null;
+      const dashboardStats = dashboardStatsResult.status === 'fulfilled' ? dashboardStatsResult.value : null;
 
-      let totalRevenue = 0;
-      let todayRevenue = 0;
+      // Keep "Today's Revenue" aligned with Payment Review stats when available.
+      const fallbackTodayRevenue = Number(paymentStats?.totalAmountToday || paymentStats?.stats?.totalAmountToday || 0);
+      const fallbackTotalRevenue = Number(dashboardStats?.financial?.platformFeesCollected || 0);
+      const fallbackWalletBalance = Number(dashboardStats?.financial?.totalWalletBalance || 0);
+
+      let totalRevenue = fallbackTotalRevenue;
+      let todayRevenue = fallbackTodayRevenue;
       let weekRevenue = 0;
       let monthRevenue = 0;
+      const txData = [];
 
-      paymentsSnapshot.forEach(doc => {
-        const data = doc.data();
-        const amount = data.orderAmount || data.amount || 0;
-        const platformFee = amount * PLATFORM_FEE_RATE;
-        totalRevenue += platformFee;
+      try {
+        // Authoritative fee ledger for platform revenue history.
+        const platformFeesSnapshot = await getDocs(
+          query(
+            collection(db, 'platformFees'),
+            where('status', '==', 'completed'),
+            orderBy('createdAt', 'desc')
+          )
+        );
 
-        const resolvedAt = data.resolvedAt?.toDate?.() || (data.resolvedAt ? new Date(data.resolvedAt) : null);
-        if (!resolvedAt || isNaN(resolvedAt.getTime())) return;
-        if (resolvedAt >= today) todayRevenue += platformFee;
-        if (resolvedAt >= weekAgo) weekRevenue += platformFee;
-        if (resolvedAt >= monthAgo) monthRevenue += platformFee;
-      });
+        let computedTotalRevenue = 0;
+        let computedTodayRevenue = 0;
+        let computedWeekRevenue = 0;
+        let computedMonthRevenue = 0;
 
-      // Fetch wallet balances
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      let totalWalletBalance = 0;
+        platformFeesSnapshot.forEach((docSnap) => {
+          const data = docSnap.data() || {};
+          const feeAmount = Number(data.amount || 0);
+          if (!Number.isFinite(feeAmount) || feeAmount <= 0) return;
 
-      for (const userDoc of usersSnapshot.docs) {
-        const walletDoc = await getDocs(collection(db, 'users', userDoc.id, 'wallet'));
-        walletDoc.forEach(w => {
-          totalWalletBalance += w.data().balance || 0;
+          computedTotalRevenue += feeAmount;
+
+          const collectedAt = data.createdAt?.toDate?.() || (data.createdAt ? new Date(data.createdAt) : null);
+          if (collectedAt && !Number.isNaN(collectedAt.getTime())) {
+            if (collectedAt >= today) computedTodayRevenue += feeAmount;
+            if (collectedAt >= weekAgo) computedWeekRevenue += feeAmount;
+            if (collectedAt >= monthAgo) computedMonthRevenue += feeAmount;
+          }
+
+          txData.push({
+            id: docSnap.id,
+            type: 'fee',
+            amount: feeAmount,
+            userId: data.userId || '',
+            userName: data.userName || data.userId?.slice(0, 12) || 'Unknown',
+            createdAt: collectedAt || new Date(),
+          });
         });
+
+        totalRevenue = computedTotalRevenue;
+        weekRevenue = computedWeekRevenue;
+        monthRevenue = computedMonthRevenue;
+
+        // Prefer backend payment-stats value to stay consistent with Payment Review.
+        todayRevenue = fallbackTodayRevenue > 0 ? fallbackTodayRevenue : computedTodayRevenue;
+      } catch (platformFeeError) {
+        console.warn('Platform fee query blocked; using callable stat fallbacks:', platformFeeError);
+      }
+
+      let totalWalletBalance = fallbackWalletBalance;
+      try {
+        // Aggregate wallet balances without N+1 user queries
+        const walletsSnapshot = await getDocs(query(collectionGroup(db, 'wallet')));
+        totalWalletBalance = 0;
+        walletsSnapshot.forEach((walletDoc) => {
+          totalWalletBalance += Number(walletDoc.data()?.balance || 0);
+        });
+      } catch (walletError) {
+        // Keep fallback value from adminGetDashboardStats.
+        console.warn('Wallet balance query blocked, using admin summary fallback:', walletError);
       }
 
       setStats({
@@ -118,28 +154,50 @@ export function FinancialOverview() {
         pendingPayouts: 0, // Payout request tracking not yet implemented
       });
 
-      // Fetch recent approved payment submissions as transactions
-      const recentPaymentsSnapshot = await getDocs(
-        query(
-          collection(db, 'paymentSubmissions'),
-          where('status', '==', 'approved'),
-          orderBy('resolvedAt', 'desc'),
-          limit(20)
-        )
-      );
-      const txData = recentPaymentsSnapshot.docs.map(doc => {
-        const d = doc.data();
-        return {
-          id: doc.id,
-          type: 'fee',
-          amount: (d.orderAmount || d.amount || 0) * PLATFORM_FEE_RATE,
-          userId: d.userId || '',
-          userName: d.userName || d.userId?.slice(0, 12) || 'Unknown',
-          createdAt: d.resolvedAt?.toDate?.() || d.createdAt?.toDate?.() || new Date(),
-        };
-      });
-      setTransactions(txData);
+      const recentTx = txData.slice(0, 20);
+      const userIds = [...new Set(recentTx.map((tx) => tx.userId).filter(Boolean))];
+      const userNameById = {};
 
+      // Firestore "in" accepts up to 10 values, so chunk user lookups.
+      if (userIds.length > 0) {
+        try {
+          const chunks = [];
+          for (let i = 0; i < userIds.length; i += 10) {
+            chunks.push(userIds.slice(i, i + 10));
+          }
+
+          const snapshots = await Promise.all(
+            chunks.map((ids) =>
+              getDocs(
+                query(
+                  collection(db, 'users'),
+                  where(documentId(), 'in', ids)
+                )
+              )
+            )
+          );
+
+          snapshots.forEach((snapshot) => {
+            snapshot.forEach((userDoc) => {
+              const userData = userDoc.data() || {};
+              userNameById[userDoc.id] =
+                userData.displayName ||
+                userData.name ||
+                userData.email ||
+                userDoc.id.slice(0, 12);
+            });
+          });
+        } catch (userLookupError) {
+          console.warn('User name lookup blocked; using UID fallback labels:', userLookupError);
+        }
+      }
+
+      setTransactions(
+        recentTx.map((tx) => ({
+          ...tx,
+          userName: userNameById[tx.userId] || tx.userName,
+        }))
+      );
     } catch (error) {
       console.error('Error fetching financial data:', error);
     } finally {
@@ -152,14 +210,11 @@ export function FinancialOverview() {
   }, []);
 
   // Filter transactions
-  const filteredTransactions = transactions.filter(tx => {
+  const filteredTransactions = transactions.filter((tx) => {
     if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
     if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      tx.userName?.toLowerCase().includes(query) ||
-      tx.userId?.toLowerCase().includes(query)
-    );
+    const lowered = searchQuery.toLowerCase();
+    return tx.userName?.toLowerCase().includes(lowered) || tx.userId?.toLowerCase().includes(lowered);
   });
 
   // Table columns
@@ -182,14 +237,14 @@ export function FinancialOverview() {
     {
       key: 'amount',
       header: 'Amount',
-      render: (_, row) => (
-        <span className={cn(
-          'font-semibold',
-          row.type === 'payout' || row.type === 'fee' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
-        )}>
-          {row.type === 'payout' || row.type === 'fee' ? '-' : '+'}₱{formatPrice(row.amount)}
-        </span>
-      ),
+      render: (_, row) => {
+        const isOutflow = row.type === 'payout' || row.type === 'refund';
+        return (
+          <span className={cn('font-semibold', isOutflow ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400')}>
+            {isOutflow ? '-' : '+'}₱{formatPrice(row.amount)}
+          </span>
+        );
+      },
     },
     {
       key: 'createdAt',

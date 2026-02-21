@@ -191,6 +191,8 @@ const api = {
 
   admin: {
     getDashboardStats: () => callFunction('adminGetDashboardStats', {}),
+    getSystemSettings: () => callFunction('adminGetSystemSettings', {}),
+    updateSystemSettings: (settings) => callFunction('adminUpdateSystemSettings', { settings }),
 
     getPendingPayments: (params) => callFunction('adminGetPendingPayments', params || {}),
     getPaymentStats: () => callFunction('getPaymentStats', {}),

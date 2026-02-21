@@ -7,10 +7,17 @@ import {
   MapPin,
   Calendar,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 import { cn, formatDate, formatPrice } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
@@ -57,14 +64,112 @@ function TypeBadge({ type }) {
   );
 }
 
+function ListingDetailModal({ open, onClose, listing, onDeactivate, loading }) {
+  if (!listing) return null;
+
+  const isCargo = listing.type === 'cargo';
+  const canDeactivate = !['deactivated', 'completed', 'delivered'].includes(listing.status);
+  const owner = listing.shipper || listing.trucker || listing.userName || listing.userId || 'N/A';
+  const listingTitle = isCargo ? (listing.cargoType || 'Cargo Listing') : (listing.vehicleType || 'Truck Listing');
+  const route = `${listing.origin || 'N/A'} -> ${listing.destination || 'N/A'}`;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Eye className="size-5 text-orange-500" />
+            Listing Details
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <TypeBadge type={listing.type} />
+              <StatusBadge status={listing.status} />
+            </div>
+            <p className="text-base font-semibold text-gray-900 dark:text-white">{listingTitle}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{route}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Listing ID</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white break-all">{listing.id}</p>
+            </div>
+            <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Owner</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{owner}</p>
+            </div>
+            <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Price</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">PHP {formatPrice(listing.askingPrice)}</p>
+            </div>
+            <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Posted</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
+                <Calendar className="size-3.5 text-gray-400" />
+                {formatDate(listing.createdAt)}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">{isCargo ? 'Weight' : 'Capacity'}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                {isCargo
+                  ? `${listing.weight ?? 'N/A'} ${listing.weightUnit || 'kg'}`
+                  : `${listing.capacity ?? 'N/A'} ${listing.capacityUnit || 'kg'}`}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">{isCargo ? 'Cargo Type' : 'Vehicle Type'}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                {isCargo ? (listing.cargoType || 'N/A') : (listing.vehicleType || 'N/A')}
+              </p>
+            </div>
+          </div>
+
+          {listing.specialInstructions && (
+            <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Special Instructions</p>
+              <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{listing.specialInstructions}</p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 pt-2">
+            {canDeactivate && (
+              <Button
+                variant="outline"
+                disabled={loading}
+                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
+                onClick={async () => {
+                  const success = await onDeactivate?.(listing);
+                  if (success) onClose();
+                }}
+              >
+                {loading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Ban className="size-4 mr-2" />}
+                Deactivate Listing
+              </Button>
+            )}
+            <Button variant="ghost" onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ListingsManagement() {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [stats, setStats] = useState({ cargo: 0, trucks: 0, openCargo: 0, availableTrucks: 0 });
+  const [selectedListing, setSelectedListing] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Fetch listings
   const fetchListings = async () => {
@@ -115,13 +220,18 @@ export function ListingsManagement() {
 
   // Handle deactivate listing
   const handleDeactivate = async (listing) => {
+    setActionLoading(true);
     try {
       await api.admin.deactivateListing(listing.id, listing.type, {
         reason: 'Deactivated via admin dashboard',
       });
       await fetchListings();
+      return true;
     } catch (error) {
       console.error('Error deactivating listing:', error);
+      return false;
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -213,13 +323,25 @@ export function ListingsManagement() {
       align: 'right',
       render: (_, row) => (
         <div className="flex items-center justify-end gap-2">
-          <Button size="sm" variant="ghost">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="focus-visible:ring-1 focus-visible:ring-orange-500 focus-visible:ring-offset-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedListing(row);
+              setShowDetailModal(true);
+            }}
+            aria-label="View listing details"
+            title="View listing details"
+          >
             <Eye className="size-4" />
           </Button>
           {row.status !== 'deactivated' && row.status !== 'completed' && row.status !== 'delivered' && (
             <Button
               size="sm"
               variant="ghost"
+              disabled={actionLoading}
               className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
               onClick={(e) => {
                 e.stopPropagation();
@@ -273,6 +395,10 @@ export function ListingsManagement() {
         loading={loading}
         emptyMessage="No listings found"
         emptyIcon={Package}
+        onRowClick={(row) => {
+          setSelectedListing(row);
+          setShowDetailModal(true);
+        }}
         searchable
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -300,6 +426,17 @@ export function ListingsManagement() {
             </FilterButton>
           </>
         }
+      />
+
+      <ListingDetailModal
+        open={showDetailModal}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedListing(null);
+        }}
+        listing={selectedListing}
+        onDeactivate={handleDeactivate}
+        loading={actionLoading}
       />
     </div>
   );
