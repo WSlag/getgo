@@ -48,6 +48,7 @@ export function DashboardOverview({ badges, onNavigate }) {
       // Fetch payment stats
       const paymentStats = await api.admin.getPaymentStats();
       const marketplaceKpis = await api.admin.getMarketplaceKpis({ weeks: 8 });
+      const resolvedPaymentStats = paymentStats?.stats || paymentStats || {};
 
       // Fetch user count from Firestore
       const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -96,10 +97,10 @@ export function DashboardOverview({ badges, onNavigate }) {
         availableTrucks,
         totalContracts: contractCount,
         activeContracts,
-        pendingPayments: paymentStats?.stats?.pendingReview || 0,
-        approvedToday: paymentStats?.stats?.approvedToday || 0,
-        rejectedToday: paymentStats?.stats?.rejectedToday || 0,
-        totalAmountToday: paymentStats?.stats?.totalAmountToday || 0,
+        pendingPayments: resolvedPaymentStats.pendingReview || 0,
+        approvedToday: resolvedPaymentStats.approvedToday || 0,
+        rejectedToday: resolvedPaymentStats.rejectedToday || 0,
+        totalAmountToday: resolvedPaymentStats.totalAmountToday || 0,
       });
       setKpiSummary(marketplaceKpis?.summary || null);
 

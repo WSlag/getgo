@@ -3,18 +3,23 @@
  * Sends notifications on shipment status changes and location updates
  */
 
-const functions = require('firebase-functions');
+const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 
 /**
  * Notify shipper when shipment location is updated
  */
-exports.onShipmentLocationUpdate = functions.region('asia-southeast1').firestore
-  .document('shipments/{shipmentId}')
-  .onUpdate(async (change, context) => {
+exports.onShipmentLocationUpdate = onDocumentUpdated(
+  {
+    region: 'asia-southeast1',
+    document: 'shipments/{shipmentId}',
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) return null;
     const before = change.before.data();
     const after = change.after.data();
-    const shipmentId = context.params.shipmentId;
+    const shipmentId = event.params.shipmentId;
 
     // Only trigger if location actually changed
     if (before.currentLat === after.currentLat && before.currentLng === after.currentLng) {
@@ -50,17 +55,23 @@ exports.onShipmentLocationUpdate = functions.region('asia-southeast1').firestore
     });
 
     return null;
-  });
+  }
+);
 
 /**
  * Notify both parties when shipment status changes
  */
-exports.onShipmentStatusChanged = functions.region('asia-southeast1').firestore
-  .document('shipments/{shipmentId}')
-  .onUpdate(async (change, context) => {
+exports.onShipmentStatusChanged = onDocumentUpdated(
+  {
+    region: 'asia-southeast1',
+    document: 'shipments/{shipmentId}',
+  },
+  async (event) => {
+    const change = event.data;
+    if (!change) return null;
     const before = change.before.data();
     const after = change.after.data();
-    const shipmentId = context.params.shipmentId;
+    const shipmentId = event.params.shipmentId;
 
     // Only trigger if status changed
     if (before.status === after.status) {
@@ -115,4 +126,5 @@ exports.onShipmentStatusChanged = functions.region('asia-southeast1').firestore
     });
 
     return null;
-  });
+  }
+);

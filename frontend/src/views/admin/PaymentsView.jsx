@@ -81,6 +81,15 @@ function FraudFlagBadge({ flag, score }) {
   );
 }
 
+function normalizeFraudFlag(flag) {
+  if (!flag) return { label: '', score: null };
+  if (typeof flag === 'string') return { label: flag, score: null };
+  return {
+    label: String(flag.rule || flag.label || ''),
+    score: typeof flag.score === 'number' ? flag.score : null,
+  };
+}
+
 // Fraud score indicator using shared utility
 function FraudScoreIndicator({ score }) {
   const style = getFraudScoreStyle(score);
@@ -285,9 +294,10 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
                   Fraud Flags ({submission.fraudFlags.length})
                 </h4>
                 <div className="flex flex-wrap gap-2">
-                  {submission.fraudFlags.map((flag, idx) => (
-                    <FraudFlagBadge key={idx} flag={flag.rule} score={flag.score} />
-                  ))}
+                  {submission.fraudFlags.map((flag, idx) => {
+                    const normalized = normalizeFraudFlag(flag);
+                    return <FraudFlagBadge key={idx} flag={normalized.label} score={normalized.score} />;
+                  })}
                 </div>
               </div>
             )}
@@ -395,6 +405,7 @@ export function PaymentsView({ className }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const resolvedStats = stats?.stats || stats || {};
 
   // Fetch pending submissions
   const fetchSubmissions = async () => {
@@ -529,7 +540,7 @@ export function PaymentsView({ className }) {
               key={idx}
               className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-xs"
             >
-              {flag.rule?.replace(/_/g, ' ').slice(0, 12)}
+              {normalizeFraudFlag(flag).label.replace(/_/g, ' ').slice(0, 12)}
             </span>
           ))}
           {row.fraudFlags?.length > 2 && (
@@ -576,25 +587,25 @@ export function PaymentsView({ className }) {
         <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
           <StatCard
             title="Pending Review"
-            value={stats.stats?.pendingReview || 0}
+            value={resolvedStats.pendingReview || 0}
             icon={AlertTriangle}
             iconColor="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
           />
           <StatCard
             title="Approved Today"
-            value={stats.stats?.approvedToday || 0}
+            value={resolvedStats.approvedToday || 0}
             icon={CheckCircle2}
             iconColor="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
           />
           <StatCard
             title="Rejected Today"
-            value={stats.stats?.rejectedToday || 0}
+            value={resolvedStats.rejectedToday || 0}
             icon={XCircle}
             iconColor="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
           />
           <StatCard
             title="Total Today"
-            value={`₱${formatPrice(stats.stats?.totalAmountToday || 0)}`}
+            value={`₱${formatPrice(resolvedStats.totalAmountToday || 0)}`}
             icon={PesoIcon}
             iconColor="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
           />

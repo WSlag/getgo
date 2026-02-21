@@ -3,15 +3,20 @@
  * Updates user average ratings and badge tiers when ratings are submitted
  */
 
-const functions = require('firebase-functions');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 
 /**
  * Update user's average rating and badge when a new rating is submitted
  */
-exports.onRatingCreated = functions.region('asia-southeast1').firestore
-  .document('ratings/{ratingId}')
-  .onCreate(async (snap, context) => {
+exports.onRatingCreated = onDocumentCreated(
+  {
+    region: 'asia-southeast1',
+    document: 'ratings/{ratingId}',
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return null;
     const rating = snap.data();
     const ratedUserId = rating.rateeId;
 
@@ -92,7 +97,7 @@ exports.onRatingCreated = functions.region('asia-southeast1').firestore
       title: 'New Rating Received',
       message: `${raterName} rated you ${rating.score} stars`,
       data: {
-        ratingId: context.params.ratingId,
+        ratingId: event.params.ratingId,
         raterId: rating.raterId,
         score: rating.score,
         comment: rating.comment || '',
@@ -102,4 +107,5 @@ exports.onRatingCreated = functions.region('asia-southeast1').firestore
     });
 
     return null;
-  });
+  }
+);

@@ -496,6 +496,89 @@ exports.adminGetContracts = functions.region('asia-southeast1').https.onCall(asy
 });
 
 /**
+ * Deactivate a listing (admin moderation)
+ */
+exports.adminDeactivateListing = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const { listingId, listingType, reason } = data || {};
+  if (!listingId || !listingType) {
+    throw new functions.https.HttpsError('invalid-argument', 'listingId and listingType are required');
+  }
+
+  const normalizedType = String(listingType).toLowerCase();
+  const collectionName = normalizedType === 'cargo'
+    ? 'cargoListings'
+    : normalizedType === 'truck'
+      ? 'truckListings'
+      : null;
+
+  if (!collectionName) {
+    throw new functions.https.HttpsError('invalid-argument', 'listingType must be cargo or truck');
+  }
+
+  const db = admin.firestore();
+  const listingRef = db.collection(collectionName).doc(String(listingId));
+  const listingDoc = await listingRef.get();
+  if (!listingDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Listing not found');
+  }
+
+  await listingRef.update({
+    status: 'deactivated',
+    deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    deactivatedBy: context.auth.uid,
+    deactivationReason: reason || 'Deactivated by admin',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await db.collection('adminLogs').add({
+    action: 'DEACTIVATE_LISTING',
+    targetId: String(listingId),
+    targetType: collectionName,
+    performedBy: context.auth.uid,
+    reason: reason || 'Deactivated by admin',
+    performedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { success: true, message: 'Listing deactivated successfully' };
+});
+
+/**
+ * Delete a rating (admin moderation)
+ */
+exports.adminDeleteRating = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const { ratingId } = data || {};
+  if (!ratingId) {
+    throw new functions.https.HttpsError('invalid-argument', 'ratingId is required');
+  }
+
+  const db = admin.firestore();
+  const ratingRef = db.collection('ratings').doc(String(ratingId));
+  const ratingDoc = await ratingRef.get();
+  if (!ratingDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Rating not found');
+  }
+
+  const ratingData = ratingDoc.data() || {};
+  await ratingRef.delete();
+
+  await db.collection('adminLogs').add({
+    action: 'DELETE_RATING',
+    targetId: String(ratingId),
+    performedBy: context.auth.uid,
+    relatedContractId: ratingData.contractId || null,
+    raterId: ratingData.raterId || null,
+    ratedUserId: ratingData.ratedUserId || null,
+    performedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { success: true, message: 'Rating deleted successfully' };
+});
+
+/**
  * Get Outstanding Platform Fees Report
  * Returns all contracts with unpaid platform fees, enriched with trucker data
  */

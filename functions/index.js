@@ -6,6 +6,9 @@
  */
 
 const functions = require('firebase-functions');
+const { onCall } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
 const axios = require('axios');
 
@@ -86,16 +89,18 @@ async function verifyHttpAppCheckToken(req, res) {
  * Triggered when a new document is created in /paymentSubmissions
  * Runs OCR, validates data, performs fraud detection, and updates status.
  */
-exports.processPaymentSubmission = functions
-  .region('asia-southeast1') // Manila region for lower latency
-  .runWith({
-    memory: '1GB',
-    timeoutSeconds: 120
-  })
-  .firestore.document('paymentSubmissions/{submissionId}')
-  .onCreate(async (snap, context) => {
+exports.processPaymentSubmission = onDocumentCreated(
+  {
+    region: 'asia-southeast1', // Manila region for lower latency
+    document: 'paymentSubmissions/{submissionId}',
+    memory: '1GiB',
+    timeoutSeconds: 120,
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
     const submission = snap.data();
-    const { submissionId } = context.params;
+    const { submissionId } = event.params;
 
     try {
       // Step 1: Update status to processing
@@ -255,7 +260,8 @@ exports.processPaymentSubmission = functions
         details: [{ error: error.message }]
       });
     }
-  });
+  }
+);
 
 /**
  * Handle expired order
@@ -569,9 +575,11 @@ async function notifyAdminForReview(submissionId, userId, amount, fraudResults) 
  *
  * HTTPS Callable function for admin to manually approve a payment
  */
-exports.adminApprovePayment = functions
-  .region('asia-southeast1')
-  .https.onCall(async (data, context) => {
+exports.adminApprovePayment = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const data = request.data || {};
+    const context = request;
     await verifyAdmin(context);
 
     const { submissionId, notes } = data;
@@ -621,16 +629,19 @@ exports.adminApprovePayment = functions
     }
 
     return { success: true, message: 'Payment approved' };
-  });
+  }
+);
 
 /**
  * Admin Manual Rejection
  *
  * HTTPS Callable function for admin to manually reject a payment
  */
-exports.adminRejectPayment = functions
-  .region('asia-southeast1')
-  .https.onCall(async (data, context) => {
+exports.adminRejectPayment = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const data = request.data || {};
+    const context = request;
     await verifyAdmin(context);
 
     const { submissionId, reason, notes } = data;
@@ -672,17 +683,31 @@ exports.adminRejectPayment = functions
     await sendUserNotification(submission.userId, 'rejected', 0, submissionId, reason);
 
     return { success: true, message: 'Payment rejected' };
-  });
+  }
+);
 
 /**
  * Get Admin Payment Stats
  *
  * HTTPS Callable function to get payment verification statistics
  */
-exports.getPaymentStats = functions
-  .region('asia-southeast1')
-  .https.onCall(async (data, context) => {
+exports.getPaymentStats = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const context = request;
     await verifyAdmin(context);
+
+    const getStartOfManilaDay = () => {
+      // Convert current time to UTC then shift to UTC+8 (Asia/Manila),
+      // truncate to local midnight, then shift back to UTC.
+      const now = new Date();
+      const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+      const manilaMs = utcMs + (8 * 60 * 60 * 1000);
+      const manilaDate = new Date(manilaMs);
+      manilaDate.setHours(0, 0, 0, 0);
+      const startUtcMs = manilaDate.getTime() - (8 * 60 * 60 * 1000);
+      return admin.firestore.Timestamp.fromDate(new Date(startUtcMs));
+    };
 
     // Get counts for each status
     const [pending, approved, rejected, review] = await Promise.all([
@@ -692,14 +717,43 @@ exports.getPaymentStats = functions
       db.collection('paymentSubmissions').where('status', '==', 'manual_review').count().get()
     ]);
 
-    return {
+    const startOfDay = getStartOfManilaDay();
+    const [approvedTodaySnapshot, rejectedTodaySnapshot] = await Promise.all([
+      db.collection('paymentSubmissions')
+        .where('status', '==', 'approved')
+        .where('resolvedAt', '>=', startOfDay)
+        .get(),
+      db.collection('paymentSubmissions')
+        .where('status', '==', 'rejected')
+        .where('resolvedAt', '>=', startOfDay)
+        .get(),
+    ]);
+
+    const approvedToday = approvedTodaySnapshot.size;
+    const rejectedToday = rejectedTodaySnapshot.size;
+    let totalAmountToday = 0;
+    approvedTodaySnapshot.docs.forEach((docSnap) => {
+      const submission = docSnap.data() || {};
+      totalAmountToday += Number(submission.orderAmount || submission.amount || 0);
+    });
+
+    const payload = {
       pending: pending.data().count,
       approved: approved.data().count,
       rejected: rejected.data().count,
       pendingReview: review.data().count,
-      total: pending.data().count + approved.data().count + rejected.data().count + review.data().count
+      total: pending.data().count + approved.data().count + rejected.data().count + review.data().count,
+      approvedToday,
+      rejectedToday,
+      totalAmountToday,
     };
-  });
+
+    return {
+      ...payload,
+      stats: payload,
+    };
+  }
+);
 
 /**
  * Set Admin Role
@@ -708,9 +762,11 @@ exports.getPaymentStats = functions
  * Can only be called by existing admins or via Firebase Admin SDK.
  * Also sets Firebase Custom Claims for secure rule verification.
  */
-exports.setAdminRole = functions
-  .region('asia-southeast1')
-  .https.onCall(async (data, context) => {
+exports.setAdminRole = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const data = request.data || {};
+    const context = request;
     await verifyAdmin(context);
 
     const { targetUserId, isAdmin } = data;
@@ -753,7 +809,8 @@ exports.setAdminRole = functions
       console.error('Error setting admin role:', error);
       throw new functions.https.HttpsError('internal', 'Failed to update admin privileges');
     }
-  });
+  }
+);
 
 /**
  * Initialize First Admin (One-time setup)
@@ -762,9 +819,11 @@ exports.setAdminRole = functions
  * After the first admin is created, this function will reject all future calls.
  * Use this to bootstrap the admin system.
  */
-exports.initializeFirstAdmin = functions
-  .region('asia-southeast1')
-  .https.onCall(async (data, context) => {
+exports.initializeFirstAdmin = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const data = request.data || {};
+    const context = request;
     // Must be authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
@@ -839,7 +898,8 @@ exports.initializeFirstAdmin = functions
       console.error('Error initializing first admin:', error);
       throw new functions.https.HttpsError('internal', 'Failed to initialize admin');
     }
-  });
+  }
+);
 
 // =============================================================================
 // SECURITY MONITORING FUNCTIONS
@@ -849,12 +909,16 @@ exports.initializeFirstAdmin = functions
  * Security Monitor: Detect privilege escalation on user creation
  * This is a defense-in-depth measure in case Firestore rules are misconfigured
  */
-exports.validateUserCreation = functions
-  .region('asia-southeast1')
-  .firestore.document('users/{userId}')
-  .onCreate(async (snap, context) => {
+exports.validateUserCreation = onDocumentCreated(
+  {
+    region: 'asia-southeast1',
+    document: 'users/{userId}',
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
     const userData = snap.data();
-    const userId = context.params.userId;
+    const userId = event.params.userId;
 
     // Check for unauthorized admin privileges
     const hasUnauthorizedAdmin = userData.isAdmin === true || userData.role === 'admin';
@@ -885,17 +949,20 @@ exports.validateUserCreation = functions
       // Auto-disable account pending investigation
       await admin.auth().updateUser(userId, { disabled: true });
     }
-  });
+  }
+);
 
 /**
  * Scheduled Security Audit: Check for unauthorized admin accounts
  * Runs daily at 2 AM Manila time
  */
-exports.auditAdminAccounts = functions
-  .region('asia-southeast1')
-  .pubsub.schedule('0 2 * * *')
-  .timeZone('Asia/Manila')
-  .onRun(async (context) => {
+exports.auditAdminAccounts = onSchedule(
+  {
+    region: 'asia-southeast1',
+    schedule: '0 2 * * *',
+    timeZone: 'Asia/Manila',
+  },
+  async () => {
 
     // Get all admin users
     const adminsByRole = await db.collection('users')
@@ -973,7 +1040,8 @@ exports.auditAdminAccounts = functions
     }
 
     return null;
-  });
+  }
+);
 
 // =============================================================================
 // CONTRACT MANAGEMENT FUNCTIONS
@@ -1030,6 +1098,8 @@ exports.adminToggleAdmin = adminFunctions.adminToggleAdmin;
 exports.adminGetFinancialSummary = adminFunctions.adminGetFinancialSummary;
 exports.adminResolveDispute = adminFunctions.adminResolveDispute;
 exports.adminGetContracts = adminFunctions.adminGetContracts;
+exports.adminDeactivateListing = adminFunctions.adminDeactivateListing;
+exports.adminDeleteRating = adminFunctions.adminDeleteRating;
 exports.adminGetOutstandingFees = adminFunctions.adminGetOutstandingFees;
 exports.adminGetMarketplaceKpis = adminFunctions.adminGetMarketplaceKpis;
 
