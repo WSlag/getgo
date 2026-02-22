@@ -60,11 +60,13 @@ export function GCashPaymentModal({
   const createOrderRequestKeyRef = useRef(null);
 
   // Watch payment submission status
-  const { submission } = useOrderSubmission(order?.orderId);
-
   const { bid, listing, platformFee, contract } = data || {};
-  const agreedPrice = bid?.price || 0;
+  const bidId = bid?.id || contract?.bidId || null;
+  const agreedPrice = bid?.price ?? contract?.agreedPrice ?? 0;
+  const routeOrigin = listing?.origin || contract?.pickupAddress || contract?.pickupCity || null;
+  const routeDestination = listing?.destination || contract?.deliveryAddress || contract?.deliveryCity || null;
   const configuredFeePercent = Number(contract?.platformFeePercentage);
+  const { submission } = useOrderSubmission(order?.orderId);
 
   const formatPrice = (price) => {
     if (!price) return 'PHP 0';
@@ -95,21 +97,25 @@ export function GCashPaymentModal({
       return;
     }
 
-    if (bid?.id && !createOrderRequestKeyRef.current) {
-      createOrderRequestKeyRef.current = generateIdempotencyKey('platform_fee_order', bid.id);
+    if (bidId && !createOrderRequestKeyRef.current) {
+      createOrderRequestKeyRef.current = generateIdempotencyKey('platform_fee_order', bidId);
     }
-  }, [open, bid?.id]);
+  }, [open, bidId]);
 
   // Watch for payment approval and return control to parent
   useEffect(() => {
     if (submission?.status === 'approved' && order) {
       // Payment is recorded server-side; notify parent
       setTimeout(() => {
-        onContractCreated?.({ bidId: bid.id });
+        onContractCreated?.({
+          bidId,
+          contractId: contract?.id || null,
+          orderId: order.orderId,
+        });
         handleClose();
       }, 2000);
     }
-  }, [submission?.status, order]);
+  }, [submission?.status, order, bidId, contract?.id]);
 
   const clearFile = () => {
     if (preview) {
@@ -123,19 +129,28 @@ export function GCashPaymentModal({
   };
 
   const handleCreateOrder = async () => {
+    if (!bidId) {
+      setError('Missing bid reference for payment. Please reopen this contract and try again.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       if (!createOrderRequestKeyRef.current) {
-        createOrderRequestKeyRef.current = generateIdempotencyKey('platform_fee_order', bid.id);
+        createOrderRequestKeyRef.current = generateIdempotencyKey('platform_fee_order', bidId);
       }
 
       const result = await api.wallet.createPlatformFeeOrder({
-        bidId: bid.id,
+        bidId,
         idempotencyKey: createOrderRequestKeyRef.current,
       });
-      setOrder(result.order);
+      const nextOrder = result?.order || result;
+      if (!nextOrder?.orderId) {
+        throw new Error('Payment order could not be created. Please try again.');
+      }
+      setOrder(nextOrder);
       setStep('qr');
     } catch (err) {
       console.error('Error creating order:', err);
@@ -176,7 +191,7 @@ export function GCashPaymentModal({
       const screenshotUrl = await uploadPaymentScreenshot(order.orderId, file);
       await createPaymentSubmission({
         orderId: order.orderId,
-        bidId: bid.id, // Link to bid for platform fee tracking
+        bidId: bidId || null, // Link to bid for platform fee tracking
         screenshotUrl,
       });
 
@@ -217,7 +232,7 @@ export function GCashPaymentModal({
           <span style={{ fontSize: '14px', color: '#6b7280' }}>Route</span>
         </div>
         <span style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
-          {listing?.origin} {'->'} {listing?.destination}
+          {routeOrigin || 'Not specified'} {'->'} {routeDestination || 'Not specified'}
         </span>
       </div>
 
