@@ -118,7 +118,7 @@ function getDueStatus(contract) {
     if (contract?.platformFeeStatus === 'overdue') {
       return { state: 'overdue', label: 'Overdue', days: null, dueDate: null };
     }
-    return { state: 'unknown', label: 'No due date', days: null, dueDate: null };
+    return { state: 'pending_signing', label: 'Pending signing', days: null, dueDate: null };
   }
 
   const today = new Date();
@@ -749,6 +749,7 @@ export function PaymentsView({ className }) {
           due_today: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
           due_soon: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
           upcoming: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+          pending_signing: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
           unknown: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
         };
         return (
