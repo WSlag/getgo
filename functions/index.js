@@ -1179,6 +1179,13 @@ exports.brokerRegister = referralFunctions.brokerRegister;
 exports.brokerApplyReferralCode = referralFunctions.brokerApplyReferralCode;
 exports.brokerGetDashboard = referralFunctions.brokerGetDashboard;
 exports.brokerRequestPayout = referralFunctions.brokerRequestPayout;
+exports.brokerGetReferredUsers = referralFunctions.brokerGetReferredUsers;
+exports.brokerReferListing = referralFunctions.brokerReferListing;
+exports.brokerGetListingReferrals = referralFunctions.brokerGetListingReferrals;
+exports.referredGetListingReferrals = referralFunctions.referredGetListingReferrals;
+exports.referredUpdateListingReferralState = referralFunctions.referredUpdateListingReferralState;
+exports.brokerGetMarketplaceActivity = referralFunctions.brokerGetMarketplaceActivity;
+exports.brokerBackfillMarketplaceActivity = referralFunctions.brokerBackfillMarketplaceActivity;
 exports.adminGetBrokers = referralFunctions.adminGetBrokers;
 exports.adminUpdateBrokerTier = referralFunctions.adminUpdateBrokerTier;
 exports.adminGetBrokerPayoutRequests = referralFunctions.adminGetBrokerPayoutRequests;
@@ -1213,12 +1220,19 @@ exports.onRatingCreated = ratingTriggers.onRatingCreated;
 const referralTriggers = require('./src/triggers/referralTriggers');
 exports.onPlatformFeeCompleted = referralTriggers.onPlatformFeeCompleted;
 
+const listingReferralTriggers = require('./src/triggers/listingReferralTriggers');
+exports.onCargoListingUpdatedForReferrals = listingReferralTriggers.onCargoListingUpdatedForReferrals;
+exports.onTruckListingUpdatedForReferrals = listingReferralTriggers.onTruckListingUpdatedForReferrals;
+
 // =============================================================================
 // SCHEDULED FUNCTIONS
 // =============================================================================
 
 const platformFeeReminders = require('./src/scheduled/platformFeeReminders');
 exports.sendPlatformFeeReminders = platformFeeReminders.sendPlatformFeeReminders;
+
+const brokerListingReferralExpiry = require('./src/scheduled/brokerListingReferralExpiry');
+exports.expireBrokerListingReferrals = brokerListingReferralExpiry.expireBrokerListingReferrals;
 
 // =============================================================================
 // ROUTING PROXY - Avoids CORS restrictions on OpenRouteService from the browser

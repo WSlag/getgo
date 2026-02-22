@@ -23,6 +23,7 @@ export function HomeView({
   onContactShipper,
   onContactTrucker,
   onViewMap,
+  onReferListing,
   currentRole = 'shipper',
   currentUserId = null,
   darkMode = false,
@@ -621,6 +622,14 @@ export function HomeView({
                   onViewMap={() => onViewMap?.(cargo)}
                   canBid={currentRole === 'trucker' && !isAccountSuspended && canBidCargoStatus(cargo.status)}
                   isOwner={currentUserId && (cargo.shipperId === currentUserId || cargo.userId === currentUserId)}
+                  canRefer={Boolean(
+                    isBroker
+                    && currentUserId
+                    && cargo.userId !== currentUserId
+                    && cargo.shipperId !== currentUserId
+                    && canBidCargoStatus(cargo.status)
+                  )}
+                  onRefer={() => onReferListing?.(cargo, 'cargo')}
                   darkMode={darkMode}
                 />
               ))
@@ -635,6 +644,14 @@ export function HomeView({
                   onViewMap={() => onViewMap?.(truck)}
                   canBook={currentRole === 'shipper' && !isAccountSuspended && canBookTruckStatus(truck.status)}
                   isOwner={currentUserId && (truck.truckerId === currentUserId || truck.userId === currentUserId)}
+                  canRefer={Boolean(
+                    isBroker
+                    && currentUserId
+                    && truck.userId !== currentUserId
+                    && truck.truckerId !== currentUserId
+                    && canBookTruckStatus(truck.status)
+                  )}
+                  onRefer={() => onReferListing?.(truck, 'truck')}
                   darkMode={darkMode}
                 />
               ))}

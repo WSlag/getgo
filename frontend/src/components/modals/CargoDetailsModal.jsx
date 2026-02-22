@@ -32,7 +32,10 @@ export function CargoDetailsModal({
   onCreateContract,
   onReopenListing,
   onOpenContract,
+  onRefer,
   userBidId,
+  isBroker = false,
+  canRefer = false,
   darkMode = false,
 }) {
   const [processingBidId, setProcessingBidId] = React.useState(null);
@@ -588,6 +591,16 @@ export function CargoDetailsModal({
             </div>
           )}
 
+          {isBroker && !isOwner && canRefer && onRefer && (
+            <Button
+              variant="outline"
+              onClick={() => onRefer?.(cargo)}
+              className="w-full gap-2 mb-3 border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+            >
+              Refer Listing
+            </Button>
+          )}
+
           <Button
             variant="ghost"
             onClick={onClose}
@@ -603,4 +616,3 @@ export function CargoDetailsModal({
 }
 
 export default CargoDetailsModal;
-

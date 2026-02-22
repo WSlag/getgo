@@ -10,6 +10,12 @@ const {
   calculatePlatformFeeAmount,
   shouldBlockForMaintenance,
 } = require('../config/platformSettings');
+const {
+  ACTIVITY_TYPES,
+  getBrokerReferralForUser,
+  maskDisplayName,
+  upsertBrokerMarketplaceActivity,
+} = require('../services/brokerListingReferralService');
 
 // Helper: Generate unique contract number
 function generateContractNumber() {
@@ -124,6 +130,49 @@ async function getFirestoreBidData(bidId) {
   }
 
   return { bid, listing, isCargo };
+}
+
+function resolveContractActivityType(phase) {
+  if (phase === 'created') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_CREATED;
+  if (phase === 'signed') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_SIGNED;
+  if (phase === 'completed') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_COMPLETED;
+  return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_CANCELLED;
+}
+
+function resolveContractActivityStatus(phase) {
+  if (phase === 'signed') return 'accepted';
+  if (phase === 'completed') return 'completed';
+  if (phase === 'cancelled') return 'cancelled';
+  return 'pending';
+}
+
+async function recordTruckBookingContractActivity(db, contractId, contract, phase) {
+  if (!contract || contract.listingType !== 'truck' || !contract.bidderId) return;
+
+  const referral = await getBrokerReferralForUser(contract.bidderId, db);
+  if (!referral?.brokerId) return;
+
+  const [referredDoc, counterpartyDoc] = await Promise.all([
+    db.collection('users').doc(contract.bidderId).get(),
+    contract.listingOwnerId ? db.collection('users').doc(contract.listingOwnerId).get() : Promise.resolve(null),
+  ]);
+
+  await upsertBrokerMarketplaceActivity(`contract:${contractId}:${phase}`, {
+    brokerId: referral.brokerId,
+    referredUserId: contract.bidderId,
+    activityType: resolveContractActivityType(phase),
+    listingType: 'truck',
+    bidId: contract.bidId || null,
+    contractId,
+    amount: Number(contract.agreedPrice || 0) || null,
+    origin: contract.pickupCity || contract.pickupAddress || null,
+    destination: contract.deliveryCity || contract.deliveryAddress || null,
+    status: resolveContractActivityStatus(phase),
+    activityAt: admin.firestore.FieldValue.serverTimestamp(),
+    referredUserMasked: maskDisplayName(referredDoc.exists ? referredDoc.data().name : null, referredDoc.exists ? referredDoc.data().phone : null),
+    counterpartyMasked: maskDisplayName(counterpartyDoc?.exists ? counterpartyDoc.data().name : contract.listingOwnerName, counterpartyDoc?.exists ? counterpartyDoc.data().phone : null),
+    source: 'trigger',
+  }, db);
 }
 
 /**
@@ -311,6 +360,12 @@ By signing, both parties agree to these terms.
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
+  try {
+    await recordTruckBookingContractActivity(db, contractRef.id, { ...contractData }, 'created');
+  } catch (activityError) {
+    console.error('Failed to record truck booking contract created activity:', activityError);
+  }
+
   return {
     message: 'Contract created successfully',
     contract: { id: contractRef.id, ...contractData },
@@ -479,6 +534,12 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       isRead: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    try {
+      await recordTruckBookingContractActivity(db, contractId, { ...updatedContract, status: 'signed' }, 'signed');
+    } catch (activityError) {
+      console.error('Failed to record truck booking contract signed activity:', activityError);
+    }
   } else {
     // Notify other party to sign
     const otherUserId = isShipper ? bidderId : listingOwnerId;
@@ -589,6 +650,12 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
 
   // Note: Platform fee reminders are handled by the scheduled reminder system
   // No need to send additional notifications here
+
+  try {
+    await recordTruckBookingContractActivity(db, contractId, { ...contract, status: 'completed' }, 'completed');
+  } catch (activityError) {
+    console.error('Failed to record truck booking contract completed activity:', activityError);
+  }
 
   return {
     message: 'Contract completed successfully',
@@ -719,6 +786,12 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
   });
 
   await Promise.all(notificationPromises);
+
+  try {
+    await recordTruckBookingContractActivity(db, contractId, { ...contract, status: 'cancelled' }, 'cancelled');
+  } catch (activityError) {
+    console.error('Failed to record truck booking contract cancelled activity:', activityError);
+  }
 
   return {
     message: 'Contract cancelled successfully',
