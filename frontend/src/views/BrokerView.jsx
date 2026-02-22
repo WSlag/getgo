@@ -35,10 +35,17 @@ function currency(value) {
   return `PHP ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatReferralStatus(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (!normalized) return 'Pending';
+  return normalized.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export function BrokerView({
   authUser,
   isBroker = false,
   brokerProfile = null,
+  onOpenBrokerActivity,
   onBrokerRegistered,
   onToast,
 }) {
@@ -53,6 +60,11 @@ export function BrokerView({
   const [accountName, setAccountName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [payoutFilter, setPayoutFilter] = useState('all');
+  const [referralItems, setReferralItems] = useState([]);
+  const [referralSummary, setReferralSummary] = useState(null);
+  const [referralCursor, setReferralCursor] = useState(null);
+  const [referralsLoading, setReferralsLoading] = useState(false);
+  const [referralsHasMore, setReferralsHasMore] = useState(false);
 
   const fetchDashboard = async () => {
     if (!authUser || !isBroker) return;
@@ -68,8 +80,34 @@ export function BrokerView({
     }
   };
 
+  const fetchListingReferrals = async ({ append = false, cursorValue = null } = {}) => {
+    if (!authUser || !isBroker) return;
+    setReferralsLoading(true);
+    try {
+      const data = await api.broker.getListingReferrals({
+        limit: 10,
+        cursor: cursorValue,
+        statusFilter: 'all',
+        listingTypeFilter: 'all',
+      });
+      setReferralItems((prev) => (append ? [...prev, ...(data?.items || [])] : (data?.items || [])));
+      setReferralSummary(data?.summary || null);
+      setReferralCursor(data?.nextCursor || null);
+      setReferralsHasMore(Boolean(data?.hasMore));
+    } catch (fetchError) {
+      onToast?.({
+        type: 'error',
+        title: 'Listing referrals',
+        message: fetchError.message || 'Failed to load listing referral activity.',
+      });
+    } finally {
+      setReferralsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchDashboard();
+    fetchListingReferrals();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.uid, isBroker]);
 
@@ -103,6 +141,7 @@ export function BrokerView({
         message: 'Your broker profile is now active.',
       });
       await fetchDashboard();
+      await fetchListingReferrals();
     } catch (registerError) {
       setError(registerError.message || 'Failed to register as broker');
     } finally {
@@ -160,6 +199,7 @@ export function BrokerView({
         message: 'Your payout request is pending admin approval.',
       });
       await fetchDashboard();
+      await fetchListingReferrals();
     } catch (payoutError) {
       setError(payoutError.message || 'Failed to submit payout request');
     } finally {
@@ -341,6 +381,86 @@ export function BrokerView({
             <p className="text-xs text-gray-500 dark:text-gray-400">Active Referrals</p>
             <p className="text-lg font-bold text-gray-900 dark:text-white">{Number(broker?.totalReferrals || 0)}</p>
           </div>
+        </div>
+
+        <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700" style={{ padding: isMobile ? '16px' : '20px' }}>
+          <div className="flex items-center justify-between gap-3" style={{ marginBottom: isMobile ? '12px' : '14px' }}>
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Listing Referral Activity</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Broker-referred cargo and truck posts summary</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => onOpenBrokerActivity?.()}>
+              Open Broker Activity
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-5" style={{ gap: isMobile ? '8px' : '12px', marginBottom: isMobile ? '12px' : '14px' }}>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Sent (24h)</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">{Number(referralSummary?.sent24h || 0)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Sent (7d)</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">{Number(referralSummary?.sent7d || 0)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Opened</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">{Number(referralSummary?.opened || 0)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Acted</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">{Number(referralSummary?.acted || 0)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Expired</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">{Number(referralSummary?.expired || 0)}</p>
+            </div>
+          </div>
+
+          {referralsLoading && referralItems.length === 0 ? (
+            <div className="py-6 flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
+              <Loader2 className="size-4 animate-spin mr-2" />
+              Loading referral operations...
+            </div>
+          ) : referralItems.length === 0 ? (
+            <div className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+              No listing referrals sent yet.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {referralItems.map((item) => (
+                <div key={item.id} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {String(item.listingType || 'listing').toUpperCase()} {item.route?.origin || 'Origin'} {' -> '} {item.route?.destination || 'Destination'}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Referred user: {item.referredUserMasked || 'User'} {item.askingPrice ? `| ${currency(item.askingPrice)}` : ''}
+                      </p>
+                    </div>
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                      {formatReferralStatus(item.status)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Updated {formatDateTime(item.updatedAt)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {referralsHasMore && (
+            <Button
+              variant="outline"
+              className="w-full mt-3"
+              onClick={() => fetchListingReferrals({ append: true, cursorValue: referralCursor })}
+              disabled={referralsLoading}
+            >
+              {referralsLoading ? 'Loading...' : 'Load More'}
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: isMobile ? '12px' : '16px' }}>

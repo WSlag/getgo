@@ -5,6 +5,55 @@
 
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
+const {
+  ACTIVE_LISTING_REFERRAL_STATUSES,
+  LISTING_REFERRAL_COLLECTION,
+  buildListingReferralId,
+  getBrokerReferralForUser,
+  mapBidActivityType,
+  mapBidStatusToActivityStatus,
+  maskDisplayName,
+  upsertBrokerMarketplaceActivity,
+  toDate,
+} = require('../services/brokerListingReferralService');
+
+async function markListingReferralAsActed(db, bidId, bid, brokerId) {
+  const listingType = bid.cargoListingId ? 'cargo' : (bid.truckListingId ? 'truck' : null);
+  const listingId = bid.cargoListingId || bid.truckListingId || null;
+  if (!listingType || !listingId || !brokerId || !bid.bidderId) return;
+
+  const referralId = buildListingReferralId({
+    brokerId,
+    listingType,
+    listingId,
+    referredUserId: bid.bidderId,
+  });
+
+  const referralRef = db.collection(LISTING_REFERRAL_COLLECTION).doc(referralId);
+  await db.runTransaction(async (tx) => {
+    const referralDoc = await tx.get(referralRef);
+    if (!referralDoc.exists) return;
+    const referral = referralDoc.data() || {};
+    if (!ACTIVE_LISTING_REFERRAL_STATUSES.includes(referral.status)) return;
+
+    const expiresAtDate = toDate(referral.expiresAt);
+    if (expiresAtDate && expiresAtDate.getTime() < Date.now()) return;
+
+    tx.update(referralRef, {
+      status: 'acted',
+      actedAt: admin.firestore.FieldValue.serverTimestamp(),
+      actedBidId: bidId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    tx.set(db.collection('brokerListingReferralAudit').doc(), {
+      eventType: 'act',
+      actorId: bid.bidderId,
+      referralDocId: referralId,
+      metadata: { bidId, listingId, listingType },
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+}
 
 /**
  * Notify listing owner when a new bid is placed
@@ -69,6 +118,38 @@ exports.onBidCreated = onDocumentCreated(
           isRead: false,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+    }
+
+    // Broker referred-activity + acted referral marker.
+    try {
+      const [referral, ownerDoc] = await Promise.all([
+        getBrokerReferralForUser(bid.bidderId, db),
+        bid.listingOwnerId ? db.collection('users').doc(bid.listingOwnerId).get() : Promise.resolve(null),
+      ]);
+      if (referral?.brokerId) {
+        const listingType = bid.cargoListingId ? 'cargo' : 'truck';
+        const activityType = mapBidActivityType(listingType);
+        await upsertBrokerMarketplaceActivity(`bid:${bidId}`, {
+          brokerId: referral.brokerId,
+          referredUserId: bid.bidderId,
+          activityType,
+          listingType,
+          bidId,
+          contractId: null,
+          amount: Number(bid.price || 0) || null,
+          origin: bid.origin || null,
+          destination: bid.destination || null,
+          status: mapBidStatusToActivityStatus(bid.status),
+          activityAt: bid.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+          referredUserMasked: maskDisplayName(bidderDoc.exists ? bidderDoc.data().name : null, bidderDoc.exists ? bidderDoc.data().phone : null),
+          counterpartyMasked: maskDisplayName(ownerDoc?.exists ? ownerDoc.data().name : bid.listingOwnerName, ownerDoc?.exists ? ownerDoc.data().phone : null),
+          source: 'trigger',
+        }, db);
+
+        await markListingReferralAsActed(db, bidId, bid, referral.brokerId);
+      }
+    } catch (error) {
+      console.error('Failed to record broker bid activity:', error);
     }
 
     return null;
@@ -145,6 +226,21 @@ exports.onBidStatusChanged = onDocumentUpdated(
         isRead: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+    }
+
+    // Keep broker activity bid status in sync.
+    try {
+      const activityRef = db.collection('brokerMarketplaceActivity').doc(`bid:${bidId}`);
+      const activityDoc = await activityRef.get();
+      if (activityDoc.exists) {
+        await activityRef.set({
+          status: mapBidStatusToActivityStatus(after.status),
+          activityAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    } catch (error) {
+      console.error('Failed to update broker bid activity status:', error);
     }
 
     return null;

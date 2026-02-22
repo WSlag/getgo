@@ -11,9 +11,39 @@ const {
   loadPlatformSettings,
   shouldBlockForMaintenance,
 } = require('../config/platformSettings');
+const {
+  ACTIVITY_TYPES,
+  LISTING_REFERRAL_COLLECTION,
+  MARKET_ACTIVITY_COLLECTION,
+  LISTING_REFERRAL_STATUSES,
+  ACTIVE_LISTING_REFERRAL_STATUSES,
+  TERMINAL_LISTING_REFERRAL_STATUSES,
+  normalizeListingType,
+  normalizeListingStatus,
+  isListingReferable,
+  buildListingReferralId,
+  toMillis,
+  encodeCursor,
+  decodeCursor,
+  maskDisplayName,
+  normalizeTypeFilter,
+  normalizeStatusFilter,
+  normalizeReferredStatusFilter,
+  matchesTypeFilter,
+  matchesStatusFilter,
+  matchesReferredStatusFilter,
+  buildBrokerActivitySummary,
+  upsertBrokerMarketplaceActivity,
+  upsertBrokerListingReferral,
+  logReferralAudit,
+} = require('../services/brokerListingReferralService');
 
 const REGION = 'asia-southeast1';
 const MIN_PAYOUT_AMOUNT = 500;
+const MAX_REFERRAL_RECIPIENTS = 20;
+const MAX_DAILY_LISTING_REFERRALS = 200;
+const MAX_ACTIVITY_LIMIT = 50;
+const REFERRAL_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_REFERRAL_RATES = {
   STARTER: 3,
   SILVER: 4,
@@ -98,6 +128,45 @@ async function verifyAdmin(context) {
   }
 
   throw new functions.https.HttpsError('permission-denied', 'Admin access required');
+}
+
+async function assertActiveBroker(db, userId) {
+  const brokerDoc = await db.collection('brokers').doc(userId).get();
+  if (!brokerDoc.exists) {
+    throw new functions.https.HttpsError('permission-denied', 'Broker profile not found');
+  }
+  const broker = brokerDoc.data() || {};
+  if (broker.status && broker.status !== 'active') {
+    throw new functions.https.HttpsError('failed-precondition', 'Broker account is not active');
+  }
+  return { id: brokerDoc.id, ...broker };
+}
+
+async function getMaskedUserMap(db, userIds = []) {
+  const uniqueIds = [...new Set(userIds.map((id) => String(id || '').trim()).filter(Boolean))];
+  if (uniqueIds.length === 0) return {};
+
+  const userDocs = await db.getAll(...uniqueIds.map((uid) => db.collection('users').doc(uid)));
+  const map = {};
+  userDocs.forEach((doc) => {
+    if (!doc.exists) return;
+    const user = doc.data() || {};
+    map[doc.id] = {
+      id: doc.id,
+      name: user.name || null,
+      phone: user.phone || null,
+      role: user.role || null,
+      masked: maskDisplayName(user.name, user.phone),
+    };
+  });
+  return map;
+}
+
+function mapContractPhaseToType(phase) {
+  if (phase === 'created') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_CREATED;
+  if (phase === 'signed') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_SIGNED;
+  if (phase === 'completed') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_COMPLETED;
+  return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_CANCELLED;
 }
 
 async function generateUniqueReferralCode(db, role) {
@@ -365,6 +434,601 @@ exports.brokerGetDashboard = functions.region(REGION).https.onCall(async (data, 
     referrals,
     commissions,
     payouts,
+  };
+});
+
+/**
+ * Broker: list attributed referred users for listing referral picker.
+ */
+exports.brokerGetReferredUsers = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const db = admin.firestore();
+  const brokerId = context.auth.uid;
+  await assertReferralProgramEnabled(db, context);
+  await assertActiveBroker(db, brokerId);
+
+  const limit = Math.min(Math.max(Number(data?.limit || 20), 1), 50);
+  const rawQuery = String(data?.query || '').trim().toLowerCase();
+  const cursor = decodeCursor(data?.cursor);
+  if (data?.cursor && !cursor) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid cursor');
+  }
+
+  let query = db.collection('brokerReferrals')
+    .where('brokerId', '==', brokerId)
+    .orderBy('createdAt', 'desc')
+    .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+
+  if (cursor) {
+    query = query.startAfter(admin.firestore.Timestamp.fromMillis(cursor.ts), cursor.id);
+  }
+
+  const snap = await query.limit(limit + 1).get();
+  const docs = snap.docs.slice(0, limit);
+  const referredUserIds = docs.map((doc) => doc.id);
+  const usersMap = await getMaskedUserMap(db, referredUserIds);
+
+  let items = docs.map((doc) => {
+    const referral = doc.data() || {};
+    const user = usersMap[doc.id] || {};
+    return {
+      referredUserId: doc.id,
+      referredRole: referral.referredRole || user.role || null,
+      maskedDisplay: user.masked || 'User',
+      createdAt: referral.createdAt || null,
+      referralStatus: referral.status || 'attributed',
+    };
+  });
+
+  if (rawQuery) {
+    items = items.filter((item) => item.maskedDisplay.toLowerCase().includes(rawQuery));
+  }
+
+  const lastDoc = docs[docs.length - 1] || null;
+  return {
+    items,
+    hasMore: snap.size > limit,
+    nextCursor: lastDoc ? encodeCursor({ activityAt: lastDoc.data().createdAt, id: lastDoc.id }) : null,
+  };
+});
+
+/**
+ * Broker: refer a listing to attributed referred users.
+ */
+exports.brokerReferListing = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const db = admin.firestore();
+  const brokerId = context.auth.uid;
+  await assertReferralProgramEnabled(db, context);
+  await assertActiveBroker(db, brokerId);
+
+  const listingId = String(data?.listingId || '').trim();
+  const listingType = normalizeListingType(data?.listingType);
+  const note = typeof data?.note === 'string' ? data.note.trim().slice(0, 200) : '';
+  const requestedUsers = Array.isArray(data?.referredUserIds)
+    ? [...new Set(data.referredUserIds.map((id) => String(id || '').trim()).filter(Boolean))]
+    : [];
+
+  if (!listingId || !listingType) {
+    throw new functions.https.HttpsError('invalid-argument', 'listingId and valid listingType are required');
+  }
+  if (requestedUsers.length === 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'referredUserIds is required');
+  }
+  if (requestedUsers.length > MAX_REFERRAL_RECIPIENTS) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      `Maximum referredUserIds per request is ${MAX_REFERRAL_RECIPIENTS}`
+    );
+  }
+
+  const brokerDoc = await db.collection('brokers').doc(brokerId).get();
+  const broker = brokerDoc.data() || {};
+
+  const listingCollection = listingType === 'cargo' ? 'cargoListings' : 'truckListings';
+  const listingDoc = await db.collection(listingCollection).doc(listingId).get();
+  if (!listingDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Listing not found');
+  }
+  const listing = listingDoc.data() || {};
+  const listingOwnerId = listing.userId || listing.shipperId || listing.truckerId || null;
+  if (!listingOwnerId) {
+    throw new functions.https.HttpsError('failed-precondition', 'Listing owner is missing');
+  }
+  if (listingOwnerId === brokerId) {
+    throw new functions.https.HttpsError('failed-precondition', 'Cannot refer your own listing');
+  }
+  if (!isListingReferable(listingType, listing.status)) {
+    throw new functions.https.HttpsError('failed-precondition', 'Listing is not eligible for referral');
+  }
+
+  const referralDocs = await db.getAll(
+    ...requestedUsers.map((uid) => db.collection('brokerReferrals').doc(uid))
+  );
+  const attributedUserIds = new Set();
+  referralDocs.forEach((doc) => {
+    if (!doc.exists) return;
+    const referral = doc.data() || {};
+    if (referral.brokerId === brokerId) {
+      attributedUserIds.add(doc.id);
+    }
+  });
+
+  const usersMap = await getMaskedUserMap(db, [...requestedUsers, brokerId, listingOwnerId]);
+  const now = Date.now();
+  const expiresAt = admin.firestore.Timestamp.fromMillis(now + REFERRAL_TTL_MS);
+  const createdErrors = [];
+  let createdCount = 0;
+  let resentCount = 0;
+  let skippedCount = 0;
+
+  const brokerDailyUsage = Number(broker.dailyListingReferralCount || 0);
+  if (brokerDailyUsage >= MAX_DAILY_LISTING_REFERRALS) {
+    throw new functions.https.HttpsError('resource-exhausted', 'Daily referral limit reached');
+  }
+
+  for (const referredUserId of requestedUsers) {
+    if (!attributedUserIds.has(referredUserId)) {
+      skippedCount += 1;
+      createdErrors.push({ referredUserId, code: 'not-attributed', message: 'User is not attributed to this broker' });
+      continue;
+    }
+
+    const referralId = buildListingReferralId({
+      brokerId,
+      listingType,
+      listingId,
+      referredUserId,
+    });
+    const referralRef = db.collection(LISTING_REFERRAL_COLLECTION).doc(referralId);
+    const existing = await referralRef.get();
+    const existingData = existing.exists ? (existing.data() || {}) : null;
+
+    if (existingData && existingData.status === LISTING_REFERRAL_STATUSES.ACTED) {
+      skippedCount += 1;
+      createdErrors.push({ referredUserId, code: 'already-acted', message: 'Referral already acted on this listing' });
+      continue;
+    }
+
+    const basePayload = {
+      brokerId,
+      brokerMasked: usersMap[brokerId]?.masked || maskDisplayName(null, null),
+      referredUserId,
+      referredUserMasked: usersMap[referredUserId]?.masked || 'User',
+      listingId,
+      listingType,
+      listingOwnerId,
+      listingStatusAtSend: normalizeListingStatus(listing.status),
+      route: {
+        origin: listing.origin || null,
+        destination: listing.destination || null,
+      },
+      askingPrice: Number(listing.askingPrice || listing.askingRate || 0) || null,
+      note: note || null,
+      status: LISTING_REFERRAL_STATUSES.PENDING,
+      expiresAt,
+      openedAt: null,
+      actedAt: existingData?.actedAt || null,
+      actedBidId: existingData?.actedBidId || null,
+      resendCount: Number(existingData?.resendCount || 0) + (existingData ? 1 : 0),
+      lastNotifiedAt: FieldValue.serverTimestamp(),
+      source: 'broker_manual',
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    const upsertResult = await upsertBrokerListingReferral(referralId, basePayload, db);
+    if (upsertResult.created) {
+      createdCount += 1;
+      await logReferralAudit(db, 'create', brokerId, referralId, { listingId, listingType });
+    } else {
+      resentCount += 1;
+      await logReferralAudit(db, 'resend', brokerId, referralId, { listingId, listingType });
+    }
+
+    await db.collection(`users/${referredUserId}/notifications`).doc().set({
+      type: 'BROKER_LISTING_REFERRAL',
+      title: 'New Listing Referral',
+      message: `${usersMap[brokerId]?.masked || 'A broker'} referred a ${listingType} listing: ${listing.origin || 'origin'} -> ${listing.destination || 'destination'}.`,
+      data: {
+        referralId,
+        listingId,
+        listingType,
+        brokerId,
+      },
+      isRead: false,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  const totalSent = createdCount + resentCount;
+  if (totalSent > 0) {
+    await db.collection('brokers').doc(brokerId).set({
+      dailyListingReferralCount: FieldValue.increment(totalSent),
+      lastListingReferralAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+
+  return {
+    success: true,
+    createdCount,
+    resentCount,
+    skippedCount,
+    errors: createdErrors,
+  };
+});
+
+/**
+ * Broker: list listing referrals sent by broker.
+ */
+exports.brokerGetListingReferrals = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+  const db = admin.firestore();
+  const brokerId = context.auth.uid;
+  await assertActiveBroker(db, brokerId);
+
+  const limit = Math.min(Math.max(Number(data?.limit || 20), 1), 50);
+  const statusFilterRaw = String(data?.statusFilter || 'all').trim().toLowerCase();
+  const statusFilter = ['all', 'pending', 'opened', 'acted', 'dismissed', 'expired', 'closed_listing'].includes(statusFilterRaw)
+    ? statusFilterRaw
+    : null;
+  if (!statusFilter) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid statusFilter');
+  }
+  const listingTypeFilterRaw = String(data?.listingTypeFilter || 'all').trim().toLowerCase();
+  const listingTypeFilter = ['all', 'cargo', 'truck'].includes(listingTypeFilterRaw) ? listingTypeFilterRaw : null;
+  if (!listingTypeFilter) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid listingTypeFilter');
+  }
+
+  const cursor = decodeCursor(data?.cursor);
+  if (data?.cursor && !cursor) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid cursor');
+  }
+
+  let query = db.collection(LISTING_REFERRAL_COLLECTION)
+    .where('brokerId', '==', brokerId)
+    .orderBy('updatedAt', 'desc')
+    .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+  if (statusFilter !== 'all') {
+    query = query.where('status', '==', statusFilter);
+  }
+  if (listingTypeFilter !== 'all') {
+    query = query.where('listingType', '==', listingTypeFilter);
+  }
+  if (cursor) {
+    query = query.startAfter(admin.firestore.Timestamp.fromMillis(cursor.ts), cursor.id);
+  }
+
+  const snap = await query.limit(limit + 1).get();
+  const docs = snap.docs.slice(0, limit);
+  const items = docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const lastDoc = docs[docs.length - 1] || null;
+
+  const summary = {
+    total: items.length,
+    sent24h: items.filter((item) => Date.now() - toMillis(item.updatedAt) <= 24 * 60 * 60 * 1000).length,
+    sent7d: items.filter((item) => Date.now() - toMillis(item.updatedAt) <= 7 * 24 * 60 * 60 * 1000).length,
+    opened: items.filter((item) => item.status === 'opened').length,
+    acted: items.filter((item) => item.status === 'acted').length,
+    expired: items.filter((item) => item.status === 'expired').length,
+  };
+
+  return {
+    items,
+    hasMore: snap.size > limit,
+    nextCursor: lastDoc ? encodeCursor({ activityAt: lastDoc.data().updatedAt, id: lastDoc.id }) : null,
+    summary,
+  };
+});
+
+/**
+ * Referred user: list listing referrals.
+ */
+exports.referredGetListingReferrals = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const db = admin.firestore();
+  const referredUserId = context.auth.uid;
+  const limit = Math.min(Math.max(Number(data?.limit || 20), 1), 50);
+  const statusFilter = normalizeReferredStatusFilter(data?.statusFilter || 'active');
+  if (!statusFilter) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid statusFilter');
+  }
+  const cursor = decodeCursor(data?.cursor);
+  if (data?.cursor && !cursor) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid cursor');
+  }
+
+  let query = db.collection(LISTING_REFERRAL_COLLECTION)
+    .where('referredUserId', '==', referredUserId)
+    .orderBy('updatedAt', 'desc')
+    .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+
+  if (cursor) {
+    query = query.startAfter(admin.firestore.Timestamp.fromMillis(cursor.ts), cursor.id);
+  }
+
+  const scanLimit = Math.min(limit * 3, 150);
+  const snap = await query.limit(scanLimit).get();
+  const filtered = snap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((item) => matchesReferredStatusFilter(item, statusFilter));
+  const items = filtered.slice(0, limit);
+  const lastItem = items[items.length - 1] || null;
+
+  return {
+    items,
+    hasMore: filtered.length > limit || snap.size === scanLimit,
+    nextCursor: lastItem ? encodeCursor({ activityAt: lastItem.updatedAt, id: lastItem.id }) : null,
+  };
+});
+
+/**
+ * Referred user: update listing referral state.
+ */
+exports.referredUpdateListingReferralState = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const referralId = String(data?.referralId || '').trim();
+  const action = String(data?.action || '').trim().toLowerCase();
+  if (!referralId || !['opened', 'dismissed'].includes(action)) {
+    throw new functions.https.HttpsError('invalid-argument', 'referralId and valid action are required');
+  }
+
+  const db = admin.firestore();
+  const referredUserId = context.auth.uid;
+  const referralRef = db.collection(LISTING_REFERRAL_COLLECTION).doc(referralId);
+  const referralDoc = await referralRef.get();
+  if (!referralDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Referral not found');
+  }
+
+  const referral = referralDoc.data() || {};
+  if (referral.referredUserId !== referredUserId) {
+    throw new functions.https.HttpsError('permission-denied', 'Not allowed to update this referral');
+  }
+  if (TERMINAL_LISTING_REFERRAL_STATUSES.includes(referral.status)) {
+    return { success: true, status: referral.status };
+  }
+
+  const update = { updatedAt: FieldValue.serverTimestamp() };
+  if (action === 'opened' && referral.status === LISTING_REFERRAL_STATUSES.PENDING) {
+    update.status = LISTING_REFERRAL_STATUSES.OPENED;
+    update.openedAt = FieldValue.serverTimestamp();
+    await logReferralAudit(db, 'open', referredUserId, referralId, {});
+  } else if (
+    action === 'dismissed'
+    && ACTIVE_LISTING_REFERRAL_STATUSES.includes(referral.status)
+  ) {
+    update.status = LISTING_REFERRAL_STATUSES.DISMISSED;
+    await logReferralAudit(db, 'dismiss', referredUserId, referralId, {});
+  } else {
+    return { success: true, status: referral.status };
+  }
+
+  await referralRef.set(update, { merge: true });
+  return { success: true, status: update.status || referral.status };
+});
+
+/**
+ * Broker: read referred marketplace activity feed.
+ */
+exports.brokerGetMarketplaceActivity = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const db = admin.firestore();
+  const brokerId = context.auth.uid;
+  await assertActiveBroker(db, brokerId);
+
+  const limit = Math.min(Math.max(Number(data?.limit || 20), 1), MAX_ACTIVITY_LIMIT);
+  const typeFilter = normalizeTypeFilter(data?.typeFilter || 'all');
+  const statusFilter = normalizeStatusFilter(data?.statusFilter || 'all');
+  if (!typeFilter || !statusFilter) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid typeFilter or statusFilter');
+  }
+
+  const cursor = decodeCursor(data?.cursor);
+  if (data?.cursor && !cursor) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid cursor');
+  }
+
+  const dateFrom = data?.dateFrom ? new Date(data.dateFrom) : null;
+  const dateTo = data?.dateTo ? new Date(data.dateTo) : null;
+  if (dateFrom && Number.isNaN(dateFrom.getTime())) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid dateFrom');
+  }
+  if (dateTo && Number.isNaN(dateTo.getTime())) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid dateTo');
+  }
+
+  let query = db.collection(MARKET_ACTIVITY_COLLECTION)
+    .where('brokerId', '==', brokerId)
+    .orderBy('activityAt', 'desc')
+    .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+
+  if (dateFrom) {
+    query = query.where('activityAt', '>=', admin.firestore.Timestamp.fromDate(dateFrom));
+  }
+  if (dateTo) {
+    query = query.where('activityAt', '<=', admin.firestore.Timestamp.fromDate(dateTo));
+  }
+  if (cursor) {
+    query = query.startAfter(admin.firestore.Timestamp.fromMillis(cursor.ts), cursor.id);
+  }
+
+  const scanLimit = Math.min(limit * 4, 200);
+  const snap = await query.limit(scanLimit).get();
+  const filtered = snap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((item) => matchesTypeFilter(item, typeFilter) && matchesStatusFilter(item, statusFilter));
+
+  const items = filtered.slice(0, limit);
+  const lastItem = items[items.length - 1] || null;
+  const summary = buildBrokerActivitySummary(filtered);
+
+  await db.collection('brokerAccessLogs').add({
+    brokerId,
+    action: 'brokerGetMarketplaceActivity',
+    typeFilter,
+    statusFilter,
+    itemCount: items.length,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  return {
+    items,
+    hasMore: filtered.length > limit || snap.size === scanLimit,
+    nextCursor: lastItem ? encodeCursor({ activityAt: lastItem.activityAt, id: lastItem.id }) : null,
+    summary,
+  };
+});
+
+/**
+ * Broker: backfill referred marketplace activity history.
+ */
+exports.brokerBackfillMarketplaceActivity = functions.region(REGION).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const db = admin.firestore();
+  const brokerId = context.auth.uid;
+  await assertActiveBroker(db, brokerId);
+
+  const brokerRef = db.collection('brokers').doc(brokerId);
+  const brokerDoc = await brokerRef.get();
+  const broker = brokerDoc.data() || {};
+  const nowMillis = Date.now();
+  const lastRunMillis = toMillis(broker.lastBrokerActivityBackfillAt);
+  if (lastRunMillis && nowMillis - lastRunMillis < 60 * 1000) {
+    throw new functions.https.HttpsError('failed-precondition', 'Backfill can only run once per minute');
+  }
+
+  const referralSnap = await db.collection('brokerReferrals')
+    .where('brokerId', '==', brokerId)
+    .limit(500)
+    .get();
+  const referredUserIds = referralSnap.docs.map((doc) => doc.id);
+  if (referredUserIds.length === 0) {
+    return {
+      success: true,
+      scanned: 0,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+    };
+  }
+
+  const userMaskMap = await getMaskedUserMap(db, referredUserIds);
+  let scanned = 0;
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  const chunks = [];
+  for (let idx = 0; idx < referredUserIds.length; idx += 10) {
+    chunks.push(referredUserIds.slice(idx, idx + 10));
+  }
+
+  for (const userChunk of chunks) {
+    const bidSnap = await db.collection('bids')
+      .where('bidderId', 'in', userChunk)
+      .limit(300)
+      .get();
+
+    for (const bidDoc of bidSnap.docs) {
+      scanned += 1;
+      const bid = bidDoc.data() || {};
+      const listingType = bid.cargoListingId ? 'cargo' : (bid.truckListingId ? 'truck' : null);
+      const listingId = bid.cargoListingId || bid.truckListingId || null;
+      if (!listingType || !listingId) {
+        skipped += 1;
+        continue;
+      }
+
+      const activityType = listingType === 'truck' ? ACTIVITY_TYPES.TRUCK_BOOKING_BID : ACTIVITY_TYPES.CARGO_BID;
+      const eventId = `bid:${bidDoc.id}`;
+      const result = await upsertBrokerMarketplaceActivity(eventId, {
+        brokerId,
+        referredUserId: bid.bidderId,
+        activityType,
+        listingType,
+        bidId: bidDoc.id,
+        contractId: null,
+        amount: Number(bid.price || 0) || null,
+        origin: bid.origin || null,
+        destination: bid.destination || null,
+        status: String(bid.status || 'pending').toLowerCase(),
+        activityAt: bid.updatedAt || bid.createdAt || FieldValue.serverTimestamp(),
+        referredUserMasked: userMaskMap[bid.bidderId]?.masked || 'User',
+        counterpartyMasked: maskDisplayName(bid.listingOwnerName, null),
+        source: 'backfill',
+      }, db);
+      if (result.created) created += 1;
+      else if (result.updated) updated += 1;
+    }
+
+    const contractSnap = await db.collection('contracts')
+      .where('bidderId', 'in', userChunk)
+      .where('listingType', '==', 'truck')
+      .limit(300)
+      .get();
+
+    for (const contractDoc of contractSnap.docs) {
+      scanned += 1;
+      const contract = contractDoc.data() || {};
+      const status = String(contract.status || '').toLowerCase();
+      const phase = status === 'completed'
+        ? 'completed'
+        : (status === 'cancelled' ? 'cancelled' : (status === 'signed' ? 'signed' : 'created'));
+      const eventId = `contract:${contractDoc.id}:${phase}`;
+      const result = await upsertBrokerMarketplaceActivity(eventId, {
+        brokerId,
+        referredUserId: contract.bidderId,
+        activityType: mapContractPhaseToType(phase),
+        listingType: 'truck',
+        bidId: contract.bidId || null,
+        contractId: contractDoc.id,
+        amount: Number(contract.agreedPrice || 0) || null,
+        origin: contract.pickupCity || contract.pickupAddress || null,
+        destination: contract.deliveryCity || contract.deliveryAddress || null,
+        status,
+        activityAt: contract.updatedAt || contract.createdAt || FieldValue.serverTimestamp(),
+        referredUserMasked: userMaskMap[contract.bidderId]?.masked || 'User',
+        counterpartyMasked: maskDisplayName(contract.listingOwnerName, null),
+        source: 'backfill',
+      }, db);
+      if (result.created) created += 1;
+      else if (result.updated) updated += 1;
+    }
+  }
+
+  await brokerRef.set({
+    lastBrokerActivityBackfillAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  return {
+    success: true,
+    scanned,
+    created,
+    updated,
+    skipped,
   };
 });
 

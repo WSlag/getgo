@@ -28,7 +28,9 @@ export function TruckCard({
   onContact,
   onBook,
   onViewMap,
+  onRefer,
   canBook = true,
+  canRefer = false,
   isOwner = false,
   darkMode = false,
   distance,
@@ -390,6 +392,15 @@ export function TruckCard({
               >
                 Details
               </button>
+              {canRefer && onRefer && (
+                <button
+                  onClick={onRefer}
+                  className="rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 text-orange-700 dark:text-orange-200 hover:from-orange-200 hover:to-orange-300 dark:hover:from-orange-800/60 dark:hover:to-orange-700/60 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
+                  style={{ padding: '14px 20px' }}
+                >
+                  Refer
+                </button>
+              )}
             </>
           ) : (
             // Trucker viewing others' trucks sees View Details
@@ -411,6 +422,15 @@ export function TruckCard({
                   style={{ padding: '14px 20px' }}
                 >
                   Request Chat
+                </button>
+              )}
+              {canRefer && onRefer && (
+                <button
+                  onClick={onRefer}
+                  className="rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 text-orange-700 dark:text-orange-200 hover:from-orange-200 hover:to-orange-300 dark:hover:from-orange-800/60 dark:hover:to-orange-700/60 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
+                  style={{ padding: '14px 20px' }}
+                >
+                  Refer
                 </button>
               )}
             </>

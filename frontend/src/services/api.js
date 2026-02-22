@@ -130,6 +130,16 @@ const api = {
     applyReferralCode: (referralCode) => callFunction('brokerApplyReferralCode', { referralCode }),
     getDashboard: () => callFunction('brokerGetDashboard', {}),
     requestPayout: (data) => callFunction('brokerRequestPayout', data || {}),
+    getReferredUsers: (params = {}) => callFunction('brokerGetReferredUsers', params || {}),
+    referListing: (data = {}) => callFunction('brokerReferListing', data || {}),
+    getListingReferrals: (params = {}) => callFunction('brokerGetListingReferrals', params || {}),
+    getMarketplaceActivity: (params = {}) => callFunction('brokerGetMarketplaceActivity', params || {}),
+    backfillMarketplaceActivity: (params = {}) => callFunction('brokerBackfillMarketplaceActivity', params || {}),
+  },
+
+  referrals: {
+    getMyListingReferrals: (params = {}) => callFunction('referredGetListingReferrals', params || {}),
+    updateMyListingReferralState: (data = {}) => callFunction('referredUpdateListingReferralState', data || {}),
   },
 
   shipments: {

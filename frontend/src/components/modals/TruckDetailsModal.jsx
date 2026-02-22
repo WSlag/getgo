@@ -31,6 +31,9 @@ export function TruckDetailsModal({
   onCreateContract,
   onOpenContract,
   onReopenListing,
+  onRefer,
+  isBroker = false,
+  canRefer = false,
   darkMode = false,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
@@ -610,6 +613,16 @@ export function TruckDetailsModal({
               Reopen for Booking
             </Button>
           )}
+          {isBroker && !isOwner && canRefer && onRefer && (
+            <Button
+              variant="outline"
+              size={isMobile ? "default" : "lg"}
+              className="flex-1 border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+              onClick={() => onRefer?.(truck)}
+            >
+              Refer Listing
+            </Button>
+          )}
           <Button
             variant="ghost"
             size={isMobile ? "default" : "lg"}
@@ -626,4 +639,3 @@ export function TruckDetailsModal({
 }
 
 export default TruckDetailsModal;
-

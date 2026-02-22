@@ -8,6 +8,12 @@ const {
   loadPlatformSettings,
   calculatePlatformFeeAmount,
 } = require('../config/platformSettings');
+const {
+  ACTIVITY_TYPES,
+  getBrokerReferralForUser,
+  maskDisplayName,
+  upsertBrokerMarketplaceActivity,
+} = require('./brokerListingReferralService');
 const UNVERIFIED_OUTSTANDING_CAP = 2000;
 const NEW_ACCOUNT_OUTSTANDING_CAP = 3000;
 const STANDARD_OUTSTANDING_CAP = 5000;
@@ -282,6 +288,36 @@ By signing, both parties agree to these terms.
     isRead: false,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
+
+  if (!isCargo) {
+    try {
+      const referral = await getBrokerReferralForUser(bid.bidderId, db);
+      if (referral?.brokerId) {
+        const [referredDoc, ownerDoc] = await Promise.all([
+          db.collection('users').doc(bid.bidderId).get(),
+          db.collection('users').doc(listingOwnerId).get(),
+        ]);
+        await upsertBrokerMarketplaceActivity(`contract:${contractRef.id}:created`, {
+          brokerId: referral.brokerId,
+          referredUserId: bid.bidderId,
+          activityType: ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_CREATED,
+          listingType: 'truck',
+          bidId,
+          contractId: contractRef.id,
+          amount: Number(bid.price || 0) || null,
+          origin: listing.origin || null,
+          destination: listing.destination || null,
+          status: 'pending',
+          activityAt: admin.firestore.FieldValue.serverTimestamp(),
+          referredUserMasked: maskDisplayName(referredDoc.exists ? referredDoc.data().name : null, referredDoc.exists ? referredDoc.data().phone : null),
+          counterpartyMasked: maskDisplayName(ownerDoc.exists ? ownerDoc.data().name : listing.userName, ownerDoc.exists ? ownerDoc.data().phone : null),
+          source: 'trigger',
+        }, db);
+      }
+    } catch (activityError) {
+      console.error('Failed to record contract-created activity from service:', activityError);
+    }
+  }
 
   return { id: contractRef.id, ...contractData };
 }

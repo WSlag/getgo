@@ -25,6 +25,7 @@ export function useModals() {
     editCargo: false,
     editTruck: false,
     myBids: false,
+    referListing: false,
   });
 
   // Modal data (e.g., selected cargo for bid modal)
@@ -74,6 +75,7 @@ export function useModals() {
       editCargo: false,
       editTruck: false,
       myBids: false,
+      referListing: false,
     });
     setModalData({});
   }, []);

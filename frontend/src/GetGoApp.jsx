@@ -69,6 +69,7 @@ import ActivityView from '@/views/ActivityView';
 // Modal Components
 import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal, MyBidsModal, ContractModal, RatingModal } from '@/components/modals';
 import { GCashPaymentModal } from '@/components/modals/GCashPaymentModal';
+import ReferListingModal from '@/components/broker/ReferListingModal';
 import { FullMapModal } from '@/components/maps';
 import AuthModal from '@/components/auth/AuthModal';
 import { OnboardingGuideModal } from '@/components/modals/OnboardingGuideModal';
@@ -188,6 +189,7 @@ export default function GetGoApp() {
   const [contracts, setContracts] = useState([]);
   const [contractsLoading, setContractsLoading] = useState(false);
   const [contractFilter, setContractFilter] = useState('all');
+  const [activityInitialMode, setActivityInitialMode] = useState('my');
 
   // Toast notification state for real-time events
   const [toasts, setToasts] = useState([]);
@@ -195,6 +197,12 @@ export default function GetGoApp() {
   const [ratingLoading, setRatingLoading] = useState(false);
   const [savedSearches, setSavedSearches] = useState([]);
   const [savedRoutes, setSavedRoutes] = useState([]);
+
+  useEffect(() => {
+    if (activeTab !== 'activity' && activityInitialMode !== 'my') {
+      setActivityInitialMode('my');
+    }
+  }, [activeTab, activityInitialMode]);
 
   // Show toast notification
   const showToast = (toast) => {
@@ -393,7 +401,20 @@ export default function GetGoApp() {
     return () => unsubscribe();
   }, [authUser?.uid]);
 
-  // Keep onboarding guide opt-in via Help/Support to avoid blocking first-use flows.
+  // Mark PWA engagement when a user signs in (fires once per uid).
+  useEffect(() => {
+    if (userProfile?.uid) {
+      markEngagement();
+    }
+  }, [userProfile?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-show onboarding guide for first-time users (onboardingComplete === false).
+  // Dep on userProfile?.uid so it fires as soon as the profile loads after login.
+  useEffect(() => {
+    if (userProfile && userProfile.onboardingComplete === false) {
+      setShowOnboardingGuide(true);
+    }
+  }, [userProfile?.uid, userProfile?.onboardingComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Use anonymized preview data for non-auth users to keep Home vibrant and conversion-focused.
   const userRole = currentRole || 'shipper';
@@ -657,6 +678,59 @@ export default function GetGoApp() {
       }
       openModal('bid', truck);
     }, 'Sign in to book a truck');
+  };
+
+  const handleReferListing = (listing, listingType) => {
+    requireAuth(() => {
+      if (!isBroker) {
+        showToast({
+          type: 'error',
+          title: 'Broker only',
+          message: 'Only brokers can refer listings to attributed users.',
+        });
+        return;
+      }
+
+      const normalizedType = String(listingType || '').toLowerCase();
+      if (!listing?.id || !['cargo', 'truck'].includes(normalizedType)) {
+        showToast({
+          type: 'error',
+          title: 'Invalid listing',
+          message: 'Listing details are incomplete. Please refresh and try again.',
+        });
+        return;
+      }
+
+      const listingOwnerId = listing.userId || listing.shipperId || listing.truckerId || null;
+      if (listingOwnerId && listingOwnerId === authUser?.uid) {
+        showToast({
+          type: 'error',
+          title: 'Own listing blocked',
+          message: 'You cannot refer your own listing.',
+        });
+        return;
+      }
+
+      const isEligible = normalizedType === 'cargo'
+        ? canBidCargoStatus(listing.status)
+        : canBookTruckStatus(listing.status);
+      if (!isEligible) {
+        showToast({
+          type: 'error',
+          title: 'Listing unavailable',
+          message: 'This listing is not eligible for referral.',
+        });
+        return;
+      }
+
+      openModal('referListing', {
+        listing: {
+          ...listing,
+          status: normalizeListingStatus(listing.status),
+        },
+        listingType: normalizedType,
+      });
+    }, 'Sign in as a broker to refer listings');
   };
 
   // Edit handlers
@@ -1229,36 +1303,69 @@ export default function GetGoApp() {
     }
   };
 
+  const openListingByType = async (listingId, listingType) => {
+    const normalizedType = String(listingType || '').toLowerCase();
+    if (!listingId || !['cargo', 'truck'].includes(normalizedType)) {
+      throw new Error('Invalid listing context');
+    }
+
+    const listingCollection = normalizedType === 'cargo' ? 'cargoListings' : 'truckListings';
+    const listingDoc = await getDoc(doc(db, listingCollection, listingId));
+    if (!listingDoc.exists()) {
+      throw new Error('Listing not found');
+    }
+
+    const listing = { id: listingDoc.id, ...listingDoc.data() };
+    listing.status = normalizeListingStatus(listing.status);
+    if (normalizedType === 'cargo') {
+      openModal('cargoDetails', listing);
+      return;
+    }
+
+    listing.uiStatus = listing.uiStatus || toTruckUiStatus(listing.status);
+    listing.askingRate = listing.askingRate ?? listing.askingPrice;
+    openModal('truckDetails', listing);
+  };
+
   const handleOpenListingFromNotification = async (notification) => {
     const listingId = notification?.data?.listingId;
-    const listingType = String(notification?.data?.listingType || '').toLowerCase();
-    if (!listingId || !['cargo', 'truck'].includes(listingType)) {
+    const listingType = notification?.data?.listingType;
+    if (!listingId || !listingType) {
       setActiveTab('home');
       return;
     }
 
     try {
-      const listingCollection = listingType === 'cargo' ? 'cargoListings' : 'truckListings';
-      const listingDoc = await getDoc(doc(db, listingCollection, listingId));
-      if (!listingDoc.exists()) {
-        throw new Error('Listing not found');
-      }
-
-      const listing = { id: listingDoc.id, ...listingDoc.data() };
-      if (listingType === 'cargo') {
-        listing.status = normalizeListingStatus(listing.status);
-        openModal('cargoDetails', listing);
-      } else {
-        listing.status = normalizeListingStatus(listing.status);
-        listing.uiStatus = listing.uiStatus || toTruckUiStatus(listing.status);
-        listing.askingRate = listing.askingRate ?? listing.askingPrice;
-        openModal('truckDetails', listing);
-      }
-
+      await openListingByType(listingId, listingType);
       setActiveTab('home');
     } catch (error) {
       console.error('Failed to open listing notification:', error);
       setActiveTab('home');
+      showToast({
+        type: 'error',
+        title: 'Unable to open listing',
+        message: error.message || 'The listing may no longer be available.',
+      });
+    }
+  };
+
+  const handleOpenListingFromReferral = async (referralItem) => {
+    const listingId = referralItem?.listingId;
+    const listingType = referralItem?.listingType;
+    if (!listingId || !listingType) {
+      showToast({
+        type: 'error',
+        title: 'Invalid referral',
+        message: 'Listing details are unavailable for this referral.',
+      });
+      return;
+    }
+
+    try {
+      await openListingByType(listingId, listingType);
+      setActiveTab('home');
+    } catch (error) {
+      console.error('Failed to open referred listing:', error);
       showToast({
         type: 'error',
         title: 'Unable to open listing',
@@ -1344,6 +1451,7 @@ export default function GetGoApp() {
               onContactShipper={handleContactShipper}
               onContactTrucker={handleContactTrucker}
               onViewMap={handleViewMap}
+              onReferListing={handleReferListing}
               currentRole={userRole}
               currentUserId={authUser?.uid}
               darkMode={darkMode}
@@ -1384,8 +1492,11 @@ export default function GetGoApp() {
               }}
               onCreateListing={handlePostClick}
               onOpenMessages={() => setActiveTab('messages')}
+              onOpenListing={handleOpenListingFromReferral}
               unreadBids={unreadBids}
               pendingContractsCount={pendingContractsCount}
+              isBroker={isBroker}
+              initialMode={activityInitialMode}
             />
           </ErrorBoundary>
         )}
@@ -1451,6 +1562,10 @@ export default function GetGoApp() {
               authUser={authUser}
               isBroker={isBroker}
               brokerProfile={brokerProfile}
+              onOpenBrokerActivity={() => {
+                setActivityInitialMode('broker');
+                setActiveTab('activity');
+              }}
               onBrokerRegistered={() => {
                 showToast({
                   type: 'success',
@@ -1761,11 +1876,22 @@ export default function GetGoApp() {
         cargo={getModalData('cargoDetails')}
         currentRole={userRole}
         isOwner={getModalData('cargoDetails') && isCargoOwner(getModalData('cargoDetails'))}
+        isBroker={isBroker}
         onEdit={handleEditCargo}
         onBid={(cargo) => {
           closeModal('cargoDetails');
           handleBidCargo(cargo);
         }}
+        onRefer={(cargo) => {
+          closeModal('cargoDetails');
+          handleReferListing(cargo, 'cargo');
+        }}
+        canRefer={Boolean(
+          isBroker
+          && getModalData('cargoDetails')
+          && !isCargoOwner(getModalData('cargoDetails'))
+          && canBidCargoStatus(getModalData('cargoDetails')?.status)
+        )}
         onOpenChat={(bid, listing) => {
           closeModal('cargoDetails');
           openModal('chat', { bid, listing, type: 'cargo', bidId: bid.id });
@@ -1795,11 +1921,22 @@ export default function GetGoApp() {
         truck={getModalData('truckDetails')}
         currentRole={userRole}
         isOwner={getModalData('truckDetails') && isTruckOwner(getModalData('truckDetails'))}
+        isBroker={isBroker}
         onEdit={handleEditTruck}
         onBook={(truck) => {
           closeModal('truckDetails');
           handleBookTruck(truck);
         }}
+        onRefer={(truck) => {
+          closeModal('truckDetails');
+          handleReferListing(truck, 'truck');
+        }}
+        canRefer={Boolean(
+          isBroker
+          && getModalData('truckDetails')
+          && !isTruckOwner(getModalData('truckDetails'))
+          && canBookTruckStatus(getModalData('truckDetails')?.status)
+        )}
         onOpenChat={(bid, listing) => {
           closeModal('truckDetails');
           openModal('chat', { bid, listing, type: 'truck', bidId: bid.id });
@@ -1813,6 +1950,14 @@ export default function GetGoApp() {
         }}
         onOpenContract={handleOpenContract}
         darkMode={darkMode}
+      />
+
+      <ReferListingModal
+        open={modals.referListing}
+        onClose={() => closeModal('referListing')}
+        listing={getModalData('referListing')?.listing || null}
+        listingType={getModalData('referListing')?.listingType || 'cargo'}
+        onToast={showToast}
       />
 
       {/* Chat Modal */}
@@ -2085,7 +2230,6 @@ export default function GetGoApp() {
         dismissInstallBanner={dismissInstallBanner}
         showIOSInstall={showIOSInstall}
         dismissIOSInstall={dismissIOSInstall}
-        platform={platform}
       />
     </div>
   );
