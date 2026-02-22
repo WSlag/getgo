@@ -350,24 +350,6 @@ export default function GetGoApp() {
     }
   }, [contracts, authUser, isBroker, activateTrigger]);
 
-  // Trigger on 5-star rating received
-  useEffect(() => {
-    if (!authUser || isBroker || !userProfile || !activateTrigger) return;
-
-    if (userProfile.rating >= 5.0 && userProfile.tripsCompleted >= 3) {
-      activateTrigger('5_star_rating');
-    }
-  }, [userProfile, authUser, isBroker, activateTrigger]);
-
-  // Trigger on power user milestone
-  useEffect(() => {
-    if (!authUser || isBroker || !userProfile || !activateTrigger) return;
-
-    if (userProfile.tripsCompleted >= 10) {
-      activateTrigger('power_user_10_trips');
-    }
-  }, [userProfile, authUser, isBroker, activateTrigger]);
-
   // Load contracts function (can be called manually to refresh)
   const loadContracts = async () => {
     if (!authUser?.uid) {
@@ -458,6 +440,19 @@ export default function GetGoApp() {
   const deliveredShipments = isGuestUser
     ? guestActiveShipments.filter((s) => s.status === 'delivered')
     : (firebaseDeliveredShipments || []);
+  const deliveredTripsAsTrucker = useMemo(() => {
+    if (!authUser?.uid) return 0;
+    const delivered = isGuestUser
+      ? guestActiveShipments.filter((shipment) => shipment.status === 'delivered')
+      : (firebaseDeliveredShipments || []);
+    return delivered.filter((shipment) => shipment?.truckerId === authUser.uid).length;
+  }, [authUser?.uid, isGuestUser, firebaseDeliveredShipments]);
+  const userReputationRating = Number(truckerProfile?.rating ?? userProfile?.averageRating ?? userProfile?.rating ?? 0);
+  const userCompletedTrips = Math.max(
+    Number(truckerProfile?.totalTrips || 0),
+    Number(userProfile?.tripsCompleted || 0),
+    deliveredTripsAsTrucker
+  );
   const unreadNotifications = firebaseUnreadCount || 0;
   const unreadMessages = useMemo(
     () => conversations.reduce((total, conversation) => total + Number(conversation.unreadCount || 0), 0),
@@ -472,6 +467,24 @@ export default function GetGoApp() {
     [firebaseNotifications]
   );
   // Wallet removed - no balance tracking
+
+  // Trigger on 5-star rating received
+  useEffect(() => {
+    if (!authUser || isBroker || !activateTrigger) return;
+
+    if (userReputationRating >= 5.0 && userCompletedTrips >= 3) {
+      activateTrigger('5_star_rating');
+    }
+  }, [authUser, isBroker, activateTrigger, userReputationRating, userCompletedTrips]);
+
+  // Trigger on power user milestone
+  useEffect(() => {
+    if (!authUser || isBroker || !activateTrigger) return;
+
+    if (userCompletedTrips >= 10) {
+      activateTrigger('power_user_10_trips');
+    }
+  }, [authUser, isBroker, activateTrigger, userCompletedTrips]);
 
   // Create currentUser object for suspension banner and other features
   const currentUser = authUser && userProfile ? {
@@ -1505,8 +1518,8 @@ export default function GetGoApp() {
         user={{
           name: userProfile?.name || 'User',
           initial: userInitial,
-          rating: userProfile?.rating || 0,
-          tripsCompleted: userProfile?.tripsCompleted || 0,
+          rating: userReputationRating,
+          tripsCompleted: userCompletedTrips,
           avatarUrl: userProfile?.avatarUrl,
         }}
       />
@@ -2238,48 +2251,62 @@ export default function GetGoApp() {
       />
 
       {/* Toast Notifications for Real-Time Events */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={cn(
-              "flex items-start gap-3 p-4 rounded-xl shadow-lg border backdrop-blur-sm animate-in slide-in-from-right-5 duration-300",
-              toast.type === 'bid' && "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
-              toast.type === 'bid-accepted' && "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
-              toast.type === 'message' && "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800",
-              toast.type === 'tracking' && "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800",
-              !['bid', 'bid-accepted', 'message', 'tracking'].includes(toast.type) && "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-            )}
-          >
-            <div className={cn(
-              "size-8 rounded-full flex items-center justify-center flex-shrink-0",
-              toast.type === 'bid' && "bg-green-500",
-              toast.type === 'bid-accepted' && "bg-blue-500",
-              toast.type === 'message' && "bg-purple-500",
-              toast.type === 'tracking' && "bg-orange-500",
-              !['bid', 'bid-accepted', 'message', 'tracking'].includes(toast.type) && "bg-gray-500"
-            )}>
-              {toast.type === 'bid' && <span className="text-white text-sm">₱</span>}
-              {toast.type === 'bid-accepted' && <span className="text-white text-sm">✓</span>}
-              {toast.type === 'message' && <span className="text-white text-sm">💬</span>}
-              {toast.type === 'tracking' && <span className="text-white text-sm">📍</span>}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm text-gray-900 dark:text-white">
-                {toast.title}
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                {toast.message}
-              </p>
-            </div>
-            <button
-              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 w-[min(320px,calc(100vw-32px))]">
+        {toasts.map((toast) => {
+          const isShipment = ['SHIPMENT_STATUS', 'tracking'].includes(toast.type);
+          const isRating = toast.type === 'RATING_REQUEST';
+          const isBid = toast.type === 'bid';
+          const isBidAccepted = toast.type === 'bid-accepted';
+          const isMessage = toast.type === 'message';
+          const isError = toast.type === 'error';
+          return (
+            <div
+              key={toast.id}
+              className={cn(
+                "flex items-start gap-3 p-4 rounded-xl shadow-lg border backdrop-blur-sm animate-in slide-in-from-top-2 duration-300",
+                isBid && "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
+                isBidAccepted && "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
+                isMessage && "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800",
+                isShipment && "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800",
+                isRating && "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800",
+                isError && "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800",
+                !isBid && !isBidAccepted && !isMessage && !isShipment && !isRating && !isError && "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+              )}
             >
-              ×
-            </button>
-          </div>
-        ))}
+              <div className={cn(
+                "size-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm",
+                isBid && "bg-green-500",
+                isBidAccepted && "bg-blue-500",
+                isMessage && "bg-purple-500",
+                isShipment && "bg-orange-500",
+                isRating && "bg-yellow-500",
+                isError && "bg-red-500",
+                !isBid && !isBidAccepted && !isMessage && !isShipment && !isRating && !isError && "bg-gray-500"
+              )}>
+                {isBid && '₱'}
+                {isBidAccepted && '✓'}
+                {isMessage && '💬'}
+                {isShipment && '📦'}
+                {isRating && '⭐'}
+                {isError && '!'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm text-gray-900 dark:text-white leading-snug">
+                  {toast.title}
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 leading-snug break-words">
+                  {toast.message}
+                </p>
+              </div>
+              <button
+                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
       </div>
       </ErrorBoundary>
 

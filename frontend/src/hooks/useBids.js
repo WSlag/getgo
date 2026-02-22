@@ -106,6 +106,20 @@ export function useMyBids(userId) {
                   destination: listingData.destination || bid.destination,
                   listingOwnerName: listingData.userName || bid.listingOwnerName,
                   listingOwnerId: listingData.userId || bid.listingOwnerId,
+                  // Cargo listing details
+                  weight: listingData.weight || bid.weight,
+                  unit: listingData.unit || bid.unit,
+                  cargoType: listingData.cargoType || bid.cargoType,
+                  vehicleNeeded: listingData.vehicleNeeded || bid.vehicleNeeded,
+                  pickupDate: listingData.pickupDate || bid.pickupDate,
+                  askingPrice: listingData.askingPrice || bid.askingPrice,
+                  listingStatus: listingData.status || bid.listingStatus,
+                  // Truck listing details
+                  vehicleType: listingData.vehicleType || bid.vehicleType,
+                  plateNumber: listingData.plateNumber || bid.plateNumber,
+                  capacity: listingData.capacity || bid.capacity,
+                  availableDate: listingData.availableDate || bid.availableDate,
+                  askingRate: listingData.askingRate || bid.askingRate,
                 };
               }
             } catch (err) {

@@ -69,13 +69,16 @@ export function HomeView({
     <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '16px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' }}>
       {/* Suspension Banner */}
       {isAccountSuspended && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white p-3">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+        <div
+          className="fixed left-0 right-0 z-[60] bg-red-600 text-white"
+          style={{ top: 0, paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        >
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 px-3 py-3">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <AlertCircle className="size-5 flex-shrink-0" />
               <div className="min-w-0">
                 <p className="font-semibold text-sm">Account Suspended</p>
-                <p className="text-xs opacity-90 truncate">
+                <p className="text-xs opacity-90">
                   Outstanding fees: ₱{(currentUser.outstandingPlatformFees || currentUser.outstandingFees || 0).toLocaleString()}
                 </p>
               </div>
