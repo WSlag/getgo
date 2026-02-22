@@ -117,7 +117,7 @@ export const notificationTypes = {
 export const cargoStatuses = ['open', 'negotiating', 'contracted', 'in_transit', 'delivered', 'cancelled'];
 export const truckStatuses = ['open', 'negotiating', 'contracted', 'in_transit', 'completed', 'cancelled'];
 export const bidStatuses = ['pending', 'accepted', 'rejected', 'withdrawn'];
-export const shipmentStatuses = ['picked_up', 'in_transit', 'delivered'];
+export const shipmentStatuses = ['pending_pickup', 'picked_up', 'in_transit', 'delivered'];
 export const contractStatuses = ['draft', 'signed', 'completed', 'disputed', 'cancelled'];
 
 // Rating tags

@@ -113,3 +113,11 @@ body {
 .fixed.z-50 .leaflet-bottom {
   z-index: auto !important;
 }
+
+/* Live tracking overlay uses a higher z-index than mobile nav/toasts */
+.tracking-live-overlay .leaflet-pane,
+.tracking-live-overlay .leaflet-control,
+.tracking-live-overlay .leaflet-top,
+.tracking-live-overlay .leaflet-bottom {
+  z-index: auto !important;
+}

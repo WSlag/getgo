@@ -1,10 +1,76 @@
-import React, { useState } from 'react';
-import { MapPin, Package, Truck, Clock, Navigation, Radio, ChevronRight, MapPinned } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { MapPin, Package, Truck, Navigation, Radio, MapPinned, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import TrackingMap from '@/components/maps/TrackingMap';
 import api from '@/services/api';
 import { getCoordinates, getCityNames } from '@/utils/cityCoordinates';
+
+const statusConfig = {
+  pending_pickup: { color: 'bg-slate-500', label: 'Awaiting Pickup', textColor: 'text-slate-500' },
+  picked_up: { color: 'bg-blue-500', label: 'Picked Up', textColor: 'text-blue-500' },
+  in_transit: { color: 'bg-orange-500', label: 'In Transit', textColor: 'text-orange-500' },
+  delivered: { color: 'bg-green-500', label: 'Delivered', textColor: 'text-green-500' },
+};
+
+const statusProgress = {
+  pending_pickup: 0,
+  picked_up: 1,
+  in_transit: 2,
+  delivered: 3,
+};
+
+const trackerSteps = [
+  { key: 'picked_up', label: 'Pick Up' },
+  { key: 'in_transit', label: 'In Transit' },
+  { key: 'delivered', label: 'Delivered' },
+];
+
+function ShipmentStatusTracker({ status, darkMode = false }) {
+  const progress = statusProgress[status] || 0;
+
+  return (
+    <div style={{ marginBottom: '14px' }}>
+      {progress === 0 && (
+        <p className={cn('text-xs font-medium mb-2', darkMode ? 'text-slate-300' : 'text-slate-600')}>
+          Awaiting pickup confirmation
+        </p>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        {trackerSteps.map((step, index) => {
+          const stepNo = index + 1;
+          const isComplete = progress > stepNo;
+          const isCurrent = progress === stepNo;
+
+          return (
+            <div key={step.key} className="text-center">
+              <div
+                className={cn(
+                  'mx-auto size-8 rounded-full border-2 flex items-center justify-center text-xs font-bold',
+                  isComplete && 'bg-green-500 border-green-500 text-white',
+                  isCurrent && !isComplete && 'bg-orange-500 border-orange-500 text-white',
+                  !isComplete && !isCurrent && (darkMode ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-white border-gray-300 text-gray-500')
+                )}
+              >
+                {isComplete ? <CheckCircle2 className="size-4" /> : stepNo}
+              </div>
+              <p
+                className={cn(
+                  'mt-1 text-[11px] font-medium',
+                  isComplete || isCurrent
+                    ? (darkMode ? 'text-white' : 'text-gray-900')
+                    : (darkMode ? 'text-gray-400' : 'text-gray-500')
+                )}
+              >
+                {step.label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function TrackingView({
   shipments = [],
@@ -15,42 +81,66 @@ export function TrackingView({
   currentUserId = null,
   darkMode = false,
   className,
-  onLocationUpdate = null, // Socket callback for instant notifications
+  onLocationUpdate = null,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
-  const [selectedShipment, setSelectedShipment] = useState(null);
+  const [selectedShipmentId, setSelectedShipmentId] = useState(null);
   const [showFullMap, setShowFullMap] = useState(false);
   const [updatingLocation, setUpdatingLocation] = useState(null);
+  const [statusActionKey, setStatusActionKey] = useState(null);
 
-  // Status colors and labels
-  const statusConfig = {
-    picked_up: { color: 'bg-blue-500', label: 'Picked Up', textColor: 'text-blue-500' },
-    in_transit: { color: 'bg-orange-500', label: 'In Transit', textColor: 'text-orange-500' },
-    delivered: { color: 'bg-green-500', label: 'Delivered', textColor: 'text-green-500' },
+  const selectedShipment = useMemo(() => {
+    if (!selectedShipmentId) return null;
+    return shipments.find((shipment) => shipment.id === selectedShipmentId) || null;
+  }, [selectedShipmentId, shipments]);
+
+  const cities = getCityNames();
+
+  const isAssignedTrucker = (shipment) => {
+    if (shipment?.truckerId && currentUserId) {
+      return shipment.truckerId === currentUserId;
+    }
+    return currentRole === 'trucker';
   };
 
-  // Handle location update for truckers (via API)
+  const isAssignedShipper = (shipment) => {
+    if (shipment?.shipperId && currentUserId) {
+      return shipment.shipperId === currentUserId;
+    }
+    return currentRole === 'shipper';
+  };
+
+  const canPickUp = (shipment) => (
+    isAssignedTrucker(shipment) && shipment.status === 'pending_pickup'
+  );
+
+  const canDeliver = (shipment) => (
+    isAssignedShipper(shipment) && ['picked_up', 'in_transit'].includes(shipment.status)
+  );
+
+  const canUpdateLocation = (shipment) => (
+    isAssignedTrucker(shipment) && ['picked_up', 'in_transit'].includes(shipment.status)
+  );
+
+  const isActionLoading = (shipmentId, action) => statusActionKey === `${shipmentId}:${action}`;
+
   const handleUpdateLocation = async (shipment, city) => {
-    if (!city) return;
+    if (!city || !canUpdateLocation(shipment)) return;
 
     setUpdatingLocation(shipment.id);
     try {
       const coords = getCoordinates(city);
-
-      // Call backend API to update location
-      // The API handles progress calculation, status updates, and socket notifications
       const result = await api.shipments.updateLocation(shipment.id, {
         currentLat: coords.lat,
         currentLng: coords.lng,
         currentLocation: city,
       });
 
-      // Also emit socket event for instant UI update while API processes
       if (onLocationUpdate) {
         onLocationUpdate({
           shipmentId: shipment.id,
           shipperId: shipment.shipperId,
-          truckerId: currentUserId,
+          truckerId: shipment.truckerId || currentUserId,
           currentLocation: city,
           lat: coords.lat,
           lng: coords.lng,
@@ -60,46 +150,65 @@ export function TrackingView({
       }
     } catch (error) {
       console.error('Error updating location:', error);
-      alert('Failed to update location: ' + error.message);
+      alert(`Failed to update location: ${error.message}`);
     } finally {
       setUpdatingLocation(null);
     }
   };
 
-  // Get cities for dropdown
-  const cities = getCityNames();
+  const handlePickUp = async (shipment) => {
+    if (!shipment?.id || !canPickUp(shipment)) return;
+    setStatusActionKey(`${shipment.id}:pickup`);
+    try {
+      await api.shipments.updateStatus(shipment.id, 'picked_up');
+    } catch (error) {
+      console.error('Error updating pickup status:', error);
+      alert(`Failed to update pickup status: ${error.message}`);
+    } finally {
+      setStatusActionKey(null);
+    }
+  };
 
-  // Shipment card component
+  const handleDeliver = async (shipment) => {
+    if (!shipment?.contractId || !canDeliver(shipment)) return;
+    setStatusActionKey(`${shipment.id}:deliver`);
+    try {
+      await api.contracts.complete(shipment.contractId);
+    } catch (error) {
+      console.error('Error confirming delivery:', error);
+      alert(`Failed to confirm delivery: ${error.message}`);
+    } finally {
+      setStatusActionKey(null);
+    }
+  };
+
   const ShipmentCard = ({ shipment }) => {
     const status = statusConfig[shipment.status] || statusConfig.in_transit;
-    const isTrucker = currentRole === 'trucker' && shipment.truckerId === currentUserId;
+    const canPickUpShipment = canPickUp(shipment);
+    const canDeliverShipment = canDeliver(shipment);
+    const canUpdateLocationShipment = canUpdateLocation(shipment);
+    const pickupLoading = isActionLoading(shipment.id, 'pickup');
+    const deliverLoading = isActionLoading(shipment.id, 'deliver');
 
     return (
       <div
         className={cn(
-          "bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300",
-          selectedShipment?.id === shipment.id && "ring-2 ring-orange-500"
+          'bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300',
+          selectedShipmentId === shipment.id && 'ring-2 ring-orange-500'
         )}
       >
-        {/* Status Bar */}
-        <div className={cn("h-1.5", status.color)} />
+        <div className={cn('h-1.5', status.color)} />
 
         <div style={{ padding: isMobile ? '16px' : '24px' }}>
-          {/* Header */}
           <div style={{
             display: 'flex',
             alignItems: 'flex-start',
             justifyContent: 'space-between',
-            marginBottom: isMobile ? '16px' : '20px'
+            marginBottom: isMobile ? '16px' : '20px',
           }}>
             <div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '6px'
-              }}>
-                <span className={cn("px-2 py-1 rounded-full text-xs font-medium", status.color, "text-white")}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <span className={cn('px-2 py-1 rounded-full text-xs font-medium', status.color, 'text-white')}>
                   {status.label}
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -112,11 +221,10 @@ export function TrackingView({
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500 dark:text-gray-400">Progress</p>
-              <p className={cn("text-lg font-bold", status.textColor)}>{shipment.progress}%</p>
+              <p className={cn('text-lg font-bold', status.textColor)}>{shipment.progress || 0}%</p>
             </div>
           </div>
 
-          {/* Route */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -124,7 +232,7 @@ export function TrackingView({
             marginBottom: isMobile ? '16px' : '20px',
             padding: isMobile ? '12px' : '14px',
             backgroundColor: darkMode ? 'rgba(31, 41, 55, 0.5)' : 'rgb(249, 250, 251)',
-            borderRadius: '12px'
+            borderRadius: '12px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
               <div className="size-8 rounded-full bg-green-500 flex items-center justify-center">
@@ -149,7 +257,6 @@ export function TrackingView({
             </div>
           </div>
 
-          {/* Current Location */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -158,47 +265,39 @@ export function TrackingView({
             padding: '10px',
             backgroundColor: darkMode ? 'rgba(234, 88, 12, 0.1)' : 'rgb(255, 247, 237)',
             borderRadius: '8px',
-            border: darkMode ? '1px solid rgba(234, 88, 12, 0.3)' : '1px solid rgb(254, 215, 170)'
+            border: darkMode ? '1px solid rgba(234, 88, 12, 0.3)' : '1px solid rgb(254, 215, 170)',
           }}>
             <Radio className="size-4 text-orange-500 animate-pulse" />
             <span className="text-sm text-orange-700 dark:text-orange-300">
-              Current: <strong>{shipment.currentLocation?.name || 'Unknown'}</strong>
+              Current: <strong>{shipment.currentLocation?.name || shipment.currentLocation || 'Unknown'}</strong>
             </span>
             <span className="text-xs text-gray-500 ml-auto">{shipment.lastUpdate}</span>
           </div>
 
-          {/* Progress Bar */}
+          <ShipmentStatusTracker status={shipment.status} darkMode={darkMode} />
+
           <div style={{ marginBottom: isMobile ? '16px' : '20px' }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              marginBottom: '6px'
-            }} className="text-xs text-gray-500">
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }} className="text-xs text-gray-500">
               <span>{shipment.origin}</span>
               <span>{shipment.destination}</span>
             </div>
             <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
               <div
-                className={cn("h-full rounded-full transition-all duration-500", status.color)}
-                style={{ width: `${shipment.progress}%` }}
+                className={cn('h-full rounded-full transition-all duration-500', status.color)}
+                style={{ width: `${shipment.progress || 0}%` }}
               />
             </div>
           </div>
 
-          {/* Trucker Location Update */}
-          {isTrucker && shipment.status !== 'delivered' && (
+          {canUpdateLocationShipment && (
             <div style={{
               marginBottom: isMobile ? '16px' : '20px',
               padding: isMobile ? '12px' : '14px',
               backgroundColor: darkMode ? 'rgba(59, 130, 246, 0.1)' : 'rgb(239, 246, 255)',
               borderRadius: '12px',
-              border: darkMode ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgb(191, 219, 254)'
+              border: darkMode ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgb(191, 219, 254)',
             }}>
-              <p style={{
-                fontSize: '14px',
-                fontWeight: '500',
-                marginBottom: '10px'
-              }} className="text-blue-700 dark:text-blue-300">
+              <p style={{ fontSize: '14px', fontWeight: '500', marginBottom: '10px' }} className="text-blue-700 dark:text-blue-300">
                 Update Current Location
               </p>
               <select
@@ -217,14 +316,33 @@ export function TrackingView({
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {canPickUpShipment && (
+              <button
+                onClick={() => handlePickUp(shipment)}
+                disabled={pickupLoading}
+                className="flex-1 min-w-[120px] py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all duration-300"
+              >
+                {pickupLoading ? 'Updating...' : 'Pick Up'}
+              </button>
+            )}
+
+            {canDeliverShipment && (
+              <button
+                onClick={() => handleDeliver(shipment)}
+                disabled={deliverLoading}
+                className="flex-1 min-w-[120px] py-3 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all duration-300"
+              >
+                {deliverLoading ? 'Processing...' : 'Delivered'}
+              </button>
+            )}
+
             <button
               onClick={() => {
-                setSelectedShipment(shipment);
+                setSelectedShipmentId(shipment.id);
                 setShowFullMap(true);
               }}
-              className="flex-1 py-3 px-4 bg-gradient-to-r from-orange-400 to-orange-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+              className="flex-1 min-w-[140px] py-3 px-4 bg-gradient-to-r from-orange-400 to-orange-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
             >
               <MapPinned className="size-4" />
               Track Live
@@ -235,29 +353,31 @@ export function TrackingView({
     );
   };
 
+  const selectedActionLoading = selectedShipment
+    ? (isActionLoading(selectedShipment.id, 'pickup')
+      ? 'pickup'
+      : (isActionLoading(selectedShipment.id, 'deliver') ? 'deliver' : null))
+    : null;
+
   return (
     <main
-      className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)}
+      className={cn('flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto', className)}
       style={{
         padding: isMobile ? '16px' : '24px',
         paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px',
       }}
     >
-      {/* Page Header */}
       <div style={{ marginBottom: isMobile ? '24px' : '32px' }}>
         <h1 style={{
           fontWeight: 'bold',
           color: darkMode ? '#fff' : '#111827',
           fontSize: isMobile ? '20px' : '24px',
           marginBottom: '8px',
-          lineHeight: '1.2'
+          lineHeight: '1.2',
         }}>
           Shipment Tracking
         </h1>
-        <p style={{
-          color: darkMode ? '#9ca3af' : '#6b7280',
-          fontSize: isMobile ? '14px' : '16px'
-        }}>
+        <p style={{ color: darkMode ? '#9ca3af' : '#6b7280', fontSize: isMobile ? '14px' : '16px' }}>
           <span style={{ fontWeight: '600', color: '#f97316' }}>
             {activeShipments.length} active
           </span>
@@ -271,28 +391,18 @@ export function TrackingView({
         </div>
       ) : activeShipments.length > 0 || deliveredShipments.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '24px' : '32px' }}>
-          {/* Active Shipments */}
           {activeShipments.length > 0 && (
             <div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: isMobile ? '12px' : '16px'
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: isMobile ? '12px' : '16px' }}>
                 <Radio className="text-orange-500 animate-pulse" style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px' }} />
-                <h2 style={{
-                  fontWeight: '600',
-                  color: darkMode ? '#fff' : '#111827',
-                  fontSize: isMobile ? '16px' : '18px'
-                }}>
+                <h2 style={{ fontWeight: '600', color: darkMode ? '#fff' : '#111827', fontSize: isMobile ? '16px' : '18px' }}>
                   Active Shipments
                 </h2>
               </div>
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
-                gap: isMobile ? '12px' : '24px'
+                gap: isMobile ? '12px' : '24px',
               }}>
                 {activeShipments.map((shipment) => (
                   <ShipmentCard key={shipment.id} shipment={shipment} />
@@ -301,28 +411,18 @@ export function TrackingView({
             </div>
           )}
 
-          {/* Delivered Shipments */}
           {deliveredShipments.length > 0 && (
             <div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: isMobile ? '12px' : '16px'
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: isMobile ? '12px' : '16px' }}>
                 <Package className="text-green-500" style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px' }} />
-                <h2 style={{
-                  fontWeight: '600',
-                  color: darkMode ? '#fff' : '#111827',
-                  fontSize: isMobile ? '16px' : '18px'
-                }}>
+                <h2 style={{ fontWeight: '600', color: darkMode ? '#fff' : '#111827', fontSize: isMobile ? '16px' : '18px' }}>
                   Delivered
                 </h2>
               </div>
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
-                gap: isMobile ? '12px' : '24px'
+                gap: isMobile ? '12px' : '24px',
               }}>
                 {deliveredShipments.map((shipment) => (
                   <ShipmentCard key={shipment.id} shipment={shipment} />
@@ -345,15 +445,19 @@ export function TrackingView({
         </div>
       )}
 
-      {/* Full Map Modal */}
       {showFullMap && selectedShipment && (
         <TrackingMap
           shipment={selectedShipment}
           darkMode={darkMode}
           showFull={true}
+          canPickUp={canPickUp(selectedShipment)}
+          canDeliver={canDeliver(selectedShipment)}
+          onPickUp={() => handlePickUp(selectedShipment)}
+          onDeliver={() => handleDeliver(selectedShipment)}
+          actionLoading={selectedActionLoading}
           onClose={() => {
             setShowFullMap(false);
-            setSelectedShipment(null);
+            setSelectedShipmentId(null);
           }}
         />
       )}

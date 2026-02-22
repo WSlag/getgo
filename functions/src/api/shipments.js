@@ -46,6 +46,13 @@ function getCoordinates(cityName) {
   return cityCoordinates[normalized] || { lat: 7.5, lng: 124.5 };
 }
 
+function resolveShipmentActors(contract, shipment) {
+  const isCargo = contract.listingType === 'cargo';
+  const shipperId = shipment.shipperId || (isCargo ? contract.listingOwnerId : contract.bidderId);
+  const truckerId = shipment.truckerId || (isCargo ? contract.bidderId : contract.listingOwnerId);
+  return { shipperId, truckerId };
+}
+
 /**
  * Update Shipment Location
  */
@@ -54,14 +61,16 @@ exports.updateShipmentLocation = functions.region('asia-southeast1').https.onCal
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
   }
 
-  const { shipmentId, currentLat, currentLng, currentLocation } = data;
+  const { shipmentId, currentLocation } = data;
+  const currentLat = Number(data?.currentLat);
+  const currentLng = Number(data?.currentLng);
   const userId = context.auth.uid;
 
   if (!shipmentId) {
     throw new functions.https.HttpsError('invalid-argument', 'Shipment ID is required');
   }
 
-  if (currentLat === undefined || currentLng === undefined) {
+  if (!Number.isFinite(currentLat) || !Number.isFinite(currentLng)) {
     throw new functions.https.HttpsError('invalid-argument', 'Coordinates are required');
   }
 
@@ -70,104 +79,93 @@ exports.updateShipmentLocation = functions.region('asia-southeast1').https.onCal
   }
 
   const db = admin.firestore();
+  const shipmentRef = db.collection('shipments').doc(shipmentId);
 
-  // Get shipment
-  const shipmentDoc = await db.collection('shipments').doc(shipmentId).get();
-  if (!shipmentDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Shipment not found');
-  }
+  const result = await db.runTransaction(async (tx) => {
+    const shipmentDoc = await tx.get(shipmentRef);
+    if (!shipmentDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Shipment not found');
+    }
 
-  const shipment = { id: shipmentDoc.id, ...shipmentDoc.data() };
+    const shipment = { id: shipmentDoc.id, ...shipmentDoc.data() };
+    if (!shipment.contractId) {
+      throw new functions.https.HttpsError('failed-precondition', 'Shipment is missing contract reference');
+    }
 
-  // Get contract to determine trucker
-  const contractDoc = await db.collection('contracts').doc(shipment.contractId).get();
-  if (!contractDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Contract not found');
-  }
+    const contractRef = db.collection('contracts').doc(shipment.contractId);
+    const contractDoc = await tx.get(contractRef);
+    if (!contractDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Contract not found');
+    }
 
-  const contract = contractDoc.data();
+    const contract = contractDoc.data();
+    const { shipperId, truckerId } = resolveShipmentActors(contract, shipment);
 
-  // Determine trucker ID
-  let truckerId;
-  if (contract.listingType === 'cargo') {
-    truckerId = contract.bidderId; // trucker bid on cargo
-  } else {
-    truckerId = contract.listingOwnerId; // trucker owns truck listing
-  }
+    if (userId !== truckerId) {
+      throw new functions.https.HttpsError('permission-denied', 'Only the assigned trucker can update location');
+    }
 
-  // Only trucker can update location
-  if (userId !== truckerId) {
-    throw new functions.https.HttpsError('permission-denied', 'Only the assigned trucker can update location');
-  }
+    const rawStatus = shipment.status || 'pending_pickup';
+    const currentStatus = rawStatus === 'pending' ? 'pending_pickup' : rawStatus;
+    if (currentStatus === 'delivered') {
+      throw new functions.https.HttpsError('failed-precondition', 'Cannot update location of delivered shipment');
+    }
+    if (currentStatus === 'pending_pickup') {
+      throw new functions.https.HttpsError('failed-precondition', 'Pickup must be confirmed before location updates');
+    }
 
-  // Cannot update delivered shipments
-  if (shipment.status === 'delivered') {
-    throw new functions.https.HttpsError('failed-precondition', 'Cannot update location of delivered shipment');
-  }
+    const originCoords = getCoordinates(shipment.origin || contract.pickupAddress);
+    const destCoords = getCoordinates(shipment.destination || contract.deliveryAddress);
 
-  // Calculate progress based on distance
-  let progress = shipment.progress || 0;
-  let status = shipment.status;
+    const distanceFromOrigin = calculateDistance(
+      originCoords.lat, originCoords.lng,
+      currentLat, currentLng
+    );
+    const totalDistance = calculateDistance(
+      originCoords.lat, originCoords.lng,
+      destCoords.lat, destCoords.lng
+    );
 
-  const originCoords = getCoordinates(contract.pickupAddress);
-  const destCoords = getCoordinates(contract.deliveryAddress);
+    let progress = Number(shipment.progress || 0);
+    if (totalDistance > 0) {
+      progress = Math.min(100, Math.round((distanceFromOrigin / totalDistance) * 100));
+    }
 
-  const distanceFromOrigin = calculateDistance(
-    originCoords.lat, originCoords.lng,
-    currentLat, currentLng
-  );
-  const totalDistance = calculateDistance(
-    originCoords.lat, originCoords.lng,
-    destCoords.lat, destCoords.lng
-  );
+    let nextStatus = currentStatus;
+    if (nextStatus === 'picked_up' && progress > 0) {
+      nextStatus = 'in_transit';
+    }
 
-  if (totalDistance > 0) {
-    progress = Math.min(100, Math.round((distanceFromOrigin / totalDistance) * 100));
-  }
-
-  // Auto-update status based on progress
-  if (progress > 0 && status === 'picked_up') {
-    status = 'in_transit';
-  }
-
-  // Update shipment
-  await db.collection('shipments').doc(shipmentId).update({
-    currentLat,
-    currentLng,
-    currentLocation: currentLocation || 'Unknown',
-    progress,
-    status,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  // Determine shipper ID
-  const shipperId = contract.listingType === 'cargo' ? contract.listingOwnerId : contract.bidderId;
-
-  // Create notification for shipper
-  await db.collection(`users/${shipperId}/notifications`).doc().set({
-    type: 'SHIPMENT_UPDATE',
-    title: 'Shipment Location Updated',
-    message: `Your shipment is now at ${currentLocation || 'Unknown'} (${progress}% complete)`,
-    data: {
-      shipmentId,
-      trackingNumber: shipment.trackingNumber,
-      currentLocation: currentLocation || 'Unknown',
+    const updateData = {
+      currentLat,
+      currentLng,
+      currentLocation: currentLocation || shipment.currentLocation || 'Unknown',
       progress,
-    },
-    isRead: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      status: nextStatus,
+      shipperId,
+      truckerId,
+      updatedBy: userId,
+      updatedByRole: 'trucker',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    tx.update(shipmentRef, updateData);
+
+    return {
+      id: shipmentId,
+      currentLat,
+      currentLng,
+      currentLocation: updateData.currentLocation,
+      progress,
+      status: nextStatus,
+      shipperId,
+      truckerId,
+    };
   });
 
   return {
     message: 'Location updated',
-    shipment: {
-      id: shipmentId,
-      currentLat,
-      currentLng,
-      currentLocation: currentLocation || 'Unknown',
-      progress,
-      status,
-    },
+    shipment: result,
   };
 });
 
@@ -186,70 +184,101 @@ exports.updateShipmentStatus = functions.region('asia-southeast1').https.onCall(
     throw new functions.https.HttpsError('invalid-argument', 'Shipment ID and status are required');
   }
 
-  const validStatuses = ['picked_up', 'in_transit', 'delivered'];
+  const validStatuses = ['picked_up', 'in_transit'];
   if (!validStatuses.includes(status)) {
+    if (status === 'delivered') {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Delivered status is set by shipper through contract completion'
+      );
+    }
     throw new functions.https.HttpsError('invalid-argument', 'Invalid status');
   }
 
   const db = admin.firestore();
-
-  // Get shipment
-  const shipmentDoc = await db.collection('shipments').doc(shipmentId).get();
-  if (!shipmentDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Shipment not found');
-  }
-
-  const shipment = { id: shipmentDoc.id, ...shipmentDoc.data() };
-
-  // Get contract to determine trucker
-  const contractDoc = await db.collection('contracts').doc(shipment.contractId).get();
-  if (!contractDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Contract not found');
-  }
-
-  const contract = contractDoc.data();
-
-  // Determine trucker ID
-  let truckerId;
-  if (contract.listingType === 'cargo') {
-    truckerId = contract.bidderId;
-  } else {
-    truckerId = contract.listingOwnerId;
-  }
-
-  // Only trucker can update status
-  if (userId !== truckerId) {
-    throw new functions.https.HttpsError('permission-denied', 'Only the assigned trucker can update status');
-  }
-
-  // Update shipment
-  const updateData = {
-    status,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  const shipmentRef = db.collection('shipments').doc(shipmentId);
+  const allowedTransitions = {
+    pending_pickup: 'picked_up',
+    picked_up: 'in_transit',
   };
 
-  if (status === 'delivered') {
-    updateData.progress = 100;
-    updateData.deliveredAt = new Date();
-  }
+  const result = await db.runTransaction(async (tx) => {
+    const shipmentDoc = await tx.get(shipmentRef);
+    if (!shipmentDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Shipment not found');
+    }
 
-  await db.collection('shipments').doc(shipmentId).update(updateData);
+    const shipment = { id: shipmentDoc.id, ...shipmentDoc.data() };
+    if (!shipment.contractId) {
+      throw new functions.https.HttpsError('failed-precondition', 'Shipment is missing contract reference');
+    }
 
-  // Determine shipper ID
-  const shipperId = contract.listingType === 'cargo' ? contract.listingOwnerId : contract.bidderId;
+    const contractRef = db.collection('contracts').doc(shipment.contractId);
+    const contractDoc = await tx.get(contractRef);
+    if (!contractDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Contract not found');
+    }
 
-  // Create notification
-  await db.collection(`users/${shipperId}/notifications`).doc().set({
-    type: 'SHIPMENT_UPDATE',
-    title: status === 'delivered' ? 'Shipment Delivered!' : 'Shipment Status Updated',
-    message: `Shipment status: ${status}`,
-    data: { shipmentId, trackingNumber: shipment.trackingNumber, status },
-    isRead: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    const contract = contractDoc.data();
+    const { shipperId, truckerId } = resolveShipmentActors(contract, shipment);
+
+    if (userId !== truckerId) {
+      throw new functions.https.HttpsError('permission-denied', 'Only the assigned trucker can update status');
+    }
+
+    const rawStatus = shipment.status || 'pending_pickup';
+    const currentStatus = rawStatus === 'pending' ? 'pending_pickup' : rawStatus;
+    if (currentStatus === 'delivered') {
+      throw new functions.https.HttpsError('failed-precondition', 'Shipment is already delivered');
+    }
+
+    if (status === currentStatus) {
+      return {
+        id: shipmentId,
+        status: currentStatus,
+        progress: Number(shipment.progress || 0),
+        currentLocation: shipment.currentLocation || 'Unknown',
+        deliveredAt: shipment.deliveredAt || null,
+        shipperId,
+        truckerId,
+      };
+    }
+
+    if (allowedTransitions[currentStatus] !== status) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        `Invalid status transition: ${currentStatus} -> ${status}`
+      );
+    }
+
+    const updateData = {
+      status,
+      shipperId,
+      truckerId,
+      updatedBy: userId,
+      updatedByRole: 'trucker',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    if (status === 'in_transit') {
+      updateData.progress = Math.max(1, Number(shipment.progress || 0));
+    }
+
+    tx.update(shipmentRef, updateData);
+
+    return {
+      id: shipmentId,
+      status,
+      progress: updateData.progress ?? Number(shipment.progress || 0),
+      currentLocation: shipment.currentLocation || 'Unknown',
+      deliveredAt: shipment.deliveredAt || null,
+      shipperId,
+      truckerId,
+    };
   });
 
   return {
     message: 'Status updated',
-    shipment: { id: shipmentId, status },
+    shipment: result,
   };
 });
