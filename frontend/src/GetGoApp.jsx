@@ -23,7 +23,7 @@ import {
 } from './services/firestoreService';
 
 // Firebase
-import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
 import { db } from './firebase';
 
 // Hooks
@@ -81,9 +81,14 @@ import { canBidCargoStatus, canBookTruckStatus, matchesMarketplaceFilter, normal
 
 const SAVED_SEARCHES_KEY_PREFIX = 'karga.savedSearches.v1';
 const SAVED_ROUTES_KEY_PREFIX = 'karga.savedRoutes.v1';
+const ONBOARDING_DISMISSED_KEY_PREFIX = 'karga.onboardingDismissed.v1';
 
 function getUserScopedKey(prefix, uid) {
   return `${prefix}:${uid || 'guest'}`;
+}
+
+function getOnboardingDismissedKey(uid) {
+  return `${ONBOARDING_DISMISSED_KEY_PREFIX}:${uid || 'guest'}`;
 }
 
 export default function GetGoApp() {
@@ -181,6 +186,7 @@ export default function GetGoApp() {
 
   // Onboarding Guide Modal
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
+  const [onboardingDismissedLocally, setOnboardingDismissedLocally] = useState(false);
 
   // Admin: Pending payments count
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
@@ -278,6 +284,15 @@ export default function GetGoApp() {
     const key = getUserScopedKey(SAVED_ROUTES_KEY_PREFIX, authUser?.uid);
     window.localStorage.setItem(key, JSON.stringify(savedRoutes.slice(0, 20)));
   }, [savedRoutes, authUser?.uid]);
+
+  useEffect(() => {
+    const key = getOnboardingDismissedKey(authUser?.uid);
+    try {
+      setOnboardingDismissedLocally(window.localStorage.getItem(key) === 'true');
+    } catch {
+      setOnboardingDismissedLocally(false);
+    }
+  }, [authUser?.uid]);
 
   // Subscribe pending payments count for admin users (real-time)
   useEffect(() => {
@@ -411,10 +426,10 @@ export default function GetGoApp() {
   // Auto-show onboarding guide for first-time users (onboardingComplete === false).
   // Dep on userProfile?.uid so it fires as soon as the profile loads after login.
   useEffect(() => {
-    if (userProfile && userProfile.onboardingComplete === false) {
+    if (userProfile && userProfile.onboardingComplete === false && !onboardingDismissedLocally) {
       setShowOnboardingGuide(true);
     }
-  }, [userProfile?.uid, userProfile?.onboardingComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userProfile?.uid, userProfile?.onboardingComplete, onboardingDismissedLocally]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Use anonymized preview data for non-auth users to keep Home vibrant and conversion-focused.
   const userRole = currentRole || 'shipper';
@@ -823,13 +838,25 @@ export default function GetGoApp() {
   const handleOnboardingClose = async () => {
     setShowOnboardingGuide(false);
     if (authUser?.uid) {
+      const dismissedKey = getOnboardingDismissedKey(authUser.uid);
+      try {
+        window.localStorage.setItem(dismissedKey, 'true');
+      } catch {
+        // Ignore storage failures (e.g. restrictive privacy contexts).
+      }
+      setOnboardingDismissedLocally(true);
+
+      if (userProfile?.onboardingComplete === true) return;
+
       try {
         await updateDoc(doc(db, 'users', authUser.uid), {
           onboardingComplete: true,
-          updatedAt: serverTimestamp(),
         });
       } catch (e) {
-        console.warn('Could not persist onboarding completion:', e?.code || e?.message);
+        const errorCode = e?.code || e?.message;
+        if (errorCode !== 'permission-denied') {
+          console.warn('Could not persist onboarding completion:', errorCode);
+        }
       }
     }
   };
