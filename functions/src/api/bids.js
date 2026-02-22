@@ -126,6 +126,16 @@ exports.acceptBid = functions.region('asia-southeast1').https.onCall(async (data
       );
     }
 
+    const pendingBidsQuery = listingMeta.listingType === 'cargo'
+      ? db.collection('bids')
+        .where('cargoListingId', '==', listingMeta.listingId)
+        .where('status', '==', 'pending')
+      : db.collection('bids')
+        .where('truckListingId', '==', listingMeta.listingId)
+        .where('status', '==', 'pending');
+
+    const pendingBidsSnap = await tx.get(pendingBidsQuery);
+
     const updatePayload = {
       status: 'accepted',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -136,15 +146,6 @@ exports.acceptBid = functions.region('asia-southeast1').https.onCall(async (data
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    const pendingBidsQuery = listingMeta.listingType === 'cargo'
-      ? db.collection('bids')
-        .where('cargoListingId', '==', listingMeta.listingId)
-        .where('status', '==', 'pending')
-      : db.collection('bids')
-        .where('truckListingId', '==', listingMeta.listingId)
-        .where('status', '==', 'pending');
-
-    const pendingBidsSnap = await tx.get(pendingBidsQuery);
     pendingBidsSnap.forEach((snap) => {
       if (snap.id === bidId) return;
       tx.update(snap.ref, {
