@@ -14,9 +14,9 @@ const {
   maskDisplayName,
   upsertBrokerMarketplaceActivity,
 } = require('./brokerListingReferralService');
-const UNVERIFIED_OUTSTANDING_CAP = 2000;
-const NEW_ACCOUNT_OUTSTANDING_CAP = 3000;
-const STANDARD_OUTSTANDING_CAP = 5000;
+const UNVERIFIED_OUTSTANDING_CAP = 7000;
+const NEW_ACCOUNT_OUTSTANDING_CAP = 10000;
+const STANDARD_OUTSTANDING_CAP = 20000;
 const NEW_ACCOUNT_DAYS = 30;
 
 function resolveOutstandingCap(userData = {}) {

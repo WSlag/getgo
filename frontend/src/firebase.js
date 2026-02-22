@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, setLogLevel } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import {
   initializeFirestore,
@@ -64,6 +64,11 @@ if (import.meta.env.DEV) {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 let appCheck = null;
+
+if (import.meta.env.PROD) {
+  // Keep production console noise low when App Check is throttled by browser privacy policies.
+  setLogLevel('error');
+}
 
 // Detect emulator mode from environment variable
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';

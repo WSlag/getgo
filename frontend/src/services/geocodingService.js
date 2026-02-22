@@ -3,7 +3,7 @@
  * Uses backend proxy to keep provider credentials out of client bundles.
  */
 
-import { getAppCheckHeaders } from './appCheckService';
+import { getProtectedFunctionHeaders, isAppCheckTemporarilyBlocked } from './appCheckService';
 import { resolveFunctionProxyUrl } from './proxyUrlService';
 
 const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'asia-southeast1';
@@ -46,16 +46,26 @@ async function requestGeocode(endpoint, params) {
     query.set(key, String(value));
   });
 
-  const appCheckHeaders = await getAppCheckHeaders();
+  const securityHeaders = await getProtectedFunctionHeaders();
+  const hasSecurityHeader = Boolean(
+    securityHeaders['X-Firebase-AppCheck'] || securityHeaders.Authorization
+  );
+  if (isAppCheckTemporarilyBlocked() && !hasSecurityHeader) {
+    return null;
+  }
+
   const response = await fetch(`${GEOCODE_PROXY_URL}?${query.toString()}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
-      ...appCheckHeaders,
+      ...securityHeaders,
     },
   });
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      return null;
+    }
     return null;
   }
 

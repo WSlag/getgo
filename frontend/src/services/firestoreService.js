@@ -14,8 +14,9 @@ import {
   serverTimestamp,
   writeBatch
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, auth } from '../firebase';
+import { db, storage, auth, functions } from '../firebase';
 import { getCoordinates } from '../utils/cityCoordinates';
 
 
@@ -223,12 +224,95 @@ export const createBid = async (bidderId, bidderProfile, listing, listingType, d
 };
 
 export const acceptBid = async (bidId, bid, listing, listingType) => {
+  // Prefer server-authoritative acceptance so App Check/browser storage quirks
+  // don't block legitimate listing-owner actions.
+  try {
+    const acceptBidCallable = httpsCallable(functions, 'acceptBid');
+    await acceptBidCallable({ bidId });
+    return;
+  } catch (error) {
+    const code = String(error?.code || '').toLowerCase();
+    const message = String(error?.message || '').toLowerCase();
+    const callableMissing =
+      code.includes('unimplemented') ||
+      code.includes('not-found') ||
+      message.includes('function not found') ||
+      message.includes('does not exist');
+    if (!callableMissing) {
+      throw error;
+    }
+    // Backward-compatible fallback for environments where the callable
+    // has not been deployed yet.
+  }
+
   const batch = writeBatch(db);
   const currentUserId = auth.currentUser?.uid || null;
-  const listingOwnerId = bid?.listingOwnerId || listing?.userId || listing?.shipperId || listing?.truckerId || currentUserId;
+  if (!currentUserId) {
+    throw new Error('Must be signed in to accept a bid');
+  }
+
+  const authoritativeListingOwnerId =
+    bid?.listingOwnerId || listing?.userId || listing?.shipperId || listing?.truckerId || null;
+
+  if (authoritativeListingOwnerId && authoritativeListingOwnerId !== currentUserId) {
+    throw new Error('Only the listing owner can accept this bid');
+  }
+
+  const listingOwnerId = authoritativeListingOwnerId || currentUserId;
 
   if (!listingOwnerId) {
     throw new Error('Cannot accept bid: listing owner is missing');
+  }
+
+  const listingRef = listingType === 'cargo'
+    ? doc(db, 'cargoListings', listing.id)
+    : doc(db, 'truckListings', listing.id);
+  const listingSnap = await getDoc(listingRef);
+  if (!listingSnap.exists()) {
+    const error = new Error('Listing no longer exists');
+    error.code = 'not-found';
+    throw error;
+  }
+
+  const listingData = listingSnap.data() || {};
+  if (listingData.userId !== currentUserId) {
+    const error = new Error('Only the listing owner can accept this bid');
+    error.code = 'permission-denied';
+    throw error;
+  }
+
+  // Mirror security rule checks client-side so users get actionable errors
+  // instead of a generic Firestore permission failure.
+  const feePayerId = bid?.cargoListingId ? bid?.bidderId : bid?.listingOwnerId;
+  if (feePayerId) {
+    const feePayerSnap = await getDoc(doc(db, 'users', feePayerId));
+    if (feePayerSnap.exists()) {
+      const feePayerData = feePayerSnap.data() || {};
+      const isFeePayerActive =
+        feePayerData.isActive !== false &&
+        feePayerData.accountStatus !== 'suspended';
+      if (!isFeePayerActive) {
+        const error = new Error('The selected bid cannot be accepted because the payer account is restricted');
+        error.code = 'payer-account-restricted';
+        throw error;
+      }
+
+      const createdAtMillis = typeof feePayerData.createdAt?.toMillis === 'function'
+        ? feePayerData.createdAt.toMillis()
+        : Date.now();
+      const isNewAccount = Date.now() < createdAtMillis + (30 * 24 * 60 * 60 * 1000);
+      const isVerified = feePayerData.isVerified === true;
+      const outstandingCap = !isVerified ? 7000 : (isNewAccount ? 10000 : 20000);
+      const outstanding = Number(feePayerData.outstandingPlatformFees || 0);
+      const bidPrice = Number(bid?.price || 0);
+      const projectedOutstanding = outstanding + (bidPrice * 0.05);
+
+      if (projectedOutstanding > outstandingCap) {
+        const error = new Error('Projected outstanding platform fees exceed allowed cap');
+        error.code = 'platform-fee-cap-exceeded';
+        throw error;
+      }
+    }
   }
 
   // Update accepted bid
@@ -236,9 +320,6 @@ export const acceptBid = async (bidId, bid, listing, listingType) => {
   batch.update(bidRef, { status: 'accepted', updatedAt: serverTimestamp() });
 
   // Update listing status
-  const listingRef = listingType === 'cargo'
-    ? doc(db, 'cargoListings', listing.id)
-    : doc(db, 'truckListings', listing.id);
   batch.update(listingRef, { status: 'negotiating', updatedAt: serverTimestamp() });
 
   // Reject all other pending bids on this listing

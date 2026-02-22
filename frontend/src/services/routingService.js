@@ -5,7 +5,7 @@
  * Calls are proxied through a Firebase Cloud Function to avoid CORS restrictions.
  */
 
-import { getAppCheckHeaders } from './appCheckService';
+import { getProtectedFunctionHeaders, isAppCheckTemporarilyBlocked } from './appCheckService';
 import { resolveFunctionProxyUrl } from './proxyUrlService';
 
 const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'asia-southeast1';
@@ -118,12 +118,20 @@ export const fetchRoute = async (origin, destination) => {
         return cacheFallbackAndReturn();
       }
 
-      const appCheckHeaders = await getAppCheckHeaders();
+      const securityHeaders = await getProtectedFunctionHeaders();
+      const hasSecurityHeader = Boolean(
+        securityHeaders['X-Firebase-AppCheck'] || securityHeaders.Authorization
+      );
+
+      if (isAppCheckTemporarilyBlocked() && !hasSecurityHeader) {
+        return cacheFallbackAndReturn();
+      }
+
       const response = await fetch(ROUTE_PROXY_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...appCheckHeaders,
+          ...securityHeaders,
         },
         body: JSON.stringify({
           coordinates: [
@@ -137,6 +145,9 @@ export const fetchRoute = async (origin, destination) => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        if (response.status === 401 || response.status === 403) {
+          return cacheFallbackAndReturn();
+        }
         // Only log non-404 errors (404s are expected for invalid routes/API issues)
         if (response.status !== 404) {
           console.error('OpenRouteService error:', errorData);

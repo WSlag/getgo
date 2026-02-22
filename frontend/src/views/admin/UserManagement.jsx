@@ -75,7 +75,7 @@ function StatusBadge({ isActive, isVerified }) {
 }
 
 // User detail modal
-function UserDetailModal({ open, onClose, user, onSuspend, onActivate, onToggleAdmin, loading }) {
+function UserDetailModal({ open, onClose, user, onSuspend, onActivate, onVerify, onToggleAdmin, loading }) {
   if (!user) return null;
 
   return (
@@ -132,6 +132,18 @@ function UserDetailModal({ open, onClose, user, onSuspend, onActivate, onToggleA
 
           {/* Actions */}
           <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            {!user.isVerified && (
+              <Button
+                onClick={() => onVerify(user.id)}
+                disabled={loading}
+                variant="outline"
+                className="border-blue-300 text-blue-600 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400"
+              >
+                {loading ? <Loader2 className="size-4 animate-spin mr-2" /> : <CheckCircle2 className="size-4 mr-2" />}
+                Verify User
+              </Button>
+            )}
+
             {user.isActive !== false ? (
               <Button
                 onClick={() => onSuspend(user.id)}
@@ -241,6 +253,20 @@ export function UserManagement() {
       setShowDetailModal(false);
     } catch (error) {
       console.error('Error activating user:', error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle verify user
+  const handleVerify = async (userId) => {
+    setActionLoading(true);
+    try {
+      await api.admin.verifyUser(userId);
+      await fetchUsers();
+      setShowDetailModal(false);
+    } catch (error) {
+      console.error('Error verifying user:', error);
     } finally {
       setActionLoading(false);
     }
@@ -384,6 +410,7 @@ export function UserManagement() {
         user={selectedUser}
         onSuspend={handleSuspend}
         onActivate={handleActivate}
+        onVerify={handleVerify}
         onToggleAdmin={handleToggleAdmin}
         loading={actionLoading}
       />
