@@ -228,6 +228,15 @@ export default function GetGoApp() {
     const code = String(error?.code || '').toLowerCase();
     const message = String(error?.message || '').toLowerCase();
 
+    if (code.includes('platform-fee-cap-exceeded') || code.includes('resource-exhausted') || message.includes('exceed allowed cap')) {
+      return 'Cannot accept this bid yet because the projected outstanding platform fees exceed the allowed cap.';
+    }
+    if (code.includes('payer-account-restricted') || message.includes('fee payer account is restricted')) {
+      return 'Cannot accept this bid because the fee payer account is currently restricted.';
+    }
+    if (code.includes('failed-precondition')) {
+      return 'This action cannot be completed in the current state. Please refresh and try again.';
+    }
     if (code.includes('permission-denied') || message.includes('permission') || message.includes('unauthorized')) {
       return 'You do not have permission for this action. Please refresh and sign in again.';
     }
@@ -931,7 +940,6 @@ export default function GetGoApp() {
         title: 'Error',
         message: getUserErrorMessage(error, 'Failed to accept bid. Please try again.'),
       });
-      throw error;
     }
   };
 
@@ -1852,6 +1860,7 @@ export default function GetGoApp() {
         listing={getModalData('bid')}
         currentRole={userRole}
         isSuspended={isAccountSuspended}
+        outstandingFees={Number(currentUser?.outstandingPlatformFees || currentUser?.outstandingFees || 0)}
         loading={bidLoading}
         onSubmit={async (data) => {
           const listing = getModalData('bid');

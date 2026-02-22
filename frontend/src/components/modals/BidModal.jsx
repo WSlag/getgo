@@ -21,6 +21,7 @@ export function BidModal({
   currentRole = 'trucker',
   onSubmit,
   isSuspended = false,
+  outstandingFees = 0,
   loading = false,
 }) {
   const [bidAmount, setBidAmount] = useState('');
@@ -32,6 +33,11 @@ export function BidModal({
 
   const isCargo = listing?.type === 'cargo' || !listing?.trucker;
   const isShipper = currentRole === 'shipper';
+  const normalizedOutstandingFees = Number(outstandingFees || 0);
+  const showOutstandingReminder =
+    currentRole === 'trucker' &&
+    !isSuspended &&
+    normalizedOutstandingFees > 0;
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -133,6 +139,19 @@ export function BidModal({
               <div className="rounded-lg bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-2 border-red-200 dark:border-red-800" style={{ padding: isMobile ? '12px' : '16px' }}>
                 <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#b91c1c' }} className="dark:text-red-400">
                   Account suspended. Pay outstanding fees to resume bidding.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {showOutstandingReminder && (
+            <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+              <div className="rounded-lg bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 border-2 border-amber-200 dark:border-amber-800" style={{ padding: isMobile ? '12px' : '16px' }}>
+                <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#b45309' }} className="dark:text-amber-300">
+                  Reminder: You have outstanding platform fees of {formatPrice(normalizedOutstandingFees)}.
+                </p>
+                <p style={{ fontSize: isMobile ? '11px' : '12px', marginTop: '4px', color: '#c2410c' }} className="dark:text-amber-200">
+                  Settle unpaid fees now. Accounts with unpaid platform fees are automatically suspended once fees are overdue after the 3-day payment window.
                 </p>
               </div>
             </div>
@@ -325,4 +344,3 @@ export function BidModal({
 }
 
 export default BidModal;
-

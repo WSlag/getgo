@@ -67,22 +67,48 @@ function isAppCheckEnforced() {
   return process.env.APP_CHECK_ENFORCED === 'true';
 }
 
-async function verifyHttpAppCheckToken(req, res) {
+function getBearerTokenFromRequest(req) {
+  const authorization = req.headers.authorization;
+  if (typeof authorization !== 'string') return null;
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  const token = match[1].trim();
+  return token || null;
+}
+
+async function verifyHttpAppCheckOrAuth(req, res, options = {}) {
+  const { allowAuthFallback = false } = options;
+
   if (!isAppCheckEnforced()) return true;
 
-  const token = req.headers['x-firebase-appcheck'];
-  if (!token || typeof token !== 'string') {
-    res.status(401).json({ error: 'App Check token missing' });
-    return false;
+  const appCheckToken = req.headers['x-firebase-appcheck'];
+  if (typeof appCheckToken === 'string' && appCheckToken.trim()) {
+    try {
+      await admin.appCheck().verifyToken(appCheckToken);
+      return true;
+    } catch (error) {
+      // Continue to optional auth fallback when enabled for low-risk proxy endpoints.
+    }
   }
 
-  try {
-    await admin.appCheck().verifyToken(token);
-    return true;
-  } catch (error) {
-    res.status(401).json({ error: 'App Check token invalid' });
-    return false;
+  if (allowAuthFallback) {
+    const idToken = getBearerTokenFromRequest(req);
+    if (idToken) {
+      try {
+        await admin.auth().verifyIdToken(idToken);
+        return true;
+      } catch (error) {
+        // Fall through to standardized unauthorized response below.
+      }
+    }
   }
+
+  if (allowAuthFallback) {
+    res.status(401).json({ error: 'App Check or Firebase Auth token required' });
+  } else {
+    res.status(401).json({ error: 'App Check token missing or invalid' });
+  }
+  return false;
 }
 
 /**
@@ -1132,6 +1158,13 @@ exports.submitRating = ratingFunctions.submitRating;
 exports.getPendingRatings = ratingFunctions.getPendingRatings;
 
 // =============================================================================
+// BID FUNCTIONS
+// =============================================================================
+
+const bidFunctions = require('./src/api/bids');
+exports.acceptBid = bidFunctions.acceptBid;
+
+// =============================================================================
 // ADMIN FUNCTIONS
 // =============================================================================
 
@@ -1344,7 +1377,7 @@ exports.getRoute = functions
   .https.onRequest(async (req, res) => {
     applyCors(req, res, {
       methods: 'POST, OPTIONS',
-      headers: 'Content-Type, X-Firebase-AppCheck',
+      headers: 'Content-Type, X-Firebase-AppCheck, Authorization',
     });
 
     if (req.method === 'OPTIONS') {
@@ -1355,7 +1388,7 @@ exports.getRoute = functions
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    if (!(await verifyHttpAppCheckToken(req, res))) {
+    if (!(await verifyHttpAppCheckOrAuth(req, res, { allowAuthFallback: true }))) {
       return;
     }
 
@@ -1411,7 +1444,7 @@ exports.geocode = functions
   .https.onRequest(async (req, res) => {
     applyCors(req, res, {
       methods: 'GET, OPTIONS',
-      headers: 'Content-Type, X-Firebase-AppCheck',
+      headers: 'Content-Type, X-Firebase-AppCheck, Authorization',
     });
 
     if (req.method === 'OPTIONS') {
@@ -1422,7 +1455,7 @@ exports.geocode = functions
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    if (!(await verifyHttpAppCheckToken(req, res))) {
+    if (!(await verifyHttpAppCheckOrAuth(req, res, { allowAuthFallback: true }))) {
       return;
     }
 
