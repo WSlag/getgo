@@ -678,6 +678,12 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
     });
   }
 
+  // Maintain trucker completion stats for profile surfaces (dropdown/profile cards).
+  await db.collection('users').doc(truckerId).collection('truckerProfile').doc('profile').set({
+    totalTrips: admin.firestore.FieldValue.increment(1),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
   // Notify both parties to rate
   for (const notifyUserId of [contract.bidderId, contract.listingOwnerId]) {
     await db.collection(`users/${notifyUserId}/notifications`).doc().set({

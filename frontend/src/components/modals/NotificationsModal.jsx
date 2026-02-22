@@ -165,7 +165,7 @@ export function NotificationsModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto backdrop-blur-sm">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden backdrop-blur-sm">
         <DialogHeader>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -206,16 +206,7 @@ export function NotificationsModal({
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                style={{
-                  padding: '8px 12px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#f97316',
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                }}
+                className="px-3 py-2 text-sm font-medium text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 bg-transparent border-none rounded-lg cursor-pointer transition-colors"
               >
                 Mark all as read
               </button>
@@ -224,24 +215,18 @@ export function NotificationsModal({
         </DialogHeader>
 
         {/* Filter Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-2 pt-2">
+        <div className="flex gap-2 overflow-x-auto pb-2 pt-2 scrollbar-none">
           {filterTabs.map((filter) => (
             <button
               key={filter}
               type="button"
               onClick={() => setActiveFilter(filter)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '9999px',
-                fontSize: '14px',
-                fontWeight: '500',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s',
-                backgroundColor: activeFilter === filter ? '#f97316' : '#f3f4f6',
-                color: activeFilter === filter ? '#ffffff' : '#4b5563',
-                border: 'none',
-                cursor: 'pointer',
-              }}
+              className={cn(
+                'px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 border-none cursor-pointer flex-shrink-0',
+                activeFilter === filter
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+              )}
             >
               {filter}
             </button>
@@ -249,27 +234,27 @@ export function NotificationsModal({
         </div>
 
         {/* Notifications List */}
-        <div className="max-h-[calc(90vh-280px)] overflow-y-auto pr-2">
+        <div className="overflow-y-auto pr-1" style={{ maxHeight: 'calc(90vh - 280px)' }}>
           {loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0' }}>
-              <Loader2 style={{ width: '32px', height: '32px', color: '#f97316', animation: 'spin 1s linear infinite' }} />
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="size-8 text-orange-500 animate-spin" />
             </div>
           ) : filteredNotifications.length === 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 0', textAlign: 'center' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
-                <Bell style={{ width: '32px', height: '32px', color: '#9ca3af' }} />
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="size-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                <Bell className="size-8 text-gray-400 dark:text-gray-500" />
               </div>
-              <p style={{ color: '#4b5563', fontWeight: '500', marginBottom: '4px' }}>
+              <p className="font-medium text-gray-600 dark:text-gray-400 mb-1">
                 No notifications yet
               </p>
-              <p style={{ fontSize: '14px', color: '#6b7280' }}>
+              <p className="text-sm text-gray-500 dark:text-gray-500">
                 {activeFilter === 'All'
                   ? "You'll be notified about important updates here"
                   : `No ${activeFilter.toLowerCase()} notifications`}
               </p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="flex flex-col gap-3">
               {filteredNotifications.map((notification) => {
                 const IconComponent = getIcon(notification.type);
                 const iconBg = getColors(notification.type);
@@ -279,58 +264,50 @@ export function NotificationsModal({
                   <div
                     key={notification.id}
                     onClick={() => handleNotificationClick(notification)}
-                    style={{
-                      padding: '16px',
-                      borderRadius: '12px',
-                      border: isUnread ? '1px solid #fed7aa' : '1px solid #e5e7eb',
-                      backgroundColor: isUnread ? '#fff7ed' : '#f9fafb',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                    }}
+                    className={cn(
+                      'rounded-xl border p-4 cursor-pointer transition-all duration-200 hover:shadow-sm',
+                      isUnread
+                        ? 'bg-orange-50 border-orange-200 dark:bg-orange-950/20 dark:border-orange-800/50'
+                        : 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700'
+                    )}
                   >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '12px',
-                        background: iconBg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}>
-                        <IconComponent style={{ width: '20px', height: '20px', color: 'white' }} />
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="size-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: iconBg }}
+                      >
+                        <IconComponent className="size-5 text-white" />
                       </div>
 
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontWeight: '600', color: '#111827', fontSize: '14px', margin: 0 }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-gray-900 dark:text-white leading-snug">
                               {notification.data?.senderName || notification.title || 'Notification'}
                             </p>
-                            <p style={{ fontSize: '14px', color: '#4b5563', marginTop: '2px' }}>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words leading-snug">
                               {getNotificationMessage(notification)}
                             </p>
                           </div>
                           {isUnread && (
-                            <span style={{ width: '10px', height: '10px', backgroundColor: '#f97316', borderRadius: '50%', flexShrink: 0, marginTop: '6px' }} />
+                            <span className="size-2.5 rounded-full bg-orange-500 flex-shrink-0 mt-1.5" />
                           )}
                         </div>
 
                         {notification.route && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '8px', fontSize: '12px' }}>
-                            <MapPin style={{ width: '12px', height: '12px', color: '#22c55e', flexShrink: 0 }} />
-                            <span style={{ color: '#6b7280' }}>{notification.route}</span>
+                          <div className="flex items-center gap-2 mt-2 px-2 py-1.5 bg-white dark:bg-gray-900 rounded-lg">
+                            <MapPin className="size-3 text-green-500 flex-shrink-0" />
+                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{notification.route}</span>
                           </div>
                         )}
 
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#6b7280' }}>
-                            <Clock style={{ width: '12px', height: '12px' }} />
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                            <Clock className="size-3" />
                             <span>{notification.time || formatTimeAgo(notification.createdAt)}</span>
                           </div>
                           {notification.amount && (
-                            <span style={{ fontWeight: '700', fontSize: '14px', color: '#ea580c' }}>
+                            <span className="font-bold text-sm text-orange-600 dark:text-orange-400">
                               PHP {Number(notification.amount).toLocaleString()}
                             </span>
                           )}
@@ -345,8 +322,8 @@ export function NotificationsModal({
         </div>
 
         {/* Footer */}
-        <div style={{ display: 'flex', gap: '12px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
-          <Button variant="ghost" onClick={onClose} style={{ flex: 1 }}>
+        <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <Button variant="ghost" onClick={onClose} className="flex-1">
             Close
           </Button>
         </div>

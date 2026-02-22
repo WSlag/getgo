@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Package, Truck, MessageSquare, Clock, Loader2, FileText } from 'lucide-react';
+import { MapPin, Package, Truck, MessageSquare, Clock, Loader2, FileText, CalendarDays, Tag, Car } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PesoIcon } from '@/components/ui/PesoIcon';
 import {
@@ -146,9 +146,16 @@ export function MyBidsModal({
                         </div>
                       </div>
                     </div>
-                    <Badge className={cn("uppercase text-[11px] px-2.5 py-1", getStatusBadge(bid.status))}>
-                      {bid.status || 'pending'}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge className={cn("uppercase text-[11px] px-2.5 py-1", getStatusBadge(bid.status))}>
+                        {bid.status || 'pending'}
+                      </Badge>
+                      {bid.listingStatus && (
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500 capitalize">
+                          Listing: {bid.listingStatus}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Route */}
@@ -160,11 +167,80 @@ export function MyBidsModal({
                     <span className="text-gray-700 dark:text-gray-300">{bid.destination || '---'}</span>
                   </div>
 
+                  {/* Listing Details */}
+                  <div className="grid grid-cols-2 gap-2 text-xs" style={{ marginBottom: isMobile ? '10px' : '12px' }}>
+                    {/* Cargo details */}
+                    {bid.cargoListingId && (
+                      <>
+                        {(bid.weight || bid.unit) && (
+                          <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                            <Package className="size-3 flex-shrink-0 text-orange-400" />
+                            <span>{bid.weight ? `${Number(bid.weight).toLocaleString()} ${bid.unit || 'kg'}` : '---'}</span>
+                          </div>
+                        )}
+                        {bid.cargoType && (
+                          <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                            <Tag className="size-3 flex-shrink-0 text-orange-400" />
+                            <span className="truncate">{bid.cargoType}</span>
+                          </div>
+                        )}
+                        {bid.vehicleNeeded && (
+                          <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                            <Truck className="size-3 flex-shrink-0 text-orange-400" />
+                            <span className="truncate">{bid.vehicleNeeded}</span>
+                          </div>
+                        )}
+                        {bid.pickupDate && (
+                          <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                            <CalendarDays className="size-3 flex-shrink-0 text-orange-400" />
+                            <span>{bid.pickupDate}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {/* Truck details */}
+                    {bid.truckListingId && (
+                      <>
+                        {bid.vehicleType && (
+                          <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                            <Car className="size-3 flex-shrink-0 text-violet-400" />
+                            <span className="truncate">{bid.vehicleType}</span>
+                          </div>
+                        )}
+                        {bid.plateNumber && (
+                          <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                            <Tag className="size-3 flex-shrink-0 text-violet-400" />
+                            <span>{bid.plateNumber}</span>
+                          </div>
+                        )}
+                        {bid.capacity && (
+                          <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                            <Package className="size-3 flex-shrink-0 text-violet-400" />
+                            <span>{Number(bid.capacity).toLocaleString()} kg cap.</span>
+                          </div>
+                        )}
+                        {bid.availableDate && (
+                          <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+                            <CalendarDays className="size-3 flex-shrink-0 text-violet-400" />
+                            <span>{bid.availableDate}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
                   {/* Bid Amount */}
                   <div className="flex items-center justify-between" style={{ marginBottom: isMobile ? '10px' : '12px' }}>
-                    <div className="flex items-center gap-1.5">
-                      <PesoIcon className="size-4 text-emerald-500" />
-                      <span className="text-sm text-gray-500 dark:text-gray-400">Your bid:</span>
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <PesoIcon className="size-4 text-emerald-500" />
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Your bid:</span>
+                      </div>
+                      {(bid.askingPrice || bid.askingRate) && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500 pl-5">
+                          Asking: {formatPrice(bid.askingPrice || bid.askingRate)}
+                        </span>
+                      )}
                     </div>
                     <span className="font-bold text-lg text-emerald-600 dark:text-emerald-400">
                       {formatPrice(bid.price)}
