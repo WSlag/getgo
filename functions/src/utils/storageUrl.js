@@ -8,6 +8,32 @@ const TRUSTED_STORAGE_HOSTS = new Set([
   'storage.googleapis.com'
 ]);
 
+function parseEmulatorHost(rawHost) {
+  if (typeof rawHost !== 'string' || !rawHost.trim()) return null;
+  const trimmed = rawHost.trim();
+  const withProtocol = trimmed.includes('://') ? trimmed : `http://${trimmed}`;
+  try {
+    const parsed = new URL(withProtocol);
+    return parsed.hostname.toLowerCase();
+  } catch (error) {
+    return null;
+  }
+}
+
+function isTrustedStorageOrigin(parsedUrl) {
+  if (parsedUrl.protocol === 'https:' && TRUSTED_STORAGE_HOSTS.has(parsedUrl.hostname)) {
+    return true;
+  }
+
+  // Allow local storage emulator URLs only when explicitly configured.
+  const emulatorHost = parseEmulatorHost(process.env.FIREBASE_STORAGE_EMULATOR_HOST);
+  if (!emulatorHost) {
+    return false;
+  }
+
+  return parsedUrl.protocol === 'http:' && parsedUrl.hostname.toLowerCase() === emulatorHost;
+}
+
 function normalizeUserId(userId) {
   return typeof userId === 'string' ? userId.trim() : '';
 }
@@ -24,7 +50,7 @@ function isTrustedPaymentScreenshotUrl(rawUrl, expectedUserId = null) {
     return false;
   }
 
-  if (parsed.protocol !== 'https:' || !TRUSTED_STORAGE_HOSTS.has(parsed.hostname)) {
+  if (!isTrustedStorageOrigin(parsed)) {
     return false;
   }
 

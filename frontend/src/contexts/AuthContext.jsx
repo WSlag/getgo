@@ -36,6 +36,16 @@ export function AuthProvider({ children }) {
         setWallet(null);
         setIsNewUser(false);
         setLoading(false);
+      } else {
+        // Keep app in loading state until profile listener resolves new/existing user.
+        // This avoids guest-shell flicker right after OTP verification.
+        setLoading(true);
+        setUserProfile(null);
+        setShipperProfile(null);
+        setTruckerProfile(null);
+        setBrokerProfile(null);
+        setWallet(null);
+        setIsNewUser(false);
       }
     });
     return unsubAuth;
@@ -205,6 +215,8 @@ export function AuthProvider({ children }) {
       }
 
       const result = await confirmationResult.confirm(code);
+      // Ensure token/session is fully initialized before UI transitions.
+      await result.user.getIdToken();
 
       setConfirmationResult(null);
       return { success: true, user: result.user };
@@ -269,6 +281,7 @@ export function AuthProvider({ children }) {
         facebookUrl: null,
         isVerified: false,
         isActive: true,
+        onboardingComplete: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -305,6 +318,7 @@ export function AuthProvider({ children }) {
       const walletRef = doc(db, 'users', authUser.uid, 'wallet', 'main');
       await setDoc(walletRef, {
         balance: 0,
+        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
 

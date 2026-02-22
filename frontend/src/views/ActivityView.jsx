@@ -9,6 +9,9 @@ export default function ActivityView({
   darkMode,
   onOpenChat,
   onOpenContract,
+  onBrowseMarketplace,
+  onCreateListing,
+  onOpenMessages,
   unreadBids = 0,
   pendingContractsCount = 0,
 }) {
@@ -93,6 +96,9 @@ export default function ActivityView({
             currentUser={currentUser}
             currentRole={currentRole}
             onOpenChat={onOpenChat}
+            onBrowseMarketplace={onBrowseMarketplace}
+            onCreateListing={onCreateListing}
+            onOpenMessages={onOpenMessages}
             darkMode={darkMode}
             embedded={true}
           />

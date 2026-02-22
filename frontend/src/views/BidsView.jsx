@@ -11,6 +11,9 @@ export function BidsView({
   currentUser,
   currentRole = 'trucker',
   onOpenChat,
+  onBrowseMarketplace,
+  onCreateListing,
+  onOpenMessages,
   darkMode = false,
   embedded = false, // Skip header when embedded in ActivityView
 }) {
@@ -95,6 +98,28 @@ export function BidsView({
           <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>
             Your {isTrucker ? 'bids' : 'bookings'} will appear here
           </p>
+          <div className="flex flex-col sm:flex-row gap-2" style={{ marginTop: '16px' }}>
+            <Button
+              onClick={onBrowseMarketplace}
+              variant="outline"
+              size={isMobile ? "sm" : "default"}
+            >
+              {isTrucker ? 'Browse Cargo' : 'Browse Trucks'}
+            </Button>
+            <Button
+              onClick={onCreateListing}
+              size={isMobile ? "sm" : "default"}
+            >
+              {isTrucker ? 'Post Truck' : 'Post Cargo'}
+            </Button>
+            <Button
+              onClick={onOpenMessages}
+              variant="outline"
+              size={isMobile ? "sm" : "default"}
+            >
+              Open Messages
+            </Button>
+          </div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>

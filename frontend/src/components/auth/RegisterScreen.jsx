@@ -3,6 +3,7 @@ import { User, Truck, Package, ArrowRight, Loader2, Building2, Mail, Link2 } fro
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import BrokerOnboardingModal from '../broker/BrokerOnboardingModal';
+import { OnboardingGuideModal } from '../modals/OnboardingGuideModal';
 
 export default function RegisterScreen({ darkMode }) {
   const { authUser, createUserProfile } = useAuth();
@@ -16,7 +17,14 @@ export default function RegisterScreen({ darkMode }) {
   const [role, setRole] = useState('shipper');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [showBrokerOnboarding, setShowBrokerOnboarding] = useState(false);
+
+  const buildDefaultName = () => {
+    const digits = String(authUser?.phoneNumber || '').replace(/\D/g, '');
+    const suffix = digits.slice(-4) || 'User';
+    return `User ${suffix}`;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -41,9 +49,28 @@ export default function RegisterScreen({ darkMode }) {
 
     if (!result.success) {
       setError(result.error || 'Failed to create profile. Please try again.');
-    } else {
-      // Show broker onboarding modal after successful registration
-      setShowBrokerOnboarding(true);
+    }
+  };
+
+  const handleSkipForNow = async () => {
+    if (loading) return;
+
+    setLoading(true);
+    setError('');
+
+    const fallbackName = buildDefaultName();
+    const result = await createUserProfile({
+      name: fallbackName,
+      businessName: fallbackName,
+      email: null,
+      role,
+      referralCode: referralCode.trim() || null,
+    });
+
+    setLoading(false);
+
+    if (!result.success) {
+      setError(result.error || 'Failed to continue. Please try again.');
     }
   };
 
@@ -346,6 +373,24 @@ export default function RegisterScreen({ darkMode }) {
               </>
             )}
           </button>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleSkipForNow}
+            className={cn(
+              "w-full mt-3 font-medium transition-colors",
+              loading
+                ? "text-gray-400 cursor-not-allowed"
+                : "text-gray-500 hover:text-orange-500 dark:text-gray-400 dark:hover:text-orange-400"
+            )}
+            style={{ padding: '10px 12px', fontSize: '14px' }}
+          >
+            Skip for now
+          </button>
+          <p className="text-center text-gray-400 dark:text-gray-500" style={{ fontSize: '12px', marginTop: '2px' }}>
+            You can complete details later in Profile settings.
+          </p>
         </form>
 
         {/* Footer */}
@@ -362,7 +407,18 @@ export default function RegisterScreen({ darkMode }) {
         </div>
       </div>
 
-      {/* Broker Onboarding Modal */}
+      {/* Onboarding Guide Modal — shown first after registration */}
+      <OnboardingGuideModal
+        open={showOnboarding}
+        onClose={() => {
+          setShowOnboarding(false);
+          setShowBrokerOnboarding(true);
+        }}
+        userRole={role}
+        userName={name}
+      />
+
+      {/* Broker Onboarding Modal — shown after onboarding guide */}
       <BrokerOnboardingModal
         open={showBrokerOnboarding}
         onClose={() => setShowBrokerOnboarding(false)}

@@ -6,6 +6,7 @@
  */
 
 const admin = require('firebase-admin');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { THRESHOLDS, FRAUD_SCORES } = require('../config/thresholds');
 
 /**
@@ -279,7 +280,7 @@ async function getRecentSubmissionCount(userId, hours) {
     const snapshot = await db
       .collection('paymentSubmissions')
       .where('userId', '==', userId)
-      .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(cutoffTime))
+      .where('createdAt', '>=', Timestamp.fromDate(cutoffTime))
       .get();
 
     return snapshot.size;
@@ -331,7 +332,7 @@ async function checkDuplicateReference(db, refNumber, currentSubmissionId, userI
       submissionId: currentSubmissionId,
       userId: userId,
       amount: amount,
-      firstSeenAt: admin.firestore.FieldValue.serverTimestamp()
+      firstSeenAt: FieldValue.serverTimestamp()
     });
 
     return { isDuplicate: false };
@@ -382,7 +383,7 @@ async function checkDuplicateHash(db, imageHash, currentSubmissionId) {
     await db.collection('imageHashes').add({
       hash: imageHash,
       submissionId: currentSubmissionId,
-      firstSeenAt: admin.firestore.FieldValue.serverTimestamp()
+      firstSeenAt: FieldValue.serverTimestamp()
     });
 
     return { isDuplicate: false, isSimilar: false };
@@ -440,7 +441,7 @@ async function createFraudLog(db, submissionId, userId, action, fraudResults, ad
       ruleDetails: fraudResults.details,
       adminId,
       notes,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
   } catch (error) {
     console.error('Error creating fraud log:', error);

@@ -5,6 +5,7 @@
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const {
   loadPlatformSettings,
@@ -265,7 +266,7 @@ exports.createPlatformFeeOrder = onCall(
       if (contractRef && contract?.platformFeeOrderId !== reusableOrder.orderId) {
         tx.update(contractRef, {
           platformFeeOrderId: reusableOrder.orderId,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       }
 
@@ -274,7 +275,7 @@ exports.createPlatformFeeOrder = onCall(
           userId,
           operation: 'createPlatformFeeOrder',
           orderId: reusableOrder.orderId,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
       }
 
@@ -298,7 +299,7 @@ exports.createPlatformFeeOrder = onCall(
       // Update contract with order reference
       tx.update(contractRef, {
         platformFeeOrderId: orderId,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     }
 
@@ -317,9 +318,9 @@ exports.createPlatformFeeOrder = onCall(
       gcashAccountName: runtimeGcashConfig.accountName,
       expectedReceiverName: runtimeGcashConfig.accountName,
       gcashQrUrl: runtimeGcashConfig.qrCodeUrl,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromDate(expiresAt),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     tx.set(db.collection('orders').doc(orderId), orderData);
@@ -329,8 +330,8 @@ exports.createPlatformFeeOrder = onCall(
         userId,
         operation: 'createPlatformFeeOrder',
         orderId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     }
 
@@ -412,7 +413,7 @@ exports.createTopUpOrder = onCall(
     const todayOrdersSnapshot = await tx.get(
       db.collection('orders')
         .where('userId', '==', userId)
-        .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(today))
+        .where('createdAt', '>=', Timestamp.fromDate(today))
     );
 
     if (todayOrdersSnapshot.size >= runtimeGcashConfig.maxDailySubmissions) {
@@ -437,9 +438,9 @@ exports.createTopUpOrder = onCall(
       gcashAccountName: runtimeGcashConfig.accountName,
       expectedReceiverName: runtimeGcashConfig.accountName,
       gcashQrUrl: runtimeGcashConfig.qrCodeUrl,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromDate(expiresAt),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     tx.set(db.collection('orders').doc(orderId), orderData);
@@ -449,8 +450,8 @@ exports.createTopUpOrder = onCall(
         userId,
         operation: 'createTopUpOrder',
         orderId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     }
 

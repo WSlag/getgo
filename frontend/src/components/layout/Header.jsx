@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Bell, User, Moon, Sun, Users } from 'lucide-react';
+import { Home, TrendingUp, ClipboardList, MessageSquare, Bell, User, Moon, Sun, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Logo } from '@/components/shared/Logo';
@@ -25,6 +25,8 @@ export function Header({
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'tracking', label: 'Tracking', icon: TrendingUp },
+    { id: 'activity', label: 'Activity', icon: ClipboardList },
+    { id: 'messages', label: 'Messages', icon: MessageSquare },
   ];
 
   return (
@@ -82,6 +84,8 @@ export function Header({
             {/* Notification Bell */}
             <button
               onClick={onNotificationClick}
+              aria-label="Open notifications"
+              title="Notifications"
               className="relative size-9 rounded-xl bg-white/50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-800 flex items-center justify-center transition-all duration-300 hover:shadow-md hover:scale-105 active:scale-95 backdrop-blur-sm"
             >
               <Bell className="size-5 text-gray-700 dark:text-gray-400" />
@@ -95,6 +99,8 @@ export function Header({
             {/* Dark Mode Toggle */}
             <button
               onClick={onToggleDarkMode}
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={darkMode ? 'Light mode' : 'Dark mode'}
               className="size-8 rounded-lg bg-white/50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-800 flex items-center justify-center transition-all duration-300 hover:shadow-md hover:scale-105 active:scale-95 backdrop-blur-sm"
             >
               {darkMode ? (

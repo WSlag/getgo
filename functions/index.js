@@ -10,6 +10,7 @@ const { onCall } = require('firebase-functions/v2/https');
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 const axios = require('axios');
 
 // Initialize Firebase Admin
@@ -107,7 +108,7 @@ exports.processPaymentSubmission = onDocumentCreated(
       // Step 1: Update status to processing
       await snap.ref.update({
         ocrStatus: 'processing',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp()
       });
 
       // Step 2: Get the order details
@@ -191,7 +192,7 @@ exports.processPaymentSubmission = onDocumentCreated(
       // Step 10: Update submission with all results
       const updateData = {
         ocrStatus: 'completed',
-        ocrCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+        ocrCompletedAt: FieldValue.serverTimestamp(),
         extractedData: {
           referenceNumber: ocrResults.extractedData?.referenceNumber || null,
           amount: ocrResults.extractedData?.amount || null,
@@ -219,10 +220,10 @@ exports.processPaymentSubmission = onDocumentCreated(
         exifData: imageAnalysis.exif || null,
         status: finalStatus,
         resolvedAt: finalStatus !== 'manual_review'
-          ? admin.firestore.FieldValue.serverTimestamp()
+          ? FieldValue.serverTimestamp()
           : null,
         resolvedBy: finalStatus !== 'manual_review' ? 'system' : null,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp()
       };
 
       await snap.ref.update(updateData);
@@ -258,7 +259,7 @@ exports.processPaymentSubmission = onDocumentCreated(
         ocrStatus: 'failed',
         status: 'manual_review',
         validationErrors: [error.message || 'Processing failed'],
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp()
       });
 
       // Notify admin of processing error
@@ -279,9 +280,9 @@ async function handleExpiredOrder(submissionRef, submissionId, userId) {
     ocrStatus: 'completed',
     status: 'rejected',
     validationErrors: ['Order has expired. Please create a new top-up request.'],
-    resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+    resolvedAt: FieldValue.serverTimestamp(),
     resolvedBy: 'system',
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    updatedAt: FieldValue.serverTimestamp()
   });
 
   await sendUserNotification(userId, 'rejected', 0, submissionId, 'Order expired');
@@ -295,7 +296,7 @@ async function handleOCRFailure(submissionRef, submissionId, userId, error) {
     ocrStatus: 'failed',
     status: 'manual_review',
     validationErrors: [`OCR failed: ${error}`],
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    updatedAt: FieldValue.serverTimestamp()
   });
 
   await sendUserNotification(userId, 'manual_review', 0, submissionId, 'Could not read screenshot');
@@ -308,9 +309,9 @@ async function approvePayment(submission, order, submissionId) {
   // Update order status
   await db.collection('orders').doc(submission.orderId).update({
     status: 'verified',
-    verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    verifiedAt: FieldValue.serverTimestamp(),
     verifiedSubmissionId: submissionId,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    updatedAt: FieldValue.serverTimestamp()
   });
 
   // Check if this is a platform fee payment or wallet top-up
@@ -324,7 +325,7 @@ async function approvePayment(submission, order, submissionId) {
       status: 'completed',
       submissionId,
       orderId: order.orderId,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     // Update contract to mark platform fee as paid.
@@ -345,17 +346,17 @@ async function approvePayment(submission, order, submissionId) {
             status: nextStatus,
             platformFeePaid: true,
             platformFeeStatus: 'paid',
-            platformFeePaidAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            platformFeePaidAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
 
           const platformFeePayerId = contract.platformFeePayerId;
 
           // Update user's outstanding fees
           await db.collection('users').doc(platformFeePayerId).update({
-            outstandingPlatformFees: admin.firestore.FieldValue.increment(-order.amount),
-            outstandingFeeContracts: admin.firestore.FieldValue.arrayRemove(order.contractId),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            outstandingPlatformFees: FieldValue.increment(-order.amount),
+            outstandingFeeContracts: FieldValue.arrayRemove(order.contractId),
+            updatedAt: FieldValue.serverTimestamp(),
           });
 
           // Check if should unsuspend account
@@ -373,8 +374,8 @@ async function approvePayment(submission, order, submissionId) {
                 accountStatus: 'active',
                 suspensionReason: null,
                 suspendedAt: null,
-                unsuspendedAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                unsuspendedAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
               });
 
               // Notify unsuspension
@@ -384,7 +385,7 @@ async function approvePayment(submission, order, submissionId) {
                 message: 'Your account has been reactivated. All platform fees have been paid.',
                 data: { contractId: order.contractId },
                 isRead: false,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                createdAt: FieldValue.serverTimestamp(),
               });
             }
           }
@@ -402,7 +403,7 @@ async function approvePayment(submission, order, submissionId) {
               bidId: order.bidId,
             },
             isRead: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           });
 
           // Notify counterparty
@@ -419,7 +420,7 @@ async function approvePayment(submission, order, submissionId) {
                 bidId: order.bidId,
               },
               isRead: false,
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: FieldValue.serverTimestamp(),
             });
           }
         }
@@ -435,7 +436,7 @@ async function approvePayment(submission, order, submissionId) {
         message: 'Your payment has been verified, but there was an issue updating the contract. Our team will assist you.',
         data: { submissionId, error: error.message },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
     }
   } else {
@@ -449,14 +450,14 @@ async function approvePayment(submission, order, submissionId) {
 
     if (walletDoc.exists) {
       batch.update(walletRef, {
-        balance: admin.firestore.FieldValue.increment(order.amount),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        balance: FieldValue.increment(order.amount),
+        updatedAt: FieldValue.serverTimestamp()
       });
     } else {
       batch.set(walletRef, {
         balance: order.amount,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
       });
     }
 
@@ -469,7 +470,7 @@ async function approvePayment(submission, order, submissionId) {
       description: `Top-up via GCash screenshot verification`,
       reference: submissionId,
       status: 'completed',
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
 
     await batch.commit();
@@ -483,8 +484,8 @@ async function rejectPayment(orderId, errors) {
   await db.collection('orders').doc(orderId).update({
     status: 'rejected',
     rejectionReason: errors.join('; '),
-    rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    rejectedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
   });
 }
 
@@ -527,7 +528,7 @@ async function sendUserNotification(userId, status, amount, submissionId, custom
       orderType
     },
     isRead: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    createdAt: FieldValue.serverTimestamp()
   });
 }
 
@@ -569,7 +570,7 @@ async function notifyAdminForReview(submissionId, userId, amount, fraudResults) 
         flags: fraudResults.flags
       },
       isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
   });
 
@@ -615,10 +616,10 @@ exports.adminApprovePayment = onCall(
     // Update submission
     await submissionRef.update({
       status: 'approved',
-      resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+      resolvedAt: FieldValue.serverTimestamp(),
       resolvedBy: context.auth.uid,
       resolutionNotes: notes || 'Manual approval by admin',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp()
     });
 
     // Credit wallet
@@ -670,11 +671,11 @@ exports.adminRejectPayment = onCall(
     // Update submission
     await submissionRef.update({
       status: 'rejected',
-      resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+      resolvedAt: FieldValue.serverTimestamp(),
       resolvedBy: context.auth.uid,
       resolutionNotes: notes || reason || 'Rejected by admin',
       validationErrors: [...(submission.validationErrors || []), reason || 'Manual rejection'],
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp()
     });
 
     // Update order
@@ -834,7 +835,7 @@ exports.setAdminRole = onCall(
         isAdmin: isAdmin,
         role: isAdmin ? 'admin' : (targetDoc.data().role === 'admin' ? 'shipper' : targetDoc.data().role),
         adminGrantedBy: context.auth.uid,
-        adminGrantedAt: admin.firestore.FieldValue.serverTimestamp()
+        adminGrantedAt: FieldValue.serverTimestamp()
       });
 
       // Set Firebase Custom Claims for secure verification in rules
@@ -845,7 +846,7 @@ exports.setAdminRole = onCall(
         action: isAdmin ? 'GRANT_ADMIN' : 'REVOKE_ADMIN',
         targetUserId,
         performedBy: context.auth.uid,
-        performedAt: admin.firestore.FieldValue.serverTimestamp()
+        performedAt: FieldValue.serverTimestamp()
       });
 
       return {
@@ -921,9 +922,9 @@ exports.initializeFirstAdmin = onCall(
       await db.collection('users').doc(context.auth.uid).update({
         isAdmin: true,
         role: 'admin',
-        adminGrantedAt: admin.firestore.FieldValue.serverTimestamp(),
+        adminGrantedAt: FieldValue.serverTimestamp(),
         adminGrantedBy: 'SYSTEM_INIT',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp()
       });
 
       // Set Firebase Custom Claims
@@ -934,7 +935,7 @@ exports.initializeFirstAdmin = onCall(
         action: 'FIRST_ADMIN_INIT',
         targetUserId: context.auth.uid,
         performedBy: 'SYSTEM',
-        performedAt: admin.firestore.FieldValue.serverTimestamp()
+        performedAt: FieldValue.serverTimestamp()
       });
 
       return {
@@ -978,7 +979,7 @@ exports.validateUserCreation = onDocumentCreated(
         isAdmin: false,
         role: 'shipper', // Reset to default
         securityFlagReason: 'Unauthorized admin privilege attempt during creation',
-        securityFlaggedAt: admin.firestore.FieldValue.serverTimestamp()
+        securityFlaggedAt: FieldValue.serverTimestamp()
       });
 
       // Log security incident
@@ -989,7 +990,7 @@ exports.validateUserCreation = onDocumentCreated(
           isAdmin: userData.isAdmin,
           role: userData.role
         },
-        detectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        detectedAt: FieldValue.serverTimestamp(),
         remediationAction: 'Privileges auto-revoked, account disabled'
       });
 
@@ -1053,7 +1054,7 @@ exports.auditAdminAccounts = onSchedule(
         type: 'UNAUTHORIZED_ADMIN_ACCOUNTS_DETECTED',
         count: unauthorizedAdmins.length,
         accounts: unauthorizedAdmins,
-        detectedAt: admin.firestore.FieldValue.serverTimestamp()
+        detectedAt: FieldValue.serverTimestamp()
       });
 
       // Notify legitimate admins about unauthorized accounts
@@ -1077,7 +1078,7 @@ exports.auditAdminAccounts = onSchedule(
           message: `Security audit found ${unauthorizedAdmins.length} admin account(s) without proper authorization trail. Investigate immediately.`,
           data: { count: unauthorizedAdmins.length, detectedAt: new Date().toISOString() },
           isRead: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
       }
 

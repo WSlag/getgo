@@ -11,6 +11,8 @@
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:report": "playwright show-report",
     "test:verify": "node tests/verify-setup.js",
+    "test:smoke:gcash": "firebase emulators:exec --only auth,firestore,functions \"node functions/scripts/gcash-payment-smoke.cjs\"",
+    "test:smoke:gcash:storage": "firebase emulators:exec --only auth,firestore,functions,storage \"node functions/scripts/gcash-payment-smoke.cjs --storage\"",
     "emulators:start": "firebase emulators:start --import=./emulator-data --export-on-exit"
   },
   "keywords": ["testing", "e2e", "playwright", "firebase"],

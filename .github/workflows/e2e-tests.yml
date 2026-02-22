@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    timeout-minutes: 20
+    timeout-minutes: 30
     runs-on: ubuntu-latest
 
     steps:
@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install root dependencies
@@ -34,6 +34,28 @@ jobs:
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
+
+      - name: Run GCash smoke test
+        run: |
+          mkdir -p smoke-artifacts
+          set -o pipefail
+          npm run test:smoke:gcash:storage 2>&1 | tee smoke-artifacts/gcash-smoke.log
+
+      - name: Collect GCash smoke emulator logs
+        if: always()
+        run: |
+          mkdir -p smoke-artifacts
+          cp firestore-debug.log smoke-artifacts/firestore-debug.log || true
+          cp firebase-debug.log smoke-artifacts/firebase-debug.log || true
+
+      - name: Upload GCash smoke logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gcash-smoke-logs
+          path: smoke-artifacts/
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps

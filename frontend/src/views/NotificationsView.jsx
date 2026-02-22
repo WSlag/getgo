@@ -32,6 +32,8 @@ export function NotificationsView({
   onOpenListing,
   onOpenContract,
   onPayPlatformFee,
+  onBrowseMarketplace,
+  onOpenActivity,
   darkMode = false,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
@@ -82,6 +84,14 @@ export function NotificationsView({
         <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-center" style={{ padding: isMobile ? '48px 16px' : '64px 24px' }}>
           <Bell className="mx-auto size-10 text-gray-400" />
           <p style={{ marginTop: '8px', color: '#6b7280' }}>No notifications yet.</p>
+          <div className="flex flex-col sm:flex-row justify-center gap-2" style={{ marginTop: '16px' }}>
+            <Button size={isMobile ? "sm" : "default"} variant="outline" onClick={onBrowseMarketplace}>
+              Browse Listings
+            </Button>
+            <Button size={isMobile ? "sm" : "default"} onClick={onOpenActivity}>
+              Open Activity
+            </Button>
+          </div>
         </div>
       ) : (
         <div style={{ display: 'grid', gap: isMobile ? '12px' : '16px' }}>
