@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { X, MapPinned, MapPin, Navigation, Radio, Loader2 } from 'lucide-react';
+import { X, MapPinned, MapPin, Navigation, Radio, Loader2, CheckCircle2 } from 'lucide-react';
 import { fetchRoute, formatDuration } from '../../services/routingService';
 
-// Custom marker icons
 const createIcon = (color, size = 24) => L.divIcon({
   className: 'custom-marker',
   html: `<div style="
@@ -16,10 +15,9 @@ const createIcon = (color, size = 24) => L.divIcon({
     box-shadow: 0 3px 8px rgba(0,0,0,0.4);
   "></div>`,
   iconSize: [size, size],
-  iconAnchor: [size/2, size/2],
+  iconAnchor: [size / 2, size / 2],
 });
 
-// Animated truck icon with pulsing effect
 const createTruckIcon = (color) => L.divIcon({
   className: 'truck-marker',
   html: `
@@ -51,7 +49,7 @@ const createTruckIcon = (color) => L.divIcon({
         justify-content: center;
         font-size: 16px;
         box-shadow: 0 3px 10px rgba(0,0,0,0.4);
-      ">🚛</div>
+      ">&#128666;</div>
     </div>
     <style>
       @keyframes pulse-ring {
@@ -68,7 +66,19 @@ const createTruckIcon = (color) => L.divIcon({
 const originIcon = createIcon('#22c55e', 20);
 const destIcon = createIcon('#ef4444', 20);
 
-// Component to fit bounds when coordinates change
+const statusProgress = {
+  pending_pickup: 0,
+  picked_up: 1,
+  in_transit: 2,
+  delivered: 3,
+};
+
+const trackerSteps = [
+  { key: 'picked_up', label: 'Pick Up' },
+  { key: 'in_transit', label: 'In Transit' },
+  { key: 'delivered', label: 'Delivered' },
+];
+
 const FitBounds = ({ coordinates }) => {
   const map = useMap();
   useEffect(() => {
@@ -80,23 +90,81 @@ const FitBounds = ({ coordinates }) => {
   return null;
 };
 
-export default function TrackingMap({ shipment, darkMode = false, showFull = false, onClose }) {
+function ShipmentStatusTracker({ status, darkMode = false }) {
+  const progress = statusProgress[status] || 0;
+
+  return (
+    <div>
+      {progress === 0 && (
+        <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+          Awaiting pickup confirmation
+        </p>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        {trackerSteps.map((step, index) => {
+          const stepNo = index + 1;
+          const isComplete = progress > stepNo;
+          const isCurrent = progress === stepNo;
+
+          return (
+            <div key={step.key} className="text-center">
+              <div
+                className={[
+                  'mx-auto size-8 rounded-full border-2 flex items-center justify-center text-xs font-bold',
+                  isComplete ? 'bg-green-500 border-green-500 text-white' : '',
+                  isCurrent && !isComplete ? 'bg-orange-500 border-orange-500 text-white' : '',
+                  !isComplete && !isCurrent
+                    ? (darkMode ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-white border-gray-300 text-gray-500')
+                    : '',
+                ].join(' ').trim()}
+              >
+                {isComplete ? <CheckCircle2 className="size-4" /> : stepNo}
+              </div>
+              <p
+                className={[
+                  'mt-1 text-[11px] font-medium',
+                  isComplete || isCurrent
+                    ? (darkMode ? 'text-white' : 'text-gray-900')
+                    : (darkMode ? 'text-gray-400' : 'text-gray-500'),
+                ].join(' ')}
+              >
+                {step.label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default function TrackingMap({
+  shipment,
+  darkMode = false,
+  showFull = false,
+  onClose,
+  canPickUp = false,
+  canDeliver = false,
+  onPickUp = null,
+  onDeliver = null,
+  actionLoading = null,
+}) {
   const [routeData, setRouteData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Validate that shipment has required coordinate data
+  const safeProgress = Number(shipment?.progress || 0);
+  const currentLocationName = shipment?.currentLocation?.name || shipment?.currentLocation || 'Unknown';
+
   const hasValidCoordinates =
-    shipment?.originCoords?.lat && shipment?.originCoords?.lng &&
-    shipment?.destCoords?.lat && shipment?.destCoords?.lng &&
-    shipment?.currentLocation?.lat && shipment?.currentLocation?.lng &&
-    typeof shipment.originCoords.lat === 'number' &&
-    typeof shipment.originCoords.lng === 'number' &&
-    typeof shipment.destCoords.lat === 'number' &&
-    typeof shipment.destCoords.lng === 'number' &&
-    typeof shipment.currentLocation.lat === 'number' &&
-    typeof shipment.currentLocation.lng === 'number';
+    Number.isFinite(shipment?.originCoords?.lat) &&
+    Number.isFinite(shipment?.originCoords?.lng) &&
+    Number.isFinite(shipment?.destCoords?.lat) &&
+    Number.isFinite(shipment?.destCoords?.lng) &&
+    Number.isFinite(shipment?.currentLocation?.lat) &&
+    Number.isFinite(shipment?.currentLocation?.lng);
 
   const statusColors = {
+    pending_pickup: { color: '#64748b', label: 'Awaiting Pickup', pulse: false },
     picked_up: { color: '#3b82f6', label: 'Picked Up', pulse: true },
     in_transit: { color: '#f59e0b', label: 'In Transit', pulse: true },
     delivered: { color: '#22c55e', label: 'Delivered', pulse: false },
@@ -104,9 +172,7 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
   const currentStatus = statusColors[shipment.status] || statusColors.in_transit;
   const truckIcon = createTruckIcon(currentStatus.color);
 
-  // Fetch route on mount
   useEffect(() => {
-    // Skip loading route if coordinates are invalid
     if (!hasValidCoordinates) {
       setLoading(false);
       setRouteData(null);
@@ -120,11 +186,10 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
         setRouteData(data);
       } catch (error) {
         console.error('Failed to load route:', error);
-        // Fallback to straight lines
         setRouteData({
           coordinates: [
             [shipment.originCoords.lat, shipment.originCoords.lng],
-            [shipment.destCoords.lat, shipment.destCoords.lng]
+            [shipment.destCoords.lat, shipment.destCoords.lng],
           ],
           distance: 0,
           duration: 0,
@@ -138,30 +203,26 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
     loadRoute();
   }, [shipment.originCoords, shipment.destCoords, hasValidCoordinates]);
 
-  // Calculate completed vs remaining route based on progress
   const getRouteSegments = () => {
     if (!routeData || !routeData.coordinates || routeData.coordinates.length < 2) {
-      // Fallback to straight line segments
       return {
         completedRoute: [
           [shipment.originCoords.lat, shipment.originCoords.lng],
-          [shipment.currentLocation.lat, shipment.currentLocation.lng]
+          [shipment.currentLocation.lat, shipment.currentLocation.lng],
         ],
         remainingRoute: [
           [shipment.currentLocation.lat, shipment.currentLocation.lng],
-          [shipment.destCoords.lat, shipment.destCoords.lng]
+          [shipment.destCoords.lat, shipment.destCoords.lng],
         ],
       };
     }
 
-    // For real routes, split based on progress percentage
     const totalPoints = routeData.coordinates.length;
-    const splitIndex = Math.floor((shipment.progress / 100) * totalPoints);
+    const splitIndex = Math.floor((safeProgress / 100) * totalPoints);
 
     const completedRoute = routeData.coordinates.slice(0, splitIndex + 1);
     const remainingRoute = routeData.coordinates.slice(splitIndex);
 
-    // Add current location to both segments for continuity
     if (completedRoute.length > 0) {
       completedRoute.push([shipment.currentLocation.lat, shipment.currentLocation.lng]);
     }
@@ -174,7 +235,6 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
 
   const { completedRoute, remainingRoute } = getRouteSegments();
 
-  // Tile layer URLs
   const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
   const darkTiles = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png';
 
@@ -187,7 +247,6 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
     border: darkMode ? 'border-gray-700' : 'border-gray-200',
   };
 
-  // Prevent body scroll when modal is open
   useEffect(() => {
     if (showFull) {
       document.body.style.overflow = 'hidden';
@@ -195,16 +254,15 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
         document.body.style.overflow = 'unset';
       };
     }
+    return undefined;
   }, [showFull]);
 
-  // All bounds for fitting map
   const allCoordinates = routeData?.coordinates || [
     [shipment.originCoords.lat, shipment.originCoords.lng],
     [shipment.currentLocation.lat, shipment.currentLocation.lng],
-    [shipment.destCoords.lat, shipment.destCoords.lng]
+    [shipment.destCoords.lat, shipment.destCoords.lng],
   ];
 
-  // Show error message if coordinates are invalid
   if (!hasValidCoordinates) {
     const ErrorContent = () => (
       <div className={`${theme.bgCard} rounded-xl border ${theme.border} p-6 text-center`}>
@@ -231,7 +289,7 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
 
     if (showFull) {
       return (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div className="tracking-live-overlay fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4">
           <div className="max-w-md w-full">
             <ErrorContent />
           </div>
@@ -241,17 +299,15 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
     return <ErrorContent />;
   }
 
-  // Full screen tracking view
   if (showFull) {
     return (
-      <div className="fixed inset-0 bg-black/60 z-50 flex flex-col">
-        {/* Header */}
-        <div className={`${theme.bgCard} p-4 flex justify-between items-center shadow-lg`}>
+      <div className="tracking-live-overlay fixed inset-0 bg-black/60 z-[80] flex flex-col">
+        <div className={`${theme.bgCard} p-4 flex justify-between items-center shadow-lg shrink-0`}>
           <div>
             <h2 className={`font-bold ${theme.text} flex items-center gap-2`}>
               <MapPinned className="text-amber-500" /> Live Tracking
             </h2>
-            <p className={theme.textSecondary}>{shipment.origin} → {shipment.destination}</p>
+            <p className={theme.textSecondary}>{shipment.origin}{' -> '}{shipment.destination}</p>
           </div>
           <button
             onClick={onClose}
@@ -261,8 +317,7 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
           </button>
         </div>
 
-        {/* Map */}
-        <div className="flex-1 relative">
+        <div className="relative flex-1 min-h-0">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-[1000]">
               <div className="bg-white dark:bg-gray-800 rounded-xl p-4 flex items-center gap-3 shadow-lg">
@@ -284,28 +339,25 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
             />
             <FitBounds coordinates={allCoordinates} />
 
-            {/* Completed route (solid green line) */}
             <Polyline
               positions={completedRoute}
               pathOptions={{
                 color: '#22c55e',
                 weight: 5,
-                opacity: 0.9
+                opacity: 0.9,
               }}
             />
 
-            {/* Remaining route (dashed gray line) */}
             <Polyline
               positions={remainingRoute}
               pathOptions={{
                 color: '#6b7280',
                 weight: 4,
                 dashArray: '10, 6',
-                opacity: 0.7
+                opacity: 0.7,
               }}
             />
 
-            {/* Origin marker */}
             <Marker position={[shipment.originCoords.lat, shipment.originCoords.lng]} icon={originIcon}>
               <Popup>
                 <div className="font-semibold text-green-600">Origin</div>
@@ -313,17 +365,15 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
               </Popup>
             </Marker>
 
-            {/* Current location (truck) */}
             <Marker position={[shipment.currentLocation.lat, shipment.currentLocation.lng]} icon={truckIcon}>
               <Popup>
                 <div className="font-semibold" style={{ color: currentStatus.color }}>
                   {currentStatus.label}
                 </div>
-                <div>{shipment.currentLocation.name}</div>
+                <div>{currentLocationName}</div>
               </Popup>
             </Marker>
 
-            {/* Destination marker */}
             <Marker position={[shipment.destCoords.lat, shipment.destCoords.lng]} icon={destIcon}>
               <Popup>
                 <div className="font-semibold text-red-600">Destination</div>
@@ -333,8 +383,10 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
           </MapContainer>
         </div>
 
-        {/* Status Panel */}
-        <div className={`${theme.bgCard} p-4 space-y-3`}>
+        <div
+          className={`${theme.bgCard} p-4 space-y-3 max-h-[48vh] overflow-y-auto shrink-0`}
+          style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
+        >
           <div className="flex items-center gap-3">
             <div
               className="flex items-center gap-2 px-3 py-1.5 rounded-full"
@@ -353,7 +405,8 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
             )}
           </div>
 
-          {/* Route info */}
+          <ShipmentStatusTracker status={shipment.status} darkMode={darkMode} />
+
           {routeData && (
             <div className="grid grid-cols-3 gap-2">
               <div className={`${theme.bgSecondary} rounded-lg p-2 text-center`}>
@@ -365,36 +418,56 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
                 <p className={`text-xs ${theme.textMuted}`}>Est. Duration</p>
               </div>
               <div className={`${theme.bgSecondary} rounded-lg p-2 text-center`}>
-                <p className="text-lg font-bold text-green-500">{shipment.progress}%</p>
+                <p className="text-lg font-bold text-green-500">{safeProgress}%</p>
                 <p className={`text-xs ${theme.textMuted}`}>Complete</p>
               </div>
             </div>
           )}
 
-          {/* Progress bar */}
           <div>
             <div className={`flex justify-between text-xs ${theme.textMuted} mb-1`}>
               <span>{shipment.origin}</span>
-              <span>{shipment.progress}%</span>
+              <span>{safeProgress}%</span>
               <span>{shipment.destination}</span>
             </div>
             <div className={`h-3 ${theme.bgSecondary} rounded-full overflow-hidden`}>
               <div
                 className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${shipment.progress}%`, backgroundColor: currentStatus.color }}
+                style={{ width: `${safeProgress}%`, backgroundColor: currentStatus.color }}
               />
             </div>
           </div>
 
-          {/* Current location */}
           <div className={`${darkMode ? 'bg-amber-900/20 border-amber-800' : 'bg-amber-50 border-amber-200'} border rounded-lg p-3`}>
             <p className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>
               <MapPin size={14} className="inline mr-1" />
-              <strong>Current:</strong> {shipment.currentLocation.name}
+              <strong>Current:</strong> {currentLocationName}
             </p>
           </div>
 
-          {/* Google Maps button */}
+          {(canPickUp || canDeliver) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {canPickUp && (
+                <button
+                  onClick={onPickUp}
+                  disabled={actionLoading === 'pickup'}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white py-3 rounded-xl font-semibold text-center transition"
+                >
+                  {actionLoading === 'pickup' ? 'Updating...' : 'Pick Up'}
+                </button>
+              )}
+              {canDeliver && (
+                <button
+                  onClick={onDeliver}
+                  disabled={actionLoading === 'deliver'}
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white py-3 rounded-xl font-semibold text-center transition"
+                >
+                  {actionLoading === 'deliver' ? 'Processing...' : 'Delivered'}
+                </button>
+              )}
+            </div>
+          )}
+
           <a
             href={`https://www.google.com/maps/dir/${shipment.originCoords.lat},${shipment.originCoords.lng}/${shipment.destCoords.lat},${shipment.destCoords.lng}`}
             target="_blank"
@@ -408,13 +481,12 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
     );
   }
 
-  // Mini tracking card view
   return (
     <div className={`${theme.bgCard} rounded-xl border ${theme.border} p-3 shadow-sm`}>
       <div className="flex justify-between items-start mb-2">
         <div>
           <p className={`font-semibold ${theme.text}`}>{shipment.cargo}</p>
-          <p className={`text-xs ${theme.textMuted}`}>{shipment.origin} → {shipment.destination}</p>
+          <p className={`text-xs ${theme.textMuted}`}>{shipment.origin}{' -> '}{shipment.destination}</p>
         </div>
         <div
           className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium"
@@ -425,7 +497,6 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
         </div>
       </div>
 
-      {/* Mini map preview */}
       <div className="mini-map-container h-24 rounded-lg overflow-hidden mb-2" style={{ isolation: 'isolate', position: 'relative', zIndex: 0 }}>
         <MapContainer
           center={[shipment.currentLocation.lat, shipment.currentLocation.lng]}
@@ -440,37 +511,33 @@ export default function TrackingMap({ shipment, darkMode = false, showFull = fal
         >
           <TileLayer url={darkMode ? darkTiles : lightTiles} />
 
-          {/* Completed route */}
           <Polyline
             positions={completedRoute}
             pathOptions={{ color: '#22c55e', weight: 3 }}
           />
 
-          {/* Remaining route */}
           <Polyline
             positions={remainingRoute}
             pathOptions={{ color: '#6b7280', weight: 2, dashArray: '6, 4' }}
           />
 
-          {/* Markers */}
           <Marker position={[shipment.originCoords.lat, shipment.originCoords.lng]} icon={createIcon('#22c55e', 14)} />
           <Marker position={[shipment.currentLocation.lat, shipment.currentLocation.lng]} icon={truckIcon} />
           <Marker position={[shipment.destCoords.lat, shipment.destCoords.lng]} icon={createIcon('#ef4444', 14)} />
         </MapContainer>
       </div>
 
-      {/* Progress bar */}
       <div className={`h-2 ${theme.bgSecondary} rounded-full overflow-hidden mb-2`}>
         <div
           className="h-full rounded-full"
-          style={{ width: `${shipment.progress}%`, backgroundColor: currentStatus.color }}
+          style={{ width: `${safeProgress}%`, backgroundColor: currentStatus.color }}
         />
       </div>
 
       <div className={`flex justify-between items-center text-xs ${theme.textMuted}`}>
-        <span>{shipment.currentLocation.name}</span>
+        <span>{currentLocationName}</span>
         <span className="text-blue-500 font-medium">
-          ETA: {shipment.eta.split(' ')[1]} {shipment.eta.split(' ')[2]}
+          ETA: {typeof shipment.eta === 'string' ? shipment.eta : '--'}
         </span>
       </div>
     </div>

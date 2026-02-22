@@ -19,6 +19,7 @@ import { db } from '@/firebase';
 // Status badge
 function StatusBadge({ status }) {
   const config = {
+    pending_pickup: { bg: 'bg-slate-100 dark:bg-slate-900/30', text: 'text-slate-600 dark:text-slate-400', icon: Clock },
     picked_up: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', icon: Package },
     in_transit: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400', icon: Truck },
     delivered: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', icon: CheckCircle2 },
@@ -75,7 +76,9 @@ export function ShipmentsView() {
       // Calculate stats
       setStats({
         total: shipmentsData.length,
-        inTransit: shipmentsData.filter(s => s.status === 'in_transit' || s.status === 'picked_up').length,
+        inTransit: shipmentsData.filter(
+          s => s.status === 'pending_pickup' || s.status === 'picked_up' || s.status === 'in_transit'
+        ).length,
         delivered: shipmentsData.filter(s => s.status === 'delivered').length,
       });
     } catch (error) {
@@ -214,6 +217,9 @@ export function ShipmentsView() {
             </FilterButton>
             <FilterButton active={statusFilter === 'picked_up'} onClick={() => setStatusFilter('picked_up')}>
               Picked Up
+            </FilterButton>
+            <FilterButton active={statusFilter === 'pending_pickup'} onClick={() => setStatusFilter('pending_pickup')}>
+              Pending Pickup
             </FilterButton>
             <FilterButton active={statusFilter === 'in_transit'} onClick={() => setStatusFilter('in_transit')}>
               In Transit

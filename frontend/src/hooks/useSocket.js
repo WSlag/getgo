@@ -111,7 +111,7 @@ export function useSocket(userId) {
     const shipmentsQ = query(
       collection(db, 'shipments'),
       where('participantIds', 'array-contains', userId),
-      where('status', 'in', ['picked_up', 'in_transit']),
+      where('status', 'in', ['pending_pickup', 'picked_up', 'in_transit']),
       orderBy('updatedAt', 'desc'),
       limit(5)
     );

@@ -408,6 +408,8 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
   const listingOwnerId = contract.listingOwnerId;
   const bidderId = contract.bidderId;
   const isCargo = contract.listingType === 'cargo';
+  const shipperId = isCargo ? listingOwnerId : bidderId;
+  const truckerId = isCargo ? bidderId : listingOwnerId;
 
   // Determine if user is shipper or trucker
   let isShipper, isTrucker;
@@ -423,6 +425,31 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
     throw new functions.https.HttpsError('permission-denied', 'Not authorized to sign this contract');
   }
 
+  const callerAlreadySigned = isShipper ? !!contract.shipperSignature : !!contract.truckerSignature;
+  const contractAlreadyFullySigned = !!(contract.shipperSignature && contract.truckerSignature);
+
+  // Idempotent behavior: treat repeated sign attempts by the same participant as success.
+  if (contract.status === 'signed' || contract.status === 'completed') {
+    if (callerAlreadySigned) {
+      return {
+        message: 'Contract already signed by this user',
+        contract,
+        fullyExecuted: contractAlreadyFullySigned,
+        alreadySigned: true,
+      };
+    }
+    throw new functions.https.HttpsError('failed-precondition', 'Contract has already been signed');
+  }
+
+  if (callerAlreadySigned) {
+    return {
+      message: 'Contract already signed by this user',
+      contract,
+      fullyExecuted: contractAlreadyFullySigned,
+      alreadySigned: true,
+    };
+  }
+
   const signatureTimestamp = new Date();
 
   // Get user's name
@@ -433,15 +460,9 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
   const updates = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
   if (isShipper) {
-    if (contract.shipperSignature) {
-      throw new functions.https.HttpsError('already-exists', 'Shipper has already signed');
-    }
     updates.shipperSignature = signature;
     updates.shipperSignedAt = signatureTimestamp;
   } else {
-    if (contract.truckerSignature) {
-      throw new functions.https.HttpsError('already-exists', 'Trucker has already signed');
-    }
     updates.truckerSignature = signature;
     updates.truckerSignedAt = signatureTimestamp;
   }
@@ -468,9 +489,11 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       contractId,
       trackingNumber,
       currentLocation: contract.pickupAddress,
-      status: 'picked_up',
+      status: 'pending_pickup',
       progress: 0,
       participantIds: contract.participantIds,
+      shipperId,
+      truckerId,
       origin: contract.pickupAddress,
       destination: contract.deliveryAddress,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -592,9 +615,31 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
     throw new functions.https.HttpsError('failed-precondition', 'Contract must be signed before it can be completed');
   }
 
-  // Only listing owner can mark complete
-  if (contract.listingOwnerId !== userId) {
-    throw new functions.https.HttpsError('permission-denied', 'Only the listing owner can mark the contract as complete');
+  const isCargo = contract.listingType === 'cargo';
+  const shipperId = isCargo ? contract.listingOwnerId : contract.bidderId;
+  const truckerId = isCargo ? contract.bidderId : contract.listingOwnerId;
+
+  // Only shipper can confirm delivery completion
+  if (shipperId !== userId) {
+    throw new functions.https.HttpsError('permission-denied', 'Only the assigned shipper can confirm delivery');
+  }
+
+  const shipmentSnap = await db.collection('shipments')
+    .where('contractId', '==', contractId)
+    .limit(1)
+    .get();
+
+  if (shipmentSnap.empty) {
+    throw new functions.https.HttpsError('failed-precondition', 'Shipment record is missing for this contract');
+  }
+
+  const shipmentDoc = shipmentSnap.docs[0];
+  const shipmentData = shipmentDoc.data();
+  if (shipmentData.status === 'pending_pickup' || shipmentData.status === 'pending') {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Shipment must be picked up before delivery can be confirmed'
+    );
   }
 
   // Update contract status.
@@ -611,20 +656,17 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
   await db.collection('contracts').doc(contractId).update(completionUpdates);
 
   // Update shipment
-  const shipmentSnap = await db.collection('shipments')
-    .where('contractId', '==', contractId)
-    .limit(1)
-    .get();
-
-  if (!shipmentSnap.empty) {
-    await shipmentSnap.docs[0].ref.update({
-      status: 'delivered',
-      progress: 100,
-      currentLocation: contract.deliveryAddress,
-      deliveredAt: new Date(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  }
+  await shipmentDoc.ref.update({
+    status: 'delivered',
+    progress: 100,
+    currentLocation: contract.deliveryAddress,
+    shipperId: shipmentData.shipperId || shipperId,
+    truckerId: shipmentData.truckerId || truckerId,
+    updatedBy: userId,
+    updatedByRole: 'shipper',
+    deliveredAt: new Date(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 
   // Update listing status
   const listingCollection = contract.listingType === 'cargo' ? 'cargoListings' : 'truckListings';
@@ -716,7 +758,7 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
   if (!shipmentSnap.empty) {
     const shipment = shipmentSnap.docs[0].data();
     // If shipment has location updates beyond initial creation, consider it active
-    hasActivity = shipment.status === 'in_transit' || shipment.progress > 0;
+    hasActivity = ['picked_up', 'in_transit', 'delivered'].includes(shipment.status) || shipment.progress > 0;
   }
 
   // Admin can always cancel, participants can only cancel if no activity

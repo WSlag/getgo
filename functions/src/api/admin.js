@@ -209,7 +209,10 @@ exports.adminGetDashboardStats = functions.region('asia-southeast1').https.onCal
   const cargoSnap = await db.collection('cargoListings').count().get();
   const trucksSnap = await db.collection('truckListings').count().get();
   const contractsSnap = await db.collection('contracts').count().get();
-  const shipmentsSnap = await db.collection('shipments').where('status', '==', 'in_transit').count().get();
+  const shipmentsSnap = await db.collection('shipments')
+    .where('status', 'in', ['pending_pickup', 'picked_up', 'in_transit'])
+    .count()
+    .get();
 
   // Get payment submissions count
   const pendingPaymentsSnap = await db.collection('paymentSubmissions')

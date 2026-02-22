@@ -114,7 +114,11 @@ export default function GetGoApp() {
   const { bids: myBids } = useMyBids(authUser?.uid);
   const { conversations } = useConversations(authUser?.uid);
   // Wallet removed - using direct GCash payment for platform fees
-  const { activeShipments: firebaseActiveShipments } = useShipments(authUser?.uid);
+  const {
+    shipments: firebaseShipments,
+    activeShipments: firebaseActiveShipments,
+    deliveredShipments: firebaseDeliveredShipments,
+  } = useShipments(authUser?.uid);
 
   // Custom Hooks for UI State
   const { darkMode, toggleDarkMode } = useTheme();
@@ -436,7 +440,15 @@ export default function GetGoApp() {
   const isGuestUser = !authUser;
   const cargoListings = isGuestUser ? guestCargoListings : firebaseCargoListings;
   const truckListings = isGuestUser ? guestTruckListings : firebaseTruckListings;
-  const activeShipments = isGuestUser ? guestActiveShipments : (firebaseActiveShipments || []);
+  const allShipments = isGuestUser
+    ? guestActiveShipments
+    : (firebaseShipments || []);
+  const activeShipments = isGuestUser
+    ? guestActiveShipments
+    : (firebaseActiveShipments || []);
+  const deliveredShipments = isGuestUser
+    ? guestActiveShipments.filter((s) => s.status === 'delivered')
+    : (firebaseDeliveredShipments || []);
   const unreadNotifications = firebaseUnreadCount || 0;
   const unreadMessages = useMemo(
     () => conversations.reduce((total, conversation) => total + Number(conversation.unreadCount || 0), 0),
@@ -1088,28 +1100,82 @@ export default function GetGoApp() {
     setActiveTab('home');
   };
 
+  const isContractFullyExecuted = (contract) => {
+    if (!contract) return false;
+    if (contract.shipperSignature && contract.truckerSignature) return true;
+    return contract.status === 'signed'
+      || contract.status === 'in_transit'
+      || contract.status === 'completed';
+  };
+
+  const isAlreadySignedContractError = (error) => {
+    const code = String(error?.code || '').toLowerCase();
+    const message = String(error?.message || '').toLowerCase();
+    const isDuplicateCode = code.includes('already-exists') || code.includes('failed-precondition');
+    const isDuplicateMessage = message.includes('already signed') || message.includes('already been signed');
+    return isDuplicateCode && isDuplicateMessage;
+  };
+
   // Handler: Sign contract
   const handleSignContract = async (contractId) => {
     setContractLoading(true);
     try {
       const response = await api.contracts.sign(contractId);
+      const resolvedContract = response?.contract
+        ? { id: contractId, ...response.contract }
+        : (await api.contracts.getById(contractId))?.contract || null;
+      if (resolvedContract) {
+        openModal('contract', resolvedContract);
+      }
+      const fullyExecuted = Boolean(response?.fullyExecuted || isContractFullyExecuted(resolvedContract));
+      const alreadySigned = response?.alreadySigned === true;
+
       showToast({
         type: 'bid-accepted',
-        title: response.fullyExecuted ? 'Contract Signed!' : 'Signature Recorded',
-        message: response.fullyExecuted
+        title: fullyExecuted ? 'Contract Signed!' : (alreadySigned ? 'Signature Already Recorded' : 'Signature Recorded'),
+        message: fullyExecuted
           ? 'Both parties signed. Shipment tracking is now active.'
-          : 'Waiting for the other party to sign.',
+          : (alreadySigned
+            ? 'Your signature is already recorded. Waiting for the other party to sign.'
+            : 'Waiting for the other party to sign.'),
       });
-      if (response.fullyExecuted) {
+      if (fullyExecuted) {
         closeModal('contract');
         setActiveTab('tracking');
       }
     } catch (error) {
+      if (isAlreadySignedContractError(error)) {
+        let latestContract = null;
+        try {
+          latestContract = (await api.contracts.getById(contractId))?.contract || null;
+          if (latestContract) {
+            openModal('contract', latestContract);
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh contract after duplicate sign attempt:', refreshError);
+        }
+
+        const fullyExecuted = isContractFullyExecuted(latestContract);
+        showToast({
+          type: 'info',
+          title: fullyExecuted ? 'Already Signed' : 'Signature Already Recorded',
+          message: fullyExecuted
+            ? 'This contract is already fully signed. Shipment tracking is active.'
+            : 'Your signature is already recorded. Waiting for the other party to sign.',
+        });
+
+        if (fullyExecuted) {
+          closeModal('contract');
+          setActiveTab('tracking');
+        }
+        return;
+      }
+
       console.error('Error signing contract:', error);
       showToast({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to sign contract',
+        message: getUserErrorMessage(error, 'Failed to sign contract. Please try again.'),
       });
     } finally {
       setContractLoading(false);
@@ -1534,9 +1600,9 @@ export default function GetGoApp() {
         {activeTab === 'tracking' && (
           <ErrorBoundary>
             <TrackingView
-              shipments={activeShipments}
-              activeShipments={activeShipments.filter(s => s.status !== 'delivered')}
-              deliveredShipments={activeShipments.filter(s => s.status === 'delivered')}
+              shipments={allShipments}
+              activeShipments={activeShipments}
+              deliveredShipments={deliveredShipments}
               loading={false}
               currentRole={userRole}
               currentUserId={authUser?.uid}

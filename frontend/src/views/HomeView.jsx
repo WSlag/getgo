@@ -58,6 +58,7 @@ export function HomeView({
 
   // Status colors for shipment tracking
   const statusConfig = {
+    pending_pickup: { color: 'bg-slate-500', label: 'Awaiting Pickup', textColor: 'text-slate-500' },
     picked_up: { color: 'bg-blue-500', label: 'Picked Up', textColor: 'text-blue-500' },
     in_transit: { color: 'bg-orange-500', label: 'In Transit', textColor: 'text-orange-500' },
     delivered: { color: 'bg-green-500', label: 'Delivered', textColor: 'text-green-500' },
