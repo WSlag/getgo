@@ -1,5 +1,5 @@
-import React from 'react';
-import { ExternalLink, MoreVertical, Globe, Copy } from 'lucide-react';
+import { ExternalLink, MoreVertical, Copy } from 'lucide-react';
+import { AppLogo } from './AppLogo';
 
 const BROWSER_INSTRUCTIONS = {
   facebook: {
@@ -56,8 +56,8 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser, onDi
       style={{ paddingTop: 'env(safe-area-inset-top, 20px)' }}
     >
       {/* Logo */}
-      <div className="mb-6 flex size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg">
-        <span className="text-3xl font-bold text-white">K</span>
+      <div className="mb-6">
+        <AppLogo size={80} className="drop-shadow-lg" />
       </div>
 
       <h1 className="mb-2 text-center text-2xl font-bold text-gray-900 dark:text-white">
@@ -65,7 +65,7 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser, onDi
       </h1>
       <p className="mb-8 max-w-sm text-center text-sm text-gray-500 dark:text-gray-400">
         You're viewing this in {label}'s built-in browser.
-        For the best experience, open KARGA in your device's browser.
+        For the best experience, open GetGo in your device's browser.
       </p>
 
       {/* Android: direct open button */}

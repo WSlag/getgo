@@ -23,7 +23,7 @@ import {
 } from './services/firestoreService';
 
 // Firebase
-import { collection, doc, getDoc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { db } from './firebase';
 
 // Hooks
@@ -824,9 +824,12 @@ export default function GetGoApp() {
     setShowOnboardingGuide(false);
     if (authUser?.uid) {
       try {
-        await updateDoc(doc(db, 'users', authUser.uid), { onboardingComplete: true });
+        await updateDoc(doc(db, 'users', authUser.uid), {
+          onboardingComplete: true,
+          updatedAt: serverTimestamp(),
+        });
       } catch (e) {
-        console.error('Failed to mark onboarding complete:', e);
+        console.warn('Could not persist onboarding completion:', e?.code || e?.message);
       }
     }
   };
