@@ -1,6 +1,11 @@
 import { test, expect } from '../fixtures/auth.fixture.js';
 import { generateTestUser } from '../utils/test-data.js';
 
+const getNotificationBell = (page) =>
+  page.locator(
+    'header button[aria-label*="notification" i], header button[title*="notification" i]'
+  ).first();
+
 /**
  * Notifications View E2E Tests
  *
@@ -32,7 +37,7 @@ test.describe('Notifications View', () => {
 
     // The app should already be on notifications view after login via bell
     // OR we can click the bell button to go there
-    const bellBtn = page.locator('header button').nth(2); // Bell is 3rd button in header
+    const bellBtn = getNotificationBell(page);
 
     // Click bell if notifications view not already showing
     let notifContent = await page.locator('text=/notifications|all caught up/i').count();
@@ -65,7 +70,7 @@ test.describe('Notifications View', () => {
 
     if (emptyState === 0) {
       // Click bell to navigate to notifications
-      const bellBtn = page.locator('header button').nth(2);
+      const bellBtn = getNotificationBell(page);
       const bellVisible = await bellBtn.isVisible().catch(() => false);
       if (bellVisible) {
         await bellBtn.click();
@@ -93,7 +98,7 @@ test.describe('Notifications View', () => {
     // Ensure we're on notifications view
     let onNotifView = await page.locator('text=/notifications|all caught up/i').count();
     if (onNotifView === 0) {
-      const bellBtn = page.locator('header button').nth(2);
+      const bellBtn = getNotificationBell(page);
       const bellVisible = await bellBtn.isVisible().catch(() => false);
       if (bellVisible) {
         await bellBtn.click();
@@ -128,10 +133,9 @@ test.describe('Notifications View', () => {
     const userData = generateTestUser('shipper', 3);
     await authHelper.register(userData);
 
-    // Notification bell should be visible in header (3rd button area)
-    // Check that header has at least 3 buttons (Home, Tracking, Bell, Dark Mode, Avatar)
-    const headerBtnCount = await page.locator('header button').count();
-    expect(headerBtnCount).toBeGreaterThan(2);
+    // Notification bell should be visible in header
+    const bellBtn = getNotificationBell(page);
+    await expect(bellBtn).toBeVisible();
 
     // No crash
     const errorText = await page.locator('text=/error|crashed/i').count();
@@ -147,7 +151,7 @@ test.describe('Notifications View', () => {
     await page.waitForTimeout(1000);
 
     // Click bell button (protected action for guests)
-    const bellBtn = page.locator('header button').nth(2);
+    const bellBtn = getNotificationBell(page);
     if (await bellBtn.count() > 0) {
       const isVisible = await bellBtn.isVisible().catch(() => false);
       if (isVisible) {

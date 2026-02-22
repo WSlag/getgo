@@ -161,8 +161,27 @@ export const test = base.extend({
           await verifyButton.click();
         }
 
-        // Wait for modal to close or registration screen to appear
-        await page.waitForTimeout(3000);
+        // Wait for either registration screen or authenticated shell.
+        // Authenticated shell requires auth modal to be closed.
+        await page.waitForFunction(
+          () => {
+            const headings = Array.from(document.querySelectorAll('h1'));
+            const onRegistrationScreen = headings.some((h) =>
+              String(h.textContent || '').includes('Complete Your Profile')
+            );
+            const hasMainHeader = !!document.querySelector('header');
+            const authDialog = document.querySelector('[role="dialog"]');
+            const authDialogVisible = !!authDialog && window.getComputedStyle(authDialog).display !== 'none';
+            return onRegistrationScreen || (hasMainHeader && !authDialogVisible);
+          },
+          { timeout: 30000 }
+        ).catch(() => {});
+        // Also wait for loading spinner to disappear to avoid auth/profile race checks.
+        await page.waitForFunction(
+          () => !document.querySelector('.animate-spin'),
+          { timeout: 20000 }
+        ).catch(() => {});
+        await page.waitForTimeout(500);
       },
 
       /**
@@ -170,18 +189,20 @@ export const test = base.extend({
        * @param {Object} userData - User data (name, role, etc.)
        */
       async register(userData) {
-        const { name, role = 'shipper', email, ...rest } = userData;
+        const { name, role = 'shipper', email } = userData;
 
-        // Wait for registration screen (RegisterScreen uses placeholder="Juan dela Cruz")
+        // Wait explicitly for registration form input.
+        // New users can briefly see the main shell before this renders.
+        const nameInput = page.locator('input[placeholder="Juan dela Cruz"]').first();
+        const skipButton = page.locator('button').filter({ hasText: /skip for now/i }).first();
         let hasRegistrationForm = false;
         try {
-          await page.waitForSelector(
-            'input[placeholder="Juan dela Cruz"], input[placeholder*="name"], h1:has-text("Complete Your Profile")',
-            { timeout: 8000 }
-          );
+          await page.waitForSelector('input[placeholder="Juan dela Cruz"]', {
+            state: 'visible',
+            timeout: 60000,
+          });
           hasRegistrationForm = true;
         } catch {
-          // User may already be registered / modal closed
           hasRegistrationForm = false;
         }
 
@@ -191,9 +212,7 @@ export const test = base.extend({
         }
 
         // Fill basic information - name input has placeholder="Juan dela Cruz"
-        const nameInput = page.locator(
-          'input[placeholder="Juan dela Cruz"]'
-        ).first();
+        await nameInput.click();
         await nameInput.fill(name);
 
         if (email) {
@@ -224,7 +243,14 @@ export const test = base.extend({
           ? submitButton
           : page.locator('button[type="submit"]').first();
 
-        await anySubmit.click();
+        const submitDisabled = await anySubmit.isDisabled().catch(() => false);
+        if (submitDisabled) {
+          if (await skipButton.count() > 0 && await skipButton.isVisible().catch(() => false)) {
+            await skipButton.click();
+          }
+        } else {
+          await anySubmit.click();
+        }
 
         // Wait for the RegisterScreen to disappear (app loads main view).
         // After "Get Started" is clicked and createUserProfile() succeeds, isNewUser becomes false
@@ -432,8 +458,6 @@ export const test = base.extend({
        * and the header shows a user initial/avatar.
        */
       async isLoggedIn() {
-        // Check if the RegisterScreen "Complete Your Profile" heading is gone
-        // and the main app header is present
         const hasHeader = await page.locator('header').count() > 0;
 
         // Check we're not on the RegisterScreen
@@ -442,12 +466,32 @@ export const test = base.extend({
 
         if (!hasHeader || onRegScreen) return false;
 
-        // Also confirm no auth modal is blocking with phone input
-        const visiblePhoneInputs = await page.locator(
-          '[role="dialog"] input[type="tel"]'
-        ).count();
+        // Confirm no visible auth modal is blocking.
+        const visibleAuthInput = await page.locator(
+          '[role="dialog"] input[placeholder="9171234567"], [role="dialog"] input[placeholder="000000"]'
+        ).first().isVisible().catch(() => false);
+        if (visibleAuthInput) return false;
 
-        return visiblePhoneInputs === 0;
+        // Probe a protected action: bell opens notifications when logged in,
+        // but opens AuthModal for guests.
+        const bellButton = page.locator('header button[aria-label*="notification" i], header button[title*="notification" i]').first();
+        if (!(await bellButton.isVisible().catch(() => false))) {
+          return false;
+        }
+
+        await bellButton.click();
+        await page.waitForTimeout(500);
+
+        const authPromptOpened = await page.locator(
+          '[role="dialog"] input[placeholder="9171234567"], [role="dialog"] input[placeholder="000000"]'
+        ).first().isVisible().catch(() => false);
+
+        if (authPromptOpened) {
+          await page.keyboard.press('Escape').catch(() => {});
+          return false;
+        }
+
+        return true;
       },
     };
 

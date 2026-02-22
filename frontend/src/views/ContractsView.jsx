@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { PesoIcon } from '@/components/ui/PesoIcon';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import api from '@/services/api';
 
@@ -86,7 +87,15 @@ function shouldIncludeInFeeLedger(contract, userId) {
   return hasPayableUnpaidPlatformFee(contract, userId);
 }
 
-export function ContractsView({ darkMode, currentUser, onOpenContract, initialFilter = 'all', embedded = false }) {
+export function ContractsView({
+  darkMode,
+  currentUser,
+  onOpenContract,
+  onBrowseMarketplace,
+  onOpenActivity,
+  initialFilter = 'all',
+  embedded = false,
+}) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -432,6 +441,16 @@ export function ContractsView({ darkMode, currentUser, onOpenContract, initialFi
               ? 'Contracts will appear here once bids are accepted and platform fees are paid'
               : `No ${statusConfig[filterStatus]?.label.toLowerCase()} contracts`}
           </p>
+          {!searchQuery && (
+            <div className="flex flex-col sm:flex-row justify-center gap-2" style={{ marginTop: '16px' }}>
+              <Button variant="outline" size={isMobile ? "sm" : "default"} onClick={onBrowseMarketplace}>
+                Browse Listings
+              </Button>
+              <Button size={isMobile ? "sm" : "default"} onClick={onOpenActivity}>
+                Open Activity
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{

@@ -23,7 +23,7 @@ import {
 } from './services/firestoreService';
 
 // Firebase
-import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
 import { db } from './firebase';
 
 // Hooks
@@ -41,6 +41,10 @@ import { useModals } from './hooks/useModals';
 import { useSocket } from './hooks/useSocket';
 import { useAuthGuard } from './hooks/useAuthGuard';
 import { useBrokerOnboarding } from './hooks/useBrokerOnboarding';
+import { usePWAInstall } from './hooks/usePWAInstall';
+import { InAppBrowserOverlay } from '@/components/shared/InAppBrowserOverlay';
+import { PWAInstallPrompt } from '@/components/shared/PWAInstallPrompt';
+import { buildAndroidIntentUrl } from './utils/browserDetect';
 
 // Layout Components
 import { Header } from '@/components/layout/Header';
@@ -67,6 +71,7 @@ import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, R
 import { GCashPaymentModal } from '@/components/modals/GCashPaymentModal';
 import { FullMapModal } from '@/components/maps';
 import AuthModal from '@/components/auth/AuthModal';
+import { OnboardingGuideModal } from '@/components/modals/OnboardingGuideModal';
 
 // API
 import api from './services/api';
@@ -146,6 +151,20 @@ export default function GetGoApp() {
     clearPendingAction,
   } = useAuthGuard();
 
+  // PWA Install Prompt
+  const {
+    showInAppOverlay,
+    dismissInAppOverlay,
+    inAppBrowserName,
+    platform,
+    showInstallBanner,
+    triggerInstall,
+    dismissInstallBanner,
+    showIOSInstall,
+    dismissIOSInstall,
+    markEngagement,
+  } = usePWAInstall();
+
   // Loading states for form submissions
   const [postLoading, setPostLoading] = useState(false);
   const [bidLoading, setBidLoading] = useState(false);
@@ -158,6 +177,9 @@ export default function GetGoApp() {
 
   // Admin: Dashboard view state
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+
+  // Onboarding Guide Modal
+  const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
 
   // Admin: Pending payments count
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
@@ -182,6 +204,28 @@ export default function GetGoApp() {
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 5000);
+  };
+
+  const getUserErrorMessage = (error, fallback) => {
+    const code = String(error?.code || '').toLowerCase();
+    const message = String(error?.message || '').toLowerCase();
+
+    if (code.includes('permission-denied') || message.includes('permission') || message.includes('unauthorized')) {
+      return 'You do not have permission for this action. Please refresh and sign in again.';
+    }
+    if (code.includes('unavailable') || message.includes('network') || message.includes('failed to fetch')) {
+      return 'Network issue detected. Please check your connection and try again.';
+    }
+    if (code.includes('deadline-exceeded') || message.includes('timeout')) {
+      return 'Request timed out. Please try again.';
+    }
+    if (code.includes('not-found') || message.includes('not found')) {
+      return 'The requested item is no longer available.';
+    }
+    if (code.includes('already-exists') || message.includes('already exists')) {
+      return 'This action was already completed.';
+    }
+    return fallback;
   };
 
   const isNotificationRead = (notification) => notification?.isRead === true || notification?.read === true;
@@ -348,6 +392,8 @@ export default function GetGoApp() {
 
     return () => unsubscribe();
   }, [authUser?.uid]);
+
+  // Keep onboarding guide opt-in via Help/Support to avoid blocking first-use flows.
 
   // Use anonymized preview data for non-auth users to keep Home vibrant and conversion-focused.
   const userRole = currentRole || 'shipper';
@@ -650,7 +696,7 @@ export default function GetGoApp() {
       showToast({
         type: 'error',
         title: 'Request failed',
-        message: error.message || 'Could not send chat request.',
+        message: getUserErrorMessage(error, 'Could not send chat request. Please try again.'),
       });
     }
   };
@@ -676,6 +722,10 @@ export default function GetGoApp() {
     requireAuth(() => setActiveTab('notifications'), 'Sign in to view notifications');
   };
 
+  const promptSignInForTab = (tab, title) => {
+    requireAuth(() => setActiveTab(tab), title);
+  };
+
   const handleProfileClick = () => {
     requireAuth(() => setActiveTab('profile'), 'Sign in to view profile');
   };
@@ -693,8 +743,18 @@ export default function GetGoApp() {
   };
 
   const handleHelpSupport = () => {
-    // Could open a help modal or redirect to support page
-    window.open('mailto:support@getgo.ph', '_blank');
+    setShowOnboardingGuide(true);
+  };
+
+  const handleOnboardingClose = async () => {
+    setShowOnboardingGuide(false);
+    if (authUser?.uid) {
+      try {
+        await updateDoc(doc(db, 'users', authUser.uid), { onboardingComplete: true });
+      } catch (e) {
+        console.error('Failed to mark onboarding complete:', e);
+      }
+    }
   };
 
   // Wallet removed - direct GCash payment only
@@ -753,7 +813,7 @@ export default function GetGoApp() {
       showToast({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to accept bid',
+        message: getUserErrorMessage(error, 'Failed to accept bid. Please try again.'),
       });
       throw error;
     }
@@ -773,7 +833,7 @@ export default function GetGoApp() {
       showToast({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to reject bid',
+        message: getUserErrorMessage(error, 'Failed to reject bid. Please try again.'),
       });
       throw error;
     }
@@ -795,7 +855,7 @@ export default function GetGoApp() {
       showToast({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to reopen listing',
+        message: getUserErrorMessage(error, 'Failed to reopen listing. Please try again.'),
       });
       throw error;
     }
@@ -1258,7 +1318,7 @@ export default function GetGoApp() {
           pendingPaymentsCount={pendingPaymentsCount}
           onPostClick={handlePostClick}
           onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
-          onMyBidsClick={() => requireAuth(() => openModal('myBids'), 'Sign in to view your bids')}
+          onMyBidsClick={() => requireAuth(() => setActiveTab('bids'), 'Sign in to view your bids')}
           onContractsClick={handleContractsClick}
           onBrokerClick={handleBrokerClick}
           isBroker={isBroker}
@@ -1303,6 +1363,7 @@ export default function GetGoApp() {
               shouldShowBrokerCard={shouldShowBrokerCard}
               onDismissBrokerCard={handleDismissBrokerCard}
               onActivateBroker={handleActivateBroker}
+              onPostListing={handlePostClick}
             />
           </ErrorBoundary>
         )}
@@ -1317,6 +1378,12 @@ export default function GetGoApp() {
                 openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
               }}
               onOpenContract={handleOpenContract}
+              onBrowseMarketplace={() => {
+                setActiveMarket(userRole === 'trucker' ? 'cargo' : 'trucks');
+                setActiveTab('home');
+              }}
+              onCreateListing={handlePostClick}
+              onOpenMessages={() => setActiveTab('messages')}
               unreadBids={unreadBids}
               pendingContractsCount={pendingContractsCount}
             />
@@ -1352,6 +1419,8 @@ export default function GetGoApp() {
               onOpenListing={handleOpenListingFromNotification}
               onOpenContract={handleOpenContract}
               onPayPlatformFee={handlePayPlatformFee}
+              onBrowseMarketplace={() => setActiveTab('home')}
+              onOpenActivity={() => setActiveTab('activity')}
               darkMode={darkMode}
             />
           </ErrorBoundary>
@@ -1365,6 +1434,12 @@ export default function GetGoApp() {
             <p className="text-gray-600 dark:text-gray-400">
               Please sign in to view your notifications.
             </p>
+            <button
+              onClick={() => promptSignInForTab('notifications', 'Sign in to view notifications')}
+              className="mt-4 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
+            >
+              Sign in
+            </button>
           </main>
         )}
 
@@ -1396,6 +1471,12 @@ export default function GetGoApp() {
               onOpenChat={(bid, listing) => {
                 openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
               }}
+              onBrowseMarketplace={() => {
+                setActiveMarket(userRole === 'trucker' ? 'cargo' : 'trucks');
+                setActiveTab('home');
+              }}
+              onCreateListing={handlePostClick}
+              onOpenMessages={() => setActiveTab('messages')}
               darkMode={darkMode}
             />
           </ErrorBoundary>
@@ -1409,6 +1490,12 @@ export default function GetGoApp() {
             <p className="text-gray-600 dark:text-gray-400">
               Please sign in to view your {userRole === 'trucker' ? 'bids' : 'bookings'}.
             </p>
+            <button
+              onClick={() => promptSignInForTab('bids', 'Sign in to view your bids')}
+              className="mt-4 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
+            >
+              Sign in
+            </button>
           </main>
         )}
 
@@ -1419,6 +1506,8 @@ export default function GetGoApp() {
               onOpenChat={(bid, listing, type) => {
                 openModal('chat', { bid, listing, type, bidId: bid.id });
               }}
+              onBrowseMarketplace={() => setActiveTab('home')}
+              onCreateListing={handlePostClick}
               darkMode={darkMode}
             />
           </ErrorBoundary>
@@ -1432,6 +1521,12 @@ export default function GetGoApp() {
             <p className="text-gray-600 dark:text-gray-400">
               Please sign in to view your conversations.
             </p>
+            <button
+              onClick={() => promptSignInForTab('messages', 'Sign in to view messages')}
+              className="mt-4 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
+            >
+              Sign in
+            </button>
           </main>
         )}
 
@@ -1441,6 +1536,8 @@ export default function GetGoApp() {
               darkMode={darkMode}
               currentUser={{ id: authUser?.uid, ...userProfile }}
               onOpenContract={handleOpenContract}
+              onBrowseMarketplace={() => setActiveTab('home')}
+              onOpenActivity={() => setActiveTab('activity')}
               initialFilter={contractFilter}
             />
           </ErrorBoundary>
@@ -1523,9 +1620,15 @@ export default function GetGoApp() {
               };
               await createTruckListing(authUser.uid, userProfile, truckerProfile, listingData);
             }
+            markEngagement();
             closeModal('post');
           } catch (error) {
             console.error('Error creating listing:', error);
+            showToast({
+              type: 'error',
+              title: 'Post failed',
+              message: getUserErrorMessage(error, 'Unable to save listing. Please try again.'),
+            });
           } finally {
             setPostLoading(false);
           }
@@ -1612,6 +1715,7 @@ export default function GetGoApp() {
               ownerId: listing.userId || listing.shipperId || listing.truckerId,
             });
 
+            markEngagement();
             closeModal('bid');
             showToast({
               type: 'success',
@@ -1633,7 +1737,7 @@ export default function GetGoApp() {
             showToast({
               type: 'error',
               title: 'Bid failed',
-              message: error.message || 'Unknown error',
+              message: getUserErrorMessage(error, 'Unable to place bid. Please try again.'),
             });
           } finally {
             setBidLoading(false);
@@ -1820,6 +1924,11 @@ export default function GetGoApp() {
             closeModal('editCargo');
           } catch (error) {
             console.error('Error updating cargo listing:', error);
+            showToast({
+              type: 'error',
+              title: 'Update failed',
+              message: getUserErrorMessage(error, 'Unable to update cargo listing. Please try again.'),
+            });
           } finally {
             setPostLoading(false);
           }
@@ -1867,6 +1976,11 @@ export default function GetGoApp() {
             closeModal('editTruck');
           } catch (error) {
             console.error('Error updating truck listing:', error);
+            showToast({
+              type: 'error',
+              title: 'Update failed',
+              message: getUserErrorMessage(error, 'Unable to update truck listing. Please try again.'),
+            });
           } finally {
             setPostLoading(false);
           }
@@ -1941,6 +2055,37 @@ export default function GetGoApp() {
         onClose={() => setShowAuthModal(false)}
         onSuccess={executePendingAction}
         title={pendingActionTitle}
+      />
+
+      {/* Onboarding Guide Modal - shown on first login and re-accessible from Help & Support */}
+      <OnboardingGuideModal
+        open={showOnboardingGuide}
+        onClose={handleOnboardingClose}
+        userRole={currentRole || 'shipper'}
+        userName={userProfile?.name || ''}
+      />
+
+      {/* In-app browser redirect overlay (Facebook, Instagram, etc.) */}
+      {showInAppOverlay && (
+        <InAppBrowserOverlay
+          platform={platform}
+          browserName={inAppBrowserName}
+          onOpenBrowser={() => {
+            const url = buildAndroidIntentUrl(window.location.href);
+            if (url) window.location.href = url;
+          }}
+          onDismiss={dismissInAppOverlay}
+        />
+      )}
+
+      {/* PWA Install Prompt (Android/Desktop banner or iOS Safari instructions) */}
+      <PWAInstallPrompt
+        showInstallBanner={showInstallBanner}
+        triggerInstall={triggerInstall}
+        dismissInstallBanner={dismissInstallBanner}
+        showIOSInstall={showIOSInstall}
+        dismissIOSInstall={dismissIOSInstall}
+        platform={platform}
       />
     </div>
   );

@@ -40,6 +40,7 @@ export function HomeView({
   shouldShowBrokerCard = false,
   onDismissBrokerCard,
   onActivateBroker,
+  onPostListing,
 }) {
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
@@ -653,6 +654,26 @@ export function HomeView({
                 ? `No ${activeMarket} with "${filterStatus}" status. Try changing the filter.`
                 : `There are currently no ${activeMarket === 'cargo' ? 'cargo listings' : 'available trucks'}. Check back later!`}
           </p>
+          <div className="flex flex-col sm:flex-row gap-2 mt-4">
+            {(searchQuery || filterStatus !== 'all') && (
+              <Button
+                variant="outline"
+                size={isMobile ? "sm" : "default"}
+                onClick={() => {
+                  onSearchChange?.('');
+                  onFilterChange?.('all');
+                }}
+              >
+                Clear Search & Filters
+              </Button>
+            )}
+            <Button
+              size={isMobile ? "sm" : "default"}
+              onClick={onPostListing}
+            >
+              {currentRole === 'trucker' ? 'Post Truck' : 'Post Cargo'}
+            </Button>
+          </div>
         </div>
       )}
     </main>

@@ -3,12 +3,15 @@ import { MessageSquare, MapPin, Package, Truck, Loader2, Clock } from 'lucide-re
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useConversations } from '@/hooks/useConversations';
 import { sanitizeMessage } from '@/utils/messageUtils';
 
 export function ChatView({
   currentUser,
   onOpenChat,
+  onBrowseMarketplace,
+  onCreateListing,
   darkMode = false,
 }) {
   const { conversations, loading } = useConversations(currentUser?.uid);
@@ -111,6 +114,21 @@ export function ChatView({
           <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>
             Your conversations will appear here
           </p>
+          <div className="flex flex-col sm:flex-row gap-2" style={{ marginTop: '16px' }}>
+            <Button
+              onClick={onBrowseMarketplace}
+              variant="outline"
+              size={isMobile ? "sm" : "default"}
+            >
+              Browse Listings
+            </Button>
+            <Button
+              onClick={onCreateListing}
+              size={isMobile ? "sm" : "default"}
+            >
+              Post Listing
+            </Button>
+          </div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
