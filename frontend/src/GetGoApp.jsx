@@ -1074,11 +1074,14 @@ export default function GetGoApp() {
 
   // Handler: Open platform fee payment modal for truckers
   const handlePayPlatformFee = async (data) => {
-    // Data can be: { bidId, contractId } or { bid, listing, platformFee }
-    if (data.contractId && !data.bid) {
+    const contractId = data?.contractId || data?.id || null;
+
+    // Data can be: { bidId, contractId } or { bid, listing, platformFee }.
+    // Some callers pass the full contract object; normalize that to contractId flow.
+    if (contractId && !data?.bid) {
       // Fetch contract and bid data
       try {
-        const contractDoc = await getDoc(doc(db, 'contracts', data.contractId));
+        const contractDoc = await getDoc(doc(db, 'contracts', contractId));
         if (!contractDoc.exists()) {
           showToast({ type: 'error', message: 'Contract not found' });
           return;

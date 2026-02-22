@@ -484,7 +484,7 @@ export function ContractModal({
                   <Button
                     variant="gradient"
                     size={isMobile ? "sm" : "default"}
-                    onClick={() => onPayPlatformFee?.(contract)}
+                    onClick={() => onPayPlatformFee?.({ contractId: contract.id })}
                     disabled={loading}
                     className="gap-2 mt-3"
                     style={{ width: '100%' }}
@@ -675,5 +675,4 @@ export function ContractModal({
 }
 
 export default ContractModal;
-
 
