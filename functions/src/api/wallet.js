@@ -12,16 +12,14 @@ const {
   calculatePlatformFeeAmount,
   shouldBlockForMaintenance,
 } = require('../config/platformSettings');
+const { assertAppCheck } = require('../utils/appCheck');
 
 const IDEMPOTENCY_COLLECTION = 'idempotency';
 const ACTIVE_PLATFORM_FEE_ORDER_STATUSES = new Set(['awaiting_upload', 'pending', 'submitted', 'processing']);
 const isProductionRuntime = process.env.NODE_ENV === 'production';
 
 function checkAppToken(context) {
-  if (process.env.APP_CHECK_ENFORCED !== 'true') return;
-  if (context.app === undefined) {
-    throw new HttpsError('failed-precondition', 'App Check verification required');
-  }
+  assertAppCheck(context, { allowAuthFallback: true });
 }
 
 // Avoid module-load crashes during deployment discovery; enforce at call-time instead.

@@ -5,12 +5,10 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { assertAppCheckGen1 } = require('./appCheck');
 
 function checkAppToken(context) {
-  if (process.env.APP_CHECK_ENFORCED !== 'true') return;
-  if (context.app === undefined) {
-    throw new functions.https.HttpsError('failed-precondition', 'App Check verification required');
-  }
+  assertAppCheckGen1(context, { allowAuthFallback: true });
 }
 
 /**

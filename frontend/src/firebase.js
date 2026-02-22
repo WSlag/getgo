@@ -23,13 +23,13 @@ const firebaseEnvMap = {
 };
 
 const firebaseFallbackConfig = {
-  apiKey: 'AIzaSyDK0-bmmPsuScseGdhN4wj71knEEeicpGs',
-  authDomain: 'karga-ph.firebaseapp.com',
-  projectId: 'karga-ph',
-  storageBucket: 'karga-ph.firebasestorage.app',
-  messagingSenderId: '580800488549',
-  appId: '1:580800488549:web:3b5051b8c1ec0c8ba9128c',
-  measurementId: 'G-WHFTRD15XC',
+  apiKey: '',
+  authDomain: '',
+  projectId: '',
+  storageBucket: '',
+  messagingSenderId: '',
+  appId: '',
+  measurementId: '',
 };
 
 const firebaseConfig = Object.fromEntries(
@@ -53,11 +53,7 @@ if (import.meta.env.DEV) {
     .map(([, envKey]) => envKey);
 
   if (missingFirebaseEnvVars.length > 0) {
-    console.warn(
-      `[firebase] Missing env vars: ${missingFirebaseEnvVars.join(
-        ', '
-      )}. Using built-in fallback config for karga-ph.`
-    );
+    console.warn(`[firebase] Missing env vars: ${missingFirebaseEnvVars.join(', ')}.`);
   }
 }
 
