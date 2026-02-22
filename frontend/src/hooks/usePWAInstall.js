@@ -38,6 +38,8 @@ export function usePWAInstall() {
     () => localStorage.getItem(KEYS.engagementReached) === 'true'
   );
   const [canPrompt, setCanPrompt] = useState(false);
+  // Delay showing install banner so it doesn't clash with onboarding modal
+  const [bannerReady, setBannerReady] = useState(false);
   const [installAccepted, setInstallAccepted] = useState(
     () => localStorage.getItem(KEYS.installAccepted) === 'true'
   );
@@ -49,6 +51,12 @@ export function usePWAInstall() {
   );
 
   const deferredPrompt = useRef(null);
+
+  // --- Delay banner by 4s to avoid clashing with onboarding modal ---
+  useEffect(() => {
+    const t = setTimeout(() => setBannerReady(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   // --- Visit count & auto-engagement ---
   useEffect(() => {
@@ -114,6 +122,7 @@ export function usePWAInstall() {
   const showInAppOverlay = inApp.isInAppBrowser && !inAppDismissed;
 
   const showInstallBanner =
+    bannerReady &&
     canPrompt &&
     !standalone &&
     engagementReached &&
@@ -121,6 +130,7 @@ export function usePWAInstall() {
     !installDismissedRecently;
 
   const showIOSInstall =
+    bannerReady &&
     iosSafari &&
     !standalone &&
     engagementReached &&

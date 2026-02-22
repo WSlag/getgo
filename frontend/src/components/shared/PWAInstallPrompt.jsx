@@ -1,11 +1,11 @@
-import React from 'react';
-import { Download, X, Share, PlusSquare, Smartphone } from 'lucide-react';
+import { Download, X, PlusSquare, Smartphone } from 'lucide-react';
 import {
   Dialog,
   DialogBottomSheet,
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { AppLogo } from './AppLogo';
 
 // --- Android / Desktop install banner ---
 function InstallBanner({ onInstall, onDismiss }) {
@@ -15,11 +15,9 @@ function InstallBanner({ onInstall, onDismiss }) {
       style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
     >
       <div className="flex items-center gap-4 px-4 py-4 sm:px-5">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600">
-          <span className="text-lg font-bold text-white">K</span>
-        </div>
+        <AppLogo size={40} className="shrink-0 drop-shadow-lg" />
         <div className="min-w-0 flex-1">
-          <p className="mb-0.5 text-sm font-semibold">Install KARGA</p>
+          <p className="mb-0.5 text-sm font-semibold">Install GetGo</p>
           <p className="m-0 text-xs text-gray-400">
             Fast access, works offline
           </p>
@@ -88,11 +86,11 @@ function IOSInstallSheet({ open, onDismiss }) {
         <div className="px-6 pb-6 pt-2">
           {/* Header */}
           <div className="mb-6 flex flex-col items-center text-center">
-            <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-md">
-              <span className="text-2xl font-bold text-white">K</span>
+            <div className="mb-4">
+              <AppLogo size={56} className="drop-shadow-lg" />
             </div>
             <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">
-              Install KARGA on your phone
+              Install GetGo on your phone
             </DialogTitle>
             <DialogDescription className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Get the full app experience — fast, offline-ready
@@ -141,7 +139,6 @@ export function PWAInstallPrompt({
   dismissInstallBanner,
   showIOSInstall,
   dismissIOSInstall,
-  platform,
 }) {
   return (
     <>
