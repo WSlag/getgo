@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Truck,
   MapPin,
@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Package,
   Eye,
+  Loader2,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -16,6 +17,7 @@ import { StatCard } from '@/components/admin/StatCard';
 import api from '@/services/api';
 
 const ACTIVE_SHIPMENT_STATUSES = new Set(['pending_pickup', 'picked_up', 'in_transit']);
+const SHIPMENTS_PAGE_SIZE = 200;
 
 function normalizeStatus(status) {
   if (status === 'pending') return 'pending_pickup';
@@ -84,18 +86,29 @@ export function ShipmentsView() {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [shipments, setShipments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [nextCursor, setNextCursor] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [stats, setStats] = useState({ total: 0, inTransit: 0, delivered: 0 });
 
   // Fetch shipments
-  const fetchShipments = async () => {
-    setLoading(true);
-    setLoadError('');
+  const fetchShipments = useCallback(async ({ append = false, cursorValue = null } = {}) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setLoadError('');
+      setNextCursor(null);
+    }
+
     try {
-      const response = await api.admin.getShipments({ limit: 500 });
-      const shipmentsData = (response?.shipments || []).map((shipment) => ({
+      const response = await api.admin.getShipments({
+        limit: SHIPMENTS_PAGE_SIZE,
+        cursor: cursorValue || undefined,
+      });
+      const incomingShipments = (response?.shipments || []).map((shipment) => ({
         ...shipment,
         status: normalizeStatus(shipment.status),
         createdAt: toDateValue(shipment.createdAt),
@@ -103,27 +116,47 @@ export function ShipmentsView() {
         deliveredAt: toDateValue(shipment.deliveredAt),
         eta: toDateValue(shipment.eta),
       }));
-      setShipments(shipmentsData);
 
-      // Calculate stats
-      setStats({
-        total: shipmentsData.length,
-        inTransit: shipmentsData.filter((shipment) => ACTIVE_SHIPMENT_STATUSES.has(shipment.status)).length,
-        delivered: shipmentsData.filter(s => s.status === 'delivered').length,
+      setNextCursor(response?.nextCursor || null);
+      setShipments((prevShipments) => {
+        const merged = append
+          ? [
+            ...prevShipments,
+            ...incomingShipments.filter((incoming) => !prevShipments.some((existing) => existing.id === incoming.id)),
+          ]
+          : incomingShipments;
+
+        setStats({
+          total: merged.length,
+          inTransit: merged.filter((shipment) => ACTIVE_SHIPMENT_STATUSES.has(shipment.status)).length,
+          delivered: merged.filter((shipment) => shipment.status === 'delivered').length,
+        });
+        return merged;
       });
     } catch (error) {
       console.error('Error fetching shipments:', error);
       setLoadError(error?.message || 'Failed to load shipments');
-      setShipments([]);
-      setStats({ total: 0, inTransit: 0, delivered: 0 });
+      if (!append) {
+        setShipments([]);
+        setStats({ total: 0, inTransit: 0, delivered: 0 });
+      }
     } finally {
-      setLoading(false);
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchShipments();
-  }, []);
+    fetchShipments({ append: false, cursorValue: null });
+  }, [fetchShipments]);
+
+  const handleLoadMore = () => {
+    if (!nextCursor || loading || loadingMore) return;
+    fetchShipments({ append: true, cursorValue: nextCursor });
+  };
 
   // Filter shipments
   const filteredShipments = shipments.filter(shipment => {
@@ -188,7 +221,7 @@ export function ShipmentsView() {
       key: 'actions',
       header: 'Actions',
       align: 'right',
-      render: (_, row) => (
+      render: () => (
         <Button size="sm" variant="ghost">
           <Eye className="size-4 mr-1" />
           Track
@@ -264,6 +297,24 @@ export function ShipmentsView() {
           </>
         }
       />
+
+      {nextCursor && !loading && (
+        <Button
+          variant="outline"
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+          className="w-full"
+        >
+          {loadingMore ? (
+            <>
+              <Loader2 className="size-4 mr-2 animate-spin" />
+              Loading...
+            </>
+          ) : (
+            'Load More'
+          )}
+        </Button>
+      )}
     </div>
   );
 }
