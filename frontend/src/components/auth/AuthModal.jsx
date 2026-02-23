@@ -87,7 +87,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
     setLoading(true);
     setError('');
 
-    const result = await sendOtp(phone, 'auth-modal-send-otp');
+    const result = await sendOtp(phone);
 
     setLoading(false);
 
