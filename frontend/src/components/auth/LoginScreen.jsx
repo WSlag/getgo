@@ -6,7 +6,7 @@ import { Logo } from '../shared/Logo';
 const OTP_MAX_RETRIES = 3;
 const OTP_COOLDOWN_SECONDS = 30;
 
-export default function LoginScreen({ darkMode, onSkipLogin }) {
+export default function LoginScreen({ darkMode, onSkipLogin, onOpenLegal }) {
   const { sendOtp, verifyOtp, signInWithRecoveryCode } = useAuth();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -441,7 +441,13 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
         {/* Footer */}
         <div className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`} style={{ marginTop: '40px', paddingTop: '24px' }}>
           <p className={`text-xs text-center ${theme.textMuted}`}>
-            By continuing, you agree to our Terms of Service and Privacy Policy
+            By continuing, you agree to our{' '}
+            <button type="button" onClick={() => onOpenLegal?.('terms')} className="underline text-orange-500 hover:text-orange-600">
+              Terms of Service
+            </button>{' '}and{' '}
+            <button type="button" onClick={() => onOpenLegal?.('privacy')} className="underline text-orange-500 hover:text-orange-600">
+              Privacy Policy
+            </button>
           </p>
         </div>
       </div>
