@@ -625,14 +625,14 @@ export function ContractModal({
         </div>
 
         {/* Action Buttons */}
-        <DialogFooter className="dialog-fixed-footer border-t border-gray-200 dark:border-gray-700 bg-background" style={{ gap: isMobile ? '8px' : '12px', padding: isMobile ? '16px' : '20px' }}>
+        <div className="dialog-fixed-footer border-t border-gray-200 dark:border-gray-700 bg-background flex flex-col" style={{ gap: isMobile ? '8px' : '12px', padding: isMobile ? '16px' : '20px' }}>
           {contract.status === 'draft' && !hasUserSigned && (
             <Button
               variant={confirmSign ? "destructive" : "gradient"}
               size={isMobile ? "default" : "lg"}
               onClick={handleSign}
               disabled={loading || (confirmSign && !acknowledgedLiability)}
-              className="gap-2 flex-1"
+              className="gap-2 w-full"
             >
               <PenTool className="size-4" />
               {loading ? 'Signing...' : confirmSign ? 'Confirm & Sign Contract' : 'Sign Contract'}
@@ -640,7 +640,7 @@ export function ContractModal({
           )}
 
           {contract.status === 'draft' && hasUserSigned && !otherPartySigned && (
-            <Badge variant="outline" style={{ fontSize: isMobile ? '12px' : '13px', padding: isMobile ? '6px 12px' : '8px 16px' }}>
+            <Badge variant="outline" className="self-center" style={{ fontSize: isMobile ? '12px' : '13px', padding: isMobile ? '6px 12px' : '8px 16px' }}>
               <Clock className="size-4 mr-2" />
               Waiting for other party to sign
             </Badge>
@@ -652,7 +652,7 @@ export function ContractModal({
               size={isMobile ? "default" : "lg"}
               onClick={() => onComplete?.(contract.id)}
               disabled={loading}
-              className="gap-2 flex-1"
+              className="gap-2 w-full"
             >
               <CheckCircle2 className="size-4" />
               {loading ? 'Processing...' : 'Confirm Delivery Received'}
@@ -660,7 +660,7 @@ export function ContractModal({
           )}
 
           {contract.status === 'completed' && (
-            <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300" style={{ fontSize: isMobile ? '12px' : '13px', padding: isMobile ? '6px 12px' : '8px 16px' }}>
+            <Badge variant="outline" className="self-center bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300" style={{ fontSize: isMobile ? '12px' : '13px', padding: isMobile ? '6px 12px' : '8px 16px' }}>
               <CheckCircle2 className="size-4 mr-2" />
               Contract Completed
             </Badge>
@@ -669,7 +669,7 @@ export function ContractModal({
           <Button variant="ghost" size={isMobile ? "default" : "lg"} onClick={handleClose} className="w-full">
             Close
           </Button>
-        </DialogFooter>
+        </div>
       </DialogBottomSheet>
     </Dialog>
   );
