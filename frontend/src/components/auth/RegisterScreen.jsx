@@ -265,6 +265,7 @@ export default function RegisterScreen({ darkMode }) {
             <div className="grid grid-cols-2" style={{ gap: '12px' }}>
               <button
                 type="button"
+                aria-pressed={role === 'shipper'}
                 onClick={() => setRole('shipper')}
                 className={cn(
                   "border-2 transition-all duration-200 text-center",
@@ -300,6 +301,7 @@ export default function RegisterScreen({ darkMode }) {
 
               <button
                 type="button"
+                aria-pressed={role === 'trucker'}
                 onClick={() => setRole('trucker')}
                 className={cn(
                   "border-2 transition-all duration-200 text-center",
@@ -343,6 +345,7 @@ export default function RegisterScreen({ darkMode }) {
 
           {error && (
             <div
+              role="alert"
               className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
               style={{ padding: '12px 14px', borderRadius: '10px', marginBottom: '20px' }}
             >

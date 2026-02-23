@@ -172,6 +172,23 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
             <Logo size="default" />
           </div>
 
+          {/* Step Progress */}
+          <div className="flex justify-center gap-2 mb-4">
+            {['phone', 'otp', 'register'].map((s, i) => (
+              <div
+                key={s}
+                className={cn(
+                  "h-1.5 rounded-full transition-all duration-300",
+                  s === step || (step === 'recovery' && s === 'otp')
+                    ? "w-8 bg-orange-500"
+                    : i < ['phone', 'otp', 'register'].indexOf(step === 'recovery' ? 'otp' : step)
+                      ? "w-8 bg-orange-300"
+                      : "w-8 bg-gray-200 dark:bg-gray-700"
+                )}
+              />
+            ))}
+          </div>
+
           {/* Title */}
           <h2
             className="text-center font-semibold text-gray-900 dark:text-white"
@@ -231,6 +248,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
               {error && (
                 <div
+                  role="alert"
                   className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
                   style={{ padding: '12px 14px', borderRadius: '10px', marginBottom: '20px' }}
                 >
@@ -279,7 +297,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="flex items-center text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors"
+                  className="flex items-center text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors min-h-[44px]"
                   style={{ fontSize: '14px', marginBottom: '16px', gap: '4px' }}
                 >
                   <ArrowRight style={{ width: '16px', height: '16px', transform: 'rotate(180deg)' }} />
@@ -300,7 +318,9 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
                 </p>
 
                 <input
-                  type="text"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={otp}
                   onChange={handleOtpChange}
                   placeholder="000000"
@@ -323,6 +343,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
               {error && (
                 <div
+                  role="alert"
                   className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
                   style={{ padding: '12px 14px', borderRadius: '10px', marginBottom: '20px' }}
                 >
@@ -358,7 +379,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
               <button
                 type="button"
                 onClick={() => { setStep('phone'); setOtp(''); }}
-                className="w-full text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors"
+                className="w-full text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors min-h-[44px]"
                 style={{ marginTop: '12px', padding: '10px', fontSize: '14px' }}
               >
                 Didn&apos;t receive code? Try again
@@ -380,7 +401,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="flex items-center text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors"
+                  className="flex items-center text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors min-h-[44px]"
                   style={{ fontSize: '14px', marginBottom: '16px', gap: '4px' }}
                 >
                   <ArrowRight style={{ width: '16px', height: '16px', transform: 'rotate(180deg)' }} />
@@ -450,6 +471,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
               {error && (
                 <div
+                  role="alert"
                   className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
                   style={{ padding: '12px 14px', borderRadius: '10px', marginBottom: '20px' }}
                 >

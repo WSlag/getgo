@@ -105,7 +105,7 @@ export function RouteOptimizerModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" hideCloseButton>
+      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm">
         <div style={{ padding: isMobile ? '16px' : '24px' }}>
         <DialogHeader>
           <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>

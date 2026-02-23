@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { MapPin, Package, Truck, Navigation, Radio, MapPinned, CheckCircle2 } from 'lucide-react';
+import { MapPin, Package, Truck, Navigation, Radio, MapPinned, CheckCircle2, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { Button } from '@/components/ui/button';
 import TrackingMap from '@/components/maps/TrackingMap';
 import api from '@/services/api';
 import { getCoordinates, getCityNames } from '@/utils/cityCoordinates';
@@ -440,7 +441,7 @@ export function TrackingView({
             No active shipments
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
-            Your shipments will appear here once you have an active delivery in progress.
+            Your shipments will appear here once you have an active delivery in progress. Accept a bid and sign a contract to get started.
           </p>
         </div>
       )}

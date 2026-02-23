@@ -46,6 +46,8 @@ export function Header({
               return (
                 <button
                   key={item.id}
+                  aria-label={item.label}
+                  aria-current={isActive ? 'page' : undefined}
                   onClick={() => {
                     if (item.id === 'notifications' && onNotificationClick) {
                       onNotificationClick();

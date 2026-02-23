@@ -153,7 +153,7 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
             </div>
 
             {error && (
-              <div className="bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg" style={{ marginBottom: '24px', padding: '12px' }}>
+              <div role="alert" className="bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg" style={{ marginBottom: '24px', padding: '12px' }}>
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               </div>
             )}
@@ -211,7 +211,9 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
               </p>
 
               <input
-                type="text"
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={otp}
                 onChange={handleOtpChange}
                 placeholder="000000"

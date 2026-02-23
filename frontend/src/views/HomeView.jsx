@@ -1,4 +1,5 @@
-import { Filter, X, Radio, MapPin, Navigation, MapPinned, Route, ChevronRight, AlertCircle, BookmarkPlus, Bookmark, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Filter, X, Radio, MapPin, Navigation, MapPinned, Route, ChevronRight, AlertCircle, BookmarkPlus, Bookmark, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CargoCard } from '@/components/cargo/CargoCard';
 import { TruckCard } from '@/components/truck/TruckCard';
@@ -6,6 +7,8 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { canBidCargoStatus, canBookTruckStatus } from '@/utils/listingStatus';
 import BrokerHomeCard from '@/components/broker/BrokerHomeCard';
+
+const ITEMS_PER_PAGE = 20;
 
 export function HomeView({
   activeMarket = 'cargo',
@@ -46,6 +49,16 @@ export function HomeView({
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
   const isAccountSuspended = currentUser?.accountStatus === 'suspended' || currentUser?.isActive === false;
+
+  // Pagination: show ITEMS_PER_PAGE at a time with "Load More"
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+  const visibleListings = listings.slice(0, visibleCount);
+  const hasMore = visibleCount < listings.length;
+
+  // Reset visible count when market or filter changes
+  useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  }, [activeMarket, filterStatus, searchQuery]);
 
   // Detect mobile screen for compact cards
   const isMobile = useMediaQuery('(max-width: 1023px)');
@@ -610,56 +623,72 @@ export function HomeView({
 
       {/* Listings Grid - Compact on mobile (12px gap), full on desktop (32px gap) */}
       {listings.length > 0 ? (
-        <div className={cn(
-          "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3",
-          isMobile ? "gap-3" : "gap-8"
-        )}>
-          {activeMarket === 'cargo'
-            ? listings.map((cargo) => (
-                <CargoCard
-                  key={cargo.id}
-                  {...cargo}
-                  compact={isMobile}
-                  onViewDetails={() => onViewCargoDetails?.(cargo)}
-                  onBid={() => onBidCargo?.(cargo)}
-                  onContact={() => onContactShipper?.(cargo)}
-                  onViewMap={() => onViewMap?.(cargo)}
-                  canBid={currentRole === 'trucker' && !isAccountSuspended && canBidCargoStatus(cargo.status)}
-                  isOwner={currentUserId && (cargo.shipperId === currentUserId || cargo.userId === currentUserId)}
-                  canRefer={Boolean(
-                    isBroker
-                    && currentUserId
-                    && cargo.userId !== currentUserId
-                    && cargo.shipperId !== currentUserId
-                    && canBidCargoStatus(cargo.status)
-                  )}
-                  onRefer={() => onReferListing?.(cargo, 'cargo')}
-                  darkMode={darkMode}
-                />
-              ))
-            : listings.map((truck) => (
-                <TruckCard
-                  key={truck.id}
-                  {...truck}
-                  compact={isMobile}
-                  onViewDetails={() => onViewTruckDetails?.(truck)}
-                  onBook={() => onBookTruck?.(truck)}
-                  onContact={() => onContactTrucker?.(truck)}
-                  onViewMap={() => onViewMap?.(truck)}
-                  canBook={currentRole === 'shipper' && !isAccountSuspended && canBookTruckStatus(truck.status)}
-                  isOwner={currentUserId && (truck.truckerId === currentUserId || truck.userId === currentUserId)}
-                  canRefer={Boolean(
-                    isBroker
-                    && currentUserId
-                    && truck.userId !== currentUserId
-                    && truck.truckerId !== currentUserId
-                    && canBookTruckStatus(truck.status)
-                  )}
-                  onRefer={() => onReferListing?.(truck, 'truck')}
-                  darkMode={darkMode}
-                />
-              ))}
-        </div>
+        <>
+          <div className={cn(
+            "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3",
+            isMobile ? "gap-2" : "gap-8"
+          )}>
+            {activeMarket === 'cargo'
+              ? visibleListings.map((cargo) => (
+                  <CargoCard
+                    key={cargo.id}
+                    {...cargo}
+                    compact={isMobile}
+                    onViewDetails={() => onViewCargoDetails?.(cargo)}
+                    onBid={() => onBidCargo?.(cargo)}
+                    onContact={() => onContactShipper?.(cargo)}
+                    onViewMap={() => onViewMap?.(cargo)}
+                    canBid={currentRole === 'trucker' && !isAccountSuspended && canBidCargoStatus(cargo.status)}
+                    isOwner={currentUserId && (cargo.shipperId === currentUserId || cargo.userId === currentUserId)}
+                    canRefer={Boolean(
+                      isBroker
+                      && currentUserId
+                      && cargo.userId !== currentUserId
+                      && cargo.shipperId !== currentUserId
+                      && canBidCargoStatus(cargo.status)
+                    )}
+                    onRefer={() => onReferListing?.(cargo, 'cargo')}
+                    darkMode={darkMode}
+                  />
+                ))
+              : visibleListings.map((truck) => (
+                  <TruckCard
+                    key={truck.id}
+                    {...truck}
+                    compact={isMobile}
+                    onViewDetails={() => onViewTruckDetails?.(truck)}
+                    onBook={() => onBookTruck?.(truck)}
+                    onContact={() => onContactTrucker?.(truck)}
+                    onViewMap={() => onViewMap?.(truck)}
+                    canBook={currentRole === 'shipper' && !isAccountSuspended && canBookTruckStatus(truck.status)}
+                    isOwner={currentUserId && (truck.truckerId === currentUserId || truck.userId === currentUserId)}
+                    canRefer={Boolean(
+                      isBroker
+                      && currentUserId
+                      && truck.userId !== currentUserId
+                      && truck.truckerId !== currentUserId
+                      && canBookTruckStatus(truck.status)
+                    )}
+                    onRefer={() => onReferListing?.(truck, 'truck')}
+                    darkMode={darkMode}
+                  />
+                ))}
+          </div>
+          {hasMore && (
+            <div className="flex justify-center mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setVisibleCount(prev => prev + ITEMS_PER_PAGE)}
+                className="gap-2"
+              >
+                Load More
+                <span className="text-xs text-muted-foreground">
+                  ({visibleCount} of {listings.length})
+                </span>
+              </Button>
+            </div>
+          )}
+        </>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="size-16 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center mb-4 shadow-lg">

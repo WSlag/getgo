@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import api from '@/services/api';
 
 // Role badge component
@@ -203,6 +204,7 @@ export function UserManagement() {
   const [roleFilter, setRoleFilter] = useState('all');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null); // { type: 'suspend'|'activate', userId }
 
   // Fetch users
   const fetchUsers = async () => {
@@ -408,11 +410,35 @@ export function UserManagement() {
           setSelectedUser(null);
         }}
         user={selectedUser}
-        onSuspend={handleSuspend}
-        onActivate={handleActivate}
+        onSuspend={(userId) => setConfirmAction({ type: 'suspend', userId })}
+        onActivate={(userId) => setConfirmAction({ type: 'activate', userId })}
         onVerify={handleVerify}
         onToggleAdmin={handleToggleAdmin}
         loading={actionLoading}
+      />
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        title={confirmAction?.type === 'suspend' ? 'Suspend this user?' : 'Activate this user?'}
+        description={
+          confirmAction?.type === 'suspend'
+            ? 'This user will be suspended and unable to access the platform until reactivated.'
+            : 'This user will be reactivated and regain full access to the platform.'
+        }
+        confirmLabel={confirmAction?.type === 'suspend' ? 'Suspend User' : 'Activate User'}
+        variant={confirmAction?.type === 'suspend' ? 'destructive' : 'default'}
+        loading={actionLoading}
+        onConfirm={async () => {
+          if (!confirmAction) return;
+          const { type, userId } = confirmAction;
+          if (type === 'suspend') {
+            await handleSuspend(userId);
+          } else {
+            await handleActivate(userId);
+          }
+          setConfirmAction(null);
+        }}
+        onCancel={() => setConfirmAction(null)}
       />
     </div>
   );

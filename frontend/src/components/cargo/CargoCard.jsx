@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Gavel } from 'lucide-react';
+import { MapPin, Clock, Navigation, Gavel, Package, Eye, MessageSquare, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { RouteMap } from '@/components/maps';
@@ -279,8 +279,12 @@ export function CargoCard({
                   className="size-full object-cover group-hover/img:scale-110 transition-transform duration-300"
                   onError={(e) => {
                     e.target.style.display = 'none';
+                    e.target.nextElementSibling?.classList.remove('hidden');
                   }}
                 />
+                <div className="hidden absolute inset-0 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <Package className="size-6 text-gray-400" />
+                </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity duration-300" />
               </div>
             ))}
@@ -368,16 +372,20 @@ export function CargoCard({
                 onClick={onViewDetails}
                 className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
                 style={{ padding: '14px 20px' }}
+                title="Details"
               >
-                Details
+                <Eye className="size-4 sm:hidden" />
+                <span className="hidden sm:inline">Details</span>
               </button>
               {canRefer && onRefer && (
                 <button
                   onClick={onRefer}
                   className="rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 text-orange-700 dark:text-orange-200 hover:from-orange-200 hover:to-orange-300 dark:hover:from-orange-800/60 dark:hover:to-orange-700/60 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
                   style={{ padding: '14px 20px' }}
+                  title="Refer"
                 >
-                  Refer
+                  <Share2 className="size-4 sm:hidden" />
+                  <span className="hidden sm:inline">Refer</span>
                 </button>
               )}
             </>
@@ -399,8 +407,10 @@ export function CargoCard({
                   onClick={onContact}
                   className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
                   style={{ padding: '14px 20px' }}
+                  title="Request Chat"
                 >
-                  Request Chat
+                  <MessageSquare className="size-4 sm:hidden" />
+                  <span className="hidden sm:inline">Request Chat</span>
                 </button>
               )}
               {canRefer && onRefer && (
@@ -408,8 +418,10 @@ export function CargoCard({
                   onClick={onRefer}
                   className="rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 text-orange-700 dark:text-orange-200 hover:from-orange-200 hover:to-orange-300 dark:hover:from-orange-800/60 dark:hover:to-orange-700/60 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
                   style={{ padding: '14px 20px' }}
+                  title="Refer"
                 >
-                  Refer
+                  <Share2 className="size-4 sm:hidden" />
+                  <span className="hidden sm:inline">Refer</span>
                 </button>
               )}
             </>

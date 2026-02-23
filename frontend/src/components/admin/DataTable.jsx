@@ -10,7 +10,7 @@ import {
   Loader2,
 } from 'lucide-react';
 
-export function DataTable({
+function DataTableComponent({
   columns,
   data,
   loading,
@@ -181,8 +181,11 @@ export function DataTable({
   );
 }
 
+export const DataTable = React.memo(DataTableComponent);
+DataTable.displayName = 'DataTable';
+
 // Filter button component
-export function FilterButton({ active, onClick, children, className }) {
+function FilterButtonComponent({ active, onClick, children, className }) {
   return (
     <button
       onClick={onClick}
@@ -198,5 +201,8 @@ export function FilterButton({ active, onClick, children, className }) {
     </button>
   );
 }
+
+export const FilterButton = React.memo(FilterButtonComponent);
+FilterButton.displayName = 'FilterButton';
 
 export default DataTable;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import {
   Truck,
   MapPin,
@@ -91,7 +91,7 @@ export function ShipmentsView() {
   const [nextCursor, setNextCursor] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [stats, setStats] = useState({ total: 0, inTransit: 0, delivered: 0 });
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // Fetch shipments
   const fetchShipments = useCallback(async ({ append = false, cursorValue = null } = {}) => {
@@ -119,26 +119,18 @@ export function ShipmentsView() {
 
       setNextCursor(response?.nextCursor || null);
       setShipments((prevShipments) => {
-        const merged = append
-          ? [
-            ...prevShipments,
-            ...incomingShipments.filter((incoming) => !prevShipments.some((existing) => existing.id === incoming.id)),
-          ]
-          : incomingShipments;
+        if (!append) return incomingShipments;
 
-        setStats({
-          total: merged.length,
-          inTransit: merged.filter((shipment) => ACTIVE_SHIPMENT_STATUSES.has(shipment.status)).length,
-          delivered: merged.filter((shipment) => shipment.status === 'delivered').length,
-        });
-        return merged;
+        // O(n) dedupe for pagination append to avoid nested scans on larger result sets.
+        const existingIds = new Set(prevShipments.map((shipment) => shipment.id));
+        const uniqueIncoming = incomingShipments.filter((shipment) => !existingIds.has(shipment.id));
+        return [...prevShipments, ...uniqueIncoming];
       });
     } catch (error) {
       console.error('Error fetching shipments:', error);
       setLoadError(error?.message || 'Failed to load shipments');
       if (!append) {
         setShipments([]);
-        setStats({ total: 0, inTransit: 0, delivered: 0 });
       }
     } finally {
       if (append) {
@@ -158,20 +150,31 @@ export function ShipmentsView() {
     fetchShipments({ append: true, cursorValue: nextCursor });
   };
 
+  const stats = useMemo(
+    () => ({
+      total: shipments.length,
+      inTransit: shipments.filter((shipment) => ACTIVE_SHIPMENT_STATUSES.has(shipment.status)).length,
+      delivered: shipments.filter((shipment) => shipment.status === 'delivered').length,
+    }),
+    [shipments]
+  );
+
   // Filter shipments
-  const filteredShipments = shipments.filter(shipment => {
-    if (statusFilter !== 'all' && shipment.status !== statusFilter) return false;
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    const currentLocation = resolveLocationLabel(shipment.currentLocation).toLowerCase();
-    return (
-      shipment.trackingNumber?.toLowerCase().includes(query) ||
-      currentLocation.includes(query)
-    );
-  });
+  const filteredShipments = useMemo(() => {
+    const query = deferredSearchQuery.trim().toLowerCase();
+    return shipments.filter((shipment) => {
+      if (statusFilter !== 'all' && shipment.status !== statusFilter) return false;
+      if (!query) return true;
+      const currentLocation = resolveLocationLabel(shipment.currentLocation).toLowerCase();
+      return (
+        shipment.trackingNumber?.toLowerCase().includes(query) ||
+        currentLocation.includes(query)
+      );
+    });
+  }, [shipments, statusFilter, deferredSearchQuery]);
 
   // Table columns
-  const columns = [
+  const columns = useMemo(() => [
     {
       key: 'trackingNumber',
       header: 'Tracking #',
@@ -228,7 +231,30 @@ export function ShipmentsView() {
         </Button>
       ),
     },
-  ];
+  ], []);
+
+  const statusFilters = useMemo(
+    () => (
+      <>
+        <FilterButton active={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>
+          All
+        </FilterButton>
+        <FilterButton active={statusFilter === 'picked_up'} onClick={() => setStatusFilter('picked_up')}>
+          Picked Up
+        </FilterButton>
+        <FilterButton active={statusFilter === 'pending_pickup'} onClick={() => setStatusFilter('pending_pickup')}>
+          Pending Pickup
+        </FilterButton>
+        <FilterButton active={statusFilter === 'in_transit'} onClick={() => setStatusFilter('in_transit')}>
+          In Transit
+        </FilterButton>
+        <FilterButton active={statusFilter === 'delivered'} onClick={() => setStatusFilter('delivered')}>
+          Delivered
+        </FilterButton>
+      </>
+    ),
+    [statusFilter]
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
@@ -277,25 +303,7 @@ export function ShipmentsView() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder="Search by tracking number or location..."
-        filters={
-          <>
-            <FilterButton active={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>
-              All
-            </FilterButton>
-            <FilterButton active={statusFilter === 'picked_up'} onClick={() => setStatusFilter('picked_up')}>
-              Picked Up
-            </FilterButton>
-            <FilterButton active={statusFilter === 'pending_pickup'} onClick={() => setStatusFilter('pending_pickup')}>
-              Pending Pickup
-            </FilterButton>
-            <FilterButton active={statusFilter === 'in_transit'} onClick={() => setStatusFilter('in_transit')}>
-              In Transit
-            </FilterButton>
-            <FilterButton active={statusFilter === 'delivered'} onClick={() => setStatusFilter('delivered')}>
-              Delivered
-            </FilterButton>
-          </>
-        }
+        filters={statusFilters}
       />
 
       {nextCursor && !loading && (

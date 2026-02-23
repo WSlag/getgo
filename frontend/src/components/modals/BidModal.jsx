@@ -82,7 +82,7 @@ export function BidModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogBottomSheet className="max-w-md backdrop-blur-sm" hideCloseButton>
+      <DialogBottomSheet className="max-w-md backdrop-blur-sm">
         <div style={{ padding: isMobile ? '16px' : '24px', paddingBottom: 0 }}>
           <DialogHeader>
             <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>

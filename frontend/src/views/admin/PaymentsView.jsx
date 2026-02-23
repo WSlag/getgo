@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import {
   Shield,
   AlertTriangle,
@@ -461,14 +461,18 @@ export function PaymentsView({ className }) {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const resolvedStats = stats?.stats || stats || {};
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const deferredOutstandingSearchQuery = useDeferredValue(outstandingSearchQuery);
 
-  const dueSoonCount = outstandingContracts.filter((contract) => {
-    if (!isPayableOutstandingContract(contract)) {
-      return false;
-    }
-    const due = getDueStatus(contract);
-    return due.state === 'due_today' || due.state === 'due_soon';
-  }).length;
+  const dueSoonCount = useMemo(
+    () =>
+      outstandingContracts.reduce((count, contract) => {
+        if (!isPayableOutstandingContract(contract)) return count;
+        const dueState = contract._dueStatus?.state;
+        return dueState === 'due_today' || dueState === 'due_soon' ? count + 1 : count;
+      }, 0),
+    [outstandingContracts]
+  );
 
   // Fetch pending submissions
   const fetchSubmissions = useCallback(async () => {
@@ -476,7 +480,20 @@ export function PaymentsView({ className }) {
     setError(null);
     try {
       const data = await api.admin.getPendingPayments({ status: filter });
-      setSubmissions(data.submissions || []);
+      const normalizedSubmissions = (data.submissions || []).map((submission) => ({
+        ...submission,
+        _searchText: [
+          submission.userName,
+          submission.userEmail,
+          submission.orderId,
+          submission.userId,
+          submission.extractedData?.referenceNumber,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase(),
+      }));
+      setSubmissions(normalizedSubmissions);
     } catch (err) {
       console.error('Error fetching submissions:', err);
       setError(err.message || 'Failed to load submissions');
@@ -500,7 +517,21 @@ export function PaymentsView({ className }) {
     setOutstandingError(null);
     try {
       const data = await api.admin.getOutstandingFees({ limit: 300 });
-      setOutstandingContracts(data.contracts || []);
+      const normalizedContracts = (data.contracts || []).map((contract) => ({
+        ...contract,
+        _dueStatus: getDueStatus(contract),
+        _searchText: [
+          contract.contractNumber,
+          contract.id,
+          contract.truckerName,
+          contract.truckerEmail,
+          contract.platformFeePayerId,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase(),
+      }));
+      setOutstandingContracts(normalizedContracts);
       setOutstandingSummary(data.summary || null);
     } catch (err) {
       console.error('Error fetching outstanding platform fees:', err);
@@ -556,54 +587,45 @@ export function PaymentsView({ className }) {
   };
 
   // View submission details
-  const handleViewDetails = (submission) => {
+  const handleViewDetails = useCallback((submission) => {
     setSelectedSubmission(submission);
     setShowDetailModal(true);
-  };
+  }, []);
 
   // Filter submissions by search
-  const filteredSubmissions = submissions.filter(s => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      s.userName?.toLowerCase().includes(query) ||
-      s.userEmail?.toLowerCase().includes(query) ||
-      s.orderId?.toLowerCase().includes(query) ||
-      s.userId?.toLowerCase().includes(query) ||
-      s.extractedData?.referenceNumber?.toLowerCase().includes(query)
-    );
-  });
+  const filteredSubmissions = useMemo(() => {
+    const query = deferredSearchQuery.trim().toLowerCase();
+    if (!query) return submissions;
+    return submissions.filter((submission) => submission._searchText?.includes(query));
+  }, [submissions, deferredSearchQuery]);
 
-  const filteredOutstandingContracts = outstandingContracts.filter((contract) => {
-    if (!isPayableOutstandingContract(contract)) {
-      return false;
-    }
+  const filteredOutstandingContracts = useMemo(() => {
+    const query = deferredOutstandingSearchQuery.trim().toLowerCase();
 
-    const due = getDueStatus(contract);
+    return outstandingContracts.filter((contract) => {
+      if (!isPayableOutstandingContract(contract)) {
+        return false;
+      }
 
-    if (outstandingFilter === 'due_soon' && !(due.state === 'due_today' || due.state === 'due_soon')) {
-      return false;
-    }
-    if (outstandingFilter === 'overdue' && due.state !== 'overdue') {
-      return false;
-    }
-    if (outstandingFilter === 'suspended' && contract.truckerAccountStatus !== 'suspended') {
-      return false;
-    }
+      const due = contract._dueStatus || getDueStatus(contract);
 
-    if (!outstandingSearchQuery) return true;
-    const query = outstandingSearchQuery.toLowerCase();
-    return (
-      contract.contractNumber?.toLowerCase().includes(query) ||
-      contract.id?.toLowerCase().includes(query) ||
-      contract.truckerName?.toLowerCase().includes(query) ||
-      contract.truckerEmail?.toLowerCase().includes(query) ||
-      contract.platformFeePayerId?.toLowerCase().includes(query)
-    );
-  });
+      if (outstandingFilter === 'due_soon' && !(due.state === 'due_today' || due.state === 'due_soon')) {
+        return false;
+      }
+      if (outstandingFilter === 'overdue' && due.state !== 'overdue') {
+        return false;
+      }
+      if (outstandingFilter === 'suspended' && contract.truckerAccountStatus !== 'suspended') {
+        return false;
+      }
+
+      if (!query) return true;
+      return contract._searchText?.includes(query);
+    });
+  }, [outstandingContracts, outstandingFilter, deferredOutstandingSearchQuery]);
 
   // Table columns
-  const columns = [
+  const columns = useMemo(() => [
     {
       key: 'reference',
       header: 'Submission',
@@ -692,9 +714,9 @@ export function PaymentsView({ className }) {
         </Button>
       ),
     },
-  ];
+  ], [handleViewDetails]);
 
-  const outstandingColumns = [
+  const outstandingColumns = useMemo(() => [
     {
       key: 'contract',
       header: 'Contract',
@@ -736,7 +758,7 @@ export function PaymentsView({ className }) {
       key: 'dueDate',
       header: 'Due Date',
       render: (_, row) => {
-        const due = getDueStatus(row);
+        const due = row._dueStatus || getDueStatus(row);
         return (
           <div>
             <p className="text-sm text-gray-900 dark:text-white">
@@ -751,7 +773,7 @@ export function PaymentsView({ className }) {
       key: 'status',
       header: 'Fee Status',
       render: (_, row) => {
-        const due = getDueStatus(row);
+        const due = row._dueStatus || getDueStatus(row);
         const config = {
           overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
           due_today: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
@@ -781,7 +803,46 @@ export function PaymentsView({ className }) {
         </span>
       ),
     },
-  ];
+  ], []);
+
+  const submissionFilters = useMemo(
+    () => (
+      <>
+        {['manual_review', 'processing', 'approved', 'rejected'].map((status) => (
+          <FilterButton
+            key={status}
+            active={filter === status}
+            onClick={() => setFilter(status)}
+          >
+            {status === 'manual_review' ? 'Flagged' : status.charAt(0).toUpperCase() + status.slice(1)}
+          </FilterButton>
+        ))}
+      </>
+    ),
+    [filter]
+  );
+
+  const outstandingFilters = useMemo(
+    () => (
+      <>
+        {[
+          { id: 'all', label: 'All' },
+          { id: 'due_soon', label: 'Due Soon' },
+          { id: 'overdue', label: 'Overdue' },
+          { id: 'suspended', label: 'Suspended' },
+        ].map(({ id, label }) => (
+          <FilterButton
+            key={id}
+            active={outstandingFilter === id}
+            onClick={() => setOutstandingFilter(id)}
+          >
+            {label}
+          </FilterButton>
+        ))}
+      </>
+    ),
+    [outstandingFilter]
+  );
 
   return (
     <div className={className} style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
@@ -841,19 +902,7 @@ export function PaymentsView({ className }) {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder="Search by username, order ID, user ID, or reference..."
-        filters={
-          <>
-            {['manual_review', 'processing', 'approved', 'rejected'].map((status) => (
-              <FilterButton
-                key={status}
-                active={filter === status}
-                onClick={() => setFilter(status)}
-              >
-                {status === 'manual_review' ? 'Flagged' : status.charAt(0).toUpperCase() + status.slice(1)}
-              </FilterButton>
-            ))}
-          </>
-        }
+        filters={submissionFilters}
       />
 
       {/* Outstanding Platform Fees */}
@@ -915,24 +964,7 @@ export function PaymentsView({ className }) {
           searchQuery={outstandingSearchQuery}
           onSearchChange={setOutstandingSearchQuery}
           searchPlaceholder="Search by contract, trucker, email, or payer ID..."
-          filters={(
-            <>
-              {[
-                { id: 'all', label: 'All' },
-                { id: 'due_soon', label: 'Due Soon' },
-                { id: 'overdue', label: 'Overdue' },
-                { id: 'suspended', label: 'Suspended' },
-              ].map(({ id, label }) => (
-                <FilterButton
-                  key={id}
-                  active={outstandingFilter === id}
-                  onClick={() => setOutstandingFilter(id)}
-                >
-                  {label}
-                </FilterButton>
-              ))}
-            </>
-          )}
+          filters={outstandingFilters}
         />
       </div>
 

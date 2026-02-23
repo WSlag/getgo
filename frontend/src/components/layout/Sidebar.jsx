@@ -84,7 +84,7 @@ export function Sidebar({
                 ? "bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 text-orange-600 dark:text-orange-400 hover:shadow-md"
                 : "text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
             )}
-            style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+            style={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '16px', paddingRight: '16px' }}
           >
             <Package className="size-5" />
             <span className="font-medium flex-1 text-left">Cargo</span>
@@ -106,7 +106,7 @@ export function Sidebar({
                 ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 text-blue-600 dark:text-blue-400 hover:shadow-md"
                 : "text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
             )}
-            style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+            style={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '16px', paddingRight: '16px' }}
           >
             <Truck className="size-5" />
             <span className="font-medium flex-1 text-left">Trucks</span>
@@ -125,7 +125,7 @@ export function Sidebar({
             <button
               onClick={onMyBidsClick}
               className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
-              style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+              style={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '16px', paddingRight: '16px' }}
             >
               <FileText className="size-5 text-green-500" />
               <span className="font-medium flex-1 text-left">My Bids</span>
@@ -142,7 +142,7 @@ export function Sidebar({
             <button
               onClick={onMyBidsClick}
               className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
-              style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+              style={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '16px', paddingRight: '16px' }}
             >
               <FileText className="size-5 text-purple-500" />
               <span className="font-medium flex-1 text-left">My Bookings</span>
@@ -158,7 +158,7 @@ export function Sidebar({
           <button
             onClick={onContractsClick}
             className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
-            style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+            style={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '16px', paddingRight: '16px' }}
           >
             <FileText className="size-5 text-indigo-500" />
             <span className="font-medium flex-1 text-left">My Contracts</span>
@@ -178,7 +178,7 @@ export function Sidebar({
           <button
             onClick={onBrokerClick}
             className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
-            style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+            style={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '16px', paddingRight: '16px' }}
           >
             <Users className="size-5 text-emerald-500" />
             <span className="font-medium flex-1 text-left">{isBroker ? 'Broker Dashboard' : 'Broker Program'}</span>
@@ -189,7 +189,7 @@ export function Sidebar({
             <button
               onClick={onPaymentReviewClick}
               className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 text-amber-700 dark:text-amber-400 hover:shadow-md border border-amber-200/50 dark:border-amber-800/50"
-              style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
+              style={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '16px', paddingRight: '16px' }}
             >
               <Shield className="size-5" />
               <span className="font-medium flex-1 text-left">Admin Dashboard</span>
