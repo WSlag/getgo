@@ -1,4 +1,4 @@
-import { initializeApp, setLogLevel } from 'firebase/app';
+import { getApps, initializeApp, setLogLevel } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import {
   initializeFirestore,
@@ -97,8 +97,13 @@ if (import.meta.env.DEV) {
   }
 }
 
+function getOrInitializeApp(config, name) {
+  const existingApp = getApps().find((candidate) => candidate.name === name);
+  return existingApp || initializeApp(config, name);
+}
+
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = getOrInitializeApp(firebaseConfig, '[DEFAULT]');
 let appCheck = null;
 
 if (import.meta.env.PROD) {
@@ -183,7 +188,10 @@ async function initializeAppCheckRuntime() {
       window.FIREBASE_APPCHECK_DEBUG_TOKEN = window.FIREBASE_APPCHECK_DEBUG_TOKEN || true;
     }
 
-    appCheck = appCheckModule.initializeAppCheck(app, {
+    // Keep App Check on a separate app instance so Auth on the default app
+    // does not fail OTP flows when App Check token exchange is blocked/rejected.
+    const appCheckRuntimeApp = getOrInitializeApp(firebaseConfig, 'app-check-runtime');
+    appCheck = appCheckModule.initializeAppCheck(appCheckRuntimeApp, {
       provider: new ProviderCtor(resolvedAppCheckSiteKey),
       isTokenAutoRefreshEnabled: true,
     });

@@ -11,7 +11,7 @@ const OTP_COOLDOWN_SECONDS = 30;
  * AuthModal - A modal component for login/signup
  * Used when unauthenticated users try to perform protected actions
  */
-export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in to continue' }) {
+export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in to continue', onOpenLegal }) {
   const { sendOtp, verifyOtp, signInWithRecoveryCode, authUser, userProfile } = useAuth();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -588,7 +588,13 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
               className="text-center text-gray-400 dark:text-gray-500"
               style={{ fontSize: '12px' }}
             >
-              By continuing, you agree to our Terms of Service and Privacy Policy
+              By continuing, you agree to our{' '}
+              <button type="button" onClick={() => onOpenLegal?.('terms')} className="underline text-orange-500 hover:text-orange-600 dark:hover:text-orange-400">
+                Terms of Service
+              </button>{' '}and{' '}
+              <button type="button" onClick={() => onOpenLegal?.('privacy')} className="underline text-orange-500 hover:text-orange-600 dark:hover:text-orange-400">
+                Privacy Policy
+              </button>
             </p>
           </div>
         </div>

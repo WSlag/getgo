@@ -70,6 +70,7 @@ const NotificationsView = lazy(() => import('@/views/NotificationsView'));
 const ProfilePage = lazy(() => import('@/components/profile/ProfilePage'));
 const AdminDashboard = lazy(() => import('@/views/admin/AdminDashboard'));
 const ActivityView = lazy(() => import('@/views/ActivityView'));
+const HelpSupportView = lazy(() => import('@/views/HelpSupportView'));
 
 // Modal Components
 import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, MyBidsModal, RatingModal } from '@/components/modals';
@@ -80,6 +81,7 @@ import ReferListingModal from '@/components/broker/ReferListingModal';
 import { FullMapModal } from '@/components/maps';
 import AuthModal from '@/components/auth/AuthModal';
 import { OnboardingGuideModal } from '@/components/modals/OnboardingGuideModal';
+import LegalModal from '@/components/legal/LegalModal';
 
 // API
 import api from './services/api';
@@ -198,6 +200,9 @@ export default function GetGoApp() {
   // Onboarding Guide Modal
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
   const [onboardingDismissedLocally, setOnboardingDismissedLocally] = useState(false);
+
+  // Legal Modal (for auth screens)
+  const [legalModal, setLegalModal] = useState({ open: false, type: null });
 
   // Admin: Pending payments count
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
@@ -864,7 +869,7 @@ export default function GetGoApp() {
   };
 
   const handleHelpSupport = () => {
-    setShowOnboardingGuide(true);
+    setActiveTab('help');
   };
 
   const handleOnboardingClose = async () => {
@@ -1689,6 +1694,7 @@ export default function GetGoApp() {
         )}
 
         {activeTab === 'profile' && <ErrorBoundary><ProfilePage onNavigateToActivity={() => setActiveTab('activity')} /></ErrorBoundary>}
+        {activeTab === 'help' && <ErrorBoundary><HelpSupportView onBack={() => setActiveTab('home')} onShowOnboardingGuide={() => setShowOnboardingGuide(true)} /></ErrorBoundary>}
 
         {activeTab === 'broker' && (
           <ErrorBoundary>
@@ -2319,6 +2325,14 @@ export default function GetGoApp() {
         onClose={() => setShowAuthModal(false)}
         onSuccess={executePendingAction}
         title={pendingActionTitle}
+        onOpenLegal={(type) => setLegalModal({ open: true, type })}
+      />
+
+      {/* Legal Modal - Privacy Policy / Terms of Service */}
+      <LegalModal
+        open={legalModal.open}
+        onClose={() => setLegalModal({ open: false, type: null })}
+        type={legalModal.type}
       />
 
       {/* Onboarding Guide Modal - shown on first login and re-accessible from Help & Support */}

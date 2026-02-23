@@ -22,6 +22,10 @@ function formatFirebaseAuthError(error) {
     'auth/app-not-authorized': 'This web domain is not authorized in Firebase Authentication.',
     'auth/invalid-app-credential':
       'App verification failed. Check reCAPTCHA/App Check site key and key restrictions.',
+    'auth/firebase-app-check-token-is-invalid':
+      'Security token validation failed. Retry in a new tab or disable App Check for this environment.',
+    'auth/firebase-app-check-token-is-invalid.':
+      'Security token validation failed. Retry in a new tab or disable App Check for this environment.',
     'auth/captcha-check-failed':
       'reCAPTCHA validation failed. Reload the page and try again.',
     'auth/too-many-requests': 'Too many attempts. Please wait and try again.',
