@@ -34,6 +34,48 @@ const firebaseConfig = Object.fromEntries(
   Object.entries(firebaseEnvMap).map(([key, envKey]) => [key, import.meta.env[envKey] || firebaseFallbackConfig[key]])
 );
 
+function extractHost(value) {
+  if (!value || typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  try {
+    return new URL(trimmed).hostname;
+  } catch {
+    return trimmed.replace(/^https?:\/\//, '').split('/')[0];
+  }
+}
+
+function resolveAuthDomain(configuredAuthDomain) {
+  if (typeof window === 'undefined' || !import.meta.env.PROD) {
+    return configuredAuthDomain;
+  }
+
+  const currentHost = extractHost(window.location.hostname);
+  const configuredHost = extractHost(configuredAuthDomain);
+  const siteHost = extractHost(import.meta.env.VITE_SITE_URL || '');
+
+  if (!currentHost || !configuredHost || currentHost === configuredHost) {
+    return configuredAuthDomain;
+  }
+
+  const isLocalhost = currentHost === 'localhost' || currentHost === '127.0.0.1';
+  if (isLocalhost) {
+    return configuredAuthDomain;
+  }
+
+  const isFirebaseHostedDomain =
+    currentHost.endsWith('.web.app') || currentHost.endsWith('.firebaseapp.com');
+  const isConfiguredSiteHost = siteHost && currentHost === siteHost;
+
+  if (isFirebaseHostedDomain || isConfiguredSiteHost) {
+    return currentHost;
+  }
+
+  return configuredAuthDomain;
+}
+
+firebaseConfig.authDomain = resolveAuthDomain(firebaseConfig.authDomain);
+
 const requiredFirebaseFields = ['apiKey', 'authDomain', 'projectId', 'appId'];
 const missingRequiredFirebaseFields = requiredFirebaseFields.filter((key) => !firebaseConfig[key]);
 
