@@ -6,6 +6,31 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 
+function mergeRatingDocs(...snapshots) {
+  const merged = new Map();
+  snapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((doc) => {
+      if (!merged.has(doc.id)) {
+        merged.set(doc.id, doc);
+      }
+    });
+  });
+  return Array.from(merged.values());
+}
+
+function getRatedUserId(rating = {}) {
+  return rating.rateeId || rating.ratedUserId || null;
+}
+
+async function getRatingsForRatee(db, rateeId) {
+  const [canonicalSnap, legacySnap] = await Promise.all([
+    db.collection('ratings').where('rateeId', '==', rateeId).get(),
+    db.collection('ratings').where('ratedUserId', '==', rateeId).get(),
+  ]);
+
+  return mergeRatingDocs(canonicalSnap, legacySnap);
+}
+
 /**
  * Update user's average rating and badge when a new rating is submitted
  */
@@ -18,24 +43,27 @@ exports.onRatingCreated = onDocumentCreated(
     const snap = event.data;
     if (!snap) return null;
     const rating = snap.data();
-    const ratedUserId = rating.rateeId;
+    const ratedUserId = getRatedUserId(rating);
 
     if (!ratedUserId) return null;
 
     const db = admin.firestore();
 
-    // Get all ratings for this user
-    const ratingsSnap = await db.collection('ratings')
-      .where('rateeId', '==', ratedUserId)
-      .get();
+    // Backfill canonical target field when older rows still use legacy key.
+    if (!rating.rateeId && rating.ratedUserId) {
+      await snap.ref.set({ rateeId: rating.ratedUserId }, { merge: true });
+    }
+
+    // Get all ratings for this user (canonical + legacy compatibility reads)
+    const ratingDocs = await getRatingsForRatee(db, ratedUserId);
 
     let totalScore = 0;
-    ratingsSnap.docs.forEach(doc => {
+    ratingDocs.forEach((doc) => {
       totalScore += doc.data().score;
     });
 
-    const avgRating = totalScore / ratingsSnap.size;
-    const totalRatings = ratingsSnap.size;
+    const totalRatings = ratingDocs.length;
+    const avgRating = totalRatings > 0 ? (totalScore / totalRatings) : 0;
 
     // Update user profile
     await db.collection('users').doc(ratedUserId).update({
@@ -49,7 +77,11 @@ exports.onRatingCreated = onDocumentCreated(
     const userData = userDoc.data();
 
     if (userData && userData.role === 'trucker') {
-      const truckerProfileDoc = await db.collection('truckerProfiles').doc(ratedUserId).get();
+      const truckerProfileRef = db.collection('users')
+        .doc(ratedUserId)
+        .collection('truckerProfile')
+        .doc('profile');
+      const truckerProfileDoc = await truckerProfileRef.get();
 
       if (truckerProfileDoc.exists) {
         const truckerData = truckerProfileDoc.data();
@@ -63,7 +95,7 @@ exports.onRatingCreated = onDocumentCreated(
         else if (avgRating >= 4.0 && totalTrips >= 20) badge = 'VERIFIED';
         else if (totalTrips >= 5) badge = 'ACTIVE';
 
-        await db.collection('truckerProfiles').doc(ratedUserId).update({
+        await truckerProfileRef.update({
           badge,
           rating: avgRating,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),

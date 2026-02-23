@@ -8,9 +8,7 @@ import {
   connectFirestoreEmulator,
 } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
-import { getAnalytics } from 'firebase/analytics';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider, ReCaptchaV3Provider } from 'firebase/app-check';
 
 const firebaseEnvMap = {
   apiKey: 'VITE_FIREBASE_API_KEY',
@@ -111,30 +109,51 @@ if (appCheckResolutionNote) {
   console.warn(`[firebase] ${appCheckResolutionNote}`);
 }
 
-const appCheckProviderMap = {
-  enterprise: () => new ReCaptchaEnterpriseProvider(resolvedAppCheckSiteKey),
-  v3: () => new ReCaptchaV3Provider(resolvedAppCheckSiteKey),
+const appCheckProviderConstructorNameMap = {
+  enterprise: 'ReCaptchaEnterpriseProvider',
+  v3: 'ReCaptchaV3Provider',
 };
-const appCheckProviderFactory = appCheckProviderMap[resolvedAppCheckProvider];
-const appCheckProvider =
-  resolvedAppCheckSiteKey && appCheckProviderFactory ? appCheckProviderFactory() : null;
+const appCheckProviderConstructorName = appCheckProviderConstructorNameMap[resolvedAppCheckProvider];
+const appCheckProviderConfigured = Boolean(resolvedAppCheckSiteKey && appCheckProviderConstructorName);
 const appCheckProviderOff = appCheckProviderName === 'off';
 const shouldInitializeAppCheck =
   !useEmulator &&
   appCheckEnabled &&
   !appCheckProviderOff &&
   typeof window !== 'undefined' &&
-  resolvedAppCheckSiteKey &&
-  appCheckProvider;
+  appCheckProviderConfigured;
+
+async function initializeAppCheckRuntime() {
+  try {
+    const appCheckModule = await import('firebase/app-check');
+    const ProviderCtor = appCheckModule[appCheckProviderConstructorName];
+
+    if (!ProviderCtor) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[firebase] App Check provider constructor missing for ${resolvedAppCheckProvider}.`
+        );
+      }
+      return;
+    }
+
+    if (appCheckDebugEnabled) {
+      window.FIREBASE_APPCHECK_DEBUG_TOKEN = window.FIREBASE_APPCHECK_DEBUG_TOKEN || true;
+    }
+
+    appCheck = appCheckModule.initializeAppCheck(app, {
+      provider: new ProviderCtor(resolvedAppCheckSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[firebase] App Check initialization failed:', error?.message || error);
+    }
+  }
+}
 
 if (shouldInitializeAppCheck) {
-  if (appCheckDebugEnabled) {
-    window.FIREBASE_APPCHECK_DEBUG_TOKEN = window.FIREBASE_APPCHECK_DEBUG_TOKEN || true;
-  }
-  appCheck = initializeAppCheck(app, {
-    provider: appCheckProvider,
-    isTokenAutoRefreshEnabled: true,
-  });
+  void initializeAppCheckRuntime();
 } else if (import.meta.env.DEV && !useEmulator) {
   const reason = !appCheckEnabled
     ? 'VITE_ENABLE_APPCHECK=false'
@@ -142,7 +161,7 @@ if (shouldInitializeAppCheck) {
       ? 'VITE_APPCHECK_PROVIDER=off'
       : !resolvedAppCheckSiteKey
         ? 'missing App Check site key (VITE_APPCHECK_SITE_KEY or VITE_RECAPTCHA_ENTERPRISE_KEY)'
-        : !appCheckProvider
+        : !appCheckProviderConfigured
           ? `unsupported VITE_APPCHECK_PROVIDER=${appCheckProviderName} (resolved=${resolvedAppCheckProvider})`
           : 'non-browser runtime';
   console.info(`[firebase] App Check not initialized (${reason}).`);
@@ -184,8 +203,19 @@ if (useEmulator) {
 
 // Initialize Analytics (only in browser and not in test mode)
 let analytics = null;
+async function initializeAnalyticsRuntime() {
+  try {
+    const analyticsModule = await import('firebase/analytics');
+    analytics = analyticsModule.getAnalytics(app);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[firebase] Analytics initialization failed:', error?.message || error);
+    }
+  }
+}
+
 if (typeof window !== 'undefined' && !useEmulator) {
-  analytics = getAnalytics(app);
+  void initializeAnalyticsRuntime();
 }
 export { analytics };
 export { appCheck };

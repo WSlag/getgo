@@ -133,7 +133,7 @@ Run the test script:
 firebase emulators:start --only firestore,auth
 
 # In another terminal, run tests
-node test-security-fixes.js
+node test-security-fixes.cjs
 ```
 
 **Expected result:** All tests should pass with 100% success rate.
@@ -291,7 +291,7 @@ firebase functions:delete auditAdminAccounts
 3. **`functions/src/api/admin.js`** (lines 288-332)
    - Enhanced `adminToggleAdmin` logging
 
-4. **`test-security-fixes.js`** (new file)
+4. **`test-security-fixes.cjs`** (new file)
    - Automated security testing script
 
 5. **`SECURITY_FIX_ADMIN_PRIVILEGE_ESCALATION.md`** (this file)

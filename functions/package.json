@@ -3,6 +3,8 @@
   "description": "Cloud Functions for Karga payment verification",
   "scripts": {
     "lint": "eslint .",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "migrate:ratings": "node scripts/migrate-ratings-schema.cjs",
     "test:settings": "node scripts/settings-propagation-test.cjs",
     "test": "npm run lint && node scripts/smoke-test.cjs && npm run test:settings",
     "serve": "firebase emulators:start --only functions",

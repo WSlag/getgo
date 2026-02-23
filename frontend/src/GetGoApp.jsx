@@ -56,18 +56,19 @@ import ErrorBoundary from '@/components/shared/ErrorBoundary';
 import { NotFoundView } from '@/components/shared/NotFoundView';
 
 // View Components
-import { HomeView } from '@/views/HomeView';
-import { TrackingView } from '@/views/TrackingView';
-import { AdminPaymentsView } from '@/views/AdminPaymentsView';
-import { ContractVerificationView } from '@/views/ContractVerificationView';
-import { ContractsView } from '@/views/ContractsView';
-import { BidsView } from '@/views/BidsView';
-import { ChatView } from '@/views/ChatView';
-import { BrokerView } from '@/views/BrokerView';
-import { NotificationsView } from '@/views/NotificationsView';
-import { ProfilePage } from '@/components/profile/ProfilePage';
+const HomeView = lazy(() => import('@/views/HomeView'));
+const TrackingView = lazy(() => import('@/views/TrackingView'));
+const AdminPaymentsView = lazy(() => import('@/views/AdminPaymentsView'));
+const ContractVerificationView = lazy(() => import('@/views/ContractVerificationView')
+  .then((module) => ({ default: module.ContractVerificationView })));
+const ContractsView = lazy(() => import('@/views/ContractsView'));
+const BidsView = lazy(() => import('@/views/BidsView'));
+const ChatView = lazy(() => import('@/views/ChatView'));
+const BrokerView = lazy(() => import('@/views/BrokerView'));
+const NotificationsView = lazy(() => import('@/views/NotificationsView'));
+const ProfilePage = lazy(() => import('@/components/profile/ProfilePage'));
 const AdminDashboard = lazy(() => import('@/views/admin/AdminDashboard'));
-import ActivityView from '@/views/ActivityView';
+const ActivityView = lazy(() => import('@/views/ActivityView'));
 
 // Modal Components
 import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, MyBidsModal, RatingModal } from '@/components/modals';
@@ -1558,6 +1559,13 @@ export default function GetGoApp() {
         />
 
         {/* Main Content */}
+        <Suspense
+          fallback={(
+            <main className="flex-1 p-4 lg:p-8 flex items-center justify-center">
+              <Loader2 className="size-6 animate-spin text-orange-500" />
+            </main>
+          )}
+        >
         {activeTab === 'home' && (
           <ErrorBoundary>
             <HomeView
@@ -1802,6 +1810,7 @@ export default function GetGoApp() {
         {!['home', 'activity', 'tracking', 'notifications', 'profile', 'broker', 'bids', 'messages', 'contracts', 'adminPayments', 'contractVerification'].includes(activeTab) && (
           <NotFoundView onGoHome={() => setActiveTab('home')} />
         )}
+        </Suspense>
       </div>
 
       {/* Mobile Navigation */}

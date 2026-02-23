@@ -9,13 +9,18 @@
  * Setup:
  * 1. npm install -g firebase-tools
  * 2. firebase emulators:start --only firestore,auth
- * 3. node test-security-fixes.js
+ * 3. node test-security-fixes.cjs
  */
 
-const { initializeApp } = require('firebase/app');
-const { getAuth, signInAnonymously, signOut, connectAuthEmulator } = require('firebase/auth');
-const { getFirestore, doc, setDoc, updateDoc, connectFirestoreEmulator } = require('firebase/firestore');
-const { getFunctions, connectFunctionsEmulator, httpsCallable } = require('firebase/functions');
+const path = require('path');
+const { createRequire } = require('module');
+
+// Reuse frontend Firebase SDK dependency so this script works from repo root.
+const frontendRequire = createRequire(path.join(__dirname, 'frontend', 'package.json'));
+const { initializeApp } = frontendRequire('firebase/app');
+const { getAuth, signInAnonymously, signOut, connectAuthEmulator } = frontendRequire('firebase/auth');
+const { getFirestore, doc, setDoc, updateDoc, connectFirestoreEmulator } = frontendRequire('firebase/firestore');
+const { getFunctions, connectFunctionsEmulator, httpsCallable } = frontendRequire('firebase/functions');
 
 // Firebase config (use emulator)
 const firebaseConfig = {

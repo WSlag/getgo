@@ -464,7 +464,7 @@ export function BrokerView({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: isMobile ? '12px' : '16px' }}>
-          <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700" style={{ padding: isMobile ? '16px' : '20px', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
+          <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden min-w-0" style={{ padding: isMobile ? '16px' : '20px', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
             <div className="flex items-center gap-2">
               <Link2 className="size-4 text-orange-500" />
               <h3 className="font-semibold text-gray-900 dark:text-white">Referral Link</h3>
@@ -477,7 +477,7 @@ export function BrokerView({
               <p className="text-xs text-gray-500 dark:text-gray-400">Share Link</p>
               <p className="text-sm text-gray-900 dark:text-white">{referralLink || '-'}</p>
             </div>
-            <div className={isMobile ? "grid grid-cols-2 gap-2" : "flex gap-2"}>
+            <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" className="w-full" onClick={handleCopyLink} disabled={!referralLink}>
                 <Copy className="size-4 mr-2" />
                 Copy Link

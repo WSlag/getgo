@@ -139,6 +139,34 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+
+          const inPkg = (pkg) =>
+            id.includes(`/node_modules/${pkg}/`) || id.includes(`\\node_modules\\${pkg}\\`)
+
+          if (inPkg('@sentry') || inPkg('sentry')) return 'sentry'
+          if (inPkg('leaflet') || inPkg('react-leaflet')) return 'maps'
+          if (inPkg('@radix-ui')) return 'radix'
+
+          if (inPkg('firebase') || inPkg('@firebase')) {
+            if (inPkg('@firebase/firestore') || id.includes('firebase/firestore')) return 'firebase-firestore'
+            if (inPkg('@firebase/auth') || id.includes('firebase/auth')) return 'firebase-auth'
+            if (inPkg('@firebase/functions') || id.includes('firebase/functions')) return 'firebase-functions'
+            if (inPkg('@firebase/storage') || id.includes('firebase/storage')) return 'firebase-storage'
+            if (inPkg('@firebase/app-check') || id.includes('firebase/app-check')) return 'firebase-app-check'
+            if (inPkg('@firebase/analytics') || id.includes('firebase/analytics')) return 'firebase-analytics'
+            return 'firebase-core'
+          }
+
+          return undefined
+        },
+      },
+    },
+  },
   server: {
     host: '127.0.0.1',
     port: 5173,

@@ -1042,15 +1042,17 @@ export default function KargaMarketplace() {
   const EarningsModal = () => {
     const currentTier = brokerTiers[brokerTier] || brokerTiers.STARTER;
     const TierIcon = currentTier.icon;
+    const siteOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://karga.ph';
+    const siteHost = typeof window !== 'undefined' ? window.location.host : 'karga.ph';
     
     const copyReferralLink = () => {
-      const link = `https://karga.ph/r/${referralCode}`;
+      const link = `${siteOrigin}/r/${referralCode}`;
       navigator.clipboard?.writeText(link);
       alert('Referral link copied to clipboard!');
     };
     
     const shareToSocial = (platform) => {
-      const link = `https://karga.ph/r/${referralCode}`;
+      const link = `${siteOrigin}/r/${referralCode}`;
       const text = `Join KARGA CONNECT - the two-way trucking marketplace! Use my referral code ${referralCode}. ${link}`;
       const urls = {
         facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`,
@@ -1285,7 +1287,7 @@ export default function KargaMarketplace() {
                         <p className={`font-semibold ${theme.text} mb-3`}>🔗 Your Referral Code</p>
                         <div className={`${theme.bgCard} border-2 border-dashed ${theme.border} rounded-xl p-4 text-center mb-3`}>
                           <p className="text-3xl font-bold tracking-widest text-green-500">{referralCode}</p>
-                          <p className={`text-xs ${theme.textMuted} mt-1`}>karga.ph/r/{referralCode}</p>
+                          <p className={`text-xs ${theme.textMuted} mt-1`}>{siteHost}/r/{referralCode}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <button 
