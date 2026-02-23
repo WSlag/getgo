@@ -62,7 +62,7 @@ export default function LoginScreen({ darkMode, onSkipLogin, onOpenLegal }) {
     setLoading(true);
     setError('');
 
-    const result = await sendOtp(phone, 'send-otp-button');
+    const result = await sendOtp(phone);
 
     setLoading(false);
 

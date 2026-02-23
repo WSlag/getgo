@@ -116,36 +116,50 @@ const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
 const appCheckEnabled = import.meta.env.VITE_ENABLE_APPCHECK !== 'false';
 const appCheckDebugEnabled = import.meta.env.VITE_APPCHECK_DEBUG === 'true' || import.meta.env.DEV;
 const configuredAppCheckProvider = (import.meta.env.VITE_APPCHECK_PROVIDER || 'auto').toLowerCase();
-const appCheckSiteKeyV3 = import.meta.env.VITE_APPCHECK_SITE_KEY || '';
-const appCheckSiteKeyEnterprise = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY || '';
+const appCheckSiteKeyV3 = (import.meta.env.VITE_APPCHECK_SITE_KEY || '').trim();
+const appCheckSiteKeyEnterprise = (import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY || '').trim();
 const supportedAppCheckProviders = new Set(['auto', 'enterprise', 'v3', 'off']);
 const appCheckProviderName = supportedAppCheckProviders.has(configuredAppCheckProvider)
   ? configuredAppCheckProvider
   : 'auto';
 
-let resolvedAppCheckProvider = appCheckProviderName;
-let resolvedAppCheckSiteKey = '';
+const appCheckCandidates = [];
 let appCheckResolutionNote = '';
 
 if (appCheckProviderName === 'auto') {
-  if (appCheckSiteKeyEnterprise) {
-    resolvedAppCheckProvider = 'enterprise';
-    resolvedAppCheckSiteKey = appCheckSiteKeyEnterprise;
+  if (appCheckSiteKeyEnterprise && appCheckSiteKeyV3) {
+    if (appCheckSiteKeyEnterprise === appCheckSiteKeyV3) {
+      // Shared legacy key values are ambiguous; prefer v3 first and fallback to enterprise.
+      appCheckCandidates.push(
+        { provider: 'v3', siteKey: appCheckSiteKeyV3 },
+        { provider: 'enterprise', siteKey: appCheckSiteKeyEnterprise }
+      );
+      appCheckResolutionNote =
+        'VITE_APPCHECK_SITE_KEY and VITE_RECAPTCHA_ENTERPRISE_KEY are identical. Trying v3 first, then enterprise.';
+    } else {
+      appCheckCandidates.push(
+        { provider: 'enterprise', siteKey: appCheckSiteKeyEnterprise },
+        { provider: 'v3', siteKey: appCheckSiteKeyV3 }
+      );
+    }
+  } else if (appCheckSiteKeyEnterprise) {
+    appCheckCandidates.push({ provider: 'enterprise', siteKey: appCheckSiteKeyEnterprise });
   } else if (appCheckSiteKeyV3) {
-    resolvedAppCheckProvider = 'v3';
-    resolvedAppCheckSiteKey = appCheckSiteKeyV3;
+    appCheckCandidates.push({ provider: 'v3', siteKey: appCheckSiteKeyV3 });
   }
 } else if (appCheckProviderName === 'enterprise') {
   if (appCheckSiteKeyEnterprise) {
-    resolvedAppCheckSiteKey = appCheckSiteKeyEnterprise;
+    appCheckCandidates.push({ provider: 'enterprise', siteKey: appCheckSiteKeyEnterprise });
   } else if (appCheckSiteKeyV3) {
-    resolvedAppCheckProvider = 'v3';
-    resolvedAppCheckSiteKey = appCheckSiteKeyV3;
+    appCheckCandidates.push({ provider: 'v3', siteKey: appCheckSiteKeyV3 });
     appCheckResolutionNote =
       'VITE_APPCHECK_PROVIDER=enterprise but VITE_RECAPTCHA_ENTERPRISE_KEY is missing. Falling back to v3.';
   }
 } else if (appCheckProviderName === 'v3') {
-  resolvedAppCheckSiteKey = appCheckSiteKeyV3 || appCheckSiteKeyEnterprise;
+  const v3SiteKey = appCheckSiteKeyV3 || appCheckSiteKeyEnterprise;
+  if (v3SiteKey) {
+    appCheckCandidates.push({ provider: 'v3', siteKey: v3SiteKey });
+  }
   if (!appCheckSiteKeyV3 && appCheckSiteKeyEnterprise) {
     appCheckResolutionNote =
       'Using VITE_RECAPTCHA_ENTERPRISE_KEY as a fallback for v3. Prefer VITE_APPCHECK_SITE_KEY.';
@@ -160,8 +174,9 @@ const appCheckProviderConstructorNameMap = {
   enterprise: 'ReCaptchaEnterpriseProvider',
   v3: 'ReCaptchaV3Provider',
 };
-const appCheckProviderConstructorName = appCheckProviderConstructorNameMap[resolvedAppCheckProvider];
-const appCheckProviderConfigured = Boolean(resolvedAppCheckSiteKey && appCheckProviderConstructorName);
+const resolvedAppCheckProvider = appCheckCandidates[0]?.provider || appCheckProviderName;
+const resolvedAppCheckSiteKey = appCheckCandidates[0]?.siteKey || '';
+const appCheckProviderConfigured = appCheckCandidates.length > 0;
 const appCheckProviderOff = appCheckProviderName === 'off';
 const shouldInitializeAppCheck =
   !useEmulator &&
@@ -173,16 +188,6 @@ const shouldInitializeAppCheck =
 async function initializeAppCheckRuntime() {
   try {
     const appCheckModule = await import('firebase/app-check');
-    const ProviderCtor = appCheckModule[appCheckProviderConstructorName];
-
-    if (!ProviderCtor) {
-      if (import.meta.env.DEV) {
-        console.warn(
-          `[firebase] App Check provider constructor missing for ${resolvedAppCheckProvider}.`
-        );
-      }
-      return;
-    }
 
     if (appCheckDebugEnabled) {
       window.FIREBASE_APPCHECK_DEBUG_TOKEN = window.FIREBASE_APPCHECK_DEBUG_TOKEN || true;
@@ -191,10 +196,37 @@ async function initializeAppCheckRuntime() {
     // Keep App Check on a separate app instance so Auth on the default app
     // does not fail OTP flows when App Check token exchange is blocked/rejected.
     const appCheckRuntimeApp = getOrInitializeApp(firebaseConfig, 'app-check-runtime');
-    appCheck = appCheckModule.initializeAppCheck(appCheckRuntimeApp, {
-      provider: new ProviderCtor(resolvedAppCheckSiteKey),
-      isTokenAutoRefreshEnabled: true,
-    });
+    for (let index = 0; index < appCheckCandidates.length; index += 1) {
+      const candidate = appCheckCandidates[index];
+      const constructorName = appCheckProviderConstructorNameMap[candidate.provider];
+      const ProviderCtor = appCheckModule[constructorName];
+
+      if (!ProviderCtor) {
+        if (import.meta.env.DEV) {
+          console.warn(`[firebase] App Check provider constructor missing for ${candidate.provider}.`);
+        }
+        continue;
+      }
+
+      try {
+        appCheck = appCheckModule.initializeAppCheck(appCheckRuntimeApp, {
+          provider: new ProviderCtor(candidate.siteKey),
+          isTokenAutoRefreshEnabled: true,
+        });
+        return;
+      } catch (error) {
+        const hasFallback = index < appCheckCandidates.length - 1;
+        if (import.meta.env.DEV && hasFallback) {
+          const message = error?.message || error;
+          console.warn(
+            `[firebase] App Check init failed for ${candidate.provider}. Retrying fallback provider.`,
+            message
+          );
+        } else if (import.meta.env.DEV) {
+          throw error;
+        }
+      }
+    }
   } catch (error) {
     if (import.meta.env.DEV) {
       console.warn('[firebase] App Check initialization failed:', error?.message || error);
