@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   onAuthStateChanged,
   signInWithPhoneNumber,
@@ -51,6 +51,42 @@ export function AuthProvider({ children }) {
   const [isNewUser, setIsNewUser] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [authError, setAuthError] = useState(null);
+  const recaptchaStateRef = useRef({ verifier: null, buttonId: null, widgetId: null });
+
+  const clearRecaptchaVerifier = () => {
+    const { verifier } = recaptchaStateRef.current;
+    if (verifier) {
+      try {
+        verifier.clear();
+      } catch (error) {
+        // Ignore teardown errors from recaptcha internals.
+      }
+    }
+    recaptchaStateRef.current = { verifier: null, buttonId: null, widgetId: null };
+    if (typeof window !== 'undefined') {
+      window.recaptchaVerifier = null;
+    }
+  };
+
+  const resetRecaptchaWidget = () => {
+    if (typeof window === 'undefined') return;
+
+    const { widgetId } = recaptchaStateRef.current;
+    if (widgetId === null || widgetId === undefined) return;
+
+    const grecaptcha =
+      window.grecaptcha?.enterprise && typeof window.grecaptcha.enterprise.reset === 'function'
+        ? window.grecaptcha.enterprise
+        : window.grecaptcha;
+
+    if (grecaptcha && typeof grecaptcha.reset === 'function') {
+      try {
+        grecaptcha.reset(widgetId);
+      } catch (error) {
+        // Ignore reset errors and continue.
+      }
+    }
+  };
 
   // Listen to auth state changes
   useEffect(() => {
@@ -153,28 +189,29 @@ export function AuthProvider({ children }) {
   // Setup recaptcha verifier
   const setupRecaptcha = (buttonId) => {
     try {
-      // Clear existing verifier if it exists to avoid stale state
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {
-          // Ignore clear errors
-        }
-        window.recaptchaVerifier = null;
+      const current = recaptchaStateRef.current;
+      if (current.verifier && current.buttonId === buttonId) {
+        return current.verifier;
       }
 
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, buttonId, {
+      if (current.verifier) {
+        clearRecaptchaVerifier();
+      }
+
+      const verifier = new RecaptchaVerifier(auth, buttonId, {
         size: 'invisible',
         callback: () => {
           // reCAPTCHA solved
         },
         'expired-callback': () => {
-          // Reset reCAPTCHA
-          window.recaptchaVerifier = null;
+          resetRecaptchaWidget();
         }
       });
 
-      return window.recaptchaVerifier;
+      recaptchaStateRef.current = { verifier, buttonId, widgetId: null };
+      window.recaptchaVerifier = verifier;
+
+      return verifier;
     } catch (error) {
       console.error('Recaptcha setup error:', error);
       throw error;
@@ -203,19 +240,16 @@ export function AuthProvider({ children }) {
       const recaptchaVerifier = setupRecaptcha(buttonId);
 
       // Render the reCAPTCHA widget before signing in
-      await recaptchaVerifier.render();
+      if (recaptchaStateRef.current.widgetId === null) {
+        recaptchaStateRef.current.widgetId = await recaptchaVerifier.render();
+      } else {
+        resetRecaptchaWidget();
+      }
 
       const result = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
 
-      // Clear reCAPTCHA after successful OTP send to prevent it from intercepting future clicks
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {
-          // Ignore clear errors
-        }
-        window.recaptchaVerifier = null;
-      }
+      // Keep verifier instance warm and only reset the widget between OTP requests.
+      resetRecaptchaWidget();
 
       setConfirmationResult(result);
       return { success: true, formattedPhone };
@@ -227,14 +261,11 @@ export function AuthProvider({ children }) {
         name: error?.name,
       });
       setAuthError(formattedError);
-      // Reset recaptcha on error
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {
-          // Ignore clear errors
-        }
-        window.recaptchaVerifier = null;
+      // Reset on normal errors, full teardown for verifier-specific failures.
+      if (error?.code === 'auth/captcha-check-failed' || error?.code === 'auth/invalid-app-credential') {
+        clearRecaptchaVerifier();
+      } else {
+        resetRecaptchaWidget();
       }
       return { success: false, error: formattedError, code: error?.code || null };
     }
@@ -442,17 +473,17 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await signOut(auth);
-      // Clear recaptcha
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = null;
-      }
+      clearRecaptchaVerifier();
       return { success: true };
     } catch (error) {
       console.error('Logout error:', error);
       return { success: false, error: error.message };
     }
   };
+
+  useEffect(() => () => {
+    clearRecaptchaVerifier();
+  }, []);
 
   // Get Firebase ID token for API calls
   // This token can be sent to the backend for verification
