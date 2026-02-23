@@ -4,10 +4,17 @@ import { appCheck, auth } from '../firebase';
 const APP_CHECK_THROTTLE_BACKOFF_MS = 24 * 60 * 60 * 1000;
 let appCheckBlockedUntil = 0;
 let hasLoggedThrottleWarning = false;
+let hasLoggedCredentialWarning = false;
 
 function isAppCheckThrottleError(error) {
   const code = error?.code;
   return code === 'appCheck/initial-throttle' || code === 'appCheck/throttled';
+}
+
+function isAppCheckCredentialError(error) {
+  const code = error?.code;
+  const httpStatus = error?.customData?.httpStatus;
+  return code === 'appCheck/fetch-status-error' && (httpStatus === 401 || httpStatus === 403);
 }
 
 export async function getAppCheckHeaders() {
@@ -30,6 +37,17 @@ export async function getAppCheckHeaders() {
           'Skipping App Check headers in this tab for 24 hours.'
         );
         hasLoggedThrottleWarning = true;
+      }
+    } else if (isAppCheckCredentialError(error)) {
+      appCheckBlockedUntil = Date.now() + APP_CHECK_THROTTLE_BACKOFF_MS;
+      if (!hasLoggedCredentialWarning) {
+        const httpStatus = error?.customData?.httpStatus ?? 'unknown';
+        console.warn(
+          `[app-check] Token exchange rejected (HTTP ${httpStatus}). ` +
+          'Check App Check provider/site key and API key restrictions. ' +
+          'Skipping App Check headers in this tab for 24 hours.'
+        );
+        hasLoggedCredentialWarning = true;
       }
     }
 

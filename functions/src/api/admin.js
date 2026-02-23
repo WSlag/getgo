@@ -667,6 +667,64 @@ exports.adminGetContracts = functions.region('asia-southeast1').https.onCall(asy
 });
 
 /**
+ * Get All Shipments (Admin)
+ *
+ * Uses an orderBy(createdAt) query when available, with a graceful fallback to
+ * unordered reads for legacy rows that may miss createdAt/index coverage.
+ */
+exports.adminGetShipments = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const { status, limit = 200 } = data || {};
+  const db = admin.firestore();
+  const safeLimit = parseLimit(limit, 200);
+  const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+
+  let baseQuery = db.collection('shipments');
+  if (normalizedStatus && normalizedStatus !== 'all') {
+    baseQuery = baseQuery.where('status', '==', normalizedStatus);
+  }
+
+  let snapshot;
+  try {
+    snapshot = await baseQuery.orderBy('createdAt', 'desc').limit(safeLimit).get();
+  } catch (error) {
+    const code = error?.code;
+    const message = String(error?.message || '').toLowerCase();
+    const canFallback = (
+      code === 9 ||
+      code === 'failed-precondition' ||
+      message.includes('requires an index')
+    );
+
+    if (!canFallback) {
+      throw error;
+    }
+
+    snapshot = await baseQuery.limit(safeLimit).get();
+  }
+
+  const shipments = snapshot.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .sort((a, b) => {
+      const aTs = toComparableTimestamp(
+        a.createdAt,
+        toComparableTimestamp(a.updatedAt, 0)
+      );
+      const bTs = toComparableTimestamp(
+        b.createdAt,
+        toComparableTimestamp(b.updatedAt, 0)
+      );
+      return bTs - aTs;
+    });
+
+  return {
+    shipments,
+    total: shipments.length,
+  };
+});
+
+/**
  * Deactivate a listing (admin moderation)
  */
 exports.adminDeactivateListing = functions.region('asia-southeast1').https.onCall(async (data, context) => {
