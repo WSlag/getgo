@@ -156,7 +156,7 @@ export default function AddressSearch({
             onChange={handleInputChange}
             onFocus={() => setIsOpen(true)}
             placeholder={placeholder}
-            className={`w-full px-4 pr-10 py-2.5 rounded-xl border ${theme.border} ${theme.input} focus:ring-2 focus:ring-amber-500 focus:border-transparent transition`}
+            className={`w-full h-10 px-4 pr-10 py-2 rounded-xl border ${theme.border} ${theme.input} focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200`}
           />
           {query && (
             <button
@@ -210,7 +210,7 @@ export default function AddressSearch({
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
-          className={`w-full px-4 pr-10 py-2.5 rounded-xl border ${theme.border} ${theme.input} focus:ring-2 focus:ring-amber-500 focus:border-transparent transition`}
+          className={`w-full h-10 px-4 pr-10 py-2 rounded-xl border ${theme.border} ${theme.input} focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200`}
         />
         {loading ? (
           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500 animate-spin" />

@@ -33,6 +33,7 @@ const { loadPlatformSettings } = require('./src/config/platformSettings');
 const { verifyAdmin } = require('./src/utils/adminAuth');
 
 const db = admin.firestore();
+const warnedMissingEnvVars = new Set();
 
 function safeErrorMessage(error) {
   if (!error) return 'Unknown error';
@@ -65,6 +66,13 @@ function applyCors(req, res, options = {}) {
 
 function isAppCheckEnforced() {
   return process.env.APP_CHECK_ENFORCED === 'true';
+}
+
+function warnMissingEnvVarOnce(name, context) {
+  const key = `${name}:${context}`;
+  if (warnedMissingEnvVars.has(key)) return;
+  warnedMissingEnvVars.add(key);
+  console.warn(`${context}: ${name} is not configured. Falling back to degraded behavior.`);
 }
 
 function getBearerTokenFromRequest(req) {
@@ -1401,6 +1409,7 @@ exports.getRoute = functions
     }
 
     if (!apiKey) {
+      warnMissingEnvVarOnce('OPENROUTE_API_KEY', 'getRoute');
       return res.status(200).json({
         routes: [],
         error: 'Routing service not configured',
@@ -1462,6 +1471,7 @@ exports.geocode = functions
 
     const apiKey = process.env.OPENROUTE_API_KEY;
     if (!apiKey) {
+      warnMissingEnvVarOnce('OPENROUTE_API_KEY', 'geocode');
       return res.status(200).json({ features: [] });
     }
 
