@@ -1186,6 +1186,7 @@ exports.adminDeleteRating = adminFunctions.adminDeleteRating;
 exports.adminGetOutstandingFees = adminFunctions.adminGetOutstandingFees;
 exports.adminReconcileOutstandingFees = adminFunctions.adminReconcileOutstandingFees;
 exports.adminGetMarketplaceKpis = adminFunctions.adminGetMarketplaceKpis;
+exports.adminGetShipments = adminFunctions.adminGetShipments;
 
 // =============================================================================
 // ACCOUNT RECOVERY FUNCTIONS

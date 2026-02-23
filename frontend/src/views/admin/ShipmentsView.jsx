@@ -13,20 +13,46 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase';
+import api from '@/services/api';
+
+const ACTIVE_SHIPMENT_STATUSES = new Set(['pending_pickup', 'picked_up', 'in_transit']);
+
+function normalizeStatus(status) {
+  if (status === 'pending') return 'pending_pickup';
+  return status || 'in_transit';
+}
+
+function toDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  if (typeof value?._seconds === 'number') return new Date(value._seconds * 1000);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function resolveLocationLabel(value) {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    if (typeof value.name === 'string') return value.name;
+    if (typeof value.label === 'string') return value.label;
+  }
+  return '';
+}
 
 // Status badge
 function StatusBadge({ status }) {
   const config = {
+    pending: { bg: 'bg-slate-100 dark:bg-slate-900/30', text: 'text-slate-600 dark:text-slate-400', icon: Clock },
     pending_pickup: { bg: 'bg-slate-100 dark:bg-slate-900/30', text: 'text-slate-600 dark:text-slate-400', icon: Clock },
     picked_up: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', icon: Package },
     in_transit: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400', icon: Truck },
     delivered: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', icon: CheckCircle2 },
   };
 
-  const { bg, text, icon: Icon } = config[status] || config.in_transit;
-  const label = status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'In Transit';
+  const normalizedStatus = normalizeStatus(status);
+  const { bg, text, icon: Icon } = config[normalizedStatus] || config.in_transit;
+  const label = normalizedStatus?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'In Transit';
 
   return (
     <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium', bg, text)}>
@@ -58,6 +84,7 @@ export function ShipmentsView() {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [shipments, setShipments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [stats, setStats] = useState({ total: 0, inTransit: 0, delivered: 0 });
@@ -65,24 +92,30 @@ export function ShipmentsView() {
   // Fetch shipments
   const fetchShipments = async () => {
     setLoading(true);
+    setLoadError('');
     try {
-      const snapshot = await getDocs(query(collection(db, 'shipments'), orderBy('createdAt', 'desc')));
-      const shipmentsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
+      const response = await api.admin.getShipments({ limit: 500 });
+      const shipmentsData = (response?.shipments || []).map((shipment) => ({
+        ...shipment,
+        status: normalizeStatus(shipment.status),
+        createdAt: toDateValue(shipment.createdAt),
+        updatedAt: toDateValue(shipment.updatedAt),
+        deliveredAt: toDateValue(shipment.deliveredAt),
+        eta: toDateValue(shipment.eta),
       }));
       setShipments(shipmentsData);
 
       // Calculate stats
       setStats({
         total: shipmentsData.length,
-        inTransit: shipmentsData.filter(
-          s => s.status === 'pending_pickup' || s.status === 'picked_up' || s.status === 'in_transit'
-        ).length,
+        inTransit: shipmentsData.filter((shipment) => ACTIVE_SHIPMENT_STATUSES.has(shipment.status)).length,
         delivered: shipmentsData.filter(s => s.status === 'delivered').length,
       });
     } catch (error) {
       console.error('Error fetching shipments:', error);
+      setLoadError(error?.message || 'Failed to load shipments');
+      setShipments([]);
+      setStats({ total: 0, inTransit: 0, delivered: 0 });
     } finally {
       setLoading(false);
     }
@@ -97,9 +130,10 @@ export function ShipmentsView() {
     if (statusFilter !== 'all' && shipment.status !== statusFilter) return false;
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
+    const currentLocation = resolveLocationLabel(shipment.currentLocation).toLowerCase();
     return (
       shipment.trackingNumber?.toLowerCase().includes(query) ||
-      shipment.currentLocation?.toLowerCase().includes(query)
+      currentLocation.includes(query)
     );
   });
 
@@ -121,7 +155,7 @@ export function ShipmentsView() {
         <div className="flex items-center gap-2">
           <Navigation className="size-4 text-orange-500" />
           <span className="text-sm text-gray-900 dark:text-white">
-            {row.currentLocation || 'Location updating...'}
+            {resolveLocationLabel(row.currentLocation) || 'Location updating...'}
           </span>
         </div>
       ),
@@ -204,7 +238,7 @@ export function ShipmentsView() {
         columns={columns}
         data={filteredShipments}
         loading={loading}
-        emptyMessage="No shipments found"
+        emptyMessage={loadError || 'No shipments found'}
         emptyIcon={Truck}
         searchable
         searchQuery={searchQuery}

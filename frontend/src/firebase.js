@@ -70,22 +70,61 @@ if (import.meta.env.PROD) {
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
 const appCheckEnabled = import.meta.env.VITE_ENABLE_APPCHECK !== 'false';
 const appCheckDebugEnabled = import.meta.env.VITE_APPCHECK_DEBUG === 'true' || import.meta.env.DEV;
-const appCheckProviderName = (import.meta.env.VITE_APPCHECK_PROVIDER || 'enterprise').toLowerCase();
-const appCheckSiteKey =
-  import.meta.env.VITE_APPCHECK_SITE_KEY || import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY;
+const configuredAppCheckProvider = (import.meta.env.VITE_APPCHECK_PROVIDER || 'auto').toLowerCase();
+const appCheckSiteKeyV3 = import.meta.env.VITE_APPCHECK_SITE_KEY || '';
+const appCheckSiteKeyEnterprise = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY || '';
+const supportedAppCheckProviders = new Set(['auto', 'enterprise', 'v3', 'off']);
+const appCheckProviderName = supportedAppCheckProviders.has(configuredAppCheckProvider)
+  ? configuredAppCheckProvider
+  : 'auto';
+
+let resolvedAppCheckProvider = appCheckProviderName;
+let resolvedAppCheckSiteKey = '';
+let appCheckResolutionNote = '';
+
+if (appCheckProviderName === 'auto') {
+  if (appCheckSiteKeyEnterprise) {
+    resolvedAppCheckProvider = 'enterprise';
+    resolvedAppCheckSiteKey = appCheckSiteKeyEnterprise;
+  } else if (appCheckSiteKeyV3) {
+    resolvedAppCheckProvider = 'v3';
+    resolvedAppCheckSiteKey = appCheckSiteKeyV3;
+  }
+} else if (appCheckProviderName === 'enterprise') {
+  if (appCheckSiteKeyEnterprise) {
+    resolvedAppCheckSiteKey = appCheckSiteKeyEnterprise;
+  } else if (appCheckSiteKeyV3) {
+    resolvedAppCheckProvider = 'v3';
+    resolvedAppCheckSiteKey = appCheckSiteKeyV3;
+    appCheckResolutionNote =
+      'VITE_APPCHECK_PROVIDER=enterprise but VITE_RECAPTCHA_ENTERPRISE_KEY is missing. Falling back to v3.';
+  }
+} else if (appCheckProviderName === 'v3') {
+  resolvedAppCheckSiteKey = appCheckSiteKeyV3 || appCheckSiteKeyEnterprise;
+  if (!appCheckSiteKeyV3 && appCheckSiteKeyEnterprise) {
+    appCheckResolutionNote =
+      'Using VITE_RECAPTCHA_ENTERPRISE_KEY as a fallback for v3. Prefer VITE_APPCHECK_SITE_KEY.';
+  }
+}
+
+if (appCheckResolutionNote) {
+  console.warn(`[firebase] ${appCheckResolutionNote}`);
+}
+
 const appCheckProviderMap = {
-  enterprise: () => new ReCaptchaEnterpriseProvider(appCheckSiteKey),
-  v3: () => new ReCaptchaV3Provider(appCheckSiteKey),
+  enterprise: () => new ReCaptchaEnterpriseProvider(resolvedAppCheckSiteKey),
+  v3: () => new ReCaptchaV3Provider(resolvedAppCheckSiteKey),
 };
-const appCheckProviderFactory = appCheckProviderMap[appCheckProviderName];
-const appCheckProvider = appCheckSiteKey && appCheckProviderFactory ? appCheckProviderFactory() : null;
+const appCheckProviderFactory = appCheckProviderMap[resolvedAppCheckProvider];
+const appCheckProvider =
+  resolvedAppCheckSiteKey && appCheckProviderFactory ? appCheckProviderFactory() : null;
 const appCheckProviderOff = appCheckProviderName === 'off';
 const shouldInitializeAppCheck =
   !useEmulator &&
   appCheckEnabled &&
   !appCheckProviderOff &&
   typeof window !== 'undefined' &&
-  appCheckSiteKey &&
+  resolvedAppCheckSiteKey &&
   appCheckProvider;
 
 if (shouldInitializeAppCheck) {
@@ -101,10 +140,10 @@ if (shouldInitializeAppCheck) {
     ? 'VITE_ENABLE_APPCHECK=false'
     : appCheckProviderOff
       ? 'VITE_APPCHECK_PROVIDER=off'
-      : !appCheckSiteKey
-        ? 'missing VITE_APPCHECK_SITE_KEY (or VITE_RECAPTCHA_ENTERPRISE_KEY)'
+      : !resolvedAppCheckSiteKey
+        ? 'missing App Check site key (VITE_APPCHECK_SITE_KEY or VITE_RECAPTCHA_ENTERPRISE_KEY)'
         : !appCheckProvider
-          ? `unsupported VITE_APPCHECK_PROVIDER=${appCheckProviderName}`
+          ? `unsupported VITE_APPCHECK_PROVIDER=${appCheckProviderName} (resolved=${resolvedAppCheckProvider})`
           : 'non-browser runtime';
   console.info(`[firebase] App Check not initialized (${reason}).`);
 }

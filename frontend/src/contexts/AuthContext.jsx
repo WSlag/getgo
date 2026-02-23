@@ -12,6 +12,25 @@ import api from '../services/api';
 
 const AuthContext = createContext();
 
+function formatFirebaseAuthError(error) {
+  const code = error?.code || '';
+  const rawMessage = typeof error?.message === 'string' ? error.message : 'Authentication failed.';
+
+  const firebaseCodeMessages = {
+    'auth/invalid-api-key': 'Firebase API key is invalid. Check VITE_FIREBASE_API_KEY.',
+    'auth/app-not-authorized': 'This web domain is not authorized in Firebase Authentication.',
+    'auth/invalid-app-credential':
+      'App verification failed. Check reCAPTCHA/App Check site key and key restrictions.',
+    'auth/captcha-check-failed':
+      'reCAPTCHA validation failed. Reload the page and try again.',
+    'auth/too-many-requests': 'Too many attempts. Please wait and try again.',
+    'auth/invalid-phone-number': 'Invalid phone number format.',
+  };
+
+  const normalizedMessage = firebaseCodeMessages[code] || rawMessage;
+  return code ? `${normalizedMessage} (${code})` : normalizedMessage;
+}
+
 export function AuthProvider({ children }) {
   const [authUser, setAuthUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -192,7 +211,13 @@ export function AuthProvider({ children }) {
       setConfirmationResult(result);
       return { success: true, formattedPhone };
     } catch (error) {
-      setAuthError(error.message);
+      const formattedError = formatFirebaseAuthError(error);
+      console.error('Send OTP error:', {
+        code: error?.code,
+        message: error?.message,
+        name: error?.name,
+      });
+      setAuthError(formattedError);
       // Reset recaptcha on error
       if (window.recaptchaVerifier) {
         try {
@@ -202,7 +227,7 @@ export function AuthProvider({ children }) {
         }
         window.recaptchaVerifier = null;
       }
-      return { success: false, error: error.message };
+      return { success: false, error: formattedError, code: error?.code || null };
     }
   };
 
@@ -221,8 +246,9 @@ export function AuthProvider({ children }) {
       setConfirmationResult(null);
       return { success: true, user: result.user };
     } catch (error) {
-      setAuthError(error.message);
-      return { success: false, error: error.message };
+      const formattedError = formatFirebaseAuthError(error);
+      setAuthError(formattedError);
+      return { success: false, error: formattedError, code: error?.code || null };
     }
   };
 
@@ -239,8 +265,9 @@ export function AuthProvider({ children }) {
       const credential = await signInWithCustomToken(auth, response.customToken);
       return { success: true, user: credential.user };
     } catch (error) {
-      setAuthError(error.message);
-      return { success: false, error: error.message };
+      const formattedError = formatFirebaseAuthError(error);
+      setAuthError(formattedError);
+      return { success: false, error: formattedError, code: error?.code || null };
     }
   };
 

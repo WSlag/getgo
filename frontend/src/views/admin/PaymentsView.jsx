@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Shield,
   AlertTriangle,
@@ -110,6 +110,12 @@ function toDateValue(value) {
   if (typeof value?.seconds === 'number') return new Date(value.seconds * 1000);
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatSubmissionDate(value, options = {}) {
+  const parsedDate = toDateValue(value);
+  if (!parsedDate) return 'N/A';
+  return formatDate(parsedDate, options);
 }
 
 function getDueStatus(contract) {
@@ -282,7 +288,7 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
                     <Calendar className="size-4" /> Submitted:
                   </span>
                   <span className="text-gray-700 dark:text-gray-300">
-                    {formatDate(submission.createdAt)}
+                    {formatSubmissionDate(submission.createdAt)}
                   </span>
                 </div>
               </div>
@@ -465,7 +471,7 @@ export function PaymentsView({ className }) {
   }).length;
 
   // Fetch pending submissions
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -477,19 +483,19 @@ export function PaymentsView({ className }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
   // Fetch stats
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const data = await api.admin.getPaymentStats();
       setStats(data);
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
-  };
+  }, []);
 
-  const fetchOutstandingFees = async () => {
+  const fetchOutstandingFees = useCallback(async () => {
     setOutstandingLoading(true);
     setOutstandingError(null);
     try {
@@ -502,16 +508,16 @@ export function PaymentsView({ className }) {
     } finally {
       setOutstandingLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchSubmissions();
     fetchStats();
-  }, [filter]);
+  }, [fetchSubmissions, fetchStats]);
 
   useEffect(() => {
     fetchOutstandingFees();
-  }, []);
+  }, [fetchOutstandingFees]);
 
   // Handle approve
   const handleApprove = async (submissionId, notes) => {
@@ -560,6 +566,8 @@ export function PaymentsView({ className }) {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
+      s.userName?.toLowerCase().includes(query) ||
+      s.userEmail?.toLowerCase().includes(query) ||
       s.orderId?.toLowerCase().includes(query) ||
       s.userId?.toLowerCase().includes(query) ||
       s.extractedData?.referenceNumber?.toLowerCase().includes(query)
@@ -602,10 +610,10 @@ export function PaymentsView({ className }) {
       render: (_, row) => (
         <div>
           <p className="font-medium text-gray-900 dark:text-white text-sm">
-            {row.extractedData?.referenceNumber || 'No ref'}
+            {row.userName || row.userEmail || row.userId?.slice(0, 12) || 'Unknown user'}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-            {row.orderId?.slice(0, 12)}...
+            {row.extractedData?.referenceNumber || row.orderId?.slice(0, 12) || 'No ref'}
           </p>
         </div>
       ),
@@ -662,7 +670,7 @@ export function PaymentsView({ className }) {
       header: 'Submitted',
       render: (_, row) => (
         <span className="text-sm text-gray-500 dark:text-gray-400">
-          {formatDate(row.createdAt, { year: undefined })}
+          {formatSubmissionDate(row.createdAt, { year: undefined })}
         </span>
       ),
     },
@@ -832,7 +840,7 @@ export function PaymentsView({ className }) {
         searchable
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search by order ID, user ID, or reference..."
+        searchPlaceholder="Search by username, order ID, user ID, or reference..."
         filters={
           <>
             {['manual_review', 'processing', 'approved', 'rejected'].map((status) => (
