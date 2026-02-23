@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   onAuthStateChanged,
   signInWithPhoneNumber,
+  RecaptchaVerifier,
   signInWithCustomToken,
   signOut
 } from 'firebase/auth';
@@ -10,11 +11,36 @@ import { auth, db } from '../firebase';
 import api from '../services/api';
 
 const AuthContext = createContext();
+const RECAPTCHA_CONTAINER_ID = 'firebase-auth-recaptcha-container';
+
+function ensureRecaptchaContainer() {
+  if (typeof document === 'undefined') return null;
+  let container = document.getElementById(RECAPTCHA_CONTAINER_ID);
+  if (container) return container;
+
+  container = document.createElement('div');
+  container.id = RECAPTCHA_CONTAINER_ID;
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.bottom = '0';
+  container.style.width = '1px';
+  container.style.height = '1px';
+  container.style.opacity = '0';
+  container.style.pointerEvents = 'none';
+  document.body.appendChild(container);
+  return container;
+}
 
 function formatFirebaseAuthError(error) {
   const code = error?.code || '';
   const rawMessage = typeof error?.message === 'string' ? error.message : 'Authentication failed.';
+  const rawMessageLower = rawMessage.toLowerCase();
   const isDev = typeof import.meta !== 'undefined' && Boolean(import.meta.env?.DEV);
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+
+  if (rawMessageLower.includes('invalid site key or not loaded')) {
+    return `reCAPTCHA site key is invalid for ${currentHost}. Check Firebase Authentication authorized domains and reCAPTCHA key restrictions.`;
+  }
 
   const firebaseCodeMessages = {
     'auth/invalid-api-key': 'Firebase API key is invalid. Check VITE_FIREBASE_API_KEY.',
@@ -27,6 +53,8 @@ function formatFirebaseAuthError(error) {
       'Security token validation failed. Retry in a new tab or disable App Check for this environment.',
     'auth/captcha-check-failed':
       'reCAPTCHA validation failed. Reload the page and try again.',
+    'auth/network-request-failed':
+      'Network request failed while contacting Firebase Authentication. Check internet and CSP/network restrictions.',
     'auth/too-many-requests': 'Too many attempts. Please wait and try again.',
     'auth/invalid-phone-number': 'Invalid phone number format.',
     'auth/invalid-verification-code': 'Incorrect code. Please try again.',
@@ -54,6 +82,56 @@ export function AuthProvider({ children }) {
   const [isNewUser, setIsNewUser] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [authError, setAuthError] = useState(null);
+  const recaptchaVerifierRef = useRef(null);
+
+  const clearRecaptchaVerifier = useCallback(() => {
+    if (recaptchaVerifierRef.current) {
+      try {
+        recaptchaVerifierRef.current.clear();
+      } catch {
+        // Ignore teardown errors
+      }
+      recaptchaVerifierRef.current = null;
+    }
+  }, []);
+
+  const getRecaptchaVerifier = useCallback(() => {
+    if (typeof window === 'undefined') {
+      throw new Error('reCAPTCHA verifier requires a browser environment.');
+    }
+
+    if (recaptchaVerifierRef.current) {
+      return recaptchaVerifierRef.current;
+    }
+
+    const container = ensureRecaptchaContainer();
+    if (!container) {
+      throw new Error('Failed to initialize reCAPTCHA container.');
+    }
+
+    const verifier = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, {
+      size: 'invisible',
+      callback: () => {},
+      'expired-callback': () => {
+        clearRecaptchaVerifier();
+      },
+    });
+
+    recaptchaVerifierRef.current = verifier;
+    return verifier;
+  }, [clearRecaptchaVerifier]);
+
+  useEffect(() => {
+    return () => {
+      clearRecaptchaVerifier();
+      if (typeof document !== 'undefined') {
+        const container = document.getElementById(RECAPTCHA_CONTAINER_ID);
+        if (container?.parentNode) {
+          container.parentNode.removeChild(container);
+        }
+      }
+    };
+  }, [clearRecaptchaVerifier]);
 
   // Listen to auth state changes
   useEffect(() => {
@@ -174,11 +252,20 @@ export function AuthProvider({ children }) {
         formattedPhone = '+63' + formattedPhone;
       }
 
-      const result = await signInWithPhoneNumber(auth, formattedPhone);
+      const verifier = getRecaptchaVerifier();
+      const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
 
       setConfirmationResult(result);
       return { success: true, formattedPhone };
     } catch (error) {
+      const recaptchaFailure =
+        error?.code === 'auth/invalid-app-credential'
+        || error?.code === 'auth/captcha-check-failed'
+        || String(error?.message || '').toLowerCase().includes('invalid site key');
+      if (recaptchaFailure) {
+        clearRecaptchaVerifier();
+      }
+
       const formattedError = formatFirebaseAuthError(error);
       console.error('Send OTP error:', {
         code: error?.code,

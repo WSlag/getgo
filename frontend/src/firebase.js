@@ -46,7 +46,10 @@ function extractHost(value) {
 }
 
 function resolveAuthDomain(configuredAuthDomain) {
-  if (typeof window === 'undefined' || !import.meta.env.PROD) {
+  // Keep authDomain stable by default.
+  // Set VITE_USE_RUNTIME_AUTH_DOMAIN=true to opt in to host-based authDomain overrides.
+  const allowRuntimeAuthDomain = import.meta.env.VITE_USE_RUNTIME_AUTH_DOMAIN === 'true';
+  if (typeof window === 'undefined' || !import.meta.env.PROD || !allowRuntimeAuthDomain) {
     return configuredAuthDomain;
   }
 

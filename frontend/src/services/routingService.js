@@ -26,6 +26,8 @@ const ROUTE_PROXY_URL = resolveFunctionProxyUrl({
 // Simple in-memory cache for routes
 const routeCache = new Map();
 const inFlightRequests = new Map();
+let lastRouteNetworkErrorLogAt = 0;
+const ROUTE_NETWORK_ERROR_LOG_THROTTLE_MS = 30000;
 
 /**
  * Generate cache key for a route
@@ -118,6 +120,10 @@ export const fetchRoute = async (origin, destination) => {
         return cacheFallbackAndReturn();
       }
 
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return cacheFallbackAndReturn();
+      }
+
       const securityHeaders = await getProtectedFunctionHeaders();
       const hasSecurityHeader = Boolean(
         securityHeaders['X-Firebase-AppCheck'] || securityHeaders.Authorization
@@ -176,7 +182,11 @@ export const fetchRoute = async (origin, destination) => {
 
       return result;
     } catch (error) {
-      console.error('Failed to fetch route:', error);
+      const now = Date.now();
+      if (now - lastRouteNetworkErrorLogAt >= ROUTE_NETWORK_ERROR_LOG_THROTTLE_MS) {
+        console.error('Failed to fetch route:', error);
+        lastRouteNetworkErrorLogAt = now;
+      }
       return cacheFallbackAndReturn();
     }
   })();
