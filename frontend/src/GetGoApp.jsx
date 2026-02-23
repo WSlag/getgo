@@ -1687,7 +1687,7 @@ export default function GetGoApp() {
           </main>
         )}
 
-        {activeTab === 'profile' && <ErrorBoundary><ProfilePage /></ErrorBoundary>}
+        {activeTab === 'profile' && <ErrorBoundary><ProfilePage onNavigateToActivity={() => setActiveTab('activity')} /></ErrorBoundary>}
 
         {activeTab === 'broker' && (
           <ErrorBoundary>

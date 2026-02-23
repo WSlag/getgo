@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   User, Phone, Mail, Facebook, Building2, MapPin,
   Truck, Star, Award, Wallet, LogOut, Package,
-  FileText, Calendar, Edit3, Save, KeyRound, RefreshCw
+  FileText, Calendar, Edit3, Save, KeyRound, RefreshCw,
+  ClipboardList, ChevronRight
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
-export function ProfilePage() {
+export function ProfilePage({ onNavigateToActivity }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const {
     userProfile,
@@ -331,6 +332,26 @@ export function ProfilePage() {
           </>
         )}
       </div>
+
+      {/* My Activity Button */}
+        {onNavigateToActivity && (
+          <button
+            onClick={onNavigateToActivity}
+            className="w-full flex items-center justify-between rounded-2xl bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 border border-orange-200 dark:border-orange-800/50 shadow-sm hover:shadow-md hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-200 group"
+            style={{ padding: '16px 20px', marginBottom: '24px' }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-xl bg-orange-500/15 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-500/25 transition-colors">
+                <ClipboardList className="size-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">My Activity</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Bookings, Contracts &amp; Tracking</p>
+              </div>
+            </div>
+            <ChevronRight className="size-5 text-orange-400 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        )}
 
       {/* Contact Information Card */}
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm" style={{ padding: '24px', marginBottom: '24px' }}>
