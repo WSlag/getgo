@@ -17,6 +17,31 @@ const {
   toDate,
 } = require('../services/brokerListingReferralService');
 
+function resolveBidListingReference(db, bid = {}) {
+  const cargoListingId = typeof bid.cargoListingId === 'string' ? bid.cargoListingId.trim() : '';
+  const truckListingId = typeof bid.truckListingId === 'string' ? bid.truckListingId.trim() : '';
+
+  if (cargoListingId && !truckListingId) {
+    return {
+      listingCollection: 'cargoListings',
+      listingId: cargoListingId,
+      listingRef: db.collection('cargoListings').doc(cargoListingId),
+      listingType: 'cargo',
+    };
+  }
+
+  if (truckListingId && !cargoListingId) {
+    return {
+      listingCollection: 'truckListings',
+      listingId: truckListingId,
+      listingRef: db.collection('truckListings').doc(truckListingId),
+      listingType: 'truck',
+    };
+  }
+
+  return null;
+}
+
 async function markListingReferralAsActed(db, bidId, bid, brokerId) {
   const listingType = bid.cargoListingId ? 'cargo' : (bid.truckListingId ? 'truck' : null);
   const listingId = bid.cargoListingId || bid.truckListingId || null;
@@ -69,16 +94,44 @@ exports.onBidCreated = onDocumentCreated(
     const bid = snap.data();
     const bidId = event.params.bidId;
     const db = admin.firestore();
+    const listingReference = resolveBidListingReference(db, bid);
+
+    if (!listingReference) {
+      console.warn('[onBidCreated] Skipping side effects: invalid listing reference', { bidId });
+      return null;
+    }
+
+    const listingDoc = await listingReference.listingRef.get();
+    if (!listingDoc.exists) {
+      console.warn('[onBidCreated] Skipping side effects: listing not found', {
+        bidId,
+        listingCollection: listingReference.listingCollection,
+        listingId: listingReference.listingId,
+      });
+      return null;
+    }
+
+    const listingData = listingDoc.data() || {};
+    const authoritativeListingOwnerId = listingData.userId || null;
+    if (!authoritativeListingOwnerId || authoritativeListingOwnerId !== bid.listingOwnerId) {
+      console.warn('[onBidCreated] Skipping side effects: listing owner mismatch', {
+        bidId,
+        listingCollection: listingReference.listingCollection,
+        listingId: listingReference.listingId,
+        bidListingOwnerId: bid.listingOwnerId || null,
+        authoritativeListingOwnerId,
+      });
+      return null;
+    }
 
     // Get bidder name
     const bidderDoc = await db.collection('users').doc(bid.bidderId).get();
     const bidderName = bidderDoc.exists ? bidderDoc.data().name : 'Someone';
 
     // Server-authoritative bid count increment with idempotency guard.
-    const listingCollection = bid.cargoListingId ? 'cargoListings' : (bid.truckListingId ? 'truckListings' : null);
-    const listingId = bid.cargoListingId || bid.truckListingId || null;
+    const { listingCollection, listingId } = listingReference;
     if (listingCollection && listingId) {
-      const listingRef = db.collection(listingCollection).doc(listingId);
+      const listingRef = listingReference.listingRef;
       const ledgerRef = db.collection('bidCountEvents').doc(bidId);
 
       await db.runTransaction(async (tx) => {
@@ -101,19 +154,19 @@ exports.onBidCreated = onDocumentCreated(
     }
 
     // Notify listing owner
-    if (bid.listingOwnerId) {
+    if (authoritativeListingOwnerId) {
       await db
-        .collection(`users/${bid.listingOwnerId}/notifications`)
+        .collection(`users/${authoritativeListingOwnerId}/notifications`)
         .doc()
         .set({
           type: 'NEW_BID',
           title: 'New Bid Received',
-          message: `${bidderName} placed a bid of ₱${bid.price.toLocaleString()} on your listing`,
+          message: `${bidderName} placed a bid of PHP ${Number(bid.price || 0).toLocaleString()} on your listing`,
           data: {
             bidId,
             listingId: bid.listingId,
             bidderId: bid.bidderId,
-            price: bid.price,
+            price: Number(bid.price || 0),
           },
           isRead: false,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -124,10 +177,12 @@ exports.onBidCreated = onDocumentCreated(
     try {
       const [referral, ownerDoc] = await Promise.all([
         getBrokerReferralForUser(bid.bidderId, db),
-        bid.listingOwnerId ? db.collection('users').doc(bid.listingOwnerId).get() : Promise.resolve(null),
+        authoritativeListingOwnerId
+          ? db.collection('users').doc(authoritativeListingOwnerId).get()
+          : Promise.resolve(null),
       ]);
       if (referral?.brokerId) {
-        const listingType = bid.cargoListingId ? 'cargo' : 'truck';
+        const listingType = listingReference.listingType;
         const activityType = mapBidActivityType(listingType);
         await upsertBrokerMarketplaceActivity(`bid:${bidId}`, {
           brokerId: referral.brokerId,

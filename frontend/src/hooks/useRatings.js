@@ -3,6 +3,37 @@ import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestor
 import { db } from '../firebase';
 import api from '../services/api';
 
+const toMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeRating = (docSnap) => {
+  const data = docSnap.data() || {};
+  const canonicalRateeId = data.rateeId || data.ratedUserId || null;
+  return {
+    id: docSnap.id,
+    ...data,
+    rateeId: canonicalRateeId,
+    ratedUserId: data.ratedUserId || canonicalRateeId,
+    createdAt: data.createdAt?.toDate?.() || new Date(),
+  };
+};
+
+const mergeRatings = (canonicalDocs = [], legacyDocs = []) => {
+  const merged = new Map();
+  [...canonicalDocs, ...legacyDocs].forEach((item) => {
+    if (!merged.has(item.id)) {
+      merged.set(item.id, item);
+    }
+  });
+
+  return Array.from(merged.values()).sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+};
+
 // Hook to get ratings for a user
 export function useUserRatings(userId) {
   const [ratings, setRatings] = useState([]);
@@ -18,32 +49,45 @@ export function useUserRatings(userId) {
       return;
     }
 
-    const q = query(
+    const canonicalQuery = query(
+      collection(db, 'ratings'),
+      where('rateeId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    const legacyQuery = query(
       collection(db, 'ratings'),
       where('ratedUserId', '==', userId),
       orderBy('createdAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-        }));
-        setRatings(data);
+    let canonicalRatings = [];
+    let legacyRatings = [];
+    let canonicalReady = false;
+    let legacyReady = false;
 
-        // Calculate average rating
-        if (data.length > 0) {
-          const avg = data.reduce((sum, r) => sum + r.score, 0) / data.length;
-          setAverageRating(avg.toFixed(1));
-        } else {
-          setAverageRating(null);
-        }
+    const pushState = () => {
+      const merged = mergeRatings(canonicalRatings, legacyRatings);
+      setRatings(merged);
 
+      if (merged.length > 0) {
+        const avg = merged.reduce((sum, rating) => sum + Number(rating.score || 0), 0) / merged.length;
+        setAverageRating(avg.toFixed(1));
+      } else {
+        setAverageRating(null);
+      }
+
+      if (canonicalReady && legacyReady) {
         setLoading(false);
-        setError(null);
+      }
+      setError(null);
+    };
+
+    const unsubscribeCanonical = onSnapshot(
+      canonicalQuery,
+      (snapshot) => {
+        canonicalRatings = snapshot.docs.map(normalizeRating);
+        canonicalReady = true;
+        pushState();
       },
       (err) => {
         console.error('Error fetching user ratings:', err);
@@ -52,7 +96,24 @@ export function useUserRatings(userId) {
       }
     );
 
-    return () => unsubscribe();
+    const unsubscribeLegacy = onSnapshot(
+      legacyQuery,
+      (snapshot) => {
+        legacyRatings = snapshot.docs.map(normalizeRating);
+        legacyReady = true;
+        pushState();
+      },
+      (err) => {
+        console.error('Error fetching user ratings (legacy field):', err);
+        setError(err.message);
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      unsubscribeCanonical();
+      unsubscribeLegacy();
+    };
   }, [userId]);
 
   return { ratings, averageRating, loading, error };

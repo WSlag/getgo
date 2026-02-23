@@ -58,6 +58,108 @@ service cloud.firestore {
       );
     }
 
+    // Helper: bid references cargo listing (and self-consistent ids/type)
+    function hasCargoBidReference(bidData) {
+      return bidData.cargoListingId is string
+        && bidData.cargoListingId.size() > 0
+        && bidData.truckListingId == null
+        && bidData.listingType == 'cargo'
+        && bidData.listingId == bidData.cargoListingId;
+    }
+
+    // Helper: bid references truck listing (and self-consistent ids/type)
+    function hasTruckBidReference(bidData) {
+      return bidData.truckListingId is string
+        && bidData.truckListingId.size() > 0
+        && bidData.cargoListingId == null
+        && bidData.listingType == 'truck'
+        && bidData.listingId == bidData.truckListingId;
+    }
+
+    // Helper: ensure exactly one listing reference is present
+    function hasExactlyOneBidListingRef(bidData) {
+      return hasCargoBidReference(bidData) || hasTruckBidReference(bidData);
+    }
+
+    function cargoListingIsBiddable(listingId) {
+      return listingId is string
+        && exists(/databases/$(database)/documents/cargoListings/$(listingId))
+        && get(/databases/$(database)/documents/cargoListings/$(listingId)).data.status == 'open';
+    }
+
+    function truckListingIsBiddable(listingId) {
+      return listingId is string
+        && exists(/databases/$(database)/documents/truckListings/$(listingId))
+        && get(/databases/$(database)/documents/truckListings/$(listingId)).data.status in ['open', 'available', 'waiting', 'in_transit'];
+    }
+
+    // Helper: listing owner in bid payload must match authoritative listing owner
+    function listingOwnerMatchesBidReference(bidData) {
+      return (
+        hasCargoBidReference(bidData)
+        && cargoListingIsBiddable(bidData.cargoListingId)
+        && get(/databases/$(database)/documents/cargoListings/$(bidData.cargoListingId)).data.userId == bidData.listingOwnerId
+      ) || (
+        hasTruckBidReference(bidData)
+        && truckListingIsBiddable(bidData.truckListingId)
+        && get(/databases/$(database)/documents/truckListings/$(bidData.truckListingId)).data.userId == bidData.listingOwnerId
+      );
+    }
+
+    function hasValidBidCreateShape(bidData) {
+      return bidData.keys().hasOnly([
+          'bidderId',
+          'bidderName',
+          'bidderType',
+          'bidderRating',
+          'bidderTrips',
+          'bidderTransactions',
+          'listingId',
+          'cargoListingId',
+          'truckListingId',
+          'listingType',
+          'listingOwnerId',
+          'listingOwnerName',
+          'origin',
+          'destination',
+          'price',
+          'message',
+          'cargoType',
+          'cargoWeight',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+        && bidData.bidderId is string
+        && bidData.bidderName is string
+        && bidData.bidderType in ['shipper', 'trucker']
+        && (bidData.bidderRating == null || bidData.bidderRating is number)
+        && (bidData.bidderTrips == null || bidData.bidderTrips is number)
+        && (bidData.bidderTransactions == null || bidData.bidderTransactions is number)
+        && bidData.listingId is string
+        && bidData.listingType in ['cargo', 'truck']
+        && bidData.listingOwnerId is string
+        && bidData.listingOwnerName is string
+        && bidData.origin is string
+        && bidData.destination is string
+        && bidData.price is number
+        && bidData.message is string
+        && (bidData.cargoType == null || bidData.cargoType is string)
+        && (bidData.cargoWeight == null || bidData.cargoWeight is number)
+        && bidData.status == 'pending'
+        && bidData.createdAt is timestamp
+        && bidData.updatedAt is timestamp;
+    }
+
+    function isValidBidCreate(bidData) {
+      return hasValidBidCreateShape(bidData)
+        && hasExactlyOneBidListingRef(bidData)
+        && listingOwnerMatchesBidReference(bidData)
+        && bidData.bidderId == request.auth.uid
+        && bidData.bidderId != bidData.listingOwnerId
+        && bidData.price > 0;
+    }
+
     // Helper: identify which user will owe platform fee for a bid
     function feePayerIdForBid(bidData) {
       return bidData.cargoListingId != null ? bidData.bidderId : bidData.listingOwnerId;
@@ -214,7 +316,7 @@ service cloud.firestore {
         resource.data.listingOwnerId == request.auth.uid ||
         isAdmin()
       );
-      allow create: if isAccountActive() && request.resource.data.bidderId == request.auth.uid;
+      allow create: if isAccountActive() && isValidBidCreate(request.resource.data);
       allow update: if isAuth() && (
         resource.data.bidderId == request.auth.uid ||
         (
@@ -269,7 +371,7 @@ service cloud.firestore {
     // Ratings
     match /ratings/{ratingId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.raterId == request.auth.uid;
+      allow create: if false; // Server-authoritative via submitRating callable
       allow update: if false;
       allow delete: if false;
     }

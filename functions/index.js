@@ -45,7 +45,8 @@ function safeErrorMessage(error) {
 }
 
 function getAllowedOrigins() {
-  const rawOrigins = process.env.ALLOWED_ORIGIN || 'https://karga-ph.web.app';
+  const rawOrigins = process.env.ALLOWED_ORIGIN
+    || 'https://karga-ph.web.app,https://karga-ph.firebaseapp.com,https://karga.ph,https://www.karga.ph';
   return rawOrigins
     .split(',')
     .map((origin) => origin.trim())

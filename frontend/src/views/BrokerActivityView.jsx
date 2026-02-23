@@ -120,59 +120,60 @@ export function BrokerActivityView({ onToast }) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Filters row */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-1.5">
-          {typeFilters.map((filter) => (
-            <button
-              key={filter.id}
-              onClick={() => setTypeFilter(filter.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                typeFilter === filter.id
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-800'
-              }`}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
+    <div className="flex flex-col gap-4">
+      {/* Filters & Actions Card */}
+      <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {typeFilters.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => setTypeFilter(filter.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  typeFilter === filter.id
+                    ? 'bg-orange-500 text-white shadow-sm'
+                    : 'bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-800'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          {statusFilters.map((filter) => (
-            <button
-              key={filter.id}
-              onClick={() => setStatusFilter(filter.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                statusFilter === filter.id
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-800'
-              }`}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
-      </div>
+          <div className="flex flex-wrap gap-1.5">
+            {statusFilters.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => setStatusFilter(filter.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  statusFilter === filter.id
+                    ? 'bg-orange-500 text-white shadow-sm'
+                    : 'bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-800'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
 
-      {/* Backfill button */}
-      <div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 text-xs h-8"
-          onClick={handleBackfill}
-          disabled={backfilling}
-        >
-          {backfilling ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-          Backfill History
-        </Button>
+          <div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs h-8"
+              onClick={handleBackfill}
+              disabled={backfilling}
+            >
+              {backfilling ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+              Backfill History
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Summary cards */}
       {summary && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {[
             { label: 'Total', value: summary.total || 0, icon: <TrendingUp className="size-3.5 text-orange-500" /> },
             { label: 'Cargo Bids', value: summary?.byType?.cargo_bids || 0, icon: <Package className="size-3.5 text-blue-500" /> },
@@ -182,7 +183,7 @@ export function BrokerActivityView({ onToast }) {
           ].map(({ label, value, icon }) => (
             <div
               key={label}
-              className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3"
+              className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3"
             >
               <div className="flex items-center gap-1.5 mb-1">
                 {icon}
@@ -194,90 +195,92 @@ export function BrokerActivityView({ onToast }) {
         </div>
       )}
 
-      {/* Content */}
-      {loading && items.length === 0 ? (
-        <div className="py-12 flex flex-col items-center justify-center gap-2 text-gray-500">
-          <Loader2 className="size-5 animate-spin text-orange-500" />
-          <p className="text-sm">Loading broker activity...</p>
-        </div>
-      ) : error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300 p-4 text-sm">
-          {error}
-        </div>
-      ) : items.length === 0 ? (
-        <div className="py-12 flex flex-col items-center justify-center gap-2">
-          <div className="size-12 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-            <TrendingUp className="size-5 text-gray-400" />
+      {/* Content Card */}
+      <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+        {loading && items.length === 0 ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-2 text-gray-500">
+            <Loader2 className="size-5 animate-spin text-orange-500" />
+            <p className="text-sm">Loading broker activity...</p>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">No broker activity yet.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3.5"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="shrink-0 size-7 rounded-lg bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center text-orange-500">
-                    {typeIcon(item.activityType)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                      {typeLabel(item.activityType)}
-                    </p>
-                    {(item.origin || item.destination) && (
-                      <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        <span className="truncate max-w-[80px]">{item.origin || '—'}</span>
-                        <ArrowRight className="size-3 shrink-0" />
-                        <span className="truncate max-w-[80px]">{item.destination || '—'}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusClass(item.status)}`}>
-                  {String(item.status || 'pending')}
-                </span>
-              </div>
-
-              <div className="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-800 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                {item.referredUserMasked && (
-                  <span>User: <span className="text-gray-700 dark:text-gray-300 font-medium">{item.referredUserMasked}</span></span>
-                )}
-                {item.counterpartyMasked && (
-                  <span>Counterparty: <span className="text-gray-700 dark:text-gray-300 font-medium">{item.counterpartyMasked}</span></span>
-                )}
-                {item.amount ? (
-                  <span>Amount: <span className="text-gray-700 dark:text-gray-300 font-medium">₱{Number(item.amount).toLocaleString()}</span></span>
-                ) : null}
-                {item.activityAt && (
-                  <span className="flex items-center gap-1 ml-auto">
-                    <Calendar className="size-3" />
-                    {formatDate(item.activityAt)}
-                  </span>
-                )}
-              </div>
+        ) : error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300 p-4 text-sm">
+            {error}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-2">
+            <div className="size-12 rounded-2xl bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+              <TrendingUp className="size-5 text-gray-400" />
             </div>
-          ))}
-        </div>
-      )}
+            <p className="text-sm text-gray-500 dark:text-gray-400">No broker activity yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3.5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="shrink-0 size-7 rounded-lg bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center text-orange-500">
+                      {typeIcon(item.activityType)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                        {typeLabel(item.activityType)}
+                      </p>
+                      {(item.origin || item.destination) && (
+                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          <span className="truncate max-w-[80px]">{item.origin || '—'}</span>
+                          <ArrowRight className="size-3 shrink-0" />
+                          <span className="truncate max-w-[80px]">{item.destination || '—'}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusClass(item.status)}`}>
+                    {String(item.status || 'pending')}
+                  </span>
+                </div>
 
-      {hasMore && !loading && (
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => loadActivity({ append: true, cursorValue: cursor })}
-        >
-          Load more
-        </Button>
-      )}
+                <div className="mt-2.5 pt-2.5 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                  {item.referredUserMasked && (
+                    <span>User: <span className="text-gray-700 dark:text-gray-300 font-medium">{item.referredUserMasked}</span></span>
+                  )}
+                  {item.counterpartyMasked && (
+                    <span>Counterparty: <span className="text-gray-700 dark:text-gray-300 font-medium">{item.counterpartyMasked}</span></span>
+                  )}
+                  {item.amount ? (
+                    <span>Amount: <span className="text-gray-700 dark:text-gray-300 font-medium">₱{Number(item.amount).toLocaleString()}</span></span>
+                  ) : null}
+                  {item.activityAt && (
+                    <span className="flex items-center gap-1 ml-auto">
+                      <Calendar className="size-3" />
+                      {formatDate(item.activityAt)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-      {loading && items.length > 0 && (
-        <div className="flex justify-center py-2">
-          <Loader2 className="size-4 animate-spin text-orange-500" />
-        </div>
-      )}
+        {hasMore && !loading && (
+          <Button
+            variant="outline"
+            className="w-full mt-3"
+            onClick={() => loadActivity({ append: true, cursorValue: cursor })}
+          >
+            Load more
+          </Button>
+        )}
+
+        {loading && items.length > 0 && (
+          <div className="flex justify-center py-3">
+            <Loader2 className="size-4 animate-spin text-orange-500" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -535,10 +535,52 @@ export const updateShipmentLocation = async (shipmentId, lat, lng, locationName,
 // RATINGS
 // ============================================================
 
+const toMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeRatingDoc = (docSnap) => {
+  const data = docSnap.data() || {};
+  const canonicalRateeId = data.rateeId || data.ratedUserId || null;
+  return {
+    id: docSnap.id,
+    ...data,
+    rateeId: canonicalRateeId,
+    ratedUserId: data.ratedUserId || canonicalRateeId,
+  };
+};
+
+const mergeRatings = (...snapshots) => {
+  const merged = new Map();
+  snapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((docSnap) => {
+      if (!merged.has(docSnap.id)) {
+        merged.set(docSnap.id, normalizeRatingDoc(docSnap));
+      }
+    });
+  });
+
+  return Array.from(merged.values()).sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+};
+
+async function getRatingsForRateeMerged(rateeId) {
+  const [canonicalSnapshot, legacySnapshot] = await Promise.all([
+    getDocs(query(collection(db, 'ratings'), where('rateeId', '==', rateeId))),
+    getDocs(query(collection(db, 'ratings'), where('ratedUserId', '==', rateeId))),
+  ]);
+
+  return mergeRatings(canonicalSnapshot, legacySnapshot);
+}
+
 export const createRating = async (contractId, raterId, ratedUserId, score, tags, comment) => {
   const ratingData = {
     contractId,
     raterId,
+    rateeId: ratedUserId,
     ratedUserId,
     score,
     tags: tags || [],
@@ -549,20 +591,10 @@ export const createRating = async (contractId, raterId, ratedUserId, score, tags
   const docRef = await addDoc(collection(db, 'ratings'), ratingData);
 
   // Update rated user's average rating (for truckers)
-  const ratingsQuery = query(
-    collection(db, 'ratings'),
-    where('ratedUserId', '==', ratedUserId)
-  );
-  const ratingsSnap = await getDocs(ratingsQuery);
+  const ratings = await getRatingsForRateeMerged(ratedUserId);
 
-  let totalScore = score;
-  let count = 1;
-  ratingsSnap.forEach((docSnap) => {
-    if (docSnap.id !== docRef.id) {
-      totalScore += docSnap.data().score;
-      count++;
-    }
-  });
+  const totalScore = ratings.reduce((sum, rating) => sum + Number(rating.score || 0), 0);
+  const count = ratings.length || 1;
 
   const avgRating = parseFloat((totalScore / count).toFixed(1));
 
@@ -732,10 +764,7 @@ export const getUserPaymentOrders = async (userId, status = null) => {
  * @returns {Promise<{ratings: Array, averageScore: number, totalRatings: number}>}
  */
 export const getRatingsForUser = async (userId) => {
-  const snapshot = await getDocs(
-    query(collection(db, 'ratings'), where('ratedUserId', '==', userId), orderBy('createdAt', 'desc'))
-  );
-  const ratings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const ratings = await getRatingsForRateeMerged(userId);
   const averageScore = ratings.length
     ? ratings.reduce((sum, r) => sum + (r.score || 0), 0) / ratings.length
     : 0;

@@ -32,6 +32,10 @@ jobs:
         working-directory: ./functions
         run: npm install
 
+      - name: Audit functions runtime dependencies
+        working-directory: ./functions
+        run: npm run audit:prod
+
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 

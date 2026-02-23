@@ -6,6 +6,27 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
+function mergeRatingDocs(...snapshots) {
+  const merged = new Map();
+  snapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((doc) => {
+      if (!merged.has(doc.id)) {
+        merged.set(doc.id, doc);
+      }
+    });
+  });
+  return Array.from(merged.values());
+}
+
+async function getRatingsForRatee(db, rateeId) {
+  const [canonicalSnap, legacySnap] = await Promise.all([
+    db.collection('ratings').where('rateeId', '==', rateeId).get(),
+    db.collection('ratings').where('ratedUserId', '==', rateeId).get(),
+  ]);
+
+  return mergeRatingDocs(canonicalSnap, legacySnap);
+}
+
 /**
  * Submit Rating
  */
@@ -72,6 +93,7 @@ exports.submitRating = functions.region('asia-southeast1').https.onCall(async (d
     raterId: userId,
     raterName,
     rateeId: ratedUserId,
+    ratedUserId, // legacy compatibility field during migration window
     rateeName: ratedUserName,
     score,
     tags: tags || [],
@@ -79,19 +101,16 @@ exports.submitRating = functions.region('asia-southeast1').https.onCall(async (d
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // Update user's average rating (will be handled by trigger in Phase 4)
-  // For now, calculate and update immediately
-  const ratingsSnap = await db.collection('ratings')
-    .where('rateeId', '==', ratedUserId)
-    .get();
+  // Update user's average rating immediately (trigger also maintains this).
+  const ratingDocs = await getRatingsForRatee(db, ratedUserId);
 
   let totalScore = 0;
-  ratingsSnap.docs.forEach(doc => {
+  ratingDocs.forEach(doc => {
     totalScore += doc.data().score;
   });
 
-  const avgRating = totalScore / ratingsSnap.size;
-  const totalRatings = ratingsSnap.size;
+  const totalRatings = ratingDocs.length;
+  const avgRating = totalRatings > 0 ? (totalScore / totalRatings) : 0;
 
   // Update user profile
   await db.collection('users').doc(ratedUserId).update({
@@ -103,7 +122,12 @@ exports.submitRating = functions.region('asia-southeast1').https.onCall(async (d
   // Update trucker/shipper profile if applicable
   const ratedUser = ratedUserDoc.data();
   if (ratedUser && ratedUser.role === 'trucker') {
-    const truckerProfileDoc = await db.collection('truckerProfiles').doc(ratedUserId).get();
+    const truckerProfileRef = db.collection('users')
+      .doc(ratedUserId)
+      .collection('truckerProfile')
+      .doc('profile');
+    const truckerProfileDoc = await truckerProfileRef.get();
+
     if (truckerProfileDoc.exists) {
       const truckerData = truckerProfileDoc.data();
       const totalTrips = truckerData.totalTrips || 0;
@@ -115,7 +139,7 @@ exports.submitRating = functions.region('asia-southeast1').https.onCall(async (d
       else if (avgRating >= 4.0 && totalTrips >= 20) badge = 'VERIFIED';
       else if (totalTrips >= 5) badge = 'ACTIVE';
 
-      await db.collection('truckerProfiles').doc(ratedUserId).update({
+      await truckerProfileRef.update({
         badge,
         rating: avgRating,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
