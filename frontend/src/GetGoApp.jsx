@@ -1490,6 +1490,11 @@ export default function GetGoApp() {
     }
   };
 
+  const handleSidebarMarketChange = (market) => {
+    setActiveMarket(market);
+    setActiveTab('home');
+  };
+
   // If admin dashboard is open, render it instead of main app
   if (showAdminDashboard && isAdmin) {
     return (
@@ -1533,7 +1538,7 @@ export default function GetGoApp() {
           className="hidden lg:flex"
           currentRole={userRole}
           activeMarket={activeMarket}
-          onMarketChange={setActiveMarket}
+          onMarketChange={handleSidebarMarketChange}
           cargoCount={cargoListings.length}
           truckCount={truckListings.length}
           openCargoCount={openCargoCount}
