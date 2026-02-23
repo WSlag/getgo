@@ -2,7 +2,17 @@ import { useState, useCallback, useEffect } from 'react';
 
 const STORAGE_KEY = 'karga.marketplace.preferences.v1';
 
+const HASH_TABS = ['home', 'tracking', 'contracts', 'messages', 'notifications', 'profile', 'bids', 'broker', 'activity'];
+
+function getTabFromHash() {
+  if (typeof window === 'undefined') return null;
+  const hash = window.location.hash.replace('#', '');
+  return HASH_TABS.includes(hash) ? hash : null;
+}
+
 function loadPreferences(initialTab, initialMarket) {
+  const hashTab = getTabFromHash();
+
   if (typeof window === 'undefined') {
     return {
       activeTab: initialTab,
@@ -17,7 +27,7 @@ function loadPreferences(initialTab, initialMarket) {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       return {
-        activeTab: initialTab,
+        activeTab: hashTab || initialTab,
         activeMarket: initialMarket,
         filterStatus: 'all',
         searchQuery: '',
@@ -27,7 +37,7 @@ function loadPreferences(initialTab, initialMarket) {
 
     const parsed = JSON.parse(raw);
     return {
-      activeTab: parsed.activeTab || initialTab,
+      activeTab: hashTab || parsed.activeTab || initialTab,
       activeMarket: parsed.activeMarket || initialMarket,
       filterStatus: parsed.filterStatus || 'all',
       searchQuery: parsed.searchQuery || '',
@@ -36,7 +46,7 @@ function loadPreferences(initialTab, initialMarket) {
   } catch (error) {
     console.warn('Failed to load marketplace preferences:', error);
     return {
-      activeTab: initialTab,
+      activeTab: hashTab || initialTab,
       activeMarket: initialMarket,
       filterStatus: 'all',
       searchQuery: '',
@@ -56,6 +66,30 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo') {
   const [filterStatus, setFilterStatus] = useState(initialPreferences.filterStatus);
   const [searchQuery, setSearchQuery] = useState(initialPreferences.searchQuery);
   const [sortBy, setSortBy] = useState(initialPreferences.sortBy);
+
+  // Sync URL hash with active tab
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hash = activeTab === 'home' ? '' : `#${activeTab}`;
+    if (window.location.hash !== hash) {
+      window.history.replaceState(null, '', hash || window.location.pathname);
+    }
+  }, [activeTab]);
+
+  // Listen for browser back/forward hash changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleHashChange = () => {
+      const tab = getTabFromHash();
+      if (tab && tab !== activeTab) {
+        setActiveTab(tab);
+      } else if (!window.location.hash) {
+        setActiveTab('home');
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [activeTab]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {

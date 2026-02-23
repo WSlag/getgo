@@ -73,6 +73,23 @@ body {
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
+/* Focus-visible indicator for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--ring, #f97316);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Smooth transitions */
 .transition-theme {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;

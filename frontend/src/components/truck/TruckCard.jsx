@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Star, Calendar, Users } from 'lucide-react';
+import { MapPin, Clock, Navigation, Star, Calendar, Users, Truck as TruckIcon, Eye, MessageSquare, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { RouteMap } from '@/components/maps';
@@ -56,9 +56,9 @@ export function TruckCard({
     offline: 'OFFLINE',
   };
 
-  // Gradient colors for price pill and buttons based on status (matching CargoCard pattern)
+  // Gradient colors for price pill and buttons based on status (aligned with CargoCard)
   const gradientColors = {
-    available: 'bg-gradient-to-r from-purple-400 to-purple-600',
+    available: 'bg-gradient-to-r from-orange-400 to-orange-600',
     'in-transit': 'bg-gradient-to-r from-orange-400 to-orange-600',
     booked: 'bg-gradient-to-r from-blue-400 to-blue-600',
     offline: 'bg-gradient-to-r from-gray-400 to-gray-600',
@@ -312,8 +312,12 @@ export function TruckCard({
                   className="size-full object-cover group-hover/img:scale-110 transition-transform duration-300"
                   onError={(e) => {
                     e.target.style.display = 'none';
+                    e.target.nextElementSibling?.classList.remove('hidden');
                   }}
                 />
+                <div className="hidden absolute inset-0 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <TruckIcon className="size-6 text-gray-400" />
+                </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity duration-300" />
               </div>
             ))}
@@ -389,16 +393,20 @@ export function TruckCard({
                 onClick={onViewDetails}
                 className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
                 style={{ padding: '14px 20px' }}
+                title="Details"
               >
-                Details
+                <Eye className="size-4 sm:hidden" />
+                <span className="hidden sm:inline">Details</span>
               </button>
               {canRefer && onRefer && (
                 <button
                   onClick={onRefer}
                   className="rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 text-orange-700 dark:text-orange-200 hover:from-orange-200 hover:to-orange-300 dark:hover:from-orange-800/60 dark:hover:to-orange-700/60 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
                   style={{ padding: '14px 20px' }}
+                  title="Refer"
                 >
-                  Refer
+                  <Share2 className="size-4 sm:hidden" />
+                  <span className="hidden sm:inline">Refer</span>
                 </button>
               )}
             </>
@@ -420,8 +428,10 @@ export function TruckCard({
                   onClick={onContact}
                   className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
                   style={{ padding: '14px 20px' }}
+                  title="Request Chat"
                 >
-                  Request Chat
+                  <MessageSquare className="size-4 sm:hidden" />
+                  <span className="hidden sm:inline">Request Chat</span>
                 </button>
               )}
               {canRefer && onRefer && (
@@ -429,8 +439,10 @@ export function TruckCard({
                   onClick={onRefer}
                   className="rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 text-orange-700 dark:text-orange-200 hover:from-orange-200 hover:to-orange-300 dark:hover:from-orange-800/60 dark:hover:to-orange-700/60 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
                   style={{ padding: '14px 20px' }}
+                  title="Refer"
                 >
-                  Refer
+                  <Share2 className="size-4 sm:hidden" />
+                  <span className="hidden sm:inline">Refer</span>
                 </button>
               )}
             </>

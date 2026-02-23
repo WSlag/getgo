@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { RouteMap } from '@/components/maps';
 import { useBidsForListing } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { canBookTruckStatus, toTruckUiStatus } from '@/utils/listingStatus';
 import api from '@/services/api';
 
@@ -40,6 +41,7 @@ export function TruckDetailsModal({
   const [processingBidId, setProcessingBidId] = React.useState(null);
   const [processingAction, setProcessingAction] = React.useState(null);
   const [bidContracts, setBidContracts] = React.useState({});
+  const [confirmAction, setConfirmAction] = React.useState(null);
 
   const handleAcceptBid = async (bid) => {
     if (!onAcceptBid) return;
@@ -62,6 +64,21 @@ export function TruckDetailsModal({
     } finally {
       setProcessingBidId(null);
       setProcessingAction(null);
+    }
+  };
+
+  const requestConfirmAction = (type, bid) => {
+    setConfirmAction({ type, bid });
+  };
+
+  const executeConfirmedAction = async () => {
+    if (!confirmAction) return;
+    const { type, bid } = confirmAction;
+    setConfirmAction(null);
+    if (type === 'accept') {
+      await handleAcceptBid(bid);
+    } else {
+      await handleRejectBid(bid);
     }
   };
 
@@ -179,8 +196,9 @@ export function TruckDetailsModal({
   }));
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm" hideCloseButton>
+      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm">
         <div style={{ padding: isMobile ? '16px' : '24px' }}>
         <DialogHeader>
           <div className="flex items-center justify-between">
@@ -533,7 +551,7 @@ export function TruckDetailsModal({
                             variant="outline"
                             size={isMobile ? "sm" : "default"}
                             className="gap-1 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
-                            onClick={() => handleAcceptBid(booking._original)}
+                            onClick={() => requestConfirmAction('accept', booking._original)}
                             disabled={processingBidId === booking.id}
                           >
                             {processingBidId === booking.id && processingAction === 'accept' ? (
@@ -547,7 +565,7 @@ export function TruckDetailsModal({
                             variant="outline"
                             size={isMobile ? "sm" : "default"}
                             className="gap-1 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            onClick={() => handleRejectBid(booking._original)}
+                            onClick={() => requestConfirmAction('reject', booking._original)}
                             disabled={processingBidId === booking.id}
                           >
                             {processingBidId === booking.id && processingAction === 'reject' ? (
@@ -635,6 +653,21 @@ export function TruckDetailsModal({
         </div>
       </DialogBottomSheet>
     </Dialog>
+
+    <ConfirmDialog
+      open={!!confirmAction}
+      title={confirmAction?.type === 'accept' ? 'Accept this booking?' : 'Reject this booking?'}
+      description={
+        confirmAction?.type === 'accept'
+          ? 'Accepting this booking will create a contract with this shipper. Other pending bookings will remain open.'
+          : 'This booking will be rejected and the shipper will be notified.'
+      }
+      confirmLabel={confirmAction?.type === 'accept' ? 'Accept Booking' : 'Reject Booking'}
+      variant={confirmAction?.type === 'reject' ? 'destructive' : 'default'}
+      onConfirm={executeConfirmedAction}
+      onCancel={() => setConfirmAction(null)}
+    />
+    </>
   );
 }
 

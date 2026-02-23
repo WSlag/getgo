@@ -24,11 +24,12 @@ const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef(
-  ({ className, children, ...props }, ref) => (
+  ({ className, children, 'aria-describedby': ariaDescribedBy, ...props }, ref) => (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
         ref={ref}
+        aria-describedby={ariaDescribedBy ?? undefined}
         style={{ padding: '28px' }}
         className={cn(
           "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-2xl max-h-[90vh] overflow-y-auto",
@@ -49,7 +50,7 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 // Bottom Sheet variant - slides up from bottom on mobile
 const DialogBottomSheet = React.forwardRef(
-  ({ className, children, hideCloseButton = false, ...props }, ref) => {
+  ({ className, children, hideCloseButton = false, 'aria-describedby': ariaDescribedBy, ...props }, ref) => {
     // Separate children into scrollable content and fixed footer
     const childrenArray = React.Children.toArray(children);
     const scrollableContent = [];
@@ -68,6 +69,7 @@ const DialogBottomSheet = React.forwardRef(
         <DialogOverlay />
         <DialogPrimitive.Content
           ref={ref}
+          aria-describedby={ariaDescribedBy ?? undefined}
           className={cn(
             // Mobile: Bottom sheet that slides up
             "fixed inset-x-0 bottom-0 z-50 w-full border-t bg-background shadow-2xl duration-300",

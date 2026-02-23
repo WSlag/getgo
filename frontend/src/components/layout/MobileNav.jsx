@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, MessageSquare, Plus, ClipboardList, User } from 'lucide-react';
+import { Home, MessageSquare, Plus, MapPin, User, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function MobileNav({
@@ -7,18 +7,19 @@ export function MobileNav({
   onTabChange,
   onPostClick,
   unreadMessages = 0,
-  activityBadge = 0, // Combined bids + contracts count
+  unreadNotifications = 0,
   currentRole = 'shipper', // 'shipper' or 'trucker'
   className,
 }) {
-  // Streamlined 5-item navigation
-  // [Home] [Activity] [+ Post] [Messages] [Profile]
+  // 5-item navigation with Tracking replacing Activity
+  // [Home] [Tracking] [+ Post] [Messages] [Profile]
+  // Notifications accessible via bell badge on Profile
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
-    { id: 'activity', label: 'Activity', icon: ClipboardList, badge: activityBadge },
+    { id: 'tracking', label: 'Tracking', icon: MapPin },
     { id: 'post', label: 'Post', icon: Plus, isAction: true },
     { id: 'messages', label: 'Messages', icon: MessageSquare, badge: unreadMessages },
-    { id: 'profile', label: 'Profile', icon: User },
+    { id: 'profile', label: 'Profile', icon: User, notificationBadge: unreadNotifications },
   ];
 
   return (
@@ -55,9 +56,11 @@ export function MobileNav({
           return (
             <button
               key={item.id}
+              aria-label={item.label}
+              aria-current={isActive ? 'page' : undefined}
               onClick={() => onTabChange?.(item.id)}
               className={cn(
-                "flex flex-col items-center justify-center rounded-xl transition-all duration-300 relative hover:scale-105 active:scale-95",
+                "flex flex-col items-center justify-center rounded-xl transition-all duration-300 relative hover:scale-105 active:scale-95 min-h-[44px]",
                 isActive
                   ? "text-orange-600 dark:text-orange-400"
                   : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -69,6 +72,11 @@ export function MobileNav({
                 {item.badge > 0 && (
                   <span className="absolute -top-1 -right-1 size-4 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white dark:border-gray-900">
                     {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                )}
+                {item.notificationBadge > 0 && (
+                  <span className="absolute -top-1 -right-1 size-4 flex items-center justify-center bg-orange-500 text-white text-[10px] font-bold rounded-full border-2 border-white dark:border-gray-900">
+                    {item.notificationBadge > 9 ? '9+' : item.notificationBadge}
                   </span>
                 )}
               </div>

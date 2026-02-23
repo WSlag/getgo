@@ -282,7 +282,7 @@ export function PostModal({
                     value={formData.cargoType}
                     onChange={(e) => handleChange('cargoType', e.target.value)}
                     className={cn(
-                      "w-full h-10 px-3 rounded-xl border bg-input-background text-sm focus:ring-2 focus:ring-ring focus:ring-offset-2 outline-none",
+                      "w-full h-10 px-4 rounded-xl border bg-input-background text-sm focus:ring-2 focus:ring-ring focus:ring-offset-2 outline-none",
                       errors.cargoType ? "border-red-500" : "border-border"
                     )}
                   >
@@ -325,7 +325,7 @@ export function PostModal({
               value={formData.vehicleType}
               onChange={(e) => handleChange('vehicleType', e.target.value)}
               className={cn(
-                "w-full h-10 px-3 rounded-xl border bg-input-background text-sm focus:ring-2 focus:ring-ring focus:ring-offset-2 outline-none",
+                "w-full h-10 px-4 rounded-xl border bg-input-background text-sm focus:ring-2 focus:ring-ring focus:ring-offset-2 outline-none",
                 errors.vehicleType ? "border-red-500" : "border-border"
               )}
             >

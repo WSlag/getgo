@@ -4,7 +4,8 @@
  * while preserving all existing Firebase functionality
  */
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, Suspense, lazy } from 'react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Firestore Service
@@ -40,6 +41,7 @@ import { useMarketplace } from './hooks/useMarketplace';
 import { useModals } from './hooks/useModals';
 import { useSocket } from './hooks/useSocket';
 import { useAuthGuard } from './hooks/useAuthGuard';
+import { useToast } from './contexts/ToastContext';
 import { useBrokerOnboarding } from './hooks/useBrokerOnboarding';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { InAppBrowserOverlay } from '@/components/shared/InAppBrowserOverlay';
@@ -51,6 +53,7 @@ import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import ErrorBoundary from '@/components/shared/ErrorBoundary';
+import { NotFoundView } from '@/components/shared/NotFoundView';
 
 // View Components
 import { HomeView } from '@/views/HomeView';
@@ -63,12 +66,14 @@ import { ChatView } from '@/views/ChatView';
 import { BrokerView } from '@/views/BrokerView';
 import { NotificationsView } from '@/views/NotificationsView';
 import { ProfilePage } from '@/components/profile/ProfilePage';
-import { AdminDashboard } from '@/views/admin/AdminDashboard';
+const AdminDashboard = lazy(() => import('@/views/admin/AdminDashboard'));
 import ActivityView from '@/views/ActivityView';
 
 // Modal Components
-import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, RouteOptimizerModal, MyBidsModal, ContractModal, RatingModal } from '@/components/modals';
-import { GCashPaymentModal } from '@/components/modals/GCashPaymentModal';
+import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, MyBidsModal, RatingModal } from '@/components/modals';
+const GCashPaymentModal = lazy(() => import('@/components/modals/GCashPaymentModal'));
+const RouteOptimizerModal = lazy(() => import('@/components/modals/RouteOptimizerModal'));
+const ContractModal = lazy(() => import('@/components/modals/ContractModal'));
 import ReferListingModal from '@/components/broker/ReferListingModal';
 import { FullMapModal } from '@/components/maps';
 import AuthModal from '@/components/auth/AuthModal';
@@ -201,8 +206,8 @@ export default function GetGoApp() {
   const [contractFilter, setContractFilter] = useState('all');
   const [activityInitialMode, setActivityInitialMode] = useState('my');
 
-  // Toast notification state for real-time events
-  const [toasts, setToasts] = useState([]);
+  // Toast notifications via context
+  const showToast = useToast();
   const [ratingTarget, setRatingTarget] = useState(null);
   const [ratingLoading, setRatingLoading] = useState(false);
   const [savedSearches, setSavedSearches] = useState([]);
@@ -214,15 +219,6 @@ export default function GetGoApp() {
     }
   }, [activeTab, activityInitialMode]);
 
-  // Show toast notification
-  const showToast = (toast) => {
-    const id = `${Date.now()}-${Math.random()}`;
-    setToasts((prev) => [...prev, { id, ...toast }]);
-    // Auto-dismiss after 5 seconds
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 5000);
-  };
 
   const getUserErrorMessage = (error, fallback) => {
     const code = String(error?.code || '').toLowerCase();
@@ -1496,7 +1492,11 @@ export default function GetGoApp() {
 
   // If admin dashboard is open, render it instead of main app
   if (showAdminDashboard && isAdmin) {
-    return <AdminDashboard onBackToApp={handleBackFromAdmin} />;
+    return (
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950"><Loader2 className="size-6 animate-spin text-orange-500" /></div>}>
+        <AdminDashboard onBackToApp={handleBackFromAdmin} />
+      </Suspense>
+    );
   }
 
   return (
@@ -1792,6 +1792,11 @@ export default function GetGoApp() {
             <ContractVerificationView darkMode={darkMode} />
           </ErrorBoundary>
         )}
+
+        {/* Fallback for invalid/unknown tabs */}
+        {!['home', 'activity', 'tracking', 'notifications', 'profile', 'broker', 'bids', 'messages', 'contracts', 'adminPayments', 'contractVerification'].includes(activeTab) && (
+          <NotFoundView onGoHome={() => setActiveTab('home')} />
+        )}
       </div>
 
       {/* Mobile Navigation */}
@@ -1800,7 +1805,7 @@ export default function GetGoApp() {
         onTabChange={setActiveTab}
         onPostClick={handlePostClick}
         unreadMessages={unreadMessages}
-        activityBadge={activityBadge}
+        unreadNotifications={unreadNotifications}
         currentRole={userRole}
       />
 
@@ -2091,16 +2096,18 @@ export default function GetGoApp() {
       />
 
       {/* Route Optimizer Modal */}
-      <RouteOptimizerModal
-        open={modals.routeOptimizer}
-        onClose={() => closeModal('routeOptimizer')}
-        initialOrigin={getModalData('routeOptimizer')?.origin}
-        initialDestination={getModalData('routeOptimizer')?.destination}
-        savedRoutes={savedRoutes}
-        onSaveRoute={handleSaveRoute}
-        onApplySavedRoute={handleApplySavedRoute}
-        onDeleteSavedRoute={handleDeleteSavedRoute}
-      />
+      <Suspense fallback={null}>
+        <RouteOptimizerModal
+          open={modals.routeOptimizer}
+          onClose={() => closeModal('routeOptimizer')}
+          initialOrigin={getModalData('routeOptimizer')?.origin}
+          initialDestination={getModalData('routeOptimizer')?.destination}
+          savedRoutes={savedRoutes}
+          onSaveRoute={handleSaveRoute}
+          onApplySavedRoute={handleApplySavedRoute}
+          onDeleteSavedRoute={handleDeleteSavedRoute}
+        />
+      </Suspense>
 
       {/* My Bids Modal */}
       <MyBidsModal
@@ -2115,27 +2122,31 @@ export default function GetGoApp() {
       />
 
       {/* GCash Payment Modal (replaces PlatformFeeModal) */}
-      <GCashPaymentModal
-        open={modals.platformFee}
-        onClose={() => {
-          closeModal('platformFee');
-          setPendingContractData(null);
-        }}
-        data={getModalData('platformFee')}
-        onContractCreated={handleContractCreated}
-      />
+      <Suspense fallback={null}>
+        <GCashPaymentModal
+          open={modals.platformFee}
+          onClose={() => {
+            closeModal('platformFee');
+            setPendingContractData(null);
+          }}
+          data={getModalData('platformFee')}
+          onContractCreated={handleContractCreated}
+        />
+      </Suspense>
 
       {/* Contract Modal */}
-      <ContractModal
-        open={modals.contract}
-        onClose={() => closeModal('contract')}
-        contract={getModalData('contract')}
-        currentUser={{ id: authUser?.uid, ...userProfile }}
-        onSign={handleSignContract}
-        onComplete={handleCompleteContract}
-        onPayPlatformFee={handlePayPlatformFee}
-        loading={contractLoading}
-      />
+      <Suspense fallback={null}>
+        <ContractModal
+          open={modals.contract}
+          onClose={() => closeModal('contract')}
+          contract={getModalData('contract')}
+          currentUser={{ id: authUser?.uid, ...userProfile }}
+          onSign={handleSignContract}
+          onComplete={handleCompleteContract}
+          onPayPlatformFee={handlePayPlatformFee}
+          loading={contractLoading}
+        />
+      </Suspense>
 
       <RatingModal
         open={!!ratingTarget}
@@ -2253,64 +2264,6 @@ export default function GetGoApp() {
         }}
       />
 
-      {/* Toast Notifications for Real-Time Events */}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 w-[min(320px,calc(100vw-32px))]">
-        {toasts.map((toast) => {
-          const isShipment = ['SHIPMENT_STATUS', 'tracking'].includes(toast.type);
-          const isRating = toast.type === 'RATING_REQUEST';
-          const isBid = toast.type === 'bid';
-          const isBidAccepted = toast.type === 'bid-accepted';
-          const isMessage = toast.type === 'message';
-          const isError = toast.type === 'error';
-          return (
-            <div
-              key={toast.id}
-              className={cn(
-                "flex items-start gap-3 p-4 rounded-xl shadow-lg border backdrop-blur-sm animate-in slide-in-from-top-2 duration-300",
-                isBid && "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
-                isBidAccepted && "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
-                isMessage && "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800",
-                isShipment && "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800",
-                isRating && "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800",
-                isError && "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800",
-                !isBid && !isBidAccepted && !isMessage && !isShipment && !isRating && !isError && "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-              )}
-            >
-              <div className={cn(
-                "size-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm",
-                isBid && "bg-green-500",
-                isBidAccepted && "bg-blue-500",
-                isMessage && "bg-purple-500",
-                isShipment && "bg-orange-500",
-                isRating && "bg-yellow-500",
-                isError && "bg-red-500",
-                !isBid && !isBidAccepted && !isMessage && !isShipment && !isRating && !isError && "bg-gray-500"
-              )}>
-                {isBid && '₱'}
-                {isBidAccepted && '✓'}
-                {isMessage && '💬'}
-                {isShipment && '📦'}
-                {isRating && '⭐'}
-                {isError && '!'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm text-gray-900 dark:text-white leading-snug">
-                  {toast.title}
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 leading-snug break-words">
-                  {toast.message}
-                </p>
-              </div>
-              <button
-                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 text-lg leading-none"
-              >
-                ×
-              </button>
-            </div>
-          );
-        })}
-      </div>
       </ErrorBoundary>
 
       {/* Socket Connection Indicator (dev mode) */}

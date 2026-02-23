@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Clock3, ExternalLink, Loader2, X } from 'lucide-react';
+import { Clock3, ExternalLink, Loader2, X, FileText } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 function toDate(value) {
   if (!value) return null;
@@ -142,9 +143,11 @@ export function ReferredListingsView({
           {error}
         </div>
       ) : items.length === 0 ? (
-        <div className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-          No referred listings found.
-        </div>
+        <EmptyState
+          icon={FileText}
+          title="No referred listings"
+          description="Listings you refer will appear here. Share cargo or truck listings to earn referral commissions."
+        />
       ) : (
         <div className="space-y-3">
           {items.map((item) => {

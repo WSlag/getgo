@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MessageSquare, Send, MapPin, Package, Truck, Loader2, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,7 @@ export function ChatModal({
   const [loadingContract, setLoadingContract] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const isMobile = useMediaQuery('(max-width: 1023px)');
 
   // Extract data from modal props
   const listing = data?.listing;
@@ -349,14 +351,14 @@ export function ChatModal({
           backgroundColor: '#f9fafb',
           overflow: 'hidden',
           minHeight: '220px',
-          maxHeight: '320px'
+          maxHeight: isMobile ? '320px' : '480px'
         }}>
           <div style={{
             height: '100%',
             overflowY: 'auto',
             padding: '16px',
             minHeight: '220px',
-            maxHeight: '320px'
+            maxHeight: isMobile ? '320px' : '480px'
           }}>
             {messagesLoading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>

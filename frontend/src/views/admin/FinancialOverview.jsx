@@ -12,7 +12,7 @@ import { PesoIcon } from '@/components/ui/PesoIcon';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, collectionGroup, documentId, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { collection, documentId, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db } from '@/firebase';
 import api from '@/services/api';
 
@@ -132,18 +132,8 @@ export function FinancialOverview() {
         console.warn('Platform fee query blocked; using callable stat fallbacks:', platformFeeError);
       }
 
-      let totalWalletBalance = fallbackWalletBalance;
-      try {
-        // Aggregate wallet balances without N+1 user queries
-        const walletsSnapshot = await getDocs(query(collectionGroup(db, 'wallet')));
-        totalWalletBalance = 0;
-        walletsSnapshot.forEach((walletDoc) => {
-          totalWalletBalance += Number(walletDoc.data()?.balance || 0);
-        });
-      } catch (walletError) {
-        // Keep fallback value from adminGetDashboardStats.
-        console.warn('Wallet balance query blocked, using admin summary fallback:', walletError);
-      }
+      // Use server-side admin summary to avoid client-side rules failures on collectionGroup(wallet).
+      const totalWalletBalance = fallbackWalletBalance;
 
       setStats({
         totalRevenue,

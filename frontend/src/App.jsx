@@ -2,14 +2,11 @@ import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import RegisterScreen from './components/auth/RegisterScreen';
 import GetGoApp from './GetGoApp';
-import KargaMarketplace from './KargaMarketplace';
 import { Loader2 } from 'lucide-react';
 import { Logo } from '@/components/shared/Logo';
 import { PWAUpdateNotification } from '@/components/shared/PWAUpdateNotification';
 import ErrorBoundary from '@/components/shared/ErrorBoundary';
-
-// Feature flag to switch between old and new UI
-const USE_NEW_UI = true;
+import { ToastProvider } from './contexts/ToastContext';
 
 function AppContent() {
   const { loading, isNewUser, authUser } = useAuth();
@@ -64,15 +61,17 @@ function AppContent() {
 
   // Show main app for both authenticated users AND guests
   // Login/signup is handled via modal when user tries protected actions
-  return USE_NEW_UI ? <GetGoApp /> : <KargaMarketplace />;
+  return <GetGoApp />;
 }
 
 function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AppContent />
-        <PWAUpdateNotification />
+        <ToastProvider>
+          <AppContent />
+          <PWAUpdateNotification />
+        </ToastProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

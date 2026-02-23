@@ -128,6 +128,7 @@ export function RatingModal({
               <button
                 key={star}
                 type="button"
+                aria-label={`Rate ${star} out of 5 stars`}
                 onClick={() => setRating(star)}
                 onMouseEnter={() => setHoverRating(star)}
                 onMouseLeave={() => setHoverRating(0)}

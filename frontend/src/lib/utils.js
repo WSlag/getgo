@@ -72,3 +72,39 @@ export function formatPrice(price) {
   if (price === null || price === undefined) return '0';
   return Number(price).toLocaleString();
 }
+
+/**
+ * Format a timestamp as relative time (e.g., "2h ago", "Yesterday")
+ */
+export function formatRelativeTime(date) {
+  if (!date) return '';
+  const d = date.toDate ? date.toDate() : new Date(date);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return formatDate(date, { hour: undefined, minute: undefined });
+}
+
+/**
+ * Format a date with time for display
+ */
+export function formatDateTime(date) {
+  if (!date) return 'N/A';
+  const d = date.toDate ? date.toDate() : new Date(date);
+  return d.toLocaleString('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}

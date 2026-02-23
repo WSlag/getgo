@@ -1,9 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Clock3, Landmark, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock3, Landmark, XCircle, Loader2 } from 'lucide-react';
 import api from '@/services/api';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 function toDate(value) {
@@ -81,30 +91,29 @@ export function BrokerPayoutsView({ onRequestsUpdated }) {
       .reduce((sum, r) => sum + Number(r.amount || 0), 0),
   }), [requests]);
 
-  const reviewRequest = async (request, decision) => {
+  const [reviewDialog, setReviewDialog] = useState(null); // { request, decision }
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [reviewPayoutRef, setReviewPayoutRef] = useState('');
+
+  const openReviewDialog = (request, decision) => {
     if (request.status !== 'pending') return;
+    setReviewDialog({ request, decision });
+    setReviewNotes('');
+    setReviewPayoutRef('');
+  };
 
-    const notes = window.prompt(
-      decision === 'approve'
-        ? 'Optional approval notes:'
-        : 'Reason for rejection (required):',
-      ''
-    );
+  const submitReview = async () => {
+    if (!reviewDialog) return;
+    const { request, decision } = reviewDialog;
 
-    if (decision === 'reject' && !String(notes || '').trim()) {
-      return;
-    }
-
-    let payoutReference = null;
-    if (decision === 'approve') {
-      payoutReference = window.prompt('Payout reference (optional):', '') || null;
-    }
+    if (decision === 'reject' && !reviewNotes.trim()) return;
 
     setActingId(request.id);
+    setReviewDialog(null);
     try {
       await api.admin.reviewBrokerPayout(request.id, decision, {
-        notes: notes || null,
-        payoutReference,
+        notes: reviewNotes || null,
+        payoutReference: reviewPayoutRef || null,
       });
       await loadRequests();
     } catch (reviewError) {
@@ -163,7 +172,7 @@ export function BrokerPayoutsView({ onRequestsUpdated }) {
           <Button
             size="sm"
             disabled={row.status !== 'pending' || actingId === row.id}
-            onClick={() => reviewRequest(row, 'approve')}
+            onClick={() => openReviewDialog(row, 'approve')}
             className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-sm hover:scale-105 active:scale-95 transition-all duration-300"
           >
             Approve
@@ -172,7 +181,7 @@ export function BrokerPayoutsView({ onRequestsUpdated }) {
             size="sm"
             variant="outline"
             disabled={row.status !== 'pending' || actingId === row.id}
-            onClick={() => reviewRequest(row, 'reject')}
+            onClick={() => openReviewDialog(row, 'reject')}
             className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
           >
             Reject
@@ -236,6 +245,53 @@ export function BrokerPayoutsView({ onRequestsUpdated }) {
           </>
         )}
       />
+      <Dialog open={!!reviewDialog} onOpenChange={(isOpen) => { if (!isOpen) setReviewDialog(null); }}>
+        <DialogContent className="max-w-sm" aria-describedby="review-dialog-desc">
+          <DialogHeader>
+            <DialogTitle>
+              {reviewDialog?.decision === 'approve' ? 'Approve Payout' : 'Reject Payout'}
+            </DialogTitle>
+            <DialogDescription id="review-dialog-desc">
+              {reviewDialog?.decision === 'approve'
+                ? 'Optionally add notes and a payout reference.'
+                : 'Please provide a reason for rejection.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1 block">
+                {reviewDialog?.decision === 'approve' ? 'Notes (optional)' : 'Reason (required)'}
+              </label>
+              <Textarea
+                value={reviewNotes}
+                onChange={(e) => setReviewNotes(e.target.value)}
+                placeholder={reviewDialog?.decision === 'approve' ? 'Optional approval notes...' : 'Reason for rejection...'}
+                rows={3}
+              />
+            </div>
+            {reviewDialog?.decision === 'approve' && (
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1 block">Payout Reference (optional)</label>
+                <Input
+                  value={reviewPayoutRef}
+                  onChange={(e) => setReviewPayoutRef(e.target.value)}
+                  placeholder="e.g., GCash ref number"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewDialog(null)}>Cancel</Button>
+            <Button
+              variant={reviewDialog?.decision === 'reject' ? 'destructive' : 'default'}
+              onClick={submitReview}
+              disabled={reviewDialog?.decision === 'reject' && !reviewNotes.trim()}
+            >
+              {reviewDialog?.decision === 'approve' ? 'Approve' : 'Reject'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

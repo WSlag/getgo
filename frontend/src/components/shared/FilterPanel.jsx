@@ -253,6 +253,9 @@ export function FilterPanel({ type = 'cargo', filters, onFiltersChange, activeFi
         </div>
 
         <SheetFooter className="flex gap-2">
+          <Button variant="outline" onClick={() => { setLocalFilters(filters || {}); setOpen(false); }} className="flex-1">
+            Cancel
+          </Button>
           <Button variant="outline" onClick={handleReset} className="flex-1">
             <RotateCcw className="w-4 h-4 mr-2" />
             Reset
