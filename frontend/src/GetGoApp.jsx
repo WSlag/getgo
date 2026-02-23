@@ -5,8 +5,9 @@
  */
 
 import React, { useMemo, useState, useEffect, Suspense, lazy } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 // Firestore Service
 import {
@@ -1762,19 +1763,35 @@ export default function GetGoApp() {
         )}
 
         {activeTab === 'messages' && !authUser && (
-          <main className="flex-1 p-4 lg:p-8">
-            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Messages
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              Please sign in to view your conversations.
-            </p>
-            <button
-              onClick={() => promptSignInForTab('messages', 'Sign in to view messages')}
-              className="mt-4 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
-            >
-              Sign in
-            </button>
+          <main
+            className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto p-4 lg:p-8"
+            style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom, 0px))' }}
+          >
+            <div className="mx-auto w-full max-w-4xl">
+              <div className="mb-4 lg:mb-6">
+                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                  Messages
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Please sign in to view your conversations.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-center px-4 py-12">
+                <div className="mx-auto mb-4 size-14 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <MessageSquare className="size-7 text-gray-400" />
+                </div>
+                <p className="text-sm lg:text-base font-medium text-gray-900 dark:text-gray-100 mb-1">
+                  Sign in required
+                </p>
+                <p className="text-xs lg:text-sm text-gray-500 dark:text-gray-400 mb-5">
+                  Access your chats, offers, and booking conversations.
+                </p>
+                <Button onClick={() => promptSignInForTab('messages', 'Sign in to view messages')}>
+                  Sign in
+                </Button>
+              </div>
+            </div>
           </main>
         )}
 
