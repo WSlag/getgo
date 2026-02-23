@@ -15,6 +15,7 @@ const AuthContext = createContext();
 function formatFirebaseAuthError(error) {
   const code = error?.code || '';
   const rawMessage = typeof error?.message === 'string' ? error.message : 'Authentication failed.';
+  const isDev = typeof import.meta !== 'undefined' && Boolean(import.meta.env?.DEV);
 
   const firebaseCodeMessages = {
     'auth/invalid-api-key': 'Firebase API key is invalid. Check VITE_FIREBASE_API_KEY.',
@@ -25,10 +26,18 @@ function formatFirebaseAuthError(error) {
       'reCAPTCHA validation failed. Reload the page and try again.',
     'auth/too-many-requests': 'Too many attempts. Please wait and try again.',
     'auth/invalid-phone-number': 'Invalid phone number format.',
+    'auth/invalid-verification-code': 'Incorrect code. Please try again.',
+    'auth/code-expired': 'Code expired. Request a new code.',
+    'auth/session-expired': 'Session expired. Request a new code.',
+    'permission-denied': 'Invalid recovery credentials.',
+    'functions/permission-denied': 'Invalid recovery credentials.',
+    'resource-exhausted': 'Too many attempts. Please wait and try again.',
+    'functions/resource-exhausted': 'Too many attempts. Please wait and try again.',
   };
 
-  const normalizedMessage = firebaseCodeMessages[code] || rawMessage;
-  return code ? `${normalizedMessage} (${code})` : normalizedMessage;
+  const normalizedMessage = firebaseCodeMessages[code]
+    || (isDev ? rawMessage : 'Authentication failed. Please try again.');
+  return isDev && code ? `${normalizedMessage} (${code})` : normalizedMessage;
 }
 
 export function AuthProvider({ children }) {

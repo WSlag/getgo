@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Phone, ArrowRight, Shield, Loader2, KeyRound } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Logo } from '../shared/Logo';
+
+const OTP_MAX_RETRIES = 3;
+const OTP_COOLDOWN_SECONDS = 30;
 
 export default function LoginScreen({ darkMode, onSkipLogin }) {
   const { sendOtp, verifyOtp, signInWithRecoveryCode } = useAuth();
@@ -12,6 +15,9 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formattedPhone, setFormattedPhone] = useState('');
+  const [otpRetryCount, setOtpRetryCount] = useState(0);
+  const [otpCooldownEndsAt, setOtpCooldownEndsAt] = useState(null);
+  const [otpCooldownRemaining, setOtpCooldownRemaining] = useState(0);
 
   const theme = {
     bg: darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-orange-50 to-amber-100',
@@ -19,6 +25,31 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
     text: darkMode ? 'text-white' : 'text-gray-900',
     textMuted: darkMode ? 'text-gray-400' : 'text-gray-600',
     input: darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500',
+  };
+
+  useEffect(() => {
+    if (!otpCooldownEndsAt) {
+      setOtpCooldownRemaining(0);
+      return undefined;
+    }
+
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.ceil((otpCooldownEndsAt - Date.now()) / 1000));
+      setOtpCooldownRemaining(remaining);
+      if (remaining === 0) {
+        setOtpCooldownEndsAt(null);
+      }
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [otpCooldownEndsAt]);
+
+  const resetOtpGuard = () => {
+    setOtpRetryCount(0);
+    setOtpCooldownEndsAt(null);
+    setOtpCooldownRemaining(0);
   };
 
   const handleSendOtp = async (e) => {
@@ -37,6 +68,7 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
 
     if (result.success) {
       setFormattedPhone(result.formattedPhone);
+      resetOtpGuard();
       setStep('otp');
     } else {
       setError(result.error || 'Failed to send OTP. Please try again.');
@@ -49,6 +81,10 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
       setError('Please enter the 6-digit code');
       return;
     }
+    if (otpCooldownRemaining > 0) {
+      setError(`Too many incorrect attempts. Try again in ${otpCooldownRemaining}s.`);
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -58,8 +94,28 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
     setLoading(false);
 
     if (!result.success) {
+      if (result.code === 'auth/invalid-verification-code') {
+        const nextRetryCount = otpRetryCount + 1;
+        if (nextRetryCount >= OTP_MAX_RETRIES) {
+          setOtpRetryCount(0);
+          setOtpCooldownEndsAt(Date.now() + OTP_COOLDOWN_SECONDS * 1000);
+          setError(
+            `Too many incorrect attempts. Try again in ${OTP_COOLDOWN_SECONDS}s or request a new code.`
+          );
+          return;
+        }
+
+        setOtpRetryCount(nextRetryCount);
+        const attemptsLeft = OTP_MAX_RETRIES - nextRetryCount;
+        setError(
+          `Incorrect code. ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left before temporary cooldown.`
+        );
+        return;
+      }
       setError(result.error || 'Invalid code. Please try again.');
+      return;
     }
+    resetOtpGuard();
     // If successful, AuthContext will handle the state update
   };
 
@@ -114,6 +170,7 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
     setStep('phone');
     setOtp('');
     setRecoveryCode('');
+    resetOtpGuard();
     setError('');
   };
 
@@ -231,9 +288,9 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
 
             <button
               type="submit"
-              disabled={loading || otp.length !== 6}
+              disabled={loading || otp.length !== 6 || otpCooldownRemaining > 0}
               className={`w-full py-3 px-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:scale-105 active:scale-95
-                ${otp.length === 6 && !loading
+                ${otp.length === 6 && !loading && otpCooldownRemaining === 0
                   ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700 shadow-lg shadow-orange-500/30'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                 }`}
@@ -248,12 +305,17 @@ export default function LoginScreen({ darkMode, onSkipLogin }) {
                   <Shield className="w-5 h-5" />
                   Verify
                 </>
-              )}
+                )}
             </button>
+            {otpCooldownRemaining > 0 && (
+              <p className={`text-xs text-center ${theme.textMuted}`} style={{ marginTop: '8px' }}>
+                Too many incorrect attempts. You can verify again in {otpCooldownRemaining}s.
+              </p>
+            )}
 
             <button
               type="button"
-              onClick={() => { setStep('phone'); setOtp(''); }}
+              onClick={() => { setStep('phone'); setOtp(''); resetOtpGuard(); setError(''); }}
               className={`w-full mt-3 py-2 text-sm ${theme.textMuted} hover:text-orange-500`}
             >
               Didn&apos;t receive code? Try again
