@@ -4,12 +4,24 @@ import RegisterScreen from './components/auth/RegisterScreen';
 import GetGoApp from './GetGoApp';
 import { Loader2 } from 'lucide-react';
 import { Logo } from '@/components/shared/Logo';
+import { NotFoundView } from '@/components/shared/NotFoundView';
 import { PWAUpdateNotification } from '@/components/shared/PWAUpdateNotification';
 import ErrorBoundary from '@/components/shared/ErrorBoundary';
 import { ToastProvider } from './contexts/ToastContext';
 
+function isValidAppPath(pathname) {
+  if (pathname === '/') {
+    return true;
+  }
+
+  const parts = pathname.split('/').filter(Boolean);
+  return parts.length === 2 && parts[0].toLowerCase() === 'r' && Boolean(parts[1]);
+}
+
 function AppContent() {
   const { loading, isNewUser, authUser } = useAuth();
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const isPathValid = isValidAppPath(pathname);
 
   // Capture broker referral code from deep links for registration attribution.
   useEffect(() => {
@@ -19,7 +31,7 @@ function AppContent() {
     let code = '';
 
     const pathParts = url.pathname.split('/').filter(Boolean);
-    if (pathParts.length >= 2 && pathParts[0].toLowerCase() === 'r') {
+    if (pathParts.length === 2 && pathParts[0].toLowerCase() === 'r') {
       code = pathParts[1] || '';
     }
 
@@ -37,6 +49,14 @@ function AppContent() {
       window.history.replaceState({}, '', '/');
     }
   }, []);
+
+  if (!isPathValid) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-6">
+        <NotFoundView onGoHome={() => window.location.assign('/')} />
+      </div>
+    );
+  }
 
   // Loading state - show spinner while checking auth
   if (loading) {

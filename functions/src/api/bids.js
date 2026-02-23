@@ -5,6 +5,7 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { enforceUserRateLimit } = require('../utils/callableRateLimit');
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -57,6 +58,13 @@ exports.acceptBid = functions.region('asia-southeast1').https.onCall(async (data
 
   const userId = context.auth.uid;
   const db = admin.firestore();
+  await enforceUserRateLimit({
+    db,
+    userId,
+    operation: 'acceptBid',
+    maxAttempts: 10,
+    windowMs: 60 * 1000,
+  });
 
   const result = await db.runTransaction(async (tx) => {
     const bidRef = db.collection('bids').doc(bidId);

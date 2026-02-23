@@ -16,6 +16,7 @@ const {
   maskDisplayName,
   upsertBrokerMarketplaceActivity,
 } = require('../services/brokerListingReferralService');
+const { enforceUserRateLimit } = require('../utils/callableRateLimit');
 
 // Helper: Generate unique contract number
 function generateContractNumber() {
@@ -191,6 +192,13 @@ exports.createContract = functions.region('asia-southeast1').https.onCall(async 
   }
 
   const db = admin.firestore();
+  await enforceUserRateLimit({
+    db,
+    userId,
+    operation: 'createContract',
+    maxAttempts: 10,
+    windowMs: 60 * 1000,
+  });
   const platformSettings = await loadPlatformSettings(db);
   if (shouldBlockForMaintenance(platformSettings, context.auth?.token)) {
     throw new functions.https.HttpsError('failed-precondition', 'Platform is currently under maintenance');
@@ -388,6 +396,13 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
   }
 
   const db = admin.firestore();
+  await enforceUserRateLimit({
+    db,
+    userId,
+    operation: 'signContract',
+    maxAttempts: 10,
+    windowMs: 60 * 1000,
+  });
   const platformSettings = await loadPlatformSettings(db);
   if (shouldBlockForMaintenance(platformSettings, context.auth?.token)) {
     throw new functions.https.HttpsError('failed-precondition', 'Platform is currently under maintenance');
