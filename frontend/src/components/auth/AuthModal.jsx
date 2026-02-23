@@ -4,6 +4,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Logo } from '../shared/Logo';
 import { cn } from '@/lib/utils';
 
+const OTP_MAX_RETRIES = 3;
+const OTP_COOLDOWN_SECONDS = 30;
+
 /**
  * AuthModal - A modal component for login/signup
  * Used when unauthenticated users try to perform protected actions
@@ -17,6 +20,9 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formattedPhone, setFormattedPhone] = useState('');
+  const [otpRetryCount, setOtpRetryCount] = useState(0);
+  const [otpCooldownEndsAt, setOtpCooldownEndsAt] = useState(null);
+  const [otpCooldownRemaining, setOtpCooldownRemaining] = useState(0);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -27,8 +33,36 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
       setStep('phone');
       setError('');
       setLoading(false);
+      setOtpRetryCount(0);
+      setOtpCooldownEndsAt(null);
+      setOtpCooldownRemaining(0);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!otpCooldownEndsAt) {
+      setOtpCooldownRemaining(0);
+      return undefined;
+    }
+
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.ceil((otpCooldownEndsAt - Date.now()) / 1000));
+      setOtpCooldownRemaining(remaining);
+      if (remaining === 0) {
+        setOtpCooldownEndsAt(null);
+      }
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [otpCooldownEndsAt]);
+
+  const resetOtpGuard = () => {
+    setOtpRetryCount(0);
+    setOtpCooldownEndsAt(null);
+    setOtpCooldownRemaining(0);
+  };
 
   // Close modal when user is authenticated (authUser exists after OTP verification)
   // For new users: modal closes, App.jsx routes to RegisterScreen
@@ -59,6 +93,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
     if (result.success) {
       setFormattedPhone(result.formattedPhone);
+      resetOtpGuard();
       setStep('otp');
     } else {
       setError(result.error || 'Failed to send OTP. Please try again.');
@@ -72,6 +107,10 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
       setError('Please enter the 6-digit code');
       return;
     }
+    if (otpCooldownRemaining > 0) {
+      setError(`Too many incorrect attempts. Try again in ${otpCooldownRemaining}s.`);
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -81,8 +120,28 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
     setLoading(false);
 
     if (!result.success) {
+      if (result.code === 'auth/invalid-verification-code') {
+        const nextRetryCount = otpRetryCount + 1;
+        if (nextRetryCount >= OTP_MAX_RETRIES) {
+          setOtpRetryCount(0);
+          setOtpCooldownEndsAt(Date.now() + OTP_COOLDOWN_SECONDS * 1000);
+          setError(
+            `Too many incorrect attempts. Try again in ${OTP_COOLDOWN_SECONDS}s or request a new code.`
+          );
+          return;
+        }
+
+        setOtpRetryCount(nextRetryCount);
+        const attemptsLeft = OTP_MAX_RETRIES - nextRetryCount;
+        setError(
+          `Incorrect code. ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left before temporary cooldown.`
+        );
+        return;
+      }
       setError(result.error || 'Invalid code. Please try again.');
+      return;
     }
+    resetOtpGuard();
     // If successful, the useEffect above will handle closing and callback
   };
 
@@ -136,6 +195,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
     setStep('phone');
     setOtp('');
     setRecoveryCode('');
+    resetOtpGuard();
     setError('');
   };
 
@@ -353,11 +413,11 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
               <button
                 type="button"
-                disabled={loading || otp.length !== 6}
+                disabled={loading || otp.length !== 6 || otpCooldownRemaining > 0}
                 onClick={handleVerifyOtp}
                 className={cn(
                   "w-full font-medium flex items-center justify-center transition-all duration-300",
-                  otp.length === 6 && !loading
+                  otp.length === 6 && !loading && otpCooldownRemaining === 0
                     ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30 hover:scale-[1.02] active:scale-[0.98]"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
                 )}
@@ -375,10 +435,15 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
                   </>
                 )}
               </button>
+              {otpCooldownRemaining > 0 && (
+                <p className="text-xs text-center text-gray-500 dark:text-gray-400" style={{ marginTop: '8px' }}>
+                  Too many incorrect attempts. You can verify again in {otpCooldownRemaining}s.
+                </p>
+              )}
 
               <button
                 type="button"
-                onClick={() => { setStep('phone'); setOtp(''); }}
+                onClick={() => { setStep('phone'); setOtp(''); resetOtpGuard(); setError(''); }}
                 className="w-full text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors min-h-[44px]"
                 style={{ marginTop: '12px', padding: '10px', fontSize: '14px' }}
               >
