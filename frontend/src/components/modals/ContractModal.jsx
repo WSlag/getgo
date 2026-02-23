@@ -622,8 +622,10 @@ export function ContractModal({
           </div>
         )}
 
+        </div>
+
         {/* Action Buttons */}
-        <DialogFooter style={{ gap: isMobile ? '8px' : '12px', paddingTop: isMobile ? '16px' : '20px' }}>
+        <DialogFooter className="dialog-fixed-footer border-t border-gray-200 dark:border-gray-700 bg-background" style={{ gap: isMobile ? '8px' : '12px', padding: isMobile ? '16px' : '20px' }}>
           {contract.status === 'draft' && !hasUserSigned && (
             <Button
               variant={confirmSign ? "destructive" : "gradient"}
@@ -668,7 +670,6 @@ export function ContractModal({
             Close
           </Button>
         </DialogFooter>
-        </div>
       </DialogBottomSheet>
     </Dialog>
   );

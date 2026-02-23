@@ -675,10 +675,12 @@ exports.adminGetContracts = functions.region('asia-southeast1').https.onCall(asy
 exports.adminGetShipments = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   await verifyAdmin(context);
 
-  const { status, limit = 200 } = data || {};
+  const { status, limit = 200, cursor: cursorId } = data || {};
   const db = admin.firestore();
   const safeLimit = parseLimit(limit, 200);
   const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  const cursorDoc = await resolveCursor(db, 'shipments', cursorId);
+  const canUseCreatedAtCursor = !!cursorDoc?.get('createdAt');
 
   let baseQuery = db.collection('shipments');
   if (normalizedStatus && normalizedStatus !== 'all') {
@@ -686,8 +688,13 @@ exports.adminGetShipments = functions.region('asia-southeast1').https.onCall(asy
   }
 
   let snapshot;
+  let usedFallbackQuery = false;
   try {
-    snapshot = await baseQuery.orderBy('createdAt', 'desc').limit(safeLimit).get();
+    let query = baseQuery.orderBy('createdAt', 'desc');
+    if (canUseCreatedAtCursor) {
+      query = query.startAfter(cursorDoc);
+    }
+    snapshot = await query.limit(safeLimit).get();
   } catch (error) {
     const code = error?.code;
     const message = String(error?.message || '').toLowerCase();
@@ -701,26 +708,29 @@ exports.adminGetShipments = functions.region('asia-southeast1').https.onCall(asy
       throw error;
     }
 
-    snapshot = await baseQuery.limit(safeLimit).get();
+    let fallbackQuery = baseQuery.orderBy(admin.firestore.FieldPath.documentId());
+    if (cursorDoc) {
+      fallbackQuery = fallbackQuery.startAfter(cursorDoc.id);
+    }
+    snapshot = await fallbackQuery.limit(safeLimit).get();
+    usedFallbackQuery = true;
   }
+
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
 
   const shipments = snapshot.docs
     .map((doc) => ({ id: doc.id, ...doc.data() }))
     .sort((a, b) => {
-      const aTs = toComparableTimestamp(
-        a.createdAt,
-        toComparableTimestamp(a.updatedAt, 0)
-      );
-      const bTs = toComparableTimestamp(
-        b.createdAt,
-        toComparableTimestamp(b.updatedAt, 0)
-      );
+      if (usedFallbackQuery) return 0;
+      const aTs = toComparableTimestamp(a.createdAt, toComparableTimestamp(a.updatedAt, 0));
+      const bTs = toComparableTimestamp(b.createdAt, toComparableTimestamp(b.updatedAt, 0));
       return bTs - aTs;
     });
 
   return {
     shipments,
     total: shipments.length,
+    nextCursor: shipments.length === safeLimit && lastDoc ? lastDoc.id : null,
   };
 });
 
