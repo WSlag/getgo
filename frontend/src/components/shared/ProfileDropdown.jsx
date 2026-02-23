@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Bell, Moon, Sun, HelpCircle, LogOut, ChevronRight, Star, Truck, Package, Users } from 'lucide-react';
+import { User, Bell, Moon, Sun, HelpCircle, LogOut, ChevronRight, Star, Truck, Package, Users, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -16,6 +16,7 @@ export function ProfileDropdown({
   isBroker = false,
   darkMode = false,
   onToggleDarkMode,
+  onMyActivity,
   onBrokerDashboard,
   onEditProfile,
   onNotificationSettings,
@@ -125,6 +126,20 @@ export function ProfileDropdown({
 
         {/* Menu Items */}
         <div className="p-2">
+          {/* My Activity */}
+          <DropdownMenuItem
+            onSelect={onMyActivity}
+            className="flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800"
+          >
+            <div className="flex items-center gap-3">
+              <div className="size-8 rounded-lg bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
+                <ClipboardList className="size-4 text-orange-600 dark:text-orange-400" />
+              </div>
+              <span className="text-sm text-gray-700 dark:text-gray-300">My Activity</span>
+            </div>
+            <ChevronRight className="size-4 text-gray-400" />
+          </DropdownMenuItem>
+
           {/* Broker Dashboard */}
           <DropdownMenuItem
             onSelect={onBrokerDashboard}

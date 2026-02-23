@@ -119,6 +119,7 @@ export function Header({
               darkMode={darkMode}
               onToggleDarkMode={onToggleDarkMode}
               isBroker={isBroker}
+              onMyActivity={() => onTabChange?.('activity')}
               onBrokerDashboard={onBrokerClick}
               onEditProfile={onEditProfile}
               onNotificationSettings={onNotificationSettings}
