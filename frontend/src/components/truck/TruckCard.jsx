@@ -110,7 +110,7 @@ export function TruckCard({
         {/* Gradient Accent Bar */}
         <div className={cn("h-1", currentGradient)} />
 
-        <div style={{ padding: '16px' }}>
+        <div style={{ padding: '16px 20px' }}>
           {/* Row 1: Status Badge + Vehicle Type + Rate */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -125,7 +125,7 @@ export function TruckCard({
                 </Badge>
               )}
             </div>
-            <div className={cn("rounded-lg px-3 py-1", currentGradient)}>
+            <div className={cn("rounded-lg", currentGradient)} style={{ padding: '4px 14px' }}>
               <span className="text-sm font-bold text-white">{formatPrice(askingRate)}</span>
             </div>
           </div>
