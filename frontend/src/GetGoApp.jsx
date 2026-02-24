@@ -172,13 +172,18 @@ export default function GetGoApp() {
 
   // Mobile header scroll-to-hide for Home tab, hidden for other tabs
   const lastScrollY = useRef(0);
+  const hiddenHeaderScrollY = useRef(0);
   const [mobileHeaderVisible, setMobileHeaderVisible] = useState(true);
 
   const handleHomeScroll = useCallback((e) => {
-    const scrollTop = e.target.scrollTop;
-    if (scrollTop > lastScrollY.current && scrollTop > 50) {
+    const scrollTop = e.currentTarget?.scrollTop ?? e.target?.scrollTop ?? 0;
+    const delta = scrollTop - lastScrollY.current;
+    if (scrollTop <= 8) {
+      setMobileHeaderVisible(true);
+    } else if (delta > 6 && scrollTop > 50) {
       setMobileHeaderVisible(false);
-    } else if (scrollTop < lastScrollY.current) {
+      hiddenHeaderScrollY.current = scrollTop;
+    } else if (delta < -6 && scrollTop < hiddenHeaderScrollY.current - 24) {
       setMobileHeaderVisible(true);
     }
     lastScrollY.current = scrollTop;
@@ -191,6 +196,7 @@ export default function GetGoApp() {
     if (activeTab === 'home') {
       setMobileHeaderVisible(true);
       lastScrollY.current = 0;
+      hiddenHeaderScrollY.current = 0;
     }
   }, [activeTab]);
 
@@ -1636,6 +1642,7 @@ export default function GetGoApp() {
               onActivateBroker={handleActivateBroker}
               onPostListing={handlePostClick}
               onScroll={handleHomeScroll}
+              mobileHeaderVisible={showMobileHeader}
             />
           </ErrorBoundary>
         )}

@@ -76,6 +76,42 @@ test.describe('Mobile Responsiveness', () => {
     const header = page.locator('header, [role="banner"]').first();
     await expect(header).toBeVisible();
   });
+
+  test('should collapse mobile header and pin sticky controls to top on scroll', async ({ page }) => {
+    const scrollContainer = page.getByTestId('home-scroll-container');
+    const header = page.getByTestId('app-header');
+    const stickyControls = page.getByTestId('home-sticky-controls');
+
+    await expect(scrollContainer).toBeVisible();
+    await expect(header).toBeVisible();
+    await expect(stickyControls).toBeVisible();
+
+    const initialHeaderHeight = await header.evaluate((el) => el.getBoundingClientRect().height);
+    expect(initialHeaderHeight).toBeGreaterThan(40);
+
+    const initialStickyTop = await stickyControls.evaluate((el) => el.getBoundingClientRect().top);
+    expect(initialStickyTop).toBeGreaterThan(30);
+
+    await scrollContainer.hover();
+    await page.mouse.wheel(0, 900);
+    await page.waitForTimeout(450);
+
+    const collapsedHeaderHeight = await header.evaluate((el) => el.getBoundingClientRect().height);
+    expect(collapsedHeaderHeight).toBeLessThanOrEqual(8);
+
+    const stickyTopWhenCollapsed = await stickyControls.evaluate((el) => el.getBoundingClientRect().top);
+    expect(stickyTopWhenCollapsed).toBeLessThanOrEqual(12);
+
+    await scrollContainer.hover();
+    await page.mouse.wheel(0, -900);
+    await page.waitForTimeout(450);
+
+    const restoredHeaderHeight = await header.evaluate((el) => el.getBoundingClientRect().height);
+    expect(restoredHeaderHeight).toBeGreaterThan(40);
+
+    const stickyTopWhenRestored = await stickyControls.evaluate((el) => el.getBoundingClientRect().top);
+    expect(stickyTopWhenRestored).toBeGreaterThan(30);
+  });
 });
 
 test.describe('Tablet Responsiveness', () => {

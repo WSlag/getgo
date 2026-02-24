@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { Home, TrendingUp, ClipboardList, MessageSquare, Bell, User, Moon, Sun, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -29,14 +30,52 @@ export function Header({
     { id: 'activity', label: 'Activity', icon: ClipboardList },
     { id: 'messages', label: 'Messages', icon: MessageSquare },
   ];
+  const contentRef = useRef(null);
+  const [mobileHeaderHeight, setMobileHeaderHeight] = useState(96);
+
+  useEffect(() => {
+    const node = contentRef.current;
+    if (!node) {
+      return undefined;
+    }
+
+    const updateHeight = () => {
+      // Keep dynamic max-height in sync so mobile collapse remains smooth.
+      setMobileHeaderHeight(Math.ceil(node.scrollHeight) + 1);
+    };
+
+    updateHeight();
+
+    let resizeObserver;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(updateHeight);
+      resizeObserver.observe(node);
+    }
+
+    window.addEventListener('resize', updateHeight);
+
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, []);
 
   return (
-    <header className={cn(
-      "sticky top-0 z-50 shrink-0 backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 border-b border-gray-200/50 dark:border-gray-800/50",
-      "transition-transform duration-300",
-      !mobileVisible && "max-lg:-translate-y-full"
-    )}>
-      <div style={{ padding: '16px 24px' }}>
+    <header
+      data-testid="app-header"
+      className={cn(
+        "sticky top-0 z-50 shrink-0 backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 border-b border-gray-200/50 dark:border-gray-800/50",
+        "max-lg:overflow-hidden max-lg:duration-300 max-lg:ease-out",
+        "max-lg:transition-[max-height,opacity,border-color,transform]",
+        mobileVisible
+          ? "max-lg:opacity-100 max-lg:pointer-events-auto max-lg:border-gray-200/50 dark:max-lg:border-gray-800/50 max-lg:max-h-[var(--mobile-header-height)] max-lg:translate-y-0"
+          : "max-lg:opacity-0 max-lg:pointer-events-none max-lg:border-transparent max-lg:max-h-0 max-lg:-translate-y-1"
+      )}
+      style={{ '--mobile-header-height': `${mobileHeaderHeight}px` }}
+    >
+      <div ref={contentRef} style={{ padding: '16px 24px' }}>
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Logo className="hidden sm:flex" />
