@@ -181,10 +181,17 @@ const resolvedAppCheckProvider = appCheckCandidates[0]?.provider || appCheckProv
 const resolvedAppCheckSiteKey = appCheckCandidates[0]?.siteKey || '';
 const appCheckProviderConfigured = appCheckCandidates.length > 0;
 const appCheckProviderOff = appCheckProviderName === 'off';
+const currentRuntimeHost =
+  typeof window !== 'undefined' ? extractHost(window.location.hostname) : '';
+const isLocalRuntimeHost =
+  currentRuntimeHost === 'localhost' || currentRuntimeHost === '127.0.0.1';
+const appCheckAllowedOnLocalhost = import.meta.env.VITE_ENABLE_APPCHECK_ON_LOCALHOST === 'true';
+const appCheckDisabledForLocalhost = isLocalRuntimeHost && !appCheckAllowedOnLocalhost;
 const shouldInitializeAppCheck =
   !useEmulator &&
   appCheckEnabled &&
   !appCheckProviderOff &&
+  !appCheckDisabledForLocalhost &&
   typeof window !== 'undefined' &&
   appCheckProviderConfigured;
 
@@ -244,6 +251,8 @@ if (shouldInitializeAppCheck) {
     ? 'VITE_ENABLE_APPCHECK=false'
     : appCheckProviderOff
       ? 'VITE_APPCHECK_PROVIDER=off'
+      : appCheckDisabledForLocalhost
+        ? 'localhost runtime (set VITE_ENABLE_APPCHECK_ON_LOCALHOST=true to override)'
       : !resolvedAppCheckSiteKey
         ? 'missing App Check site key (VITE_APPCHECK_SITE_KEY or VITE_RECAPTCHA_ENTERPRISE_KEY)'
         : !appCheckProviderConfigured
