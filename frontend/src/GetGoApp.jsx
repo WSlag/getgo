@@ -4,7 +4,7 @@
  * while preserving all existing Firebase functionality
  */
 
-import React, { useMemo, useState, useEffect, Suspense, lazy } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { Loader2, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -169,6 +169,30 @@ export default function GetGoApp() {
     executePendingAction,
     clearPendingAction,
   } = useAuthGuard();
+
+  // Mobile header scroll-to-hide for Home tab, hidden for other tabs
+  const lastScrollY = useRef(0);
+  const [mobileHeaderVisible, setMobileHeaderVisible] = useState(true);
+
+  const handleHomeScroll = useCallback((e) => {
+    const scrollTop = e.target.scrollTop;
+    if (scrollTop > lastScrollY.current && scrollTop > 50) {
+      setMobileHeaderVisible(false);
+    } else if (scrollTop < lastScrollY.current) {
+      setMobileHeaderVisible(true);
+    }
+    lastScrollY.current = scrollTop;
+  }, []);
+
+  const showMobileHeader = activeTab === 'home' ? mobileHeaderVisible : false;
+
+  // Reset mobile header when switching to home tab
+  useEffect(() => {
+    if (activeTab === 'home') {
+      setMobileHeaderVisible(true);
+      lastScrollY.current = 0;
+    }
+  }, [activeTab]);
 
   // PWA Install Prompt
   const {
@@ -1537,9 +1561,10 @@ export default function GetGoApp() {
           tripsCompleted: userCompletedTrips,
           avatarUrl: userProfile?.avatarUrl,
         }}
+        mobileVisible={showMobileHeader}
       />
 
-      <div className="flex h-[calc(100vh-73px)]">
+      <div className="flex h-screen lg:h-[calc(100vh-73px)]">
         {/* Sidebar - Desktop only */}
         <Sidebar
           className="hidden lg:flex"
@@ -1611,6 +1636,7 @@ export default function GetGoApp() {
               onDismissBrokerCard={handleDismissBrokerCard}
               onActivateBroker={handleActivateBroker}
               onPostListing={handlePostClick}
+              onScroll={handleHomeScroll}
             />
           </ErrorBoundary>
         )}

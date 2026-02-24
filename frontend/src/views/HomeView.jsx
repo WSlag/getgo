@@ -45,6 +45,7 @@ export function HomeView({
   onDismissBrokerCard,
   onActivateBroker,
   onPostListing,
+  onScroll,
 }) {
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
@@ -79,7 +80,7 @@ export function HomeView({
   const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
 
   return (
-    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '16px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' }}>
+    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '0' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' }} onScroll={onScroll}>
       {/* Suspension Banner */}
       {isAccountSuspended && (
         <div
@@ -107,66 +108,74 @@ export function HomeView({
         </div>
       )}
 
-      {/* Mobile Market Switcher - only visible on mobile */}
-      <div className="lg:hidden flex gap-2" style={{ marginBottom: '16px' }}>
-        <button
-          onClick={() => onMarketChange?.('cargo')}
-          className={cn(
-            "flex-1 rounded-full font-medium text-sm transition-all active:scale-95",
-            activeMarket === 'cargo'
-              ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30"
-              : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
-          )}
-          style={{ padding: '12px 16px' }}
-        >
-          {currentRole === 'shipper' && !isBroker ? 'My Cargo' : 'Cargo'}
-        </button>
-        <button
-          onClick={() => onMarketChange?.('trucks')}
-          className={cn(
-            "flex-1 rounded-full font-medium text-sm transition-all active:scale-95",
-            activeMarket === 'trucks'
-              ? "bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg shadow-blue-500/30"
-              : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
-          )}
-          style={{ padding: '12px 16px' }}
-        >
-          {currentRole === 'trucker' && !isBroker ? 'My Trucks' : 'Trucks'}
-        </button>
-      </div>
-
-      {/* Search Bar */}
-      <div className="relative" style={{ marginBottom: isMobile ? '16px' : '24px' }}>
-        <div className="relative">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange?.(e.target.value)}
-            placeholder={activeMarket === 'cargo'
-              ? "Search by shipper, route, or cargo type..."
-              : "Search by trucker, route, or vehicle type..."}
+      {/* Sticky Mobile Header: Market Switcher + Search */}
+      <div className={cn(
+        "lg:relative lg:z-auto",
+        "max-lg:sticky max-lg:top-0 max-lg:z-40 max-lg:bg-gray-50 max-lg:dark:bg-gray-950"
+      )} style={{ padding: isMobile ? '16px 16px 0' : '0' }}>
+        {/* Mobile Market Switcher - only visible on mobile */}
+        <div className="lg:hidden flex gap-2" style={{ marginBottom: '16px' }}>
+          <button
+            onClick={() => onMarketChange?.('cargo')}
             className={cn(
-              "w-full rounded-full border border-gray-200 dark:border-gray-700",
-              "bg-white dark:bg-gray-800 text-gray-900 dark:text-white",
-              isMobile ? "text-sm" : "text-lg",
-              "placeholder:text-gray-400 dark:placeholder:text-gray-500",
-              isMobile ? "placeholder:text-sm" : "placeholder:text-lg",
-              "focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500",
-              "transition-all duration-200"
+              "flex-1 rounded-full font-medium text-sm transition-all active:scale-95",
+              activeMarket === 'cargo'
+                ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30"
+                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
             )}
-            style={{ padding: isMobile ? '12px 16px' : '15px 16px' }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => onSearchChange?.('')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-            >
-              <X className="size-5" />
-            </button>
-          )}
+            style={{ padding: '12px 16px' }}
+          >
+            {currentRole === 'shipper' && !isBroker ? 'My Cargo' : 'Cargo'}
+          </button>
+          <button
+            onClick={() => onMarketChange?.('trucks')}
+            className={cn(
+              "flex-1 rounded-full font-medium text-sm transition-all active:scale-95",
+              activeMarket === 'trucks'
+                ? "bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg shadow-blue-500/30"
+                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
+            )}
+            style={{ padding: '12px 16px' }}
+          >
+            {currentRole === 'trucker' && !isBroker ? 'My Trucks' : 'Trucks'}
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative" style={{ marginBottom: isMobile ? '16px' : '24px' }}>
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => onSearchChange?.(e.target.value)}
+              placeholder={activeMarket === 'cargo'
+                ? "Search by shipper, route, or cargo type..."
+                : "Search by trucker, route, or vehicle type..."}
+              className={cn(
+                "w-full rounded-full border border-gray-200 dark:border-gray-700",
+                "bg-white dark:bg-gray-800 text-gray-900 dark:text-white",
+                isMobile ? "text-sm" : "text-lg",
+                "placeholder:text-gray-400 dark:placeholder:text-gray-500",
+                isMobile ? "placeholder:text-sm" : "placeholder:text-lg",
+                "focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500",
+                "transition-all duration-200"
+              )}
+              style={{ padding: isMobile ? '12px 16px' : '15px 16px' }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => onSearchChange?.('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                <X className="size-5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Scrollable Content */}
+      <div style={{ padding: isMobile ? '0 16px' : '0' }}>
       {/* Saved Searches */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900" style={{ padding: isMobile ? '12px' : '16px', marginBottom: isMobile ? '12px' : '16px' }}>
         <div className="flex items-center justify-between" style={{ marginBottom: '10px' }}>
@@ -726,6 +735,7 @@ export function HomeView({
           </div>
         </div>
       )}
+      </div>
     </main>
   );
 }
