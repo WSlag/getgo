@@ -7,7 +7,10 @@
 const IN_APP_BROWSERS = [
   { tokens: ['FBAN', 'FBAV'], name: 'facebook' },
   { tokens: ['Instagram'], name: 'instagram' },
-  { tokens: ['GSA/'], name: 'gmail' },
+  { tokens: ['Telegram', 'TGWebView'], name: 'telegram' },
+  { tokens: ['GSA/', 'Gmail'], name: 'gmail' },
+  { tokens: ['Outlook-Android', 'Outlook-iOS', 'MSOutlook'], name: 'outlook' },
+  { tokens: ['YahooMobile'], name: 'yahoo_mail' },
   { tokens: ['Line/'], name: 'line' },
   { tokens: ['MicroMessenger'], name: 'wechat' },
   { tokens: ['BytedanceWebview', 'TikTok'], name: 'tiktok' },
@@ -20,6 +23,11 @@ export function detectInAppBrowser() {
     if (tokens.some((t) => ua.includes(t))) {
       return { isInAppBrowser: true, browserName: name };
     }
+  }
+  const isAndroid = /Android/i.test(ua);
+  const isLikelyWebView = ua.includes('; wv') || ua.includes(' wv)');
+  if (isAndroid && isLikelyWebView) {
+    return { isInAppBrowser: true, browserName: 'android_webview' };
   }
   return { isInAppBrowser: false, browserName: null };
 }
@@ -55,7 +63,9 @@ export function isIOSSafari() {
 export function buildAndroidIntentUrl(currentUrl) {
   try {
     const url = new URL(currentUrl);
-    return `intent://${url.host}${url.pathname}${url.search}${url.hash}#Intent;scheme=https;end`;
+    const scheme = url.protocol.replace(':', '') || 'https';
+    const fallbackUrl = encodeURIComponent(url.toString());
+    return `intent://${url.host}${url.pathname}${url.search}${url.hash}#Intent;scheme=${scheme};package=com.android.chrome;S.browser_fallback_url=${fallbackUrl};end`;
   } catch {
     return null;
   }

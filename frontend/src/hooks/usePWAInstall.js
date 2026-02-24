@@ -12,7 +12,6 @@ const KEYS = {
   installDismissedAt: 'karga.pwa.installDismissedAt',
   installAccepted: 'karga.pwa.installAccepted',
   iosDismissedAt: 'karga.pwa.iosDismissedAt',
-  inAppDismissed: 'karga.pwa.inAppDismissed',
   visitCount: 'karga.pwa.visitCount',
   engagementReached: 'karga.pwa.engagementReached',
 };
@@ -31,9 +30,6 @@ export function usePWAInstall() {
   const [iosSafari] = useState(() => isIOSSafari());
 
   // --- State ---
-  const [inAppDismissed, setInAppDismissed] = useState(
-    () => localStorage.getItem(KEYS.inAppDismissed) === 'true'
-  );
   const [engagementReached, setEngagementReached] = useState(
     () => localStorage.getItem(KEYS.engagementReached) === 'true'
   );
@@ -88,11 +84,6 @@ export function usePWAInstall() {
     }
   }, [engagementReached]);
 
-  const dismissInAppOverlay = useCallback(() => {
-    localStorage.setItem(KEYS.inAppDismissed, 'true');
-    setInAppDismissed(true);
-  }, []);
-
   const dismissInstallBanner = useCallback(() => {
     localStorage.setItem(KEYS.installDismissedAt, new Date().toISOString());
     setInstallDismissedRecently(true);
@@ -119,9 +110,10 @@ export function usePWAInstall() {
   }, [dismissInstallBanner]);
 
   // --- Computed booleans ---
-  const showInAppOverlay = inApp.isInAppBrowser && !inAppDismissed;
+  const showInAppOverlay = inApp.isInAppBrowser;
 
   const showInstallBanner =
+    !showInAppOverlay &&
     bannerReady &&
     canPrompt &&
     !standalone &&
@@ -130,6 +122,7 @@ export function usePWAInstall() {
     !installDismissedRecently;
 
   const showIOSInstall =
+    !showInAppOverlay &&
     bannerReady &&
     iosSafari &&
     !standalone &&
@@ -143,7 +136,6 @@ export function usePWAInstall() {
     inAppBrowserName: inApp.browserName,
     platform,
     showInAppOverlay,
-    dismissInAppOverlay,
 
     // Android/Desktop install
     showInstallBanner,

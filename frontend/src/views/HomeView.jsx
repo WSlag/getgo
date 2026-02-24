@@ -80,7 +80,15 @@ export function HomeView({
   const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
 
   return (
-    <main className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)} style={{ padding: isMobile ? '0' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' }} onScroll={onScroll}>
+    <main
+      className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)}
+      style={{
+        padding: isMobile ? '0' : '24px',
+        paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px',
+        overscrollBehaviorY: 'contain',
+      }}
+      onScroll={onScroll}
+    >
       {/* Suspension Banner */}
       {isAccountSuspended && (
         <div
