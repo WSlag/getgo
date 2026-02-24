@@ -1,38 +1,81 @@
-import { ExternalLink, MoreVertical, Copy } from 'lucide-react';
+import { useState } from 'react';
+import { ExternalLink, MoreVertical, Copy, ShieldCheck } from 'lucide-react';
 import { AppLogo } from './AppLogo';
 
 const BROWSER_INSTRUCTIONS = {
   facebook: {
-    android: 'Tap the three-dot menu at the top right, then tap "Open in browser".',
-    ios: 'Tap the menu at the bottom, then tap "Open in Safari".',
+    android: [
+      'Tap the three-dot menu in the top-right corner.',
+      'Choose "Open in browser".',
+    ],
+    ios: [
+      'Tap the menu button at the bottom of Facebook.',
+      'Select "Open in Safari".',
+    ],
   },
   instagram: {
-    android: 'Tap the three-dot menu at the top right, then tap "Open in browser".',
-    ios: 'Tap the three-dot menu at the top right, then tap "Open in browser".',
+    android: [
+      'Tap the three-dot menu in the top-right corner.',
+      'Choose "Open in browser".',
+    ],
+    ios: [
+      'Tap the three-dot menu in the top-right corner.',
+      'Choose "Open in browser".',
+    ],
   },
   telegram: {
-    android: 'Tap the three-dot menu at the top right, then tap "Open in external browser".',
-    ios: 'Tap the share or menu button, then choose "Open in Safari".',
+    android: [
+      'Tap the three-dot menu in the top-right corner.',
+      'Choose "Open in external browser".',
+    ],
+    ios: [
+      'Tap the share or menu button in Telegram.',
+      'Choose "Open in Safari".',
+    ],
   },
   gmail: {
-    android: 'Tap the three-dot menu at the top right, then tap "Open in browser".',
-    ios: 'Tap the Safari icon or "Open in Safari" at the bottom.',
+    android: [
+      'Tap the three-dot menu in the top-right corner.',
+      'Choose "Open in browser".',
+    ],
+    ios: [
+      'Tap the Safari icon at the bottom.',
+      'If needed, choose "Open in Safari".',
+    ],
   },
   outlook: {
-    android: 'Tap the three-dot menu, then choose "Open in browser".',
-    ios: 'Tap the share or menu button, then choose "Open in Safari".',
+    android: [
+      'Tap the three-dot menu in the top-right corner.',
+      'Choose "Open in browser".',
+    ],
+    ios: [
+      'Tap the share or menu button in Outlook.',
+      'Choose "Open in Safari".',
+    ],
   },
   yahoo_mail: {
-    android: 'Tap the menu icon, then choose "Open in browser".',
-    ios: 'Tap the share or menu button, then choose "Open in Safari".',
+    android: [
+      'Tap the menu icon in the top-right corner.',
+      'Choose "Open in browser".',
+    ],
+    ios: [
+      'Tap the share or menu button in Yahoo Mail.',
+      'Choose "Open in Safari".',
+    ],
   },
   default: {
-    android: 'Tap the menu icon, then tap "Open in browser".',
-    ios: 'Tap the menu icon, then tap "Open in Safari".',
+    android: [
+      'Tap the menu icon in the top-right corner.',
+      'Choose "Open in browser".',
+    ],
+    ios: [
+      'Tap the menu icon in the current app.',
+      'Choose "Open in Safari".',
+    ],
   },
 };
 
-function getInstructions(browserName, platform) {
+function getInstructionSteps(browserName, platform) {
   const browser = BROWSER_INSTRUCTIONS[browserName] || BROWSER_INSTRUCTIONS.default;
   return browser[platform] || browser.android;
 }
@@ -55,12 +98,15 @@ function getBrowserLabel(browserName) {
 }
 
 export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
-  const instructions = getInstructions(browserName, platform);
+  const instructions = getInstructionSteps(browserName, platform);
   const label = getBrowserLabel(browserName);
+  const [copied, setCopied] = useState(false);
 
   const handleCopyUrl = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
     } catch {
       // Clipboard API may not be available in some WebViews.
     }
@@ -68,54 +114,87 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
 
   return (
     <div
-      className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-white px-6 dark:bg-gray-950"
-      style={{ paddingTop: 'env(safe-area-inset-top, 20px)' }}
+      data-testid="inapp-overlay"
+      className="fixed inset-0 z-[10000] overflow-y-auto bg-gradient-to-b from-slate-100 to-white px-4 dark:from-gray-950 dark:to-gray-900 sm:px-6"
+      style={{
+        paddingTop: 'max(24px, env(safe-area-inset-top, 20px))',
+        paddingBottom: 'max(24px, env(safe-area-inset-bottom, 16px))',
+      }}
     >
-      <div className="mb-6">
-        <AppLogo size={80} className="drop-shadow-lg" />
-      </div>
-
-      <h1 className="mb-2 text-center text-2xl font-bold text-gray-900 dark:text-white">
-        {platform === 'android' ? 'Open in Google' : 'Open in Safari'}
-      </h1>
-      <p className="mb-8 max-w-sm text-center text-sm text-gray-500 dark:text-gray-400">
-        You are viewing this in {label}&apos;s built-in browser.
-        For the best experience, open GetGo in your phone browser.
-      </p>
-
-      {platform === 'android' && (
-        <button
-          onClick={onOpenBrowser}
-          className="mb-4 flex w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-400 to-orange-600 px-6 py-3.5 font-semibold text-white shadow-md transition-transform active:scale-[0.98]"
+      <div className="mx-auto flex min-h-full w-full max-w-md items-center justify-center">
+        <div
+          data-testid="inapp-card"
+          className="animate-overlay-enter w-full rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-[0_28px_70px_-42px_rgba(15,23,42,0.45)] backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/90"
         >
-          <ExternalLink className="size-5" />
-          Open in Google
-        </button>
-      )}
-
-      <div className="mb-6 w-full max-w-xs rounded-xl bg-gray-50 p-4 dark:bg-gray-900">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-          {platform === 'android' ? 'If the button does not work:' : 'How to open in Safari:'}
-        </p>
-        <div className="flex items-start gap-3">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30">
-            <MoreVertical className="size-4 text-orange-600 dark:text-orange-400" />
+          <div className="mb-5 flex items-center gap-3">
+            <AppLogo size={56} className="shrink-0 shadow-md" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-gray-400">
+                GetGo Secure Access
+              </p>
+              <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-gray-200">
+                <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
+                External browser required
+              </div>
+            </div>
           </div>
-          <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-            {instructions}
+
+          <h1
+            data-testid="inapp-title"
+            className="text-balance text-2xl font-bold leading-tight text-slate-900 dark:text-white"
+          >
+            {platform === 'android' ? 'Open in Google' : 'Open in Safari'}
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-gray-300">
+            You are viewing GetGo in {label}&apos;s built-in browser. For the best and most stable experience,
+            continue in your phone&apos;s browser.
           </p>
+
+          {platform === 'android' && (
+            <button
+              data-testid="inapp-primary-cta"
+              onClick={onOpenBrowser}
+              className="animate-overlay-enter-delay mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition-transform duration-200 active:scale-[0.98]"
+            >
+              <ExternalLink className="size-5" />
+              Open in Google
+            </button>
+          )}
+
+          <div
+            data-testid="inapp-steps"
+            className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-gray-800 dark:bg-gray-900/70"
+          >
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-gray-400">
+              {platform === 'android' ? 'If the button does not work' : 'Manual steps'}
+            </p>
+            <ol className="space-y-3">
+              {instructions.map((step, index) => (
+                <li key={`${platform}-${index}`} className="flex items-start gap-3">
+                  <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                    {index + 1}
+                  </span>
+                  <div className="flex min-w-0 items-start gap-2 text-sm leading-relaxed text-slate-700 dark:text-gray-200">
+                    {index === 0 && <MoreVertical className="mt-0.5 size-4 shrink-0 text-orange-600 dark:text-orange-400" />}
+                    <span className="break-words">{step}</span>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {platform === 'ios' && (
+            <button
+              data-testid="inapp-ios-copy"
+              onClick={handleCopyUrl}
+              className="animate-overlay-enter-delay mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <Copy className="size-4" />
+              {copied ? 'Link copied' : 'Copy link to open in Safari'}
+            </button>
+          )}
         </div>
       </div>
-
-      {platform === 'ios' && (
-        <button
-          onClick={handleCopyUrl}
-          className="mb-4 flex w-full max-w-xs items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-        >
-          <Copy className="size-4" />
-          Copy link to open in Safari
-        </button>
-      )}
     </div>
   );
 }

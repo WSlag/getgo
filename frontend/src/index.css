@@ -111,6 +111,25 @@ body {
   animation: pulse-ring 1.5s ease-out infinite;
 }
 
+@keyframes overlay-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-overlay-enter {
+  animation: overlay-enter 260ms ease-out both;
+}
+
+.animate-overlay-enter-delay {
+  animation: overlay-enter 320ms ease-out 70ms both;
+}
+
 /* Contain Leaflet z-index within mini map containers */
 .mini-map-container .leaflet-pane,
 .mini-map-container .leaflet-control,
