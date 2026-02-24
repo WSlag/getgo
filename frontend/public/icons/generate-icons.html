@@ -1,92 +1,153 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Generate KARGA Icons</title>
+  <title>GetGo Icon Generator</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    canvas { border: 1px solid #ccc; margin: 10px; }
-    .icon-container { display: flex; flex-wrap: wrap; gap: 10px; }
-    button { padding: 10px 20px; background: #f97316; color: white; border: none; cursor: pointer; margin: 10px; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+    h1 { color: #f97316; }
+    .controls { background: white; padding: 16px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 12px; align-items: center; }
+    .icon-container { display: flex; flex-wrap: wrap; gap: 16px; }
+    .icon-box { background: white; border-radius: 8px; padding: 12px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .icon-box p { margin: 4px 0 8px; font-size: 12px; color: #666; }
+    canvas { display: block; margin: 0 auto; }
+    button { padding: 8px 16px; background: #f97316; color: white; border: none; cursor: pointer; border-radius: 6px; font-size: 13px; margin-top: 8px; }
+    button:hover { background: #ea580c; }
+    #downloadAll { font-size: 15px; padding: 10px 24px; }
+    #status { margin-top: 8px; color: #555; font-size: 13px; }
   </style>
 </head>
 <body>
-  <h1>KARGA CONNECT Icon Generator</h1>
-  <p>Click each button to download the icon, or right-click canvas and "Save Image As"</p>
+  <h1>GetGo Icon Generator</h1>
+  <p>Redraws the old KARGA icon style with "GetGo" text. Click Download All when ready.</p>
+
+  <div class="controls">
+    <button onclick="renderAll()">Preview</button>
+    <button id="downloadAll" onclick="downloadAll()">Download All</button>
+  </div>
+  <div id="status"></div>
   <div class="icon-container" id="icons"></div>
 
   <script>
     const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
     const container = document.getElementById('icons');
+    let canvases = {};
 
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function drawIcon(canvas, size) {
+      const ctx = canvas.getContext('2d');
+      const s = size / 512; // scale factor relative to 512px master
+
+      ctx.clearRect(0, 0, size, size);
+
+      // --- Orange rounded-square background ---
+      const radius = 100 * s;
+      roundRect(ctx, 0, 0, size, size, radius);
+      ctx.fillStyle = '#f97316';
+      ctx.fill();
+
+      ctx.fillStyle = 'white';
+
+      // --- Truck body ---
+      const bodyX = 100 * s, bodyY = 200 * s, bodyW = 200 * s, bodyH = 120 * s;
+      ctx.beginPath();
+      ctx.roundRect(bodyX, bodyY, bodyW, bodyH, 10 * s);
+      ctx.fill();
+
+      // --- Truck cab ---
+      const cabX = 300 * s, cabY = 230 * s, cabW = 100 * s, cabH = 90 * s;
+      ctx.beginPath();
+      ctx.roundRect(cabX, cabY, cabW, cabH, 10 * s);
+      ctx.fill();
+
+      // --- Cab window (orange cutout) ---
+      ctx.fillStyle = '#f97316';
+      ctx.beginPath();
+      ctx.roundRect(320 * s, 245 * s, 60 * s, 40 * s, 5 * s);
+      ctx.fill();
+      ctx.fillStyle = 'white';
+
+      // --- Wheels (white circles) ---
+      const wheelY = 340 * s;
+      const wheelR = 35 * s;
+      [150, 250, 350].forEach(cx => {
+        ctx.beginPath();
+        ctx.arc(cx * s, wheelY, wheelR, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // --- Wheel centers (orange) ---
+      ctx.fillStyle = '#f97316';
+      const hubR = 15 * s;
+      [150, 250, 350].forEach(cx => {
+        ctx.beginPath();
+        ctx.arc(cx * s, wheelY, hubR, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.fillStyle = 'white';
+
+      // --- "GetGo" text ---
+      const fontSize = Math.round(80 * s);
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('GetGo', size / 2, 160 * s);
+    }
+
+    // Build canvas containers
     sizes.forEach(size => {
       const div = document.createElement('div');
+      div.className = 'icon-box';
       div.innerHTML = `<p>${size}x${size}</p>`;
 
       const canvas = document.createElement('canvas');
       canvas.width = size;
       canvas.height = size;
-      canvas.id = `icon-${size}`;
+      const displaySize = Math.min(size, 192);
+      canvas.style.width = displaySize + 'px';
+      canvas.style.height = displaySize + 'px';
 
-      const ctx = canvas.getContext('2d');
-
-      // Background gradient (orange)
-      const gradient = ctx.createLinearGradient(0, 0, size, size);
-      gradient.addColorStop(0, '#f97316');
-      gradient.addColorStop(1, '#ea580c');
-      ctx.fillStyle = gradient;
-
-      // Rounded rectangle background
-      const radius = size * 0.2;
-      ctx.beginPath();
-      ctx.moveTo(radius, 0);
-      ctx.lineTo(size - radius, 0);
-      ctx.quadraticCurveTo(size, 0, size, radius);
-      ctx.lineTo(size, size - radius);
-      ctx.quadraticCurveTo(size, size, size - radius, size);
-      ctx.lineTo(radius, size);
-      ctx.quadraticCurveTo(0, size, 0, size - radius);
-      ctx.lineTo(0, radius);
-      ctx.quadraticCurveTo(0, 0, radius, 0);
-      ctx.closePath();
-      ctx.fill();
-
-      // Draw truck icon
-      ctx.fillStyle = 'white';
-      const scale = size / 100;
-
-      // Truck body
-      ctx.fillRect(20 * scale, 40 * scale, 40 * scale, 25 * scale);
-
-      // Truck cab
-      ctx.fillRect(60 * scale, 45 * scale, 20 * scale, 20 * scale);
-
-      // Wheels
-      ctx.beginPath();
-      ctx.arc(30 * scale, 68 * scale, 6 * scale, 0, Math.PI * 2);
-      ctx.arc(50 * scale, 68 * scale, 6 * scale, 0, Math.PI * 2);
-      ctx.arc(70 * scale, 68 * scale, 6 * scale, 0, Math.PI * 2);
-      ctx.fill();
-
-      // "K" letter
-      ctx.font = `bold ${size * 0.25}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.fillText('K', size * 0.5, size * 0.35);
+      const btn = document.createElement('button');
+      btn.textContent = 'Download';
+      btn.onclick = () => downloadOne(size);
 
       div.appendChild(canvas);
-
-      // Download button
-      const btn = document.createElement('button');
-      btn.textContent = `Download ${size}x${size}`;
-      btn.onclick = () => {
-        const link = document.createElement('a');
-        link.download = `icon-${size}x${size}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-      };
       div.appendChild(btn);
-
       container.appendChild(div);
+      canvases[size] = canvas;
     });
+
+    function renderAll() {
+      sizes.forEach(size => drawIcon(canvases[size], size));
+      document.getElementById('status').textContent = 'Preview updated.';
+    }
+
+    function downloadOne(size) {
+      const canvas = canvases[size];
+      const link = document.createElement('a');
+      link.download = `icon-${size}x${size}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    function downloadAll() {
+      sizes.forEach((size, i) => setTimeout(() => downloadOne(size), i * 150));
+    }
+
+    // Render immediately on load — no image dependency
+    renderAll();
   </script>
 </body>
 </html>

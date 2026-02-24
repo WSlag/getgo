@@ -1,7 +1,7 @@
 {
-  "name": "KARGA CONNECT",
-  "short_name": "KARGA",
-  "description": "Philippine Trucking Backload Marketplace - Connect shippers with truckers",
+  "name": "GetGo",
+  "short_name": "GetGo",
+  "description": "Your Cargo Marketplace",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
