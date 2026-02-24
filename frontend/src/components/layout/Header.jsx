@@ -21,6 +21,7 @@ export function Header({
   onNotificationSettings,
   onHelpSupport,
   user = {},
+  mobileVisible = true,
 }) {
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
@@ -30,7 +31,11 @@ export function Header({
   ];
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 border-b border-gray-200/50 dark:border-gray-800/50">
+    <header className={cn(
+      "sticky top-0 z-50 backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 border-b border-gray-200/50 dark:border-gray-800/50",
+      "transition-transform duration-300",
+      !mobileVisible && "max-lg:-translate-y-full"
+    )}>
       <div style={{ padding: '16px 24px' }}>
         <div className="flex items-center justify-between">
           {/* Logo */}
