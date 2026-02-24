@@ -63,7 +63,7 @@ function AppContent() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
         <div className="text-center">
-          <Logo className="justify-center mb-6" size="lg" />
+          <Logo className="justify-center mb-6" showText={false} />
           <div className="flex items-center justify-center gap-2">
             <Loader2 className="size-5 animate-spin text-orange-500" />
             <span className="text-gray-600 dark:text-gray-400">Loading...</span>
