@@ -100,6 +100,7 @@ function getBrowserLabel(browserName) {
 export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
   const instructions = getInstructionSteps(browserName, platform);
   const label = getBrowserLabel(browserName);
+  const isAndroid = platform === 'android';
   const [copied, setCopied] = useState(false);
 
   const handleCopyUrl = async () => {
@@ -115,7 +116,7 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
   return (
     <div
       data-testid="inapp-overlay"
-      className="fixed inset-0 z-[10000] overflow-y-auto bg-gradient-to-b from-slate-100 to-white px-4 dark:from-gray-950 dark:to-gray-900 sm:px-6"
+      className="fixed inset-0 z-[10000] overflow-y-auto bg-gradient-to-b from-slate-100 to-white px-5 dark:from-gray-950 dark:to-gray-900 sm:px-6"
       style={{
         paddingTop: 'max(24px, env(safe-area-inset-top, 20px))',
         paddingBottom: 'max(24px, env(safe-area-inset-bottom, 16px))',
@@ -141,29 +142,35 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
 
           <h1
             data-testid="inapp-title"
-            className="text-balance text-2xl font-bold leading-tight text-slate-900 dark:text-white"
+            className={`text-balance font-bold leading-tight text-slate-900 dark:text-white ${
+              isAndroid ? 'text-center text-xl' : 'text-2xl'
+            }`}
           >
             {platform === 'android' ? 'Open in Google' : 'Open in Safari'}
           </h1>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-gray-300">
-            You are viewing GetGo in {label}&apos;s built-in browser. For the best and most stable experience,
-            continue in your phone&apos;s browser.
-          </p>
+          {!isAndroid && (
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-gray-300">
+              You are viewing GetGo in {label}&apos;s built-in browser. For the best and most stable experience,
+              continue in your phone&apos;s browser.
+            </p>
+          )}
 
           {platform === 'android' && (
-            <button
-              data-testid="inapp-primary-cta"
-              onClick={onOpenBrowser}
-              className="animate-overlay-enter-delay mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition-transform duration-200 active:scale-[0.98]"
-            >
-              <ExternalLink className="size-5" />
-              Open in Google
-            </button>
+            <div className="mt-4 px-2">
+              <button
+                data-testid="inapp-primary-cta"
+                onClick={onOpenBrowser}
+                className="animate-overlay-enter-delay flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition-transform duration-200 active:scale-[0.98]"
+              >
+                <ExternalLink className="size-5" />
+                Open in Google
+              </button>
+            </div>
           )}
 
           <div
             data-testid="inapp-steps"
-            className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-gray-800 dark:bg-gray-900/70"
+            className={`${isAndroid ? 'mt-6' : 'mt-5'} rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-gray-800 dark:bg-gray-900/70`}
           >
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-gray-400">
               {platform === 'android' ? 'If the button does not work' : 'Manual steps'}
