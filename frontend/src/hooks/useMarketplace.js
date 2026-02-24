@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 
 const STORAGE_KEY = 'karga.marketplace.preferences.v1';
 
-const HASH_TABS = ['home', 'tracking', 'contracts', 'messages', 'notifications', 'profile', 'bids', 'broker', 'activity'];
+const HASH_TABS = ['home', 'tracking', 'contracts', 'messages', 'notifications', 'profile', 'bids', 'broker', 'activity', 'help'];
 
 function getTabFromHash() {
   if (typeof window === 'undefined') return null;

@@ -197,7 +197,6 @@ export default function GetGoApp() {
   // PWA Install Prompt
   const {
     showInAppOverlay,
-    dismissInAppOverlay,
     inAppBrowserName,
     platform,
     showInstallBanner,
@@ -1536,7 +1535,7 @@ export default function GetGoApp() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="flex flex-col h-screen h-[100dvh] min-h-screen min-h-[100svh] overflow-hidden bg-gray-50 dark:bg-gray-950">
       {/* Header */}
       <Header
         activeTab={activeTab}
@@ -1564,7 +1563,7 @@ export default function GetGoApp() {
         mobileVisible={showMobileHeader}
       />
 
-      <div className="flex h-screen lg:h-[calc(100vh-73px)]">
+      <div className="flex flex-1 min-h-0">
         {/* Sidebar - Desktop only */}
         <Sidebar
           className="hidden lg:flex"
@@ -1856,7 +1855,7 @@ export default function GetGoApp() {
         )}
 
         {/* Fallback for invalid/unknown tabs */}
-        {!['home', 'activity', 'tracking', 'notifications', 'profile', 'broker', 'bids', 'messages', 'contracts', 'adminPayments', 'contractVerification'].includes(activeTab) && (
+        {!['home', 'activity', 'tracking', 'notifications', 'profile', 'broker', 'bids', 'messages', 'contracts', 'adminPayments', 'contractVerification', 'help'].includes(activeTab) && (
           <NotFoundView onGoHome={() => setActiveTab('home')} />
         )}
         </Suspense>
@@ -2369,7 +2368,7 @@ export default function GetGoApp() {
         userName={userProfile?.name || ''}
       />
 
-      {/* In-app browser redirect overlay (Facebook, Instagram, etc.) */}
+      {/* In-app browser redirect overlay */}
       {showInAppOverlay && (
         <InAppBrowserOverlay
           platform={platform}
@@ -2378,7 +2377,6 @@ export default function GetGoApp() {
             const url = buildAndroidIntentUrl(window.location.href);
             if (url) window.location.href = url;
           }}
-          onDismiss={dismissInAppOverlay}
         />
       )}
 
