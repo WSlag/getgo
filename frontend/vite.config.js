@@ -11,11 +11,11 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/icon.svg', 'icons/*.png'],
+      includeAssets: ['icons/*.png'],
       manifest: {
-        name: 'KARGA CONNECT',
-        short_name: 'KARGA',
-        description: 'Philippine Trucking Backload Marketplace - Connect shippers with truckers',
+        name: 'GetGo',
+        short_name: 'GetGo',
+        description: 'Your Cargo Marketplace',
         theme_color: '#f97316',
         background_color: '#ffffff',
         display: 'standalone',
@@ -73,12 +73,6 @@ export default defineConfig({
             type: 'image/png',
             purpose: 'maskable any'
           },
-          {
-            src: 'icons/icon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any'
-          }
         ],
         shortcuts: [
           {
