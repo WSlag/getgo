@@ -46,6 +46,7 @@ export function HomeView({
   onActivateBroker,
   onPostListing,
   onScroll,
+  mobileHeaderVisible = true,
 }) {
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
@@ -78,9 +79,11 @@ export function HomeView({
     delivered: { color: 'bg-green-500', label: 'Delivered', textColor: 'text-green-500' },
   };
   const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
+  const mobileStickyPaddingTop = mobileHeaderVisible ? 16 : 8;
 
   return (
     <main
+      data-testid="home-scroll-container"
       className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)}
       style={{
         padding: isMobile ? '0' : '24px',
@@ -117,10 +120,14 @@ export function HomeView({
       )}
 
       {/* Sticky Mobile Header: Market Switcher + Search */}
-      <div className={cn(
-        "lg:relative lg:z-auto",
-        "max-lg:sticky max-lg:top-0 max-lg:z-40 max-lg:bg-gray-50 max-lg:dark:bg-gray-950"
-      )} style={{ padding: isMobile ? '16px 16px 0' : '0' }}>
+      <div
+        data-testid="home-sticky-controls"
+        className={cn(
+          "lg:relative lg:z-auto",
+          "max-lg:sticky max-lg:top-0 max-lg:z-40 max-lg:bg-gray-50 max-lg:dark:bg-gray-950"
+        )}
+        style={{ padding: isMobile ? `${mobileStickyPaddingTop}px 16px 0` : '0' }}
+      >
         {/* Mobile Market Switcher - only visible on mobile */}
         <div className="lg:hidden flex gap-2" style={{ marginBottom: '16px' }}>
           <button
