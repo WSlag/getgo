@@ -7,7 +7,7 @@ import {
   signOut
 } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth, db, waitForAppCheckInitialization } from '../firebase';
 import api from '../services/api';
 
 const AuthContext = createContext();
@@ -410,6 +410,7 @@ export function AuthProvider({ children }) {
         formattedPhone = '+63' + formattedPhone;
       }
 
+      await waitForAppCheckInitialization();
       await preloadAuthRecaptchaEnterpriseScript();
       const verifier = getRecaptchaVerifier();
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);

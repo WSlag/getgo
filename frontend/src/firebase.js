@@ -108,6 +108,7 @@ function getOrInitializeApp(config, name) {
 // Initialize Firebase
 const app = getOrInitializeApp(firebaseConfig, '[DEFAULT]');
 let appCheck = null;
+let appCheckInitializationPromise = null;
 
 if (import.meta.env.PROD) {
   // Keep production console noise low when App Check is throttled by browser privacy policies.
@@ -203,9 +204,9 @@ async function initializeAppCheckRuntime() {
       window.FIREBASE_APPCHECK_DEBUG_TOKEN = window.FIREBASE_APPCHECK_DEBUG_TOKEN || true;
     }
 
-    // Keep App Check on a separate app instance so Auth on the default app
-    // does not fail OTP flows when App Check token exchange is blocked/rejected.
-    const appCheckRuntimeApp = getOrInitializeApp(firebaseConfig, 'app-check-runtime');
+    // App Check must be initialized on the default app so Firebase Auth
+    // can attach X-Firebase-AppCheck headers to Identity Toolkit requests.
+    const appCheckRuntimeApp = app;
     for (let index = 0; index < appCheckCandidates.length; index += 1) {
       const candidate = appCheckCandidates[index];
       const constructorName = appCheckProviderConstructorNameMap[candidate.provider];
@@ -223,7 +224,7 @@ async function initializeAppCheckRuntime() {
           provider: new ProviderCtor(candidate.siteKey),
           isTokenAutoRefreshEnabled: true,
         });
-        return;
+        return true;
       } catch (error) {
         const hasFallback = index < appCheckCandidates.length - 1;
         if (import.meta.env.DEV && hasFallback) {
@@ -233,19 +234,58 @@ async function initializeAppCheckRuntime() {
             message
           );
         } else if (import.meta.env.DEV) {
-          throw error;
+          console.warn(
+            `[firebase] App Check init failed for ${candidate.provider}.`,
+            error?.message || error
+          );
         }
       }
     }
+
+    return false;
   } catch (error) {
     if (import.meta.env.DEV) {
       console.warn('[firebase] App Check initialization failed:', error?.message || error);
     }
+    return false;
   }
 }
 
+function startAppCheckInitialization() {
+  if (!appCheckInitializationPromise) {
+    appCheckInitializationPromise = initializeAppCheckRuntime().catch(() => false);
+  }
+  return appCheckInitializationPromise;
+}
+
+export async function waitForAppCheckInitialization(timeoutMs = 4000) {
+  if (!shouldInitializeAppCheck) {
+    return false;
+  }
+
+  const initializationPromise = startAppCheckInitialization();
+  if (!(timeoutMs > 0)) {
+    await initializationPromise;
+    return Boolean(appCheck);
+  }
+
+  let timeoutId = null;
+  await Promise.race([
+    initializationPromise,
+    new Promise((resolve) => {
+      timeoutId = setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+
+  if (timeoutId !== null) {
+    clearTimeout(timeoutId);
+  }
+
+  return Boolean(appCheck);
+}
+
 if (shouldInitializeAppCheck) {
-  void initializeAppCheckRuntime();
+  void startAppCheckInitialization();
 } else if (import.meta.env.DEV && !useEmulator) {
   const reason = !appCheckEnabled
     ? 'VITE_ENABLE_APPCHECK=false'
