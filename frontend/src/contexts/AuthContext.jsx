@@ -12,6 +12,160 @@ import api from '../services/api';
 
 const AuthContext = createContext();
 const RECAPTCHA_CONTAINER_ID = 'firebase-auth-recaptcha-container';
+const AUTH_RECAPTCHA_CONFIG_ENDPOINT = 'https://identitytoolkit.googleapis.com/v2/recaptchaConfig';
+const AUTH_RECAPTCHA_CONFIG_TIMEOUT_MS = 8000;
+const AUTH_RECAPTCHA_SCRIPT_TIMEOUT_MS = 8000;
+const RECAPTCHA_ENTERPRISE_SCRIPT_ORIGIN = 'https://www.google.com';
+const RECAPTCHA_ENTERPRISE_SCRIPT_PATH = '/recaptcha/enterprise.js';
+
+let authRecaptchaSiteKeyPromise = null;
+const authRecaptchaScriptLoadPromises = new Map();
+
+function extractAuthRecaptchaSiteKey(recaptchaKeyResource) {
+  if (!recaptchaKeyResource || typeof recaptchaKeyResource !== 'string') {
+    return '';
+  }
+  const keyParts = recaptchaKeyResource.split('/').filter(Boolean);
+  return keyParts[keyParts.length - 1] || '';
+}
+
+function buildAuthRecaptchaConfigUrl(apiKey) {
+  const url = new URL(AUTH_RECAPTCHA_CONFIG_ENDPOINT);
+  url.searchParams.set('key', apiKey);
+  url.searchParams.set('clientType', 'CLIENT_TYPE_WEB');
+  url.searchParams.set('version', 'RECAPTCHA_ENTERPRISE');
+  return url.toString();
+}
+
+function isMatchingEnterpriseScript(scriptSrc, siteKey) {
+  if (!scriptSrc || !siteKey || typeof window === 'undefined') return false;
+  try {
+    const parsed = new URL(scriptSrc, window.location.origin);
+    return (
+      parsed.origin === RECAPTCHA_ENTERPRISE_SCRIPT_ORIGIN
+      && parsed.pathname === RECAPTCHA_ENTERPRISE_SCRIPT_PATH
+      && parsed.searchParams.get('render') === siteKey
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getMatchingEnterpriseScript(siteKey) {
+  if (typeof document === 'undefined') return null;
+  const scripts = document.querySelectorAll('script[src]');
+  for (const script of scripts) {
+    if (isMatchingEnterpriseScript(script.getAttribute('src') || '', siteKey)) {
+      return script;
+    }
+  }
+  return null;
+}
+
+function waitForScriptLoad(scriptEl, timeoutMs) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timeoutId = null;
+
+    const cleanup = () => {
+      scriptEl.removeEventListener('load', onFinish);
+      scriptEl.removeEventListener('error', onFinish);
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    const onFinish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+
+    scriptEl.addEventListener('load', onFinish, { once: true });
+    scriptEl.addEventListener('error', onFinish, { once: true });
+    timeoutId = setTimeout(onFinish, timeoutMs);
+  });
+}
+
+async function fetchAuthRecaptchaSiteKey() {
+  if (authRecaptchaSiteKeyPromise) {
+    return authRecaptchaSiteKeyPromise;
+  }
+
+  authRecaptchaSiteKeyPromise = (async () => {
+    if (typeof window === 'undefined') return '';
+
+    const apiKey = String(import.meta.env?.VITE_FIREBASE_API_KEY || '').trim();
+    if (!apiKey) return '';
+
+    const configUrl = buildAuthRecaptchaConfigUrl(apiKey);
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    let timeoutId = null;
+
+    try {
+      if (controller) {
+        timeoutId = setTimeout(() => controller.abort(), AUTH_RECAPTCHA_CONFIG_TIMEOUT_MS);
+      }
+
+      const response = await fetch(configUrl, {
+        method: 'GET',
+        credentials: 'omit',
+        signal: controller?.signal,
+      });
+      if (!response.ok) return '';
+
+      const payload = await response.json();
+      return extractAuthRecaptchaSiteKey(payload?.recaptchaKey);
+    } catch {
+      return '';
+    } finally {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    }
+  })();
+
+  return authRecaptchaSiteKeyPromise;
+}
+
+async function ensureAuthEnterpriseRecaptchaScript(siteKey) {
+  if (!siteKey || typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  if (window.grecaptcha?.enterprise && getMatchingEnterpriseScript(siteKey)) {
+    return;
+  }
+
+  if (authRecaptchaScriptLoadPromises.has(siteKey)) {
+    await authRecaptchaScriptLoadPromises.get(siteKey);
+    return;
+  }
+
+  const scriptUrl = `${RECAPTCHA_ENTERPRISE_SCRIPT_ORIGIN}${RECAPTCHA_ENTERPRISE_SCRIPT_PATH}?render=${encodeURIComponent(siteKey)}`;
+  const existingScript = getMatchingEnterpriseScript(siteKey);
+  const scriptEl = existingScript || document.createElement('script');
+
+  if (!existingScript) {
+    scriptEl.src = scriptUrl;
+    scriptEl.async = true;
+    scriptEl.defer = true;
+    document.head.appendChild(scriptEl);
+  }
+
+  const loadPromise = waitForScriptLoad(scriptEl, AUTH_RECAPTCHA_SCRIPT_TIMEOUT_MS);
+  authRecaptchaScriptLoadPromises.set(siteKey, loadPromise);
+  await loadPromise;
+}
+
+async function preloadAuthRecaptchaEnterpriseScript() {
+  try {
+    const siteKey = await fetchAuthRecaptchaSiteKey();
+    if (!siteKey) return;
+    await ensureAuthEnterpriseRecaptchaScript(siteKey);
+  } catch {
+    // Continue with default Auth flow if preload fails.
+  }
+}
 
 function ensureRecaptchaContainer() {
   if (typeof document === 'undefined') return null;
@@ -256,6 +410,7 @@ export function AuthProvider({ children }) {
         formattedPhone = '+63' + formattedPhone;
       }
 
+      await preloadAuthRecaptchaEnterpriseScript();
       const verifier = getRecaptchaVerifier();
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
 
