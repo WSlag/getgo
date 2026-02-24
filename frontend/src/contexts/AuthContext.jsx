@@ -37,8 +37,12 @@ function formatFirebaseAuthError(error) {
   const rawMessageLower = rawMessage.toLowerCase();
   const isDev = typeof import.meta !== 'undefined' && Boolean(import.meta.env?.DEV);
   const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+  const isLocalHost = currentHost === 'localhost' || currentHost === '127.0.0.1';
 
   if (rawMessageLower.includes('invalid site key or not loaded')) {
+    if (isLocalHost) {
+      return 'reCAPTCHA failed on localhost. Use a Firebase-hosted/custom authorized domain for phone auth, or use Auth Emulator/test phone numbers for local testing.';
+    }
     return `reCAPTCHA site key is invalid for ${currentHost}. Check Firebase Authentication authorized domains and reCAPTCHA key restrictions.`;
   }
 
