@@ -116,7 +116,9 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
   return (
     <div
       data-testid="inapp-overlay"
-      className="fixed inset-0 z-[10000] overflow-y-auto bg-gradient-to-b from-slate-100 to-white px-5 dark:from-gray-950 dark:to-gray-900 sm:px-6"
+      className={`fixed inset-0 z-[10000] overflow-y-auto bg-gradient-to-b from-slate-100 to-white dark:from-gray-950 dark:to-gray-900 ${
+        isAndroid ? 'px-8 sm:px-8' : 'px-5 sm:px-6'
+      }`}
       style={{
         paddingTop: 'max(24px, env(safe-area-inset-top, 20px))',
         paddingBottom: 'max(24px, env(safe-area-inset-bottom, 16px))',
@@ -156,7 +158,7 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
           )}
 
           {platform === 'android' && (
-            <div className="mt-4 px-2">
+            <div className="mt-5 px-3">
               <button
                 data-testid="inapp-primary-cta"
                 onClick={onOpenBrowser}
@@ -170,12 +172,12 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
 
           <div
             data-testid="inapp-steps"
-            className={`${isAndroid ? 'mt-6' : 'mt-5'} rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-gray-800 dark:bg-gray-900/70`}
+            className={`${isAndroid ? 'mt-8' : 'mt-5'} rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-gray-800 dark:bg-gray-900/70`}
           >
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-gray-400">
+            <p className={`${isAndroid ? 'mb-4' : 'mb-3'} text-xs font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-gray-400`}>
               {platform === 'android' ? 'If the button does not work' : 'Manual steps'}
             </p>
-            <ol className="space-y-3">
+            <ol className={isAndroid ? 'space-y-4' : 'space-y-3'}>
               {instructions.map((step, index) => (
                 <li key={`${platform}-${index}`} className="flex items-start gap-3">
                   <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
