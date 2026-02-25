@@ -318,7 +318,7 @@ export default function TrackingMap({
             </button>
           </div>
 
-          <div className="relative flex-1 min-h-0">
+          <div className="relative flex-1 min-h-0" style={{ height: '300px' }}>
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-[1000]">
               <div className="bg-white dark:bg-gray-800 rounded-xl p-4 flex items-center gap-3 shadow-lg">
