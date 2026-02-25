@@ -343,7 +343,8 @@ export function TrackingView({
                 setSelectedShipmentId(shipment.id);
                 setShowFullMap(true);
               }}
-              className="flex-1 min-w-[140px] py-3 px-4 bg-gradient-to-r from-orange-400 to-orange-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold' }}
+              className="flex-1 min-w-[140px] bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
             >
               <MapPinned className="size-4" />
               Track Live
