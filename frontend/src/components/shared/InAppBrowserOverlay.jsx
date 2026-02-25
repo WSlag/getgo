@@ -144,25 +144,22 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
 
           <h1
             data-testid="inapp-title"
-            className={`text-balance font-bold leading-tight text-slate-900 dark:text-white ${
-              isAndroid ? 'text-center text-xl' : 'text-2xl'
-            }`}
+            className="text-2xl font-bold leading-tight text-slate-900 dark:text-white"
           >
             {platform === 'android' ? 'Open in Google' : 'Open in Safari'}
           </h1>
-          {!isAndroid && (
-            <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-gray-300">
-              You are viewing GetGo in {label}&apos;s built-in browser. For the best and most stable experience,
-              continue in your phone&apos;s browser.
-            </p>
-          )}
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-gray-300">
+            You are viewing GetGo in {label}&apos;s built-in browser. For the best and most stable experience,
+            continue in your phone&apos;s browser.
+          </p>
 
           {platform === 'android' && (
-            <div className="mt-5 px-3">
+            <div className="mt-5">
               <button
                 data-testid="inapp-primary-cta"
                 onClick={onOpenBrowser}
-                className="animate-overlay-enter-delay flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition-transform duration-200 active:scale-[0.98]"
+                style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', boxShadow: '0 4px 8px rgba(249,115,22,0.4)' }}
+                className="animate-overlay-enter-delay flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white transition-transform duration-200 active:scale-[0.98]"
               >
                 <ExternalLink className="size-5" />
                 Open in Google
@@ -172,12 +169,12 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
 
           <div
             data-testid="inapp-steps"
-            className={`${isAndroid ? 'mt-8' : 'mt-5'} rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-gray-800 dark:bg-gray-900/70`}
+            className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-gray-800 dark:bg-gray-900/70"
           >
-            <p className={`${isAndroid ? 'mb-4' : 'mb-3'} text-xs font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-gray-400`}>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500 dark:text-gray-400">
               {platform === 'android' ? 'If the button does not work' : 'Manual steps'}
             </p>
-            <ol className={isAndroid ? 'space-y-4' : 'space-y-3'}>
+            <ol className="space-y-3">
               {instructions.map((step, index) => (
                 <li key={`${platform}-${index}`} className="flex items-start gap-3">
                   <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
