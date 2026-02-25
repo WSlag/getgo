@@ -171,29 +171,13 @@ export default function GetGoApp() {
   } = useAuthGuard();
 
   // Mobile header scroll-to-hide for Home tab, hidden for other tabs
+  // Header is position:fixed on mobile so show/hide never causes layout shift
   const lastScrollY = useRef(0);
   const hiddenHeaderScrollY = useRef(0);
   const [mobileHeaderVisible, setMobileHeaderVisible] = useState(true);
-  // Lock scroll handler while header is animating to prevent the layout-shift
-  // scroll event (from max-h collapse/expand) from re-triggering show/hide
-  const headerTransitioning = useRef(false);
-  const transitionTimer = useRef(null);
-
-  useEffect(() => {
-    headerTransitioning.current = true;
-    clearTimeout(transitionTimer.current);
-    transitionTimer.current = setTimeout(() => {
-      headerTransitioning.current = false;
-    }, 350);
-  }, [mobileHeaderVisible]);
 
   const handleHomeScroll = useCallback((e) => {
     const scrollTop = e.currentTarget?.scrollTop ?? e.target?.scrollTop ?? 0;
-    // Always keep lastScrollY in sync so delta is correct when lock releases
-    if (headerTransitioning.current) {
-      lastScrollY.current = scrollTop;
-      return;
-    }
     const delta = scrollTop - lastScrollY.current;
     if (scrollTop <= 8) {
       setMobileHeaderVisible(true);
