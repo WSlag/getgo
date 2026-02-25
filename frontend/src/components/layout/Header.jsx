@@ -33,12 +33,16 @@ export function Header({
     <header
       data-testid="app-header"
       className={cn(
-        "sticky top-0 z-50 shrink-0 backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 border-b border-gray-200/50 dark:border-gray-800/50",
-        "max-lg:overflow-hidden max-lg:duration-300 max-lg:ease-out",
-        "max-lg:transition-[max-height,opacity,border-color]",
+        "z-50 backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 border-b border-gray-200/50 dark:border-gray-800/50",
+        // Desktop: sticky, stays in layout flow
+        "lg:sticky lg:top-0 lg:shrink-0",
+        // Mobile: fixed overlay, never affects layout
+        "max-lg:fixed max-lg:top-0 max-lg:left-0 max-lg:right-0",
+        "max-lg:duration-300 max-lg:ease-out",
+        "max-lg:transition-[opacity,border-color,transform]",
         mobileVisible
-          ? "max-lg:opacity-100 max-lg:pointer-events-auto max-lg:border-gray-200/50 dark:max-lg:border-gray-800/50 max-lg:max-h-[200px]"
-          : "max-lg:opacity-0 max-lg:pointer-events-none max-lg:border-transparent max-lg:max-h-0"
+          ? "max-lg:opacity-100 max-lg:pointer-events-auto max-lg:border-gray-200/50 dark:max-lg:border-gray-800/50 max-lg:translate-y-0"
+          : "max-lg:opacity-0 max-lg:pointer-events-none max-lg:border-transparent max-lg:-translate-y-full"
       )}
     >
       <div style={{ padding: '16px 24px' }}>

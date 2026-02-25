@@ -85,6 +85,9 @@ export function HomeView({
   };
   const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
   const mobileStickyPaddingTop = mobileHeaderVisible ? 16 : 8;
+  // Header is position:fixed on mobile — sticky controls need matching top offset
+  const MOBILE_HEADER_HEIGHT = 74;
+  const mobileStickyTop = mobileHeaderVisible ? MOBILE_HEADER_HEIGHT : 0;
 
   return (
     <main
@@ -93,6 +96,7 @@ export function HomeView({
       className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)}
       style={{
         padding: isMobile ? '0' : '24px',
+        paddingTop: isMobile ? `${MOBILE_HEADER_HEIGHT}px` : '24px',
         paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px',
         overscrollBehaviorY: 'contain',
       }}
@@ -130,9 +134,13 @@ export function HomeView({
         data-testid="home-sticky-controls"
         className={cn(
           "lg:relative lg:z-auto",
-          "max-lg:sticky max-lg:top-0 max-lg:z-40 max-lg:bg-gray-50 max-lg:dark:bg-gray-950"
+          "max-lg:sticky max-lg:z-40 max-lg:bg-gray-50 max-lg:dark:bg-gray-950",
+          "max-lg:transition-[top] max-lg:duration-300 max-lg:ease-out"
         )}
-        style={{ padding: isMobile ? `${mobileStickyPaddingTop}px 16px 0` : '0' }}
+        style={{
+          padding: isMobile ? `${mobileStickyPaddingTop}px 16px 0` : '0',
+          top: isMobile ? `${mobileStickyTop}px` : undefined,
+        }}
       >
         {/* Mobile Market Switcher - only visible on mobile */}
         <div className="lg:hidden flex gap-2" style={{ marginBottom: '16px' }}>
