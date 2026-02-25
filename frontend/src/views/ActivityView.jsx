@@ -70,11 +70,12 @@ export default function ActivityView({
 
       {/* Broker Mode Switcher */}
       {isBroker && (
-        <div className="mb-4">
-          <div className="flex gap-4">
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
             <button
               onClick={() => setViewMode('my')}
-              className={`flex-1 py-4 px-4 rounded-xl font-bold text-base transition-all ${
+              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', flex: 1 }}
+              className={`rounded-xl transition-all ${
                 viewMode === 'my'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
@@ -84,7 +85,8 @@ export default function ActivityView({
             </button>
             <button
               onClick={() => setViewMode('broker')}
-              className={`flex-1 py-4 px-4 rounded-xl font-bold text-base transition-all ${
+              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', flex: 1 }}
+              className={`rounded-xl transition-all ${
                 viewMode === 'broker'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
@@ -98,11 +100,12 @@ export default function ActivityView({
 
       {/* Tabs */}
       {viewMode === 'my' && (
-        <div className="mb-6">
-          <div className="flex gap-4">
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
             <button
               onClick={() => setActiveSubTab('bids')}
-              className={`flex-1 py-4 px-4 rounded-xl font-bold text-base transition-all relative ${
+              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', flex: 1 }}
+              className={`rounded-xl transition-all relative ${
                 activeSubTab === 'bids'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
@@ -122,7 +125,8 @@ export default function ActivityView({
 
             <button
               onClick={() => setActiveSubTab('contracts')}
-              className={`flex-1 py-4 px-4 rounded-xl font-bold text-base transition-all relative ${
+              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', flex: 1 }}
+              className={`rounded-xl transition-all relative ${
                 activeSubTab === 'contracts'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
@@ -143,7 +147,8 @@ export default function ActivityView({
             {hasReferredListings && (
               <button
                 onClick={() => setActiveSubTab('referred')}
-                className={`flex-1 py-4 px-4 rounded-xl font-bold text-base transition-all relative ${
+                style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', flex: 1 }}
+                className={`rounded-xl transition-all relative ${
                   activeSubTab === 'referred'
                     ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
