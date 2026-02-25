@@ -74,9 +74,9 @@ export default function ActivityView({
           <div className="flex gap-2 bg-white dark:bg-gray-900 p-1 rounded-lg border border-gray-200 dark:border-gray-800">
             <button
               onClick={() => setViewMode('my')}
-              className={`flex-1 py-2 px-4 rounded-md font-medium text-sm transition-all ${
+              className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all ${
                 viewMode === 'my'
-                  ? 'bg-orange-500 text-white shadow-sm'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
@@ -84,9 +84,9 @@ export default function ActivityView({
             </button>
             <button
               onClick={() => setViewMode('broker')}
-              className={`flex-1 py-2 px-4 rounded-md font-medium text-sm transition-all ${
+              className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all ${
                 viewMode === 'broker'
-                  ? 'bg-orange-500 text-white shadow-sm'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
@@ -102,9 +102,9 @@ export default function ActivityView({
           <div className="flex gap-2 bg-white dark:bg-gray-900 p-1 rounded-lg border border-gray-200 dark:border-gray-800">
             <button
               onClick={() => setActiveSubTab('bids')}
-              className={`flex-1 py-2.5 px-4 rounded-md font-medium text-sm transition-all relative ${
+              className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all relative ${
                 activeSubTab === 'bids'
-                  ? 'bg-orange-500 text-white shadow-sm'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
@@ -122,9 +122,9 @@ export default function ActivityView({
 
             <button
               onClick={() => setActiveSubTab('contracts')}
-              className={`flex-1 py-2.5 px-4 rounded-md font-medium text-sm transition-all relative ${
+              className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all relative ${
                 activeSubTab === 'contracts'
-                  ? 'bg-orange-500 text-white shadow-sm'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
@@ -143,9 +143,9 @@ export default function ActivityView({
             {hasReferredListings && (
               <button
                 onClick={() => setActiveSubTab('referred')}
-                className={`flex-1 py-2.5 px-4 rounded-md font-medium text-sm transition-all relative ${
+                className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all relative ${
                   activeSubTab === 'referred'
-                    ? 'bg-orange-500 text-white shadow-sm'
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
