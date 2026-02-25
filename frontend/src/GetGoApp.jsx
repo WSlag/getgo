@@ -200,6 +200,20 @@ export default function GetGoApp() {
     }
   }, [activeTab]);
 
+  // Reset scroll tracking refs when market/filter/search changes so stale
+  // deltas don't cause the header to flicker after content reflows
+  useEffect(() => {
+    lastScrollY.current = 0;
+    hiddenHeaderScrollY.current = 0;
+    setMobileHeaderVisible(true);
+  }, [activeMarket, filterStatus, searchQuery]);
+
+  // When switching markets, also reset the filter so filter pills start fresh
+  const handleMarketChange = useCallback((market) => {
+    setActiveMarket(market);
+    setFilterStatus('all');
+  }, [setActiveMarket, setFilterStatus]);
+
   // PWA Install Prompt
   const {
     showInAppOverlay,
@@ -1606,7 +1620,7 @@ export default function GetGoApp() {
           <ErrorBoundary>
             <HomeView
               activeMarket={activeMarket}
-              onMarketChange={setActiveMarket}
+              onMarketChange={handleMarketChange}
               cargoListings={filteredCargoListings}
               truckListings={filteredTruckListings}
               filterStatus={filterStatus}
