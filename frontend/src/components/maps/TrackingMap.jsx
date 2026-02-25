@@ -318,7 +318,7 @@ export default function TrackingMap({
             </button>
           </div>
 
-          <div className="relative flex-1 min-h-0" style={{ height: '300px' }}>
+          <div className="relative" style={{ height: '280px' }}>
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-[1000]">
               <div className="bg-white dark:bg-gray-800 rounded-xl p-4 flex items-center gap-3 shadow-lg">
@@ -331,7 +331,7 @@ export default function TrackingMap({
           <MapContainer
             center={[shipment.currentLocation.lat, shipment.currentLocation.lng]}
             zoom={8}
-            style={{ height: '100%', width: '100%' }}
+            style={{ height: '280px', width: '100%' }}
             zoomControl={true}
           >
             <TileLayer
