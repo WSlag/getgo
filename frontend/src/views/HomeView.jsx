@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Filter, X, Radio, MapPin, Navigation, MapPinned, Route, ChevronRight, AlertCircle, BookmarkPlus, Bookmark, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CargoCard } from '@/components/cargo/CargoCard';
@@ -57,9 +57,14 @@ export function HomeView({
   const visibleListings = listings.slice(0, visibleCount);
   const hasMore = visibleCount < listings.length;
 
-  // Reset visible count when market or filter changes
+  const scrollContainerRef = useRef(null);
+
+  // Reset visible count and scroll position when market or filter changes
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
   }, [activeMarket, filterStatus, searchQuery]);
 
   // Detect mobile screen for compact cards
@@ -83,6 +88,7 @@ export function HomeView({
 
   return (
     <main
+      ref={scrollContainerRef}
       data-testid="home-scroll-container"
       className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)}
       style={{
