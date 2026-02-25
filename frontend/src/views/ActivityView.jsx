@@ -70,11 +70,11 @@ export default function ActivityView({
 
       {/* Broker Mode Switcher */}
       {isBroker && (
-        <div className="mb-4">
-          <div className="flex gap-2">
+        <div className="mb-3">
+          <div className="flex gap-3">
             <button
               onClick={() => setViewMode('my')}
-              className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all ${
+              className={`flex-1 py-4 px-4 rounded-xl font-bold text-sm transition-all ${
                 viewMode === 'my'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
@@ -84,7 +84,7 @@ export default function ActivityView({
             </button>
             <button
               onClick={() => setViewMode('broker')}
-              className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all ${
+              className={`flex-1 py-4 px-4 rounded-xl font-bold text-sm transition-all ${
                 viewMode === 'broker'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
@@ -99,10 +99,10 @@ export default function ActivityView({
       {/* Tabs */}
       {viewMode === 'my' && (
         <div className="mb-6">
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <button
               onClick={() => setActiveSubTab('bids')}
-              className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all relative ${
+              className={`flex-1 py-4 px-4 rounded-xl font-bold text-sm transition-all relative ${
                 activeSubTab === 'bids'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
@@ -122,7 +122,7 @@ export default function ActivityView({
 
             <button
               onClick={() => setActiveSubTab('contracts')}
-              className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all relative ${
+              className={`flex-1 py-4 px-4 rounded-xl font-bold text-sm transition-all relative ${
                 activeSubTab === 'contracts'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
@@ -143,7 +143,7 @@ export default function ActivityView({
             {hasReferredListings && (
               <button
                 onClick={() => setActiveSubTab('referred')}
-                className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all relative ${
+                className={`flex-1 py-4 px-4 rounded-xl font-bold text-sm transition-all relative ${
                   activeSubTab === 'referred'
                     ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
