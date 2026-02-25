@@ -508,20 +508,20 @@ export function HomeView({
                       onClick={() => onTrackLive?.(shipment)}
                       style={{
                         width: '100%',
-                        background: 'linear-gradient(to right, #fb923c, #ea580c)',
+                        background: 'linear-gradient(to right, #f59e0b, #f97316)',
                         color: '#fff',
                         borderRadius: '12px',
-                        fontWeight: '500',
-                        padding: isMobile ? '10px 12px' : '12px 16px',
-                        fontSize: isMobile ? '12px' : '14px',
+                        fontWeight: 'bold',
+                        padding: '14px 16px',
+                        fontSize: '15px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: isMobile ? '6px' : '8px',
+                        gap: '8px',
                         border: 'none',
                         cursor: 'pointer',
                         transition: 'all 0.3s',
-                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        boxShadow: '0 4px 8px rgba(249,115,22,0.4)'
                       }}
                     >
                       <MapPinned style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} />
