@@ -242,7 +242,8 @@ export function OnboardingGuideModal({ open, onClose, userRole = 'shipper', user
             ) : (
               <button
                 onClick={handleClose}
-                className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors flex-shrink-0 px-2"
+                style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold' }}
+                className="flex-shrink-0 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 transition-colors"
               >
                 Skip
               </button>
@@ -251,12 +252,8 @@ export function OnboardingGuideModal({ open, onClose, userRole = 'shipper', user
             {/* Next / Get Started */}
             <button
               onClick={handleNext}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-sm',
-                'bg-gradient-to-br from-orange-400 to-orange-600 text-white',
-                'shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40',
-                'hover:scale-[1.02] active:scale-[0.98] transition-all duration-300'
-              )}
+              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', boxShadow: '0 4px 8px rgba(249,115,22,0.4)' }}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
             >
               {isLast ? (
                 <>
