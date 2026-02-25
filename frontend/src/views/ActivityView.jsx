@@ -71,13 +71,13 @@ export default function ActivityView({
       {/* Broker Mode Switcher */}
       {isBroker && (
         <div className="mb-4">
-          <div className="flex gap-2 bg-white dark:bg-gray-900 p-1 rounded-lg border border-gray-200 dark:border-gray-800">
+          <div className="flex gap-2">
             <button
               onClick={() => setViewMode('my')}
               className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all ${
                 viewMode === 'my'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
               }`}
             >
               My Activity
@@ -87,7 +87,7 @@ export default function ActivityView({
               className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all ${
                 viewMode === 'broker'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
               }`}
             >
               Broker Activity
@@ -99,13 +99,13 @@ export default function ActivityView({
       {/* Tabs */}
       {viewMode === 'my' && (
         <div className="mb-6">
-          <div className="flex gap-2 bg-white dark:bg-gray-900 p-1 rounded-lg border border-gray-200 dark:border-gray-800">
+          <div className="flex gap-2">
             <button
               onClick={() => setActiveSubTab('bids')}
               className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all relative ${
                 activeSubTab === 'bids'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
               }`}
             >
               {currentRole === 'trucker' ? 'My Bids' : 'My Bookings'}
@@ -125,7 +125,7 @@ export default function ActivityView({
               className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all relative ${
                 activeSubTab === 'contracts'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
               }`}
             >
               Contracts
@@ -146,7 +146,7 @@ export default function ActivityView({
                 className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all relative ${
                   activeSubTab === 'referred'
                     ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
                 }`}
               >
                 Referred Listings
