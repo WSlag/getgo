@@ -301,23 +301,24 @@ export default function TrackingMap({
 
   if (showFull) {
     return (
-      <div className="tracking-live-overlay fixed inset-0 bg-black/60 z-[80] flex flex-col">
-        <div className={`${theme.bgCard} p-4 flex justify-between items-center shadow-lg shrink-0`}>
-          <div>
-            <h2 className={`font-bold ${theme.text} flex items-center gap-2`}>
-              <MapPinned className="text-amber-500" /> Live Tracking
-            </h2>
-            <p className={theme.textSecondary}>{shipment.origin}{' -> '}{shipment.destination}</p>
+      <div className="tracking-live-overlay fixed inset-0 bg-black/60 z-[80] flex items-center justify-center" style={{ padding: '16px' }}>
+          <div className={`${theme.bgCard} rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden`} style={{ maxHeight: 'calc(100vh - 32px)' }}>
+          <div className={`${theme.bgCard} p-4 flex justify-between items-center shadow-lg shrink-0`}>
+            <div>
+              <h2 className={`font-bold ${theme.text} flex items-center gap-2`}>
+                <MapPinned className="text-amber-500" /> Live Tracking
+              </h2>
+              <p className={theme.textSecondary}>{shipment.origin}{' -> '}{shipment.destination}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className={`${theme.bgSecondary} p-2 rounded-full hover:opacity-80 transition`}
+            >
+              <X size={24} className={theme.textSecondary} />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className={`${theme.bgSecondary} p-2 rounded-full hover:opacity-80 transition`}
-          >
-            <X size={24} className={theme.textSecondary} />
-          </button>
-        </div>
 
-        <div className="relative flex-1 min-h-0">
+          <div className="relative flex-1 min-h-0">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-[1000]">
               <div className="bg-white dark:bg-gray-800 rounded-xl p-4 flex items-center gap-3 shadow-lg">
@@ -476,6 +477,7 @@ export default function TrackingMap({
           >
             <Navigation size={18} className="inline mr-2" /> Open in Google Maps
           </a>
+          </div>
         </div>
       </div>
     );
