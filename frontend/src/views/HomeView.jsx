@@ -207,7 +207,7 @@ export function HomeView({
       </div>
 
       {/* Scrollable Content */}
-      <div style={{ padding: isMobile ? '0 16px' : '0' }}>
+      <div style={{ padding: isMobile ? '8px 16px 0' : '0' }}>
       {/* Saved Searches */}
       {showSavedSearchesCard && (
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900" style={{ padding: isMobile ? '12px' : '16px', marginBottom: isMobile ? '12px' : '16px' }}>
