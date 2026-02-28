@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   ArrowUpRight,
   Loader2,
+  Percent,
+  ShieldCheck,
 } from 'lucide-react';
 import api from '@/services/api';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
@@ -291,38 +293,86 @@ export function BrokerView({
         className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto"
         style={{ padding: isMobile ? '16px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' }}
       >
-        <div className="max-w-3xl mx-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm" style={{ padding: isMobile ? '16px' : '20px' }}>
-          <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px', marginBottom: isMobile ? '12px' : '16px' }}>
-            <div className="size-12 rounded-xl bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white shadow-lg shadow-green-500/30">
-              <Users className="size-6" />
+        <div className="max-w-3xl mx-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden">
+          {/* Top accent bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-green-400 to-emerald-500" />
+
+          <div style={{ padding: isMobile ? '20px' : '24px' }}>
+            {/* Header */}
+            <div className="flex items-start" style={{ gap: isMobile ? '12px' : '14px', marginBottom: isMobile ? '16px' : '20px' }}>
+              <div className="size-12 rounded-xl bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white shadow-lg shadow-green-500/30 shrink-0">
+                <Users className="size-6" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center flex-wrap gap-2 mb-0.5">
+                  <h2 style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 'bold' }} className="text-gray-900 dark:text-white">Broker Program</h2>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">Earn While You Ship</span>
+                </div>
+                <p style={{ fontSize: isMobile ? '12px' : '13px' }} className="text-gray-500 dark:text-gray-400">Earn commissions from referred completed platform-fee transactions.</p>
+              </div>
             </div>
-            <div>
-              <h2 style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 'bold' }} className="text-gray-900 dark:text-white">Broker Program</h2>
-              <p style={{ fontSize: isMobile ? '12px' : '14px' }} className="text-gray-500 dark:text-gray-400">Earn from referred completed platform-fee transactions.</p>
+
+            {/* Stat cards */}
+            <div className="grid sm:grid-cols-3" style={{ gap: isMobile ? '10px' : '12px', marginBottom: isMobile ? '20px' : '24px' }}>
+              <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700" style={{ padding: isMobile ? '12px 14px' : '14px 16px' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="size-6 rounded-lg bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                    <TrendingUp className="size-3.5 text-green-600 dark:text-green-400" />
+                  </span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Commission Base</p>
+                </div>
+                <p className="font-bold text-green-600 dark:text-green-400" style={{ fontSize: isMobile ? '14px' : '15px' }}>Platform Fee</p>
+              </div>
+              <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700" style={{ padding: isMobile ? '12px 14px' : '14px 16px' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="size-6 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                    <Percent className="size-3.5 text-orange-500 dark:text-orange-400" />
+                  </span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Commission Tiers</p>
+                </div>
+                <p className="font-bold text-orange-600 dark:text-orange-400" style={{ fontSize: isMobile ? '14px' : '15px' }}>3% to 6%</p>
+              </div>
+              <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700" style={{ padding: isMobile ? '12px 14px' : '14px 16px' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="size-6 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <ShieldCheck className="size-3.5 text-blue-500 dark:text-blue-400" />
+                  </span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Payout Policy</p>
+                </div>
+                <p className="font-bold text-gray-900 dark:text-white" style={{ fontSize: isMobile ? '14px' : '15px' }}>Admin Approved</p>
+              </div>
             </div>
+
+            {/* Divider */}
+            <div className="border-t border-gray-100 dark:border-gray-800" style={{ marginBottom: isMobile ? '16px' : '20px' }} />
+
+            {/* CTA row */}
+            <div className={`flex ${isMobile ? 'flex-col gap-3' : 'items-center justify-between gap-4'}`}>
+              <Button
+                onClick={handleRegister}
+                disabled={registering}
+                className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-md shadow-green-500/20 font-semibold"
+                style={{ width: isMobile ? '100%' : 'auto' }}
+              >
+                {registering ? (
+                  <>
+                    <Loader2 className="size-4 mr-2 animate-spin" />
+                    Activating...
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpRight className="size-4 mr-2" />
+                    Become a Broker
+                  </>
+                )}
+              </Button>
+              {!isMobile && (
+                <p className="text-xs text-gray-400 dark:text-gray-500">Free to join · No upfront fees</p>
+              )}
+            </div>
+
+            {error && <p className="text-sm text-red-600 dark:text-red-400" style={{ marginTop: '12px' }}>{error}</p>}
           </div>
-          <div className="grid sm:grid-cols-3" style={{ gap: isMobile ? '10px' : '12px', marginBottom: isMobile ? '16px' : '20px' }}>
-            <div className="rounded-xl border border-gray-200 dark:border-gray-700" style={{ padding: isMobile ? '12px' : '14px' }}>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Commission Base</p>
-              <p className="font-semibold text-gray-900 dark:text-white">Platform Fee</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 dark:border-gray-700" style={{ padding: isMobile ? '12px' : '14px' }}>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Commission Tiers</p>
-              <p className="font-semibold text-gray-900 dark:text-white">3% to 6%</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 dark:border-gray-700" style={{ padding: isMobile ? '12px' : '14px' }}>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Payout Policy</p>
-              <p className="font-semibold text-gray-900 dark:text-white">Admin Approved</p>
-            </div>
-          </div>
-          <Button
-            onClick={handleRegister}
-            disabled={registering}
-            className="bg-gradient-to-r from-green-500 to-emerald-600 text-white"
-          >
-            {registering ? 'Activating...' : 'Become a Broker'}
-          </Button>
-          {error && <p className="text-sm text-red-600 dark:text-red-400" style={{ marginTop: isMobile ? '10px' : '12px' }}>{error}</p>}
         </div>
       </main>
     );

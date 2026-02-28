@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { X, Package, Truck, FileText, CreditCard, Search, MessageSquare, ArrowRight, ChevronLeft, ChevronRight, MapPin, Banknote, Star } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Package, Truck, FileText, CreditCard, Search, MessageSquare, ArrowRight, ChevronLeft, ChevronRight, MapPin, Banknote, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 const SHIPPER_STEPS = [
   {
@@ -9,7 +11,7 @@ const SHIPPER_STEPS = [
     iconShadow: 'shadow-orange-500/30',
     title: 'Welcome to GetGo!',
     subtitle: 'Your Cargo Marketplace',
-    description: 'GetGo connects shippers like you with trusted truckers across the Philippines — no middlemen, no hassle.',
+    description: 'GetGo connects shippers like you with trusted truckers across the Philippines - no middlemen, no hassle.',
     highlights: [
       { icon: Package, label: 'Post cargo listings', color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
       { icon: Truck, label: 'Get bids from truckers', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
@@ -36,7 +38,7 @@ const SHIPPER_STEPS = [
     iconShadow: 'shadow-purple-500/30',
     title: 'Browse Bids & Chat',
     subtitle: 'Step 2 of 3',
-    description: "Once posted, truckers will bid on your cargo. Review their profiles, ratings, and prices — then chat to negotiate.",
+    description: 'Once posted, truckers will bid on your cargo. Review their profiles, ratings, and prices - then chat to negotiate.',
     highlights: [
       { icon: Star, label: 'Check trucker ratings & reviews', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20' },
       { icon: MessageSquare, label: 'Chat directly with truckers', color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
@@ -53,10 +55,10 @@ const SHIPPER_STEPS = [
     description: 'Accept a bid to generate a contract. Pay securely via GCash and track your shipment in real-time.',
     highlights: [
       { icon: FileText, label: 'Digital contract auto-generated', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-      { icon: CreditCard, label: 'Pay via GCash — fast & secure', color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20' },
+      { icon: CreditCard, label: 'Pay via GCash - fast & secure', color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20' },
       { icon: Truck, label: 'Track shipment live on map', color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
     ],
-    tip: "You're protected — payment is only released when both parties confirm delivery.",
+    tip: 'You are protected - payment is only released when both parties confirm delivery.',
   },
 ];
 
@@ -67,7 +69,7 @@ const TRUCKER_STEPS = [
     iconShadow: 'shadow-emerald-500/30',
     title: 'Welcome to GetGo!',
     subtitle: 'Your Cargo Marketplace',
-    description: 'GetGo connects truckers like you with shippers who need cargo moved — find backloads and maximize every trip.',
+    description: 'GetGo connects truckers like you with shippers who need cargo moved - find backloads and maximize every trip.',
     highlights: [
       { icon: Search, label: 'Browse available cargo', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
       { icon: Banknote, label: 'Bid on shipments you want', color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20' },
@@ -100,7 +102,7 @@ const TRUCKER_STEPS = [
       { icon: MessageSquare, label: 'Chat directly with shippers', color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
       { icon: Star, label: 'Build your rating & reputation', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20' },
     ],
-    tip: 'Your rating is your reputation — complete deliveries well to earn 5-star reviews.',
+    tip: 'Your rating is your reputation - complete deliveries well to earn 5-star reviews.',
   },
   {
     icon: Banknote,
@@ -108,7 +110,7 @@ const TRUCKER_STEPS = [
     iconShadow: 'shadow-green-500/30',
     title: 'Complete & Earn',
     subtitle: 'Step 3 of 3',
-    description: "When your bid is accepted, a contract is generated. Complete the delivery and get paid — it's that simple.",
+    description: 'When your bid is accepted, a contract is generated. Complete the delivery and get paid - it is that simple.',
     highlights: [
       { icon: FileText, label: 'Digital contract protects you', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
       { icon: Truck, label: 'Update shipment status live', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
@@ -118,8 +120,16 @@ const TRUCKER_STEPS = [
   },
 ];
 
-export function OnboardingGuideModal({ open, onClose, userRole = 'shipper', userName = '' }) {
+export function OnboardingGuideModal({
+  open,
+  onClose,
+  onDismiss,
+  onComplete,
+  userRole = 'shipper',
+  userName = '',
+}) {
   const [step, setStep] = useState(0);
+  const closeInProgressRef = useRef(false);
 
   const steps = userRole === 'trucker' ? TRUCKER_STEPS : SHIPPER_STEPS;
   const current = steps[step];
@@ -127,42 +137,53 @@ export function OnboardingGuideModal({ open, onClose, userRole = 'shipper', user
   const isFirst = step === 0;
   const StepIcon = current.icon;
 
-  const handleClose = () => {
+  useEffect(() => {
+    if (open) {
+      closeInProgressRef.current = false;
+      setStep(0);
+    }
+  }, [open]);
+
+  const emitClose = (reason) => {
+    if (closeInProgressRef.current) return;
+    closeInProgressRef.current = true;
     setStep(0);
-    onClose();
+    if (reason === 'completed') {
+      onComplete?.();
+    } else {
+      onDismiss?.();
+    }
+    onClose?.(reason);
   };
 
   const handleNext = () => {
     if (isLast) {
-      handleClose();
+      emitClose('completed');
     } else {
-      setStep(s => s + 1);
+      setStep((s) => s + 1);
     }
   };
 
   const handlePrev = () => {
-    if (!isFirst) setStep(s => s - 1);
+    if (!isFirst) setStep((s) => s - 1);
   };
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6 lg:p-8">
-      <div className="relative bg-white dark:bg-gray-900 w-full max-w-[calc(100vw-32px)] sm:max-w-md lg:max-w-lg rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
-        {/* Close Button */}
-        <button
-          onClick={handleClose}
-          className="absolute top-4 right-4 z-10 size-9 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
-        >
-          <X className="size-4 text-gray-600 dark:text-gray-400" />
-        </button>
-
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) emitClose('dismissed'); }}>
+      <DialogContent
+        style={{ padding: 0 }}
+        aria-describedby="onboarding-guide-description"
+        className="bg-white dark:bg-gray-900 w-full max-w-[calc(100vw-32px)] sm:max-w-md lg:max-w-lg rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto border-0"
+      >
         {/* Step Progress Dots */}
         <div className="flex items-center justify-center gap-2 pt-6 pb-2">
           {steps.map((_, i) => (
             <button
+              type="button"
               key={i}
               onClick={() => setStep(i)}
+              aria-label={`Go to step ${i + 1} of ${steps.length}`}
+              aria-current={i === step ? 'step' : undefined}
               className={cn(
                 'rounded-full transition-all duration-300',
                 i === step
@@ -177,12 +198,14 @@ export function OnboardingGuideModal({ open, onClose, userRole = 'shipper', user
         <div className="px-7 pt-5 pb-7">
           {/* Icon Header */}
           <div className="flex flex-col items-center text-center mb-7">
-            <div className={cn(
-              'size-20 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-5',
-              current.iconGradient,
-              current.iconShadow
-            )}>
-              <StepIcon className="size-10 text-white" />
+            <div
+              className={cn(
+                'size-20 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-5',
+                current.iconGradient,
+                current.iconShadow
+              )}
+            >
+              <StepIcon className="size-10 text-white" aria-hidden="true" />
             </div>
             {current.subtitle && (
               <p className="text-xs font-semibold text-orange-500 uppercase tracking-widest mb-2">
@@ -192,7 +215,7 @@ export function OnboardingGuideModal({ open, onClose, userRole = 'shipper', user
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
               {step === 0 && userName ? `Welcome, ${userName}!` : current.title}
             </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed max-w-xs">
+            <p id="onboarding-guide-description" className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed max-w-xs">
               {current.description}
             </p>
           </div>
@@ -210,7 +233,7 @@ export function OnboardingGuideModal({ open, onClose, userRole = 'shipper', user
                   )}
                 >
                   <div className="size-9 rounded-xl bg-white dark:bg-gray-800 shadow-sm flex items-center justify-center flex-shrink-0">
-                    <ItemIcon className={cn('size-5', item.color)} />
+                    <ItemIcon className={cn('size-5', item.color)} aria-hidden="true" />
                   </div>
                   <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                     {item.label}
@@ -224,7 +247,8 @@ export function OnboardingGuideModal({ open, onClose, userRole = 'shipper', user
           {current.tip && (
             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/50 rounded-xl px-4 py-3.5 mb-6">
               <p className="text-xs text-orange-700 dark:text-orange-400 leading-relaxed">
-                <span className="font-semibold">💡 Tip: </span>{current.tip}
+                <span className="font-semibold">Tip: </span>
+                {current.tip}
               </p>
             </div>
           )}
@@ -233,40 +257,47 @@ export function OnboardingGuideModal({ open, onClose, userRole = 'shipper', user
           <div className="flex items-center gap-3">
             {/* Prev */}
             {!isFirst ? (
-              <button
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
                 onClick={handlePrev}
-                className="flex items-center justify-center size-11 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
+                aria-label="Previous step"
+                className="size-11 flex-shrink-0 border-gray-200 dark:border-gray-700"
               >
-                <ChevronLeft className="size-5 text-gray-500 dark:text-gray-400" />
-              </button>
+                <ChevronLeft className="size-5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              </Button>
             ) : (
-              <button
-                onClick={handleClose}
-                style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold' }}
-                className="flex-shrink-0 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 transition-colors"
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => emitClose('dismissed')}
+                aria-label="Skip onboarding guide"
+                className="h-11 flex-shrink-0 px-4 font-semibold border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
               >
                 Skip
-              </button>
+              </Button>
             )}
 
             {/* Next / Get Started */}
-            <button
+            <Button
+              type="button"
+              variant="gradient"
               onClick={handleNext}
-              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', boxShadow: '0 4px 8px rgba(249,115,22,0.4)' }}
-              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+              className="h-11 flex-1 gap-2 rounded-xl font-semibold"
             >
               {isLast ? (
                 <>
                   Get Started
-                  <ArrowRight className="size-4" />
+                  <ArrowRight className="size-4" aria-hidden="true" />
                 </>
               ) : (
                 <>
                   Next
-                  <ChevronRight className="size-4" />
+                  <ChevronRight className="size-4" aria-hidden="true" />
                 </>
               )}
-            </button>
+            </Button>
           </div>
 
           {/* Step counter text */}
@@ -274,9 +305,10 @@ export function OnboardingGuideModal({ open, onClose, userRole = 'shipper', user
             {step + 1} of {steps.length}
           </p>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 export default OnboardingGuideModal;
+
