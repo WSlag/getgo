@@ -484,6 +484,9 @@ export default function GetGoApp() {
   const activeShipments = isGuestUser
     ? guestActiveShipments
     : (firebaseActiveShipments || []);
+  const homeActiveShipments = isGuestUser
+    ? []
+    : activeShipments.filter((shipment) => shipment.status !== 'delivered');
   const deliveredShipments = isGuestUser
     ? guestActiveShipments.filter((s) => s.status === 'delivered')
     : (firebaseDeliveredShipments || []);
@@ -1639,7 +1642,7 @@ export default function GetGoApp() {
               currentRole={userRole}
               currentUserId={authUser?.uid}
               darkMode={darkMode}
-              activeShipments={activeShipments.filter(s => s.status !== 'delivered')}
+              activeShipments={homeActiveShipments}
               onTrackLive={handleTrackLive}
               onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
               currentUser={currentUser}
