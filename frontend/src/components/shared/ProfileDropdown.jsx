@@ -57,6 +57,7 @@ export function ProfileDropdown({
 
   const config = roleConfig[currentRole] || roleConfig.shipper;
   const RoleIcon = config.icon;
+  const menuItemClass = 'w-full rounded-xl px-3 py-2.5 cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800';
 
   return (
     <DropdownMenu>
@@ -66,7 +67,7 @@ export function ProfileDropdown({
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className="w-64 p-0 rounded-2xl overflow-hidden shadow-xl border-0 bg-white dark:bg-gray-900"
+        className="w-[min(20rem,calc(100vw-1rem))] sm:w-64 max-h-[calc(100vh-96px)] overflow-x-hidden overflow-y-auto p-0 rounded-2xl shadow-xl border-0 bg-white dark:bg-gray-900"
       >
         {/* Profile Header */}
         <div className={cn("px-4 pt-5 pb-4 bg-gradient-to-br", config.bgGradient)}>
@@ -116,7 +117,7 @@ export function ProfileDropdown({
             <div className="mt-2 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
               <Star className="size-3.5 fill-amber-400 text-amber-400" />
               <span className="font-medium">{rating.toFixed(1)}</span>
-              <span>•</span>
+              <span>{'\u2022'}</span>
               <span>{tripsCompleted} trips completed</span>
             </div>
           </div>
@@ -129,103 +130,105 @@ export function ProfileDropdown({
           {/* My Activity */}
           <DropdownMenuItem
             onSelect={onMyActivity}
-            className="flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800"
+            className={menuItemClass}
           >
-            <div className="flex items-center gap-3">
-              <div className="size-8 rounded-lg bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
+            <div className="flex w-full min-w-0 items-center gap-3">
+              <div className="size-8 shrink-0 rounded-lg bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
                 <ClipboardList className="size-4 text-orange-600 dark:text-orange-400" />
               </div>
-              <span className="text-sm text-gray-700 dark:text-gray-300">My Activity</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">My Activity</span>
+              <ChevronRight className="size-4 shrink-0 text-gray-400" />
             </div>
-            <ChevronRight className="size-4 text-gray-400" />
           </DropdownMenuItem>
 
           {/* Broker Dashboard */}
           <DropdownMenuItem
             onSelect={onBrokerDashboard}
-            className="flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800"
+            className={menuItemClass}
           >
-            <div className="flex items-center gap-3">
-              <div className="size-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+            <div className="flex w-full min-w-0 items-center gap-3">
+              <div className="size-8 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                 <Users className="size-4 text-gray-600 dark:text-gray-400" />
               </div>
-              <span className="text-sm text-gray-700 dark:text-gray-300">{isBroker ? 'Broker Dashboard' : 'Broker Program'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {!isBroker && (
-                <span className="px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400 text-xs font-medium">
-                  Earn Extra!
-                </span>
-              )}
-              <ChevronRight className="size-4 text-gray-400" />
+              <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">{isBroker ? 'Broker Dashboard' : 'Broker Program'}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {!isBroker && (
+                  <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400 text-xs font-medium">
+                    Earn Extra!
+                  </span>
+                )}
+                <ChevronRight className="size-4 text-gray-400" />
+              </div>
             </div>
           </DropdownMenuItem>
 
           {/* Edit Profile */}
           <DropdownMenuItem
             onSelect={onEditProfile}
-            className="flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800"
+            className={menuItemClass}
           >
-            <div className="flex items-center gap-3">
-              <div className="size-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+            <div className="flex w-full min-w-0 items-center gap-3">
+              <div className="size-8 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                 <User className="size-4 text-gray-600 dark:text-gray-400" />
               </div>
-              <span className="text-sm text-gray-700 dark:text-gray-300">Edit Profile</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">Edit Profile</span>
+              <ChevronRight className="size-4 shrink-0 text-gray-400" />
             </div>
-            <ChevronRight className="size-4 text-gray-400" />
           </DropdownMenuItem>
 
           {/* Notification Settings */}
           <DropdownMenuItem
             onSelect={onNotificationSettings}
-            className="flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800"
+            className={menuItemClass}
           >
-            <div className="flex items-center gap-3">
-              <div className="size-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+            <div className="flex w-full min-w-0 items-center gap-3">
+              <div className="size-8 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                 <Bell className="size-4 text-gray-600 dark:text-gray-400" />
               </div>
-              <span className="text-sm text-gray-700 dark:text-gray-300">Notifications</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">Notifications</span>
+              <ChevronRight className="size-4 shrink-0 text-gray-400" />
             </div>
-            <ChevronRight className="size-4 text-gray-400" />
           </DropdownMenuItem>
 
           {/* Dark Mode Toggle */}
-          <div
-            onClick={(e) => {
-              e.preventDefault();
-              onToggleDarkMode?.();
-            }}
-            className="flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+          <button
+            type="button"
+            onClick={() => onToggleDarkMode?.()}
+            className={menuItemClass}
           >
-            <div className="flex items-center gap-3">
-              <div className="size-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+            <div className="flex w-full min-w-0 items-center gap-3">
+              <div className="size-8 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                 {darkMode ? (
                   <Sun className="size-4 text-amber-500" />
                 ) : (
                   <Moon className="size-4 text-gray-600 dark:text-gray-400" />
                 )}
               </div>
-              <span className="text-sm text-gray-700 dark:text-gray-300">Dark Mode</span>
+              <span className="min-w-0 flex-1 text-sm text-gray-700 dark:text-gray-300 text-left">Dark Mode</span>
+              <Switch
+                checked={darkMode}
+                onCheckedChange={onToggleDarkMode}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="data-[state=checked]:bg-orange-500"
+              />
             </div>
-            <Switch
-              checked={darkMode}
-              onCheckedChange={onToggleDarkMode}
-              className="data-[state=checked]:bg-orange-500"
-            />
-          </div>
+          </button>
 
           {/* Help & Support */}
           <DropdownMenuItem
             onSelect={onHelpSupport}
-            className="flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800"
+            className={menuItemClass}
           >
-            <div className="flex items-center gap-3">
-              <div className="size-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+            <div className="flex w-full min-w-0 items-center gap-3">
+              <div className="size-8 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                 <HelpCircle className="size-4 text-gray-600 dark:text-gray-400" />
               </div>
-              <span className="text-sm text-gray-700 dark:text-gray-300">Help & Support</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">Help & Support</span>
+              <ChevronRight className="size-4 shrink-0 text-gray-400" />
             </div>
-            <ChevronRight className="size-4 text-gray-400" />
           </DropdownMenuItem>
         </div>
 
@@ -235,12 +238,14 @@ export function ProfileDropdown({
         <div className="p-2">
           <DropdownMenuItem
             onSelect={onLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 focus:bg-red-100 dark:focus:bg-red-900/40"
+            className="w-full rounded-xl px-3 py-2.5 cursor-pointer bg-red-50 dark:bg-red-950/30 transition-colors hover:bg-red-100 dark:hover:bg-red-900/40 focus:bg-red-100 dark:focus:bg-red-900/40"
           >
-            <div className="size-8 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
-              <LogOut className="size-4 text-red-500" />
+            <div className="flex w-full min-w-0 items-center gap-3">
+              <div className="size-8 shrink-0 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
+                <LogOut className="size-4 text-red-500" />
+              </div>
+              <span className="text-sm font-medium text-red-600 dark:text-red-400">Logout</span>
             </div>
-            <span className="text-sm font-medium text-red-600 dark:text-red-400">Logout</span>
           </DropdownMenuItem>
         </div>
       </DropdownMenuContent>
@@ -249,3 +254,4 @@ export function ProfileDropdown({
 }
 
 export default ProfileDropdown;
+
