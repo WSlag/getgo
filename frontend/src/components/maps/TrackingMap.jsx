@@ -303,7 +303,7 @@ export default function TrackingMap({
     return (
       <div className="tracking-live-overlay fixed inset-0 bg-black/60 z-[80] flex items-center justify-center" style={{ padding: '16px' }}>
           <div className={`${theme.bgCard} rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden`} style={{ maxHeight: 'calc(100vh - 32px)' }}>
-          <div className={`${theme.bgCard} p-4 flex justify-between items-center shadow-lg shrink-0`}>
+          <div className={`${theme.bgCard} px-5 py-4 flex justify-between items-center shadow-lg shrink-0`}>
             <div>
               <h2 className={`font-bold ${theme.text} flex items-center gap-2`}>
                 <MapPinned className="text-amber-500" /> Live Tracking
@@ -385,7 +385,7 @@ export default function TrackingMap({
         </div>
 
         <div
-          className={`${theme.bgCard} p-4 space-y-3 max-h-[48vh] overflow-y-auto shrink-0`}
+          className={`${theme.bgCard} px-5 py-4 space-y-3 max-h-[48vh] overflow-y-auto shrink-0`}
           style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
         >
           <div className="flex items-center gap-3">
