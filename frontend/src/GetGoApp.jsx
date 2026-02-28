@@ -81,6 +81,7 @@ import ReferListingModal from '@/components/broker/ReferListingModal';
 import { FullMapModal } from '@/components/maps';
 import AuthModal from '@/components/auth/AuthModal';
 import { OnboardingGuideModal } from '@/components/modals/OnboardingGuideModal';
+import { BrokerOnboardingGuideModal } from '@/components/broker/BrokerOnboardingGuideModal';
 import LegalModal from '@/components/legal/LegalModal';
 
 // API
@@ -155,8 +156,11 @@ export default function GetGoApp() {
   // Broker Onboarding & Re-engagement
   const {
     shouldShowHomeCard: shouldShowBrokerCard,
+    shouldShowBrokerGuide,
     dismissHomeCard: handleDismissBrokerCard,
     markConverted: handleBrokerConverted,
+    markOnboardingDeclined: handleBrokerOnboardingDeclined,
+    markBrokerGuideCompleted,
     activateTrigger,
   } = useBrokerOnboarding(authUser?.uid, isBroker);
 
@@ -245,6 +249,9 @@ export default function GetGoApp() {
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
   // null = not loaded yet for current user (prevents race-triggered auto-open)
   const [onboardingDismissedLocally, setOnboardingDismissedLocally] = useState(null);
+
+  // Broker Onboarding Guide Modal
+  const [showBrokerGuide, setShowBrokerGuide] = useState(false);
 
   // Legal Modal (for auth screens)
   const [legalModal, setLegalModal] = useState({ open: false, type: null });
@@ -482,6 +489,13 @@ export default function GetGoApp() {
       setShowOnboardingGuide(false);
     }
   }, [onboardingDismissedLocally, showOnboardingGuide]);
+
+  // Auto-show broker guide after a user activates broker (convertedToBroker && !brokerGuideCompleted)
+  useEffect(() => {
+    if (shouldShowBrokerGuide && !showBrokerGuide) {
+      setShowBrokerGuide(true);
+    }
+  }, [shouldShowBrokerGuide]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Use anonymized preview data for non-auth users to keep Home vibrant and conversion-focused.
   const userRole = currentRole || 'shipper';
@@ -1392,25 +1406,38 @@ export default function GetGoApp() {
     }
   };
 
-  // Handler: Activate broker
-  const handleActivateBroker = async () => {
-    try {
-      await api.broker.register();
-      await handleBrokerConverted();
-      showToast({
-        type: 'success',
-        title: 'Broker Activated!',
-        message: 'Start sharing your referral link to earn commissions.',
-      });
-      setActiveTab('broker'); // Navigate to broker dashboard
-    } catch (error) {
-      console.error('Broker activation error:', error);
-      showToast({
-        type: 'error',
-        title: 'Activation Failed',
-        message: error.message || 'Could not activate broker features.',
-      });
+  // Handler: Activate broker - opens the guide modal which handles activation
+  const handleActivateBroker = () => {
+    setShowBrokerGuide(true);
+  };
+
+  // Handler: Broker guide modal - user completed activation inside the modal
+  const handleBrokerGuideActivated = async () => {
+    await handleBrokerConverted();
+    showToast({
+      type: 'success',
+      title: 'Broker Activated!',
+      message: 'Start sharing your referral link to earn commissions.',
+    });
+  };
+
+  // Handler: Broker guide dismissed (either declined enrollment or skipped guide)
+  const handleBrokerGuideDismiss = () => {
+    setShowBrokerGuide(false);
+    if (isBroker) {
+      // Already a broker but skipped the guide — mark it complete
+      markBrokerGuideCompleted?.();
+    } else {
+      // Declined enrollment
+      handleBrokerOnboardingDeclined?.();
     }
+  };
+
+  // Handler: Broker guide completed all steps
+  const handleBrokerGuideComplete = () => {
+    setShowBrokerGuide(false);
+    markBrokerGuideCompleted?.();
+    setActiveTab('broker');
   };
 
   const loadBidContext = async (bidId, notificationData = {}) => {
@@ -2427,6 +2454,18 @@ export default function GetGoApp() {
         onComplete={handleOnboardingComplete}
         userRole={currentRole || 'shipper'}
         userName={userProfile?.name || ''}
+      />
+
+      {/* Broker Onboarding Guide Modal - enrollment + step-by-step broker feature guide */}
+      <BrokerOnboardingGuideModal
+        open={showBrokerGuide}
+        onClose={() => setShowBrokerGuide(false)}
+        onDismiss={handleBrokerGuideDismiss}
+        onComplete={handleBrokerGuideComplete}
+        onActivated={handleBrokerGuideActivated}
+        userRole={currentRole || 'shipper'}
+        userName={userProfile?.name || ''}
+        isBroker={isBroker}
       />
 
       {/* In-app browser redirect overlay */}
