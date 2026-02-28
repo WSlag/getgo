@@ -107,7 +107,7 @@ test.describe('Tracking View', () => {
     }
   });
 
-  test('should show active shipments from guest data on homepage', async ({ page }) => {
+  test('should hide shipment tracking cards on guest homepage', async ({ page }) => {
     await page.goto('/');
     await page.waitForFunction(
       () => !document.querySelector('.animate-spin'),
@@ -115,21 +115,16 @@ test.describe('Tracking View', () => {
     );
     await page.waitForTimeout(1500);
 
-    // Guest data includes active shipments on home view
-    // Look for "Track Live" button or shipment card
-    const trackLiveButton = page.locator('button').filter({
-      hasText: /track live|tracking/i,
-    }).first();
+    await expect(page.locator('text=/shipment tracking/i')).toHaveCount(0);
+    await expect(page.locator('text=/active shipments in progress/i')).toHaveCount(0);
 
-    if (await trackLiveButton.count() > 0) {
-      await trackLiveButton.click();
-      await page.waitForTimeout(1000);
+    const trackLiveButtons = page.locator('button').filter({ hasText: /track live/i });
+    await expect(trackLiveButtons).toHaveCount(0);
 
-      // Should either navigate to tracking view or show auth modal
-      const authModal = await page.locator('[role="dialog"]').count();
-      const trackingContent = await page.locator('text=/tracking|shipment/i').count();
-
-      expect(authModal > 0 || trackingContent > 0).toBe(true);
-    }
+    // Guest marketplace cards should still be visible.
+    const hasCargoOrTruckHeader = await page.locator(
+      'text=/my cargo posts|available cargo|my truck posts|available trucks/i'
+    ).count();
+    expect(hasCargoOrTruckHeader).toBeGreaterThan(0);
   });
 });
