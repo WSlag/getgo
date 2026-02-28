@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="540" height="380" viewBox="0 0 540 380">
+  <defs>
+    <linearGradient id="activeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#f97316"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-30%" width="130%" height="200%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#f97316" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <rect width="540" height="380" fill="#f3f4f6"/>
+
+  <!-- BEFORE label -->
+  <text x="270" y="24" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#374151">BEFORE (current) — gap-2, py-3</text>
+
+  <!-- Before Row 1 -->
+  <rect x="30" y="36" width="230" height="44" rx="12" fill="url(#activeGrad)" filter="url(#shadow)"/>
+  <text x="145" y="63" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">My Activity</text>
+  <rect x="268" y="36" width="242" height="44" rx="12" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1.5"/>
+  <text x="389" y="63" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#6b7280">Broker Activity</text>
+
+  <!-- Before Row 2 (tight gap) -->
+  <rect x="30" y="84" width="230" height="44" rx="12" fill="url(#activeGrad)" filter="url(#shadow)"/>
+  <text x="145" y="111" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">My Bookings</text>
+  <rect x="268" y="84" width="242" height="44" rx="12" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1.5"/>
+  <text x="389" y="111" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#6b7280">Contracts</text>
+
+  <!-- Divider -->
+  <line x1="30" y1="152" x2="510" y2="152" stroke="#d1d5db" stroke-width="1" stroke-dasharray="4"/>
+
+  <!-- AFTER label -->
+  <text x="270" y="175" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#374151">AFTER — gap-3, py-4 (matches Post Cargo feel)</text>
+
+  <!-- After Row 1 -->
+  <rect x="30" y="187" width="228" height="50" rx="12" fill="url(#activeGrad)" filter="url(#shadow)"/>
+  <text x="144" y="217" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">My Activity</text>
+  <rect x="270" y="187" width="240" height="50" rx="12" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1.5"/>
+  <text x="390" y="217" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#6b7280">Broker Activity</text>
+
+  <!-- After Row 2 (more gap between rows) -->
+  <rect x="30" y="249" width="228" height="50" rx="12" fill="url(#activeGrad)" filter="url(#shadow)"/>
+  <text x="144" y="279" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">My Bookings</text>
+  <rect x="270" y="249" width="240" height="50" rx="12" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1.5"/>
+  <text x="390" y="279" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#6b7280">Contracts</text>
+
+  <!-- Reference Post Cargo -->
+  <line x1="30" y1="317" x2="510" y2="317" stroke="#d1d5db" stroke-width="1" stroke-dasharray="4"/>
+  <text x="270" y="336" text-anchor="middle" font-family="Arial" font-size="12" fill="#6b7280">Reference — Post Cargo button (py-3)</text>
+  <rect x="80" y="345" width="380" height="50" rx="12" fill="url(#activeGrad)" filter="url(#shadow)"/>
+  <text x="270" y="375" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">Post Cargo</text>
+</svg>

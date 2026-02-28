@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="540" height="320" viewBox="0 0 540 320">
+  <defs>
+    <linearGradient id="activeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#f97316"/>
+    </linearGradient>
+    <linearGradient id="mutedGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#fcd34d;stop-opacity:0.5"/>
+      <stop offset="100%" style="stop-color:#fdba74;stop-opacity:0.5"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-30%" width="130%" height="200%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#f97316" flood-opacity="0.4"/>
+    </filter>
+    <filter id="shadowMuted" x="-10%" y="-30%" width="130%" height="200%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#00000020"/>
+    </filter>
+  </defs>
+
+  <rect width="540" height="320" fill="#f3f4f6"/>
+
+  <!-- Option A Label -->
+  <text x="270" y="28" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#374151">Option A — Active: gradient, Inactive: light gray</text>
+
+  <!-- Option A Row 1 -->
+  <rect x="30" y="40" width="230" height="44" rx="12" fill="url(#activeGrad)" filter="url(#shadow)"/>
+  <text x="145" y="67" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">My Activity</text>
+
+  <rect x="270" y="40" width="240" height="44" rx="12" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1.5"/>
+  <text x="390" y="67" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#6b7280">Broker Activity</text>
+
+  <!-- Option A Row 2 -->
+  <rect x="30" y="96" width="230" height="44" rx="12" fill="url(#activeGrad)" filter="url(#shadow)"/>
+  <text x="145" y="123" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">My Bookings</text>
+
+  <rect x="270" y="96" width="240" height="44" rx="12" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1.5"/>
+  <text x="390" y="123" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#6b7280">Contracts</text>
+
+  <!-- Divider -->
+  <line x1="30" y1="165" x2="510" y2="165" stroke="#d1d5db" stroke-width="1" stroke-dasharray="4"/>
+
+  <!-- Option B Label -->
+  <text x="270" y="188" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#374151">Option B — Active: full gradient, Inactive: muted gradient + border</text>
+
+  <!-- Option B Row 1 -->
+  <rect x="30" y="200" width="230" height="44" rx="12" fill="url(#activeGrad)" filter="url(#shadow)"/>
+  <text x="145" y="227" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">My Activity</text>
+
+  <rect x="270" y="200" width="240" height="44" rx="12" fill="url(#mutedGrad)" stroke="#f97316" stroke-width="1.5" stroke-opacity="0.4"/>
+  <text x="390" y="227" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#c2410c">Broker Activity</text>
+
+  <!-- Option B Row 2 -->
+  <rect x="30" y="256" width="230" height="44" rx="12" fill="url(#activeGrad)" filter="url(#shadow)"/>
+  <text x="145" y="283" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">My Bookings</text>
+
+  <rect x="270" y="256" width="240" height="44" rx="12" fill="url(#mutedGrad)" stroke="#f97316" stroke-width="1.5" stroke-opacity="0.4"/>
+  <text x="390" y="283" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#c2410c">Contracts</text>
+</svg>

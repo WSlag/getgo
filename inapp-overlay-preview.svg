@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="580" viewBox="0 0 640 580">
+  <defs>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#f97316"/>
+    </linearGradient>
+    <linearGradient id="oldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f97316"/>
+      <stop offset="100%" style="stop-color:#ea580c"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-20%" width="130%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#f97316" flood-opacity="0.4"/>
+    </filter>
+    <filter id="cardshadow" x="-5%" y="-5%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="640" height="580" fill="#e2e8f0"/>
+
+  <!-- === BEFORE (LEFT) === -->
+  <text x="150" y="24" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#374151">BEFORE (current)</text>
+
+  <!-- Card -->
+  <rect x="30" y="36" width="240" height="490" rx="20" fill="white" filter="url(#cardshadow)"/>
+
+  <!-- Header: logo + title -->
+  <rect x="50" y="56" width="44" height="44" rx="10" fill="#f97316"/>
+  <text x="72" y="83" text-anchor="middle" font-family="Arial" font-size="18" fill="white">🚛</text>
+  <text x="102" y="70" font-family="Arial" font-size="8" font-weight="bold" fill="#94a3b8" letter-spacing="1">GETGO SECURE ACCESS</text>
+  <text x="102" y="84" font-family="Arial" font-size="10" font-weight="bold" fill="#334155">✅ External browser required</text>
+
+  <!-- Title — centered, smaller -->
+  <text x="150" y="124" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold" fill="#0f172a">Open in Google</text>
+
+  <!-- CTA Button — small py-2.5 text-sm -->
+  <rect x="58" y="138" width="184" height="36" rx="10" fill="url(#oldGrad)"/>
+  <text x="150" y="161" text-anchor="middle" font-family="Arial" font-size="12" font-weight="600" fill="white">↗ Open in Google</text>
+  <text x="150" y="174" text-anchor="middle" font-family="Arial" font-size="8" fill="#94a3b8">py-2.5 · text-sm · font-semibold</text>
+
+  <!-- Big gap mt-8 -->
+  <line x1="50" y1="190" x2="250" y2="190" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3"/>
+  <text x="150" y="204" text-anchor="middle" font-family="Arial" font-size="8" fill="#f97316">← mt-8 gap (too large) →</text>
+
+  <!-- Instructions box -->
+  <rect x="46" y="212" width="196" height="130" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="58" y="228" font-family="Arial" font-size="7" font-weight="bold" fill="#94a3b8" letter-spacing="1">IF THE BUTTON DOES NOT WORK</text>
+  <!-- Step 1 -->
+  <circle cx="68" cy="248" r="10" fill="#ffedd5"/>
+  <text x="68" y="252" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#c2410c">1</text>
+  <text x="84" y="244" font-family="Arial" font-size="9" fill="#334155">Tap the three-dot</text>
+  <text x="84" y="256" font-family="Arial" font-size="9" fill="#334155">menu top-right.</text>
+  <!-- Step 2 -->
+  <circle cx="68" cy="284" r="10" fill="#ffedd5"/>
+  <text x="68" y="288" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#c2410c">2</text>
+  <text x="84" y="280" font-family="Arial" font-size="9" fill="#334155">Choose "Open</text>
+  <text x="84" y="292" font-family="Arial" font-size="9" fill="#334155">in browser".</text>
+
+  <!-- Issues callouts -->
+  <rect x="30" y="358" width="240" height="158" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1"/>
+  <text x="150" y="374" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#dc2626">Issues</text>
+  <text x="42" y="392" font-family="Arial" font-size="9" fill="#7f1d1d">✗ Button too small (py-2.5 = 10px padding)</text>
+  <text x="42" y="408" font-family="Arial" font-size="9" fill="#7f1d1d">✗ Wrong gradient (orange-500→orange-600)</text>
+  <text x="42" y="424" font-family="Arial" font-size="9" fill="#7f1d1d">✗ font-semibold not font-bold</text>
+  <text x="42" y="440" font-family="Arial" font-size="9" fill="#7f1d1d">✗ Title centered on Android (inconsistent)</text>
+  <text x="42" y="456" font-family="Arial" font-size="9" fill="#7f1d1d">✗ mt-8 gap too large between button &amp; steps</text>
+  <text x="42" y="472" font-family="Arial" font-size="9" fill="#7f1d1d">✗ No description text on Android</text>
+  <text x="42" y="488" font-family="Arial" font-size="9" fill="#7f1d1d">✗ space-y-4 steps (inconsistent with iOS)</text>
+  <text x="42" y="504" font-family="Arial" font-size="9" fill="#7f1d1d">✗ px-3 wrapper on button (unnecessary)</text>
+
+  <!-- === AFTER (RIGHT) === -->
+  <text x="490" y="24" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#374151">AFTER (proposed)</text>
+
+  <!-- Card -->
+  <rect x="370" y="36" width="240" height="490" rx="20" fill="white" filter="url(#cardshadow)"/>
+
+  <!-- Header: logo + title -->
+  <rect x="390" y="56" width="44" height="44" rx="10" fill="#f97316"/>
+  <text x="412" y="83" text-anchor="middle" font-family="Arial" font-size="18" fill="white">🚛</text>
+  <text x="442" y="70" font-family="Arial" font-size="8" font-weight="bold" fill="#94a3b8" letter-spacing="1">GETGO SECURE ACCESS</text>
+  <text x="442" y="84" font-family="Arial" font-size="10" font-weight="bold" fill="#334155">✅ External browser required</text>
+
+  <!-- Title — left aligned, text-2xl -->
+  <text x="390" y="118" font-family="Arial" font-size="18" font-weight="bold" fill="#0f172a">Open in Google</text>
+
+  <!-- Description text (added for Android) -->
+  <text x="390" y="134" font-family="Arial" font-size="9" fill="#475569">You are viewing GetGo in Facebook's built-in</text>
+  <text x="390" y="146" font-family="Arial" font-size="9" fill="#475569">browser. Open in your phone's browser.</text>
+
+  <!-- CTA Button — standard size py-4 / 14px -->
+  <rect x="386" y="158" width="208" height="48" rx="12" fill="url(#orangeGrad)" filter="url(#shadow)"/>
+  <text x="490" y="186" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">↗  Open in Google</text>
+  <text x="490" y="200" text-anchor="middle" font-family="Arial" font-size="8" fill="#fde68a">14px 16px · 15px · bold · amber→orange</text>
+
+  <!-- Reduced gap mt-5 -->
+  <line x1="386" y1="214" x2="594" y2="214" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3"/>
+  <text x="490" y="226" text-anchor="middle" font-family="Arial" font-size="8" fill="#22c55e">mt-5 (balanced)</text>
+
+  <!-- Instructions box -->
+  <rect x="386" y="232" width="196" height="130" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="398" y="248" font-family="Arial" font-size="7" font-weight="bold" fill="#94a3b8" letter-spacing="1">IF THE BUTTON DOES NOT WORK</text>
+  <!-- Step 1 -->
+  <circle cx="408" cy="268" r="10" fill="#ffedd5"/>
+  <text x="408" y="272" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#c2410c">1</text>
+  <text x="424" y="264" font-family="Arial" font-size="9" fill="#334155">Tap the three-dot</text>
+  <text x="424" y="276" font-family="Arial" font-size="9" fill="#334155">menu top-right.</text>
+  <!-- Step 2 -->
+  <circle cx="408" cy="300" r="10" fill="#ffedd5"/>
+  <text x="408" y="304" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#c2410c">2</text>
+  <text x="424" y="296" font-family="Arial" font-size="9" fill="#334155">Choose "Open</text>
+  <text x="424" y="308" font-family="Arial" font-size="9" fill="#334155">in browser".</text>
+
+  <!-- Fixes callouts -->
+  <rect x="370" y="378" width="240" height="138" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+  <text x="490" y="394" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#16a34a">Fixes Applied</text>
+  <text x="382" y="412" font-family="Arial" font-size="9" fill="#14532d">✓ Button: 14px 16px padding (standard)</text>
+  <text x="382" y="428" font-family="Arial" font-size="9" fill="#14532d">✓ Gradient: amber-500 → orange-500</text>
+  <text x="382" y="444" font-family="Arial" font-size="9" fill="#14532d">✓ font-bold + 15px font size</text>
+  <text x="382" y="460" font-family="Arial" font-size="9" fill="#14532d">✓ Title left-aligned, text-2xl</text>
+  <text x="382" y="476" font-family="Arial" font-size="9" fill="#14532d">✓ mt-5 gap (consistent)</text>
+  <text x="382" y="492" font-family="Arial" font-size="9" fill="#14532d">✓ Description text added for Android</text>
+  <text x="382" y="508" font-family="Arial" font-size="9" fill="#14532d">✓ space-y-3 normalized</text>
+
+  <!-- Divider between before/after -->
+  <line x1="320" y1="20" x2="320" y2="560" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6"/>
+</svg>
