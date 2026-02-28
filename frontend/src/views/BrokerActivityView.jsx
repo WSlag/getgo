@@ -56,6 +56,9 @@ export function BrokerActivityView({ onToast }) {
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
+  const filterChipBaseClass = 'inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs font-semibold leading-none transition-all duration-200 active:scale-95';
+  const activeFilterChipClass = 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30';
+  const inactiveFilterChipClass = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600';
 
   const typeFilters = useMemo(() => ([
     { id: 'all', label: 'All' },
@@ -128,11 +131,12 @@ export function BrokerActivityView({ onToast }) {
             {typeFilters.map((filter) => (
               <button
                 key={filter.id}
+                type="button"
                 onClick={() => setTypeFilter(filter.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                className={`${filterChipBaseClass} ${
                   typeFilter === filter.id
-                    ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-md shadow-orange-500/30'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    ? activeFilterChipClass
+                    : inactiveFilterChipClass
                 }`}
               >
                 {filter.label}
@@ -144,20 +148,21 @@ export function BrokerActivityView({ onToast }) {
             {statusFilters.map((filter) => (
               <button
                 key={filter.id}
+                type="button"
                 onClick={() => setStatusFilter(filter.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                className={`${filterChipBaseClass} ${
                   statusFilter === filter.id
-                    ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-md shadow-orange-500/30'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    ? activeFilterChipClass
+                    : inactiveFilterChipClass
                 }`}
               >
                 {filter.label}
               </button>
             ))}
             <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs h-7 ml-auto shrink-0"
+              type="button"
+              variant="ghost"
+              className="ml-auto shrink-0 h-auto rounded-full px-3 py-1.5 text-xs font-semibold leading-none gap-1.5 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
               onClick={handleBackfill}
               disabled={backfilling}
             >
