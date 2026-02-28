@@ -258,9 +258,11 @@ export function HomeView({
             ))}
           </div>
         ) : (
-          <p style={{ fontSize: '12px', color: '#6b7280' }}>
-            Save frequent search and filter combinations for one-tap reuse.
-          </p>
+          !isMobile ? (
+            <p style={{ fontSize: '12px', color: '#6b7280' }}>
+              Save frequent search and filter combinations for one-tap reuse.
+            </p>
+          ) : null
         )}
       </div>
 
