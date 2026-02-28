@@ -84,6 +84,7 @@ export function HomeView({
     delivered: { color: 'bg-green-500', label: 'Delivered', textColor: 'text-green-500' },
   };
   const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
+  const showSavedSearchesCard = !isMobile || savedSearches.length > 0 || hasCurrentSearchPreset;
   const mobileStickyPaddingTop = mobileHeaderVisible ? 6 : 8;
   // Header is position:fixed on mobile — sticky controls need matching top offset
   const MOBILE_HEADER_HEIGHT = 74;
@@ -208,6 +209,7 @@ export function HomeView({
       {/* Scrollable Content */}
       <div style={{ padding: isMobile ? '0 16px' : '0' }}>
       {/* Saved Searches */}
+      {showSavedSearchesCard && (
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900" style={{ padding: isMobile ? '12px' : '16px', marginBottom: isMobile ? '12px' : '16px' }}>
         <div className="flex items-center justify-between" style={{ marginBottom: '10px' }}>
           <div className="flex items-center gap-2">
@@ -265,6 +267,7 @@ export function HomeView({
           ) : null
         )}
       </div>
+      )}
 
       {/* Shipment Tracking Section */}
       {activeShipments && activeShipments.length > 0 && (
