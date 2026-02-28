@@ -10,7 +10,7 @@ export function useBrokerOnboarding(userId, isBroker) {
 
   // Listen to onboarding tracking document
   useEffect(() => {
-    if (!userId || isBroker) {
+    if (!userId) {
       setTracking(null);
       setLoading(false);
       return;
@@ -22,8 +22,8 @@ export function useBrokerOnboarding(userId, isBroker) {
       (snap) => {
         if (snap.exists()) {
           setTracking({ id: snap.id, ...snap.data() });
-        } else {
-          // Initialize tracking document for new users
+        } else if (!isBroker) {
+          // Initialize tracking document for non-broker users only
           const initialData = {
             userId,
             onboardingShown: false,
@@ -40,6 +40,8 @@ export function useBrokerOnboarding(userId, isBroker) {
             nextPassiveReminderAt: null,
             convertedToBroker: false,
             convertedAt: null,
+            brokerGuideCompleted: false,
+            brokerGuideCompletedAt: null,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           };
@@ -160,14 +162,33 @@ export function useBrokerOnboarding(userId, isBroker) {
     }, { merge: true });
   }, [userId]);
 
+  // Mark broker guide as completed (shown after activation)
+  const markBrokerGuideCompleted = useCallback(async () => {
+    if (!userId) return;
+    const trackingRef = doc(db, 'users', userId, 'brokerOnboarding', 'tracking');
+    await setDoc(trackingRef, {
+      brokerGuideCompleted: true,
+      brokerGuideCompletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  }, [userId]);
+
+  // Show broker guide when user just converted but hasn't seen the guide yet
+  const shouldShowBrokerGuide = useMemo(() => {
+    if (!tracking) return false;
+    return tracking.convertedToBroker === true && !tracking.brokerGuideCompleted;
+  }, [tracking]);
+
   return {
     tracking,
     loading,
     shouldShowHomeCard,
+    shouldShowBrokerGuide,
     markOnboardingShown,
     markOnboardingDeclined,
     dismissHomeCard,
     activateTrigger,
     markConverted,
+    markBrokerGuideCompleted,
   };
 }
