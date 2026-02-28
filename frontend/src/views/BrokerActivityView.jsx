@@ -56,7 +56,7 @@ export function BrokerActivityView({ onToast }) {
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
-  const filterChipBaseClass = 'inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs font-semibold leading-none transition-all duration-200 active:scale-95';
+  const filterChipBaseClass = 'inline-flex items-center justify-center rounded-full px-3.5 py-2 text-xs font-semibold leading-tight transition-all duration-200 active:scale-95';
   const activeFilterChipClass = 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30';
   const inactiveFilterChipClass = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600';
 
@@ -162,7 +162,7 @@ export function BrokerActivityView({ onToast }) {
             <Button
               type="button"
               variant="ghost"
-              className="ml-auto shrink-0 h-auto rounded-full px-3 py-1.5 text-xs font-semibold leading-none gap-1.5 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="ml-auto shrink-0 h-auto rounded-full px-3.5 py-2 text-xs font-semibold leading-tight gap-1.5 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
               onClick={handleBackfill}
               disabled={backfilling}
             >
