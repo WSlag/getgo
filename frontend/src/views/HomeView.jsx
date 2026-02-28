@@ -96,7 +96,9 @@ export function HomeView({
       className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)}
       style={{
         padding: isMobile ? '0' : '24px',
-        paddingTop: isMobile ? `${MOBILE_HEADER_HEIGHT}px` : '24px',
+        // Mobile header offset is handled by sticky controls' `top`.
+        // Keeping extra container top padding creates a visible gap.
+        paddingTop: isMobile ? '0' : '24px',
         paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px',
         overscrollBehaviorY: 'contain',
       }}
