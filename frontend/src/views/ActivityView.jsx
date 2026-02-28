@@ -111,16 +111,20 @@ export default function ActivityView({
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              {currentRole === 'trucker' ? 'My Bids' : 'My Bookings'}
-              {unreadBids > 0 && (
-                <span className={`ml-2 px-1.5 py-0.5 text-xs font-bold rounded-full ${
-                  activeSubTab === 'bids'
-                    ? 'bg-white text-orange-500'
-                    : 'bg-orange-500 text-white'
-                }`}>
-                  {unreadBids}
-                </span>
-              )}
+              <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+                <span>{currentRole === 'trucker' ? 'My Bids' : 'My Bookings'}</span>
+                {unreadBids > 0 && (
+                  <span
+                    className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[11px] font-bold rounded-full ${
+                      activeSubTab === 'bids'
+                        ? 'bg-white text-orange-500'
+                        : 'bg-orange-500 text-white'
+                    }`}
+                  >
+                    {unreadBids}
+                  </span>
+                )}
+              </span>
             </button>
 
             <button
@@ -132,16 +136,20 @@ export default function ActivityView({
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              Contracts
-              {pendingContractsCount > 0 && (
-                <span className={`ml-2 px-1.5 py-0.5 text-xs font-bold rounded-full ${
-                  activeSubTab === 'contracts'
-                    ? 'bg-white text-orange-500'
-                    : 'bg-yellow-500 text-white'
-                }`}>
-                  {pendingContractsCount}
-                </span>
-              )}
+              <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+                <span>Contracts</span>
+                {pendingContractsCount > 0 && (
+                  <span
+                    className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[11px] font-bold rounded-full ${
+                      activeSubTab === 'contracts'
+                        ? 'bg-white text-orange-500'
+                        : 'bg-yellow-500 text-white'
+                    }`}
+                  >
+                    {pendingContractsCount}
+                  </span>
+                )}
+              </span>
             </button>
 
             {hasReferredListings && (
