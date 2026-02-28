@@ -131,8 +131,8 @@ export function BrokerActivityView({ onToast }) {
                 onClick={() => setTypeFilter(filter.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                   typeFilter === filter.id
-                    ? 'bg-orange-500 text-white shadow-sm'
-                    : 'bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-800'
+                    ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-md shadow-orange-500/30'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 {filter.label}
@@ -140,32 +140,29 @@ export function BrokerActivityView({ onToast }) {
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {statusFilters.map((filter) => (
               <button
                 key={filter.id}
                 onClick={() => setStatusFilter(filter.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                   statusFilter === filter.id
-                    ? 'bg-orange-500 text-white shadow-sm'
-                    : 'bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-800'
+                    ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-md shadow-orange-500/30'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 {filter.label}
               </button>
             ))}
-          </div>
-
-          <div>
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 text-xs h-8"
+              className="gap-1.5 text-xs h-7 ml-auto shrink-0"
               onClick={handleBackfill}
               disabled={backfilling}
             >
               {backfilling ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-              Backfill History
+              Backfill
             </Button>
           </div>
         </div>
@@ -173,23 +170,25 @@ export function BrokerActivityView({ onToast }) {
 
       {/* Summary cards */}
       {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
-            { label: 'Total', value: summary.total || 0, icon: <TrendingUp className="size-3.5 text-orange-500" /> },
-            { label: 'Cargo Bids', value: summary?.byType?.cargo_bids || 0, icon: <Package className="size-3.5 text-blue-500" /> },
-            { label: 'Truck Bookings', value: summary?.byType?.truck_bookings || 0, icon: <Truck className="size-3.5 text-purple-500" /> },
-            { label: 'Contracts', value: summary?.byType?.contracts || 0, icon: <FileText className="size-3.5 text-indigo-500" /> },
-            { label: 'Completed', value: summary?.byStatus?.completed || 0, icon: <TrendingUp className="size-3.5 text-green-500" /> },
-          ].map(({ label, value, icon }) => (
+            { label: 'Total', value: summary.total || 0, icon: <TrendingUp className="size-3.5 text-orange-500" />, bg: 'bg-orange-50 dark:bg-orange-950/30' },
+            { label: 'Cargo Bids', value: summary?.byType?.cargo_bids || 0, icon: <Package className="size-3.5 text-blue-500" />, bg: 'bg-blue-50 dark:bg-blue-950/30' },
+            { label: 'Truck Bookings', value: summary?.byType?.truck_bookings || 0, icon: <Truck className="size-3.5 text-purple-500" />, bg: 'bg-purple-50 dark:bg-purple-950/30' },
+            { label: 'Contracts', value: summary?.byType?.contracts || 0, icon: <FileText className="size-3.5 text-indigo-500" />, bg: 'bg-indigo-50 dark:bg-indigo-950/30' },
+            { label: 'Completed', value: summary?.byStatus?.completed || 0, icon: <TrendingUp className="size-3.5 text-green-500" />, bg: 'bg-green-50 dark:bg-green-950/30', spanFull: true },
+          ].map(({ label, value, icon, bg, spanFull }) => (
             <div
               key={label}
-              className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3"
+              className={`rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 ${spanFull ? 'col-span-2 sm:col-span-1' : ''}`}
             >
-              <div className="flex items-center gap-1.5 mb-1">
-                {icon}
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`size-6 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+                  {icon}
+                </span>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
               </div>
-              <p className="text-lg font-semibold text-gray-900 dark:text-white leading-none">{value}</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white leading-none">{value}</p>
             </div>
           ))}
         </div>

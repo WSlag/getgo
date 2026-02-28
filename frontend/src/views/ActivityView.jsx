@@ -70,26 +70,26 @@ export default function ActivityView({
 
       {/* Broker Mode Switcher */}
       {isBroker && (
-        <div style={{ marginBottom: '12px' }}>
-          <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ marginBottom: '16px' }}>
+          <div className="flex gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-full p-1">
             <button
               onClick={() => setViewMode('my')}
-              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', flex: 1 }}
-              className={`rounded-xl transition-all ${
+              style={{ fontSize: '14px', fontWeight: '600', flex: 1, padding: '10px 16px' }}
+              className={`rounded-full transition-all active:scale-95 ${
                 viewMode === 'my'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               My Activity
             </button>
             <button
               onClick={() => setViewMode('broker')}
-              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', flex: 1 }}
-              className={`rounded-xl transition-all ${
+              style={{ fontSize: '14px', fontWeight: '600', flex: 1, padding: '10px 16px' }}
+              className={`rounded-full transition-all active:scale-95 ${
                 viewMode === 'broker'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Broker Activity
@@ -101,14 +101,14 @@ export default function ActivityView({
       {/* Tabs */}
       {viewMode === 'my' && (
         <div style={{ marginBottom: '24px' }}>
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div className="flex gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-full p-1">
             <button
               onClick={() => setActiveSubTab('bids')}
-              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', flex: 1 }}
-              className={`rounded-xl transition-all relative ${
+              style={{ fontSize: '14px', fontWeight: '600', flex: 1, padding: '10px 16px' }}
+              className={`rounded-full transition-all active:scale-95 relative ${
                 activeSubTab === 'bids'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               {currentRole === 'trucker' ? 'My Bids' : 'My Bookings'}
@@ -125,11 +125,11 @@ export default function ActivityView({
 
             <button
               onClick={() => setActiveSubTab('contracts')}
-              style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', flex: 1 }}
-              className={`rounded-xl transition-all relative ${
+              style={{ fontSize: '14px', fontWeight: '600', flex: 1, padding: '10px 16px' }}
+              className={`rounded-full transition-all active:scale-95 relative ${
                 activeSubTab === 'contracts'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Contracts
@@ -147,11 +147,11 @@ export default function ActivityView({
             {hasReferredListings && (
               <button
                 onClick={() => setActiveSubTab('referred')}
-                style={{ padding: '14px 16px', fontSize: '15px', fontWeight: 'bold', flex: 1 }}
-                className={`rounded-xl transition-all relative ${
+                style={{ fontSize: '14px', fontWeight: '600', flex: 1, padding: '10px 16px' }}
+                className={`rounded-full transition-all active:scale-95 relative ${
                   activeSubTab === 'referred'
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 Referred Listings
