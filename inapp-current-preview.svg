@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="660" viewBox="0 0 560 660">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f1f5f9"/>
+      <stop offset="100%" style="stop-color:#ffffff"/>
+    </linearGradient>
+    <linearGradient id="btnGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#f97316"/>
+    </linearGradient>
+    <filter id="cardshadow">
+      <feDropShadow dx="0" dy="14" stdDeviation="20" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <filter id="btnshadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#f97316" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Labels -->
+  <text x="140" y="22" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#374151">Android</text>
+  <text x="420" y="22" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#374151">iOS</text>
+  <line x1="280" y1="10" x2="280" y2="650" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="5"/>
+
+  <!-- ===================== ANDROID CARD ===================== -->
+  <!-- Full screen bg -->
+  <rect x="20" y="32" width="240" height="590" rx="16" fill="url(#bgGrad)" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Card -->
+  <rect x="36" y="60" width="208" height="540" rx="20" fill="white" filter="url(#cardshadow)" stroke="#e2e8f0" stroke-width="0.5"/>
+
+  <!-- Header: logo -->
+  <rect x="52" y="76" width="44" height="44" rx="10" fill="#f97316"/>
+  <text x="74" y="103" text-anchor="middle" font-family="Arial" font-size="20" fill="white">🚛</text>
+
+  <!-- Header text -->
+  <text x="104" y="90" font-family="Arial" font-size="7.5" font-weight="bold" fill="#94a3b8" letter-spacing="1">GETGO SECURE ACCESS</text>
+  <text x="104" y="106" font-family="Arial" font-size="9" font-weight="600" fill="#334155">✅ External browser required</text>
+
+  <!-- Divider line -->
+  <line x1="52" y1="130" x2="228" y2="130" stroke="#f1f5f9" stroke-width="1"/>
+
+  <!-- Title h1 text-2xl font-bold left-aligned -->
+  <text x="52" y="154" font-family="Arial" font-size="18" font-weight="bold" fill="#0f172a">Open in Google</text>
+
+  <!-- Description text mt-3 text-sm -->
+  <text x="52" y="172" font-family="Arial" font-size="8.5" fill="#475569">You are viewing GetGo in Facebook's</text>
+  <text x="52" y="184" font-family="Arial" font-size="8.5" fill="#475569">built-in browser. For the best experience,</text>
+  <text x="52" y="196" font-family="Arial" font-size="8.5" fill="#475569">continue in your phone's browser.</text>
+
+  <!-- CTA Button mt-5 — standard spec: 14px 16px, bold, amber→orange, shadow -->
+  <rect x="52" y="210" width="176" height="46" rx="12" fill="url(#btnGrad)" filter="url(#btnshadow)"/>
+  <text x="140" y="238" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="white">↗  Open in Google</text>
+
+  <!-- Steps box mt-5 -->
+  <rect x="52" y="268" width="176" height="108" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="64" y="284" font-family="Arial" font-size="7" font-weight="bold" fill="#94a3b8" letter-spacing="0.8">IF THE BUTTON DOES NOT WORK</text>
+
+  <!-- Step 1 -->
+  <circle cx="70" cy="305" r="9" fill="#ffedd5"/>
+  <text x="70" y="309" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#c2410c">1</text>
+  <text x="84" y="301" font-family="Arial" font-size="8.5" fill="#334155">⋮ Tap the three-dot menu</text>
+  <text x="84" y="312" font-family="Arial" font-size="8.5" fill="#334155">   in the top-right corner.</text>
+
+  <!-- Step 2 -->
+  <circle cx="70" cy="338" r="9" fill="#ffedd5"/>
+  <text x="70" y="342" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#c2410c">2</text>
+  <text x="84" y="334" font-family="Arial" font-size="8.5" fill="#334155">Choose "Open in browser".</text>
+
+  <!-- Annotation: no iOS copy button on Android -->
+  <rect x="52" y="386" width="176" height="24" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+  <text x="140" y="402" text-anchor="middle" font-family="Arial" font-size="8" fill="#15803d">✓ No copy button (Android only shows CTA)</text>
+
+  <!-- Props annotation -->
+  <rect x="36" y="420" width="208" height="160" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="140" y="436" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#374151">GetGoApp renders:</text>
+  <text x="48" y="452" font-family="Arial" font-size="8" fill="#6b7280">platform="android"</text>
+  <text x="48" y="466" font-family="Arial" font-size="8" fill="#6b7280">browserName="facebook"</text>
+  <text x="48" y="480" font-family="Arial" font-size="8" fill="#6b7280">onOpenBrowser → buildAndroidIntentUrl()</text>
+  <text x="48" y="500" font-family="Arial" font-size="9" font-weight="bold" fill="#374151">Button spec (inline styles):</text>
+  <text x="48" y="514" font-family="Arial" font-size="8" fill="#6b7280">padding: 14px 16px</text>
+  <text x="48" y="528" font-family="Arial" font-size="8" fill="#6b7280">fontSize: 15px · fontWeight: bold</text>
+  <text x="48" y="542" font-family="Arial" font-size="8" fill="#6b7280">gradient: amber-500 → orange-500</text>
+  <text x="48" y="556" font-family="Arial" font-size="8" fill="#6b7280">shadow: rgba(249,115,22,0.4)</text>
+  <text x="48" y="574" font-family="Arial" font-size="8" fill="#6b7280">px-3 wrapper removed ✓</text>
+
+  <!-- ===================== iOS CARD ===================== -->
+  <!-- Full screen bg -->
+  <rect x="300" y="32" width="240" height="590" rx="16" fill="url(#bgGrad)" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Card -->
+  <rect x="316" y="60" width="208" height="540" rx="20" fill="white" filter="url(#cardshadow)" stroke="#e2e8f0" stroke-width="0.5"/>
+
+  <!-- Header: logo -->
+  <rect x="332" y="76" width="44" height="44" rx="10" fill="#f97316"/>
+  <text x="354" y="103" text-anchor="middle" font-family="Arial" font-size="20" fill="white">🚛</text>
+
+  <!-- Header text -->
+  <text x="384" y="90" font-family="Arial" font-size="7.5" font-weight="bold" fill="#94a3b8" letter-spacing="1">GETGO SECURE ACCESS</text>
+  <text x="384" y="106" font-family="Arial" font-size="9" font-weight="600" fill="#334155">✅ External browser required</text>
+
+  <!-- Divider -->
+  <line x1="332" y1="130" x2="508" y2="130" stroke="#f1f5f9" stroke-width="1"/>
+
+  <!-- Title h1 text-2xl left-aligned -->
+  <text x="332" y="154" font-family="Arial" font-size="18" font-weight="bold" fill="#0f172a">Open in Safari</text>
+
+  <!-- Description text mt-3 -->
+  <text x="332" y="172" font-family="Arial" font-size="8.5" fill="#475569">You are viewing GetGo in Instagram's</text>
+  <text x="332" y="184" font-family="Arial" font-size="8.5" fill="#475569">built-in browser. For the best experience,</text>
+  <text x="332" y="196" font-family="Arial" font-size="8.5" fill="#475569">continue in your phone's browser.</text>
+
+  <!-- No CTA button on iOS (android only) -->
+  <rect x="332" y="208" width="176" height="22" rx="6" fill="#fef9c3" stroke="#fde047" stroke-width="1"/>
+  <text x="420" y="223" text-anchor="middle" font-family="Arial" font-size="8" fill="#854d0e">No "Open in Safari" CTA button (iOS only manual)</text>
+
+  <!-- Steps box mt-5 -->
+  <rect x="332" y="240" width="176" height="108" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="344" y="256" font-family="Arial" font-size="7" font-weight="bold" fill="#94a3b8" letter-spacing="0.8">MANUAL STEPS</text>
+
+  <!-- Step 1 -->
+  <circle cx="350" cy="277" r="9" fill="#ffedd5"/>
+  <text x="350" y="281" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#c2410c">1</text>
+  <text x="364" y="273" font-family="Arial" font-size="8.5" fill="#334155">⋮ Tap the menu button at</text>
+  <text x="364" y="284" font-family="Arial" font-size="8.5" fill="#334155">   the bottom of Facebook.</text>
+
+  <!-- Step 2 -->
+  <circle cx="350" cy="312" r="9" fill="#ffedd5"/>
+  <text x="350" y="316" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#c2410c">2</text>
+  <text x="364" y="308" font-family="Arial" font-size="8.5" fill="#334155">Select "Open in Safari".</text>
+
+  <!-- iOS Copy button mt-5 -->
+  <rect x="332" y="358" width="176" height="36" rx="10" fill="white" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="420" y="381" text-anchor="middle" font-family="Arial" font-size="10" fill="#475569">📋  Copy link to open in Safari</text>
+
+  <!-- Props annotation -->
+  <rect x="316" y="410" width="208" height="170" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="420" y="426" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#374151">GetGoApp renders:</text>
+  <text x="328" y="442" font-family="Arial" font-size="8" fill="#6b7280">platform="ios"</text>
+  <text x="328" y="456" font-family="Arial" font-size="8" fill="#6b7280">browserName="instagram"</text>
+  <text x="328" y="470" font-family="Arial" font-size="8" fill="#6b7280">onOpenBrowser → buildAndroidIntentUrl()</text>
+  <text x="328" y="490" font-family="Arial" font-size="9" font-weight="bold" fill="#374151">Differences from Android:</text>
+  <text x="328" y="504" font-family="Arial" font-size="8" fill="#6b7280">• No orange CTA button</text>
+  <text x="328" y="518" font-family="Arial" font-size="8" fill="#6b7280">• Shows "Copy link" button instead</text>
+  <text x="328" y="532" font-family="Arial" font-size="8" fill="#6b7280">• Steps say "Open in Safari"</text>
+  <text x="328" y="546" font-family="Arial" font-size="8" fill="#6b7280">• Section label "Manual steps"</text>
+  <text x="328" y="560" font-family="Arial" font-size="8" fill="#6b7280">• Outer padding: px-5 sm:px-6</text>
+</svg>

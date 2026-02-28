@@ -84,7 +84,7 @@ export function HomeView({
     delivered: { color: 'bg-green-500', label: 'Delivered', textColor: 'text-green-500' },
   };
   const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
-  const mobileStickyPaddingTop = mobileHeaderVisible ? 16 : 8;
+  const mobileStickyPaddingTop = mobileHeaderVisible ? 6 : 8;
   // Header is position:fixed on mobile — sticky controls need matching top offset
   const MOBILE_HEADER_HEIGHT = 74;
   const mobileStickyTop = mobileHeaderVisible ? MOBILE_HEADER_HEIGHT : 0;
