@@ -25,7 +25,7 @@ import {
 } from './services/firestoreService';
 
 // Firebase
-import { collection, doc, getDoc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { db } from './firebase';
 
 // Hooks
@@ -243,7 +243,8 @@ export default function GetGoApp() {
 
   // Onboarding Guide Modal
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
-  const [onboardingDismissedLocally, setOnboardingDismissedLocally] = useState(false);
+  // null = not loaded yet for current user (prevents race-triggered auto-open)
+  const [onboardingDismissedLocally, setOnboardingDismissedLocally] = useState(null);
 
   // Legal Modal (for auth screens)
   const [legalModal, setLegalModal] = useState({ open: false, type: null });
@@ -346,6 +347,7 @@ export default function GetGoApp() {
   }, [savedRoutes, authUser?.uid]);
 
   useEffect(() => {
+    setOnboardingDismissedLocally(null);
     const key = getOnboardingDismissedKey(authUser?.uid);
     try {
       setOnboardingDismissedLocally(window.localStorage.getItem(key) === 'true');
@@ -468,10 +470,18 @@ export default function GetGoApp() {
   // Auto-show onboarding guide for first-time users (onboardingComplete === false).
   // Dep on userProfile?.uid so it fires as soon as the profile loads after login.
   useEffect(() => {
-    if (userProfile && userProfile.onboardingComplete === false && !onboardingDismissedLocally) {
+    if (onboardingDismissedLocally === null) return;
+    if (userProfile && userProfile.onboardingComplete === false && onboardingDismissedLocally === false) {
       setShowOnboardingGuide(true);
     }
   }, [userProfile?.uid, userProfile?.onboardingComplete, onboardingDismissedLocally]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Guard against race: if dismissal is loaded as true, ensure modal is not left open.
+  useEffect(() => {
+    if (onboardingDismissedLocally === true && showOnboardingGuide) {
+      setShowOnboardingGuide(false);
+    }
+  }, [onboardingDismissedLocally, showOnboardingGuide]);
 
   // Use anonymized preview data for non-auth users to keep Home vibrant and conversion-focused.
   const userRole = currentRole || 'shipper';
@@ -919,22 +929,47 @@ export default function GetGoApp() {
     setActiveTab('help');
   };
 
-  const handleOnboardingClose = async () => {
+  const markOnboardingDismissedLocally = () => {
+    if (!authUser?.uid) return;
+    const dismissedKey = getOnboardingDismissedKey(authUser.uid);
+    try {
+      window.localStorage.setItem(dismissedKey, 'true');
+    } catch {
+      // Ignore storage failures (e.g. restrictive privacy contexts).
+    }
+    setOnboardingDismissedLocally(true);
+  };
+
+  const handleOnboardingDismiss = async () => {
     setShowOnboardingGuide(false);
     if (authUser?.uid) {
-      const dismissedKey = getOnboardingDismissedKey(authUser.uid);
-      try {
-        window.localStorage.setItem(dismissedKey, 'true');
-      } catch {
-        // Ignore storage failures (e.g. restrictive privacy contexts).
+      markOnboardingDismissedLocally();
+      if (userProfile?.onboardingComplete !== true) {
+        try {
+          await updateDoc(doc(db, 'users', authUser.uid), {
+            onboardingDismissedAt: serverTimestamp(),
+          });
+        } catch (e) {
+          const errorCode = e?.code || e?.message;
+          if (errorCode !== 'permission-denied') {
+            console.warn('Could not persist onboarding dismissal:', errorCode);
+          }
+        }
       }
-      setOnboardingDismissedLocally(true);
+    }
+  };
+
+  const handleOnboardingComplete = async () => {
+    setShowOnboardingGuide(false);
+    if (authUser?.uid) {
+      markOnboardingDismissedLocally();
 
       if (userProfile?.onboardingComplete === true) return;
 
       try {
         await updateDoc(doc(db, 'users', authUser.uid), {
           onboardingComplete: true,
+          onboardingCompletedAt: serverTimestamp(),
         });
       } catch (e) {
         const errorCode = e?.code || e?.message;
@@ -2388,7 +2423,8 @@ export default function GetGoApp() {
       {/* Onboarding Guide Modal - shown on first login and re-accessible from Help & Support */}
       <OnboardingGuideModal
         open={showOnboardingGuide}
-        onClose={handleOnboardingClose}
+        onDismiss={handleOnboardingDismiss}
+        onComplete={handleOnboardingComplete}
         userRole={currentRole || 'shipper'}
         userName={userProfile?.name || ''}
       />
