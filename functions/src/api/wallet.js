@@ -28,9 +28,9 @@ if (isProductionRuntime && (!process.env.GCASH_ACCOUNT_NUMBER || !process.env.GC
 }
 
 const BASE_GCASH_CONFIG = {
-  accountNumber: process.env.GCASH_ACCOUNT_NUMBER || null,
-  accountName: process.env.GCASH_ACCOUNT_NAME || null,
-  qrCodeUrl: process.env.GCASH_QR_URL || null,
+  accountNumber: process.env.GCASH_ACCOUNT_NUMBER || '09272241557',
+  accountName: process.env.GCASH_ACCOUNT_NAME || 'GetGo Logistics',
+  qrCodeUrl: process.env.GCASH_QR_URL || '/assets/gcash_qrcode.png',
   maxDailyTopup: 50000,
   maxDailySubmissions: 5,
   orderExpiryMinutes: 30,

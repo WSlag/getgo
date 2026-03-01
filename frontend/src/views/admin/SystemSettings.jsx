@@ -112,7 +112,7 @@ export function SystemSettings() {
   const [minFee, setMinFee] = useState('50');
   const [maxFee, setMaxFee] = useState('2000');
 
-  const [gcashNumber, setGcashNumber] = useState('09123456789');
+  const [gcashNumber, setGcashNumber] = useState('09272241557');
   const [gcashName, setGcashName] = useState('GetGo Logistics');
 
   const [starterCommission, setStarterCommission] = useState('3');
@@ -130,7 +130,7 @@ export function SystemSettings() {
     setMinFee(String(settings?.platformFee?.minimumFee ?? 50));
     setMaxFee(String(settings?.platformFee?.maximumFee ?? 2000));
 
-    setGcashNumber(String(settings?.gcash?.accountNumber ?? '09123456789'));
+    setGcashNumber(String(settings?.gcash?.accountNumber ?? '09272241557'));
     setGcashName(String(settings?.gcash?.accountName ?? 'GetGo Logistics'));
 
     setStarterCommission(String(settings?.referralCommission?.STARTER ?? 3));
