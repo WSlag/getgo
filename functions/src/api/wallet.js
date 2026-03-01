@@ -102,7 +102,7 @@ function buildPlatformOrderResponse(orderData, gcashConfig) {
     orderId: orderData.orderId,
     bidId: orderData.bidId,
     amount: orderData.amount,
-    gcashAccountNumber: maskPhoneNumber(orderData.gcashAccountNumber || gcashConfig.accountNumber),
+    gcashAccountNumber: orderData.gcashAccountNumber || gcashConfig.accountNumber,
     gcashAccountName: orderData.gcashAccountName || gcashConfig.accountName,
     gcashQrUrl: orderData.gcashQrUrl || gcashConfig.qrCodeUrl,
     expiresAt: expiresAtDate ? expiresAtDate.toISOString() : null,
@@ -115,7 +115,7 @@ function buildTopUpOrderResponse(orderData, gcashConfig) {
   return {
     orderId: orderData.orderId,
     amount: parseFloat(orderData.amount),
-    gcashAccountNumber: maskPhoneNumber(orderData.gcashAccountNumber || gcashConfig.accountNumber),
+    gcashAccountNumber: orderData.gcashAccountNumber || gcashConfig.accountNumber,
     gcashAccountName: orderData.gcashAccountName || gcashConfig.accountName,
     gcashQrUrl: orderData.gcashQrUrl || gcashConfig.qrCodeUrl,
     expiresAt: expiresAtDate ? expiresAtDate.toISOString() : null,
