@@ -11,9 +11,9 @@ const DEFAULT_PLATFORM_SETTINGS = Object.freeze({
     maximumFee: 2000,
   },
   gcash: {
-    accountNumber: process.env.GCASH_ACCOUNT_NUMBER || '09123456789',
+    accountNumber: process.env.GCASH_ACCOUNT_NUMBER || '09272241557',
     accountName: process.env.GCASH_ACCOUNT_NAME || 'GetGo Logistics',
-    qrCodeUrl: process.env.GCASH_QR_URL || null,
+    qrCodeUrl: process.env.GCASH_QR_URL || '/assets/gcash_qrcode.png',
   },
   referralCommission: {
     STARTER: 3,

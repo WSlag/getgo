@@ -25,11 +25,20 @@ import { uploadPaymentScreenshot, createPaymentSubmission } from '@/services/fir
 import { useOrderSubmission } from '@/hooks/usePaymentSubmission';
 import api from '@/services/api';
 
+const DEFAULT_GCASH_QR_URL = '/assets/gcash_qrcode.png';
+const DEFAULT_GCASH_ACCOUNT_NUMBER = '09272241557';
+
 const generateIdempotencyKey = (prefix, entityId) => {
   const randomPart = typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   return `${prefix}:${entityId}:${randomPart}`;
+};
+
+const maskPhoneNumber = (phone) => {
+  const normalized = String(phone || '').trim();
+  if (!normalized || normalized.length < 7) return normalized;
+  return normalized.slice(0, 4) + '****' + normalized.slice(-3);
 };
 
 /**
@@ -51,6 +60,7 @@ export function GCashPaymentModal({
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [qrImageFailed, setQrImageFailed] = useState(false);
 
   // Upload state
   const [file, setFile] = useState(null);
@@ -85,6 +95,8 @@ export function GCashPaymentModal({
   const platformFeeLabel = feePercentForLabel === null
     ? 'Platform Fee'
     : `Platform Fee (${formatPercent(feePercentForLabel)}%)`;
+  const qrCodeSrc = order?.gcashQrUrl || DEFAULT_GCASH_QR_URL;
+  const displayGcashNumber = maskPhoneNumber(DEFAULT_GCASH_ACCOUNT_NUMBER);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -116,6 +128,10 @@ export function GCashPaymentModal({
       }, 2000);
     }
   }, [submission?.status, order, bidId, contract?.id]);
+
+  useEffect(() => {
+    setQrImageFailed(false);
+  }, [open, order?.gcashQrUrl]);
 
   const clearFile = () => {
     if (preview) {
@@ -361,10 +377,18 @@ export function GCashPaymentModal({
         backgroundColor: '#f9fafb',
         textAlign: 'center',
       }}>
-        {order?.gcashQrUrl ? (
+        {!qrImageFailed && qrCodeSrc ? (
           <img
-            src={order.gcashQrUrl}
+            src={qrCodeSrc}
             alt="GCash QR Code"
+            onError={(event) => {
+              const currentSrc = event.currentTarget.getAttribute('src') || '';
+              if (currentSrc !== DEFAULT_GCASH_QR_URL) {
+                event.currentTarget.setAttribute('src', DEFAULT_GCASH_QR_URL);
+                return;
+              }
+              setQrImageFailed(true);
+            }}
             style={{
               maxWidth: '200px',
               maxHeight: '200px',
@@ -393,7 +417,7 @@ export function GCashPaymentModal({
             {order?.gcashAccountName}
           </div>
           <div style={{ fontSize: '14px', color: '#6b7280' }}>
-            {order?.gcashAccountNumber}
+            {displayGcashNumber}
           </div>
         </div>
 
@@ -437,7 +461,7 @@ export function GCashPaymentModal({
         </div>
         <ol style={{ fontSize: '12px', color: '#1e40af', margin: 0, paddingLeft: '16px' }}>
           <li style={{ marginBottom: '6px' }}>Open your GCash app</li>
-          <li style={{ marginBottom: '6px' }}>Scan the QR code above or send to {order?.gcashAccountNumber}</li>
+          <li style={{ marginBottom: '6px' }}>Scan the QR code above or send to {displayGcashNumber}</li>
           <li style={{ marginBottom: '6px' }}>Send exactly {formatPrice(order?.amount)}</li>
           <li>Take a screenshot of the successful transaction</li>
         </ol>
