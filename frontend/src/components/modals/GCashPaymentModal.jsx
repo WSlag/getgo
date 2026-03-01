@@ -35,12 +35,6 @@ const generateIdempotencyKey = (prefix, entityId) => {
   return `${prefix}:${entityId}:${randomPart}`;
 };
 
-const maskPhoneNumber = (phone) => {
-  const normalized = String(phone || '').trim();
-  if (!normalized || normalized.length < 7) return normalized;
-  return normalized.slice(0, 4) + '****' + normalized.slice(-3);
-};
-
 /**
  * GCashPaymentModal - Multi-step platform fee payment via GCash QR
  *
@@ -96,7 +90,10 @@ export function GCashPaymentModal({
     ? 'Platform Fee'
     : `Platform Fee (${formatPercent(feePercentForLabel)}%)`;
   const qrCodeSrc = order?.gcashQrUrl || DEFAULT_GCASH_QR_URL;
-  const displayGcashNumber = maskPhoneNumber(DEFAULT_GCASH_ACCOUNT_NUMBER);
+  const rawOrderGcashNumber = String(order?.gcashAccountNumber || '').trim();
+  const displayGcashNumber = rawOrderGcashNumber && !rawOrderGcashNumber.includes('*')
+    ? rawOrderGcashNumber
+    : DEFAULT_GCASH_ACCOUNT_NUMBER;
 
   // Reset state when modal opens/closes
   useEffect(() => {
