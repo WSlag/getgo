@@ -157,4 +157,72 @@ test.describe('Authentication Flow', () => {
     const isLoggedIn = await authHelper.isLoggedIn();
     expect(isLoggedIn).toBe(true);
   });
+
+  test('should allow email magic-link fallback sign-in after linking', async ({
+    authHelper,
+    testPhoneNumbers,
+    testEmails,
+  }) => {
+    await authHelper.login(testPhoneNumbers.shipper);
+    await authHelper.register({
+      name: 'Magic Link User',
+      role: 'shipper',
+      email: testEmails.shipper,
+    });
+
+    await authHelper.configureBackupEmail(testEmails.shipper);
+    await authHelper.completeLatestMagicLink(testEmails.shipper);
+
+    await authHelper.logout();
+    await authHelper.requestMagicLinkFromAuthModal(testEmails.shipper);
+    await authHelper.completeLatestMagicLink(testEmails.shipper);
+
+    const isLoggedIn = await authHelper.isLoggedIn();
+    expect(isLoggedIn).toBe(true);
+  });
+
+  test('should block new magic-link sends after disabling email fallback', async ({
+    authHelper,
+    testPhoneNumbers,
+    testEmails,
+  }) => {
+    await authHelper.login(testPhoneNumbers.trucker);
+    await authHelper.register({
+      name: 'Disable Magic Link User',
+      role: 'trucker',
+      email: testEmails.trucker,
+    });
+
+    await authHelper.configureBackupEmail(testEmails.trucker);
+    await authHelper.completeLatestMagicLink(testEmails.trucker);
+    await authHelper.disableBackupEmail();
+    await authHelper.logout();
+
+    const countBeforeResp = await fetch('http://127.0.0.1:9099/emulator/v1/projects/karga-ph/oobCodes');
+    const countBeforePayload = await countBeforeResp.json();
+    const countBefore = Array.isArray(countBeforePayload?.oobCodes) ? countBeforePayload.oobCodes.length : 0;
+
+    await authHelper.requestMagicLinkFromAuthModal(testEmails.trucker);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+
+    const countAfterResp = await fetch('http://127.0.0.1:9099/emulator/v1/projects/karga-ph/oobCodes');
+    const countAfterPayload = await countAfterResp.json();
+    const countAfter = Array.isArray(countAfterPayload?.oobCodes) ? countAfterPayload.oobCodes.length : 0;
+
+    expect(countAfter).toBe(countBefore);
+  });
+
+  test('should fail safely on invalid email magic-link callback', async ({ page }) => {
+    await page.goto('/?mode=signIn&oobCode=INVALID-CODE&apiKey=fake-api-key');
+    await page.waitForFunction(
+      () => !document.querySelector('.animate-spin'),
+      { timeout: 20000 }
+    ).catch(() => {});
+    await page.waitForTimeout(1000);
+
+    const hasHeader = await page.locator('header').count();
+    const hasFatalError = await page.locator('text=/fatal|crashed|unhandled error/i').count();
+    expect(hasHeader).toBeGreaterThan(0);
+    expect(hasFatalError).toBe(0);
+  });
 });

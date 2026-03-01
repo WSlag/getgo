@@ -4,7 +4,12 @@ import {
   signInWithPhoneNumber,
   RecaptchaVerifier,
   signInWithCustomToken,
-  signOut
+  signOut,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  EmailAuthProvider,
+  linkWithCredential,
 } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, waitForAppCheckInitialization } from '../firebase';
@@ -17,9 +22,104 @@ const AUTH_RECAPTCHA_CONFIG_TIMEOUT_MS = 8000;
 const AUTH_RECAPTCHA_SCRIPT_TIMEOUT_MS = 8000;
 const RECAPTCHA_ENTERPRISE_SCRIPT_ORIGIN = 'https://www.google.com';
 const RECAPTCHA_ENTERPRISE_SCRIPT_PATH = '/recaptcha/enterprise.js';
+const EMAIL_MAGIC_LINK_FEATURE_ENABLED =
+  import.meta.env.VITE_ENABLE_EMAIL_MAGIC_LINK === 'true'
+  || Boolean(import.meta.env.DEV);
+const EMAIL_LINK_STORAGE_KEY = 'karga_email_link_state_v1';
+const EMAIL_LINK_GENERIC_MESSAGE = 'If an eligible account exists, a sign-in link will be sent.';
 
 let authRecaptchaSiteKeyPromise = null;
 const authRecaptchaScriptLoadPromises = new Map();
+
+function normalizeEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) return null;
+  return email;
+}
+
+function buildEmailLinkActionSettings(mode = 'signin') {
+  if (typeof window === 'undefined') {
+    throw new Error('Email link sign-in requires a browser environment.');
+  }
+
+  const callbackUrl = new URL(window.location.origin);
+  callbackUrl.searchParams.set('emailLinkMode', mode);
+  return {
+    url: callbackUrl.toString(),
+    handleCodeInApp: true,
+  };
+}
+
+function cleanupEmailLinkUrl() {
+  if (typeof window === 'undefined') return;
+
+  const url = new URL(window.location.href);
+  const queryKeysToRemove = [
+    'apiKey',
+    'mode',
+    'oobCode',
+    'continueUrl',
+    'lang',
+    'tenantId',
+    'emailLinkMode',
+  ];
+
+  queryKeysToRemove.forEach((key) => url.searchParams.delete(key));
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+function resolveEmailLinkModeFromUrl(rawUrl) {
+  try {
+    const parsedUrl = new URL(rawUrl);
+    if (parsedUrl.searchParams.get('emailLinkMode')) {
+      return parsedUrl.searchParams.get('emailLinkMode');
+    }
+
+    const continueUrl = parsedUrl.searchParams.get('continueUrl');
+    if (!continueUrl) return null;
+    const parsedContinueUrl = new URL(continueUrl);
+    return parsedContinueUrl.searchParams.get('emailLinkMode');
+  } catch {
+    return null;
+  }
+}
+
+function readPendingEmailLinkState() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const rawValue = window.localStorage.getItem(EMAIL_LINK_STORAGE_KEY);
+    if (!rawValue) return null;
+    const parsed = JSON.parse(rawValue);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const email = normalizeEmail(parsed.email);
+    const mode = parsed.mode === 'link' ? 'link' : 'signin';
+    const uid = typeof parsed.uid === 'string' ? parsed.uid : null;
+
+    return email ? { email, mode, uid } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingEmailLinkState(payload) {
+  if (typeof window === 'undefined') return;
+  const email = normalizeEmail(payload?.email);
+  if (!email) return;
+  const mode = payload?.mode === 'link' ? 'link' : 'signin';
+  const uid = typeof payload?.uid === 'string' ? payload.uid : null;
+  window.localStorage.setItem(EMAIL_LINK_STORAGE_KEY, JSON.stringify({
+    email,
+    mode,
+    uid,
+    createdAtMs: Date.now(),
+  }));
+}
+
+function clearPendingEmailLinkState() {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(EMAIL_LINK_STORAGE_KEY);
+}
 
 function extractAuthRecaptchaSiteKey(recaptchaKeyResource) {
   if (!recaptchaKeyResource || typeof recaptchaKeyResource !== 'string') {
@@ -218,8 +318,17 @@ function formatFirebaseAuthError(error) {
     'auth/invalid-verification-code': 'Incorrect code. Please try again.',
     'auth/code-expired': 'Code expired. Request a new code.',
     'auth/session-expired': 'Session expired. Request a new code.',
+    'auth/invalid-email': 'Invalid email format.',
+    'auth/missing-email': 'Email is required.',
+    'auth/invalid-action-code': 'This email link is invalid or expired. Request a new one.',
+    'auth/email-already-in-use': 'This email is already linked to another account.',
+    'auth/provider-already-linked': 'This email is already linked to your account.',
+    'auth/credential-already-in-use': 'This email is already linked to another account.',
+    'auth/user-disabled': 'This account is disabled.',
+    'auth/operation-not-allowed': 'Email link authentication is not enabled.',
     'permission-denied': 'Invalid recovery credentials.',
     'functions/permission-denied': 'Invalid recovery credentials.',
+    'functions/failed-precondition': 'This account is not eligible for email backup login.',
     'resource-exhausted': 'Too many attempts. Please wait and try again.',
     'functions/resource-exhausted': 'Too many attempts. Please wait and try again.',
   };
@@ -389,6 +498,225 @@ export function AuthProvider({ children }) {
     return unsubWallet;
   }, [authUser, userProfile]);
 
+  const requestEmailMagicLink = useCallback(async (email) => {
+    if (!EMAIL_MAGIC_LINK_FEATURE_ENABLED) {
+      return { success: false, error: 'Email backup login is currently unavailable.' };
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+
+    try {
+      setAuthError(null);
+      await waitForAppCheckInitialization();
+      const response = await api.auth.prepareEmailMagicLinkSignIn({ email: normalizedEmail });
+
+      if (response?.retryAfterSeconds) {
+        return {
+          success: false,
+          error: `Too many attempts. Please wait ${response.retryAfterSeconds}s and try again.`,
+        };
+      }
+
+      if (response?.shouldSend) {
+        writePendingEmailLinkState({ email: normalizedEmail, mode: 'signin' });
+        await sendSignInLinkToEmail(auth, normalizedEmail, buildEmailLinkActionSettings('signin'));
+      } else {
+        clearPendingEmailLinkState();
+      }
+
+      return {
+        success: true,
+        message: response?.message || EMAIL_LINK_GENERIC_MESSAGE,
+      };
+    } catch (error) {
+      const formattedError = formatFirebaseAuthError(error);
+      setAuthError(formattedError);
+      clearPendingEmailLinkState();
+      return { success: false, error: formattedError, code: error?.code || null };
+    }
+  }, []);
+
+  const startEmailLinking = useCallback(async (email) => {
+    if (!EMAIL_MAGIC_LINK_FEATURE_ENABLED) {
+      return { success: false, error: 'Email backup login is currently unavailable.' };
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+
+    try {
+      setAuthError(null);
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('Not authenticated');
+      }
+      if (!currentUser.phoneNumber) {
+        throw new Error('Phone authentication is required before linking email login.');
+      }
+
+      writePendingEmailLinkState({
+        email: normalizedEmail,
+        mode: 'link',
+        uid: currentUser.uid,
+      });
+
+      await waitForAppCheckInitialization();
+      await sendSignInLinkToEmail(auth, normalizedEmail, buildEmailLinkActionSettings('link'));
+
+      return {
+        success: true,
+        message: 'Check your email and open the link to enable backup email login.',
+      };
+    } catch (error) {
+      const formattedError = formatFirebaseAuthError(error);
+      setAuthError(formattedError);
+      clearPendingEmailLinkState();
+      return { success: false, error: formattedError, code: error?.code || null };
+    }
+  }, []);
+
+  const completeEmailLinkFromUrl = useCallback(async (rawUrl = '') => {
+    if (!EMAIL_MAGIC_LINK_FEATURE_ENABLED) {
+      return { success: false, error: 'Email backup login is currently unavailable.' };
+    }
+
+    const targetUrl = rawUrl || (typeof window !== 'undefined' ? window.location.href : '');
+    if (!targetUrl || !isSignInWithEmailLink(auth, targetUrl)) {
+      return { success: false, error: 'Invalid email sign-in link.' };
+    }
+
+    const pendingState = readPendingEmailLinkState();
+    const resolvedMode =
+      pendingState?.mode
+      || resolveEmailLinkModeFromUrl(targetUrl)
+      || 'signin';
+    const normalizedEmail = normalizeEmail(pendingState?.email);
+
+    if (!normalizedEmail) {
+      clearPendingEmailLinkState();
+      cleanupEmailLinkUrl();
+      return { success: false, error: 'Missing email context. Request a new link and try again.' };
+    }
+
+    try {
+      setAuthError(null);
+
+      if (resolvedMode === 'link') {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          throw new Error('Sign in with phone first, then open the email link again.');
+        }
+        if (!currentUser.phoneNumber) {
+          throw new Error('Phone authentication is required before linking email login.');
+        }
+        if (pendingState?.uid && pendingState.uid !== currentUser.uid) {
+          throw new Error('This link was requested for a different account.');
+        }
+
+        const emailCredential = EmailAuthProvider.credentialWithLink(normalizedEmail, targetUrl);
+        try {
+          await linkWithCredential(currentUser, emailCredential);
+        } catch (error) {
+          const errorCode = String(error?.code || '');
+          const currentEmail = normalizeEmail(auth.currentUser?.email);
+          if (!(errorCode === 'auth/provider-already-linked' && currentEmail === normalizedEmail)) {
+            throw error;
+          }
+        }
+        await currentUser.reload();
+
+        const refreshedUser = auth.currentUser;
+        const refreshedEmail = normalizeEmail(refreshedUser?.email);
+        if (!refreshedUser?.emailVerified || refreshedEmail !== normalizedEmail) {
+          throw new Error('Email verification did not complete. Request a new link.');
+        }
+
+        await api.auth.finalizeEmailLinking({ email: normalizedEmail });
+        clearPendingEmailLinkState();
+        cleanupEmailLinkUrl();
+        return { success: true, mode: 'link' };
+      }
+
+      const credential = await signInWithEmailLink(auth, normalizedEmail, targetUrl);
+      await credential.user.getIdToken(true);
+
+      if (!credential.user.phoneNumber) {
+        await signOut(auth);
+        throw new Error('Phone-linked account is required for email fallback sign-in.');
+      }
+
+      const userSnap = await getDoc(doc(db, 'users', credential.user.uid));
+      const userData = userSnap.exists() ? (userSnap.data() || {}) : null;
+      const isEligible = Boolean(
+        userData
+        && userData.emailAuthEnabled === true
+        && userData.emailAuthVerified === true
+        && userData.isActive !== false
+        && String(userData.accountStatus || '').toLowerCase() !== 'suspended'
+      );
+
+      if (!isEligible) {
+        await signOut(auth);
+        throw new Error('Email fallback is not enabled for this account.');
+      }
+
+      clearPendingEmailLinkState();
+      cleanupEmailLinkUrl();
+      return { success: true, mode: 'signin' };
+    } catch (error) {
+      const formattedError = formatFirebaseAuthError(error);
+      setAuthError(formattedError);
+      clearPendingEmailLinkState();
+      cleanupEmailLinkUrl();
+      return { success: false, error: formattedError, code: error?.code || null };
+    }
+  }, []);
+
+  const disableEmailFallback = useCallback(async () => {
+    try {
+      if (!auth.currentUser) throw new Error('Not authenticated');
+      await api.auth.disableEmailMagicLink();
+      return { success: true };
+    } catch (error) {
+      const formattedError = formatFirebaseAuthError(error);
+      setAuthError(formattedError);
+      return { success: false, error: formattedError, code: error?.code || null };
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const maybeCompleteEmailLink = async () => {
+      if (typeof window === 'undefined' || !EMAIL_MAGIC_LINK_FEATURE_ENABLED) return;
+      const currentUrl = window.location.href;
+      if (!isSignInWithEmailLink(auth, currentUrl)) return;
+
+      setLoading(true);
+      const result = await completeEmailLinkFromUrl(currentUrl);
+
+      if (cancelled) return;
+      if (!result.success) {
+        setAuthError(result.error || 'Email sign-in failed. Request a new link.');
+      }
+
+      if (!(result.success && result.mode === 'signin')) {
+        setLoading(false);
+      }
+    };
+
+    void maybeCompleteEmailLink();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [completeEmailLinkFromUrl]);
+
   // Send OTP to phone number
   // reCAPTCHA Enterprise verification is handled automatically by Firebase Auth
   // when enabled in Firebase Console > Authentication > Settings.
@@ -508,6 +836,10 @@ export function AuthProvider({ children }) {
       const userData = {
         phone: authUser.phoneNumber,
         email: profileData.email || null,
+        emailAuthEnabled: false,
+        emailAuthVerified: false,
+        emailLinkedAt: null,
+        emailAuthUpdatedAt: null,
         name: profileData.name,
         role: profileData.role || 'shipper',
         profileImage: null,
@@ -673,6 +1005,10 @@ export function AuthProvider({ children }) {
     authError,
     sendOtp,
     verifyOtp,
+    requestEmailMagicLink,
+    startEmailLinking,
+    completeEmailLinkFromUrl,
+    disableEmailFallback,
     signInWithRecoveryCode,
     createUserProfile,
     updateProfile,
@@ -686,6 +1022,13 @@ export function AuthProvider({ children }) {
     currentRole: userProfile?.role || 'shipper',
     isBroker: !!brokerProfile,
     isAdmin: !!userProfile?.isAdmin || userProfile?.role === 'admin',
+    emailMagicLinkEnabled: EMAIL_MAGIC_LINK_FEATURE_ENABLED,
+    emailAuthStatus: {
+      email: userProfile?.email || null,
+      enabled: userProfile?.emailAuthEnabled === true,
+      verified: userProfile?.emailAuthVerified === true,
+      linked: Boolean(userProfile?.emailLinkedAt),
+    },
   };
 
   return (

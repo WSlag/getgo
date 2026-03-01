@@ -197,9 +197,19 @@ service cloud.firestore {
       allow create: if isOwner(uid)
         && request.resource.data.get('isAdmin', false) == false
         && request.resource.data.get('role', 'shipper') in ['shipper', 'trucker', 'broker']
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() > 0
+        && request.resource.data.get('emailAuthEnabled', false) == false
+        && request.resource.data.get('emailAuthVerified', false) == false
+        && request.resource.data.get('emailLinkedAt', null) == null
+        && request.resource.data.get('emailAuthUpdatedAt', null) == null
         && request.resource.data.keys().hasOnly([
           'phone',
           'email',
+          'emailAuthEnabled',
+          'emailAuthVerified',
+          'emailLinkedAt',
+          'emailAuthUpdatedAt',
           'name',
           'role',
           'profileImage',
@@ -219,10 +229,16 @@ service cloud.firestore {
           'profileImage',
           'facebookUrl',
           'onboardingComplete',
+          'onboardingDismissedAt',
+          'onboardingCompletedAt',
           'updatedAt'
         ])
-        && request.resource.data.isAdmin == resource.data.isAdmin
-        && request.resource.data.role == resource.data.role;
+        && request.resource.data.get('emailAuthEnabled', false) == resource.data.get('emailAuthEnabled', false)
+        && request.resource.data.get('emailAuthVerified', false) == resource.data.get('emailAuthVerified', false)
+        && request.resource.data.get('emailLinkedAt', null) == resource.data.get('emailLinkedAt', null)
+        && request.resource.data.get('emailAuthUpdatedAt', null) == resource.data.get('emailAuthUpdatedAt', null)
+        && request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false)
+        && request.resource.data.get('role', 'shipper') == resource.data.get('role', 'shipper');
 
       allow delete: if false;
 
