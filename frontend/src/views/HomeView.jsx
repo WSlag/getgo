@@ -111,7 +111,7 @@ export function HomeView({
           className="fixed left-0 right-0 z-[60] bg-red-600 text-white"
           style={{ top: 0, paddingTop: 'env(safe-area-inset-top, 0px)' }}
         >
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 px-3 py-3">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:py-3">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <AlertCircle className="size-5 flex-shrink-0" />
               <div className="min-w-0">
@@ -123,8 +123,10 @@ export function HomeView({
             </div>
             <Button
               onClick={() => onNavigateToContracts?.('unpaid_fees')}
-              className="bg-white text-red-600 hover:bg-gray-100 flex-shrink-0"
+              variant="gradient"
               size="sm"
+              className="h-9 w-full rounded-full px-4 text-xs font-semibold text-white shadow-md shadow-orange-900/30 sm:w-auto sm:flex-shrink-0"
+              aria-label="Pay outstanding fees"
             >
               Pay Fees
             </Button>
