@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, ArrowRight, Shield, Loader2, X, KeyRound } from 'lucide-react';
+import { Phone, ArrowRight, Shield, Loader2, X, KeyRound, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Logo } from '../shared/Logo';
 import { cn } from '@/lib/utils';
@@ -12,11 +12,21 @@ const OTP_COOLDOWN_SECONDS = 30;
  * Used when unauthenticated users try to perform protected actions
  */
 export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in to continue', onOpenLegal }) {
-  const { sendOtp, verifyOtp, signInWithRecoveryCode, authUser, userProfile } = useAuth();
+  const {
+    sendOtp,
+    verifyOtp,
+    requestEmailMagicLink,
+    signInWithRecoveryCode,
+    authUser,
+    userProfile,
+    emailMagicLinkEnabled,
+  } = useAuth();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const [email, setEmail] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
-  const [step, setStep] = useState('phone'); // 'phone' | 'otp' | 'recovery'
+  const [step, setStep] = useState('phone'); // 'phone' | 'otp' | 'email' | 'recovery'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formattedPhone, setFormattedPhone] = useState('');
@@ -29,6 +39,8 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
     if (open) {
       setPhone('');
       setOtp('');
+      setEmail('');
+      setEmailMessage('');
       setRecoveryCode('');
       setStep('phone');
       setError('');
@@ -151,6 +163,36 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
     setError('');
   };
 
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value);
+    setError('');
+    setEmailMessage('');
+  };
+
+  const handleSendEmailLink = async (e) => {
+    if (e) e.preventDefault();
+
+    if (!email.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setEmailMessage('');
+
+    const result = await requestEmailMagicLink(email);
+
+    setLoading(false);
+
+    if (!result.success) {
+      setError(result.error || 'Unable to send email link. Please try again.');
+      return;
+    }
+
+    setEmailMessage(result.message || 'If an eligible account exists, a sign-in link will be sent.');
+  };
+
   const handleOtpChange = (e) => {
     const value = e.target.value.replace(/\D/g, '').slice(0, 6);
     setOtp(value);
@@ -194,6 +236,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
   const handleBack = () => {
     setStep('phone');
     setOtp('');
+    setEmailMessage('');
     setRecoveryCode('');
     resetOtpGuard();
     setError('');
@@ -203,6 +246,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
   return (
     <div
+      data-testid="auth-modal"
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ padding: '16px' }}
     >
@@ -233,21 +277,29 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
           </div>
 
           {/* Step Progress */}
+          {(() => {
+            const progressSteps = ['phone', 'otp', 'register'];
+            const normalizedStep = step === 'recovery'
+              ? 'otp'
+              : (step === 'email' ? 'phone' : step);
+            return (
           <div className="flex justify-center gap-2 mb-4">
-            {['phone', 'otp', 'register'].map((s, i) => (
+                {progressSteps.map((s, i) => (
               <div
                 key={s}
                 className={cn(
                   "h-1.5 rounded-full transition-all duration-300",
-                  s === step || (step === 'recovery' && s === 'otp')
+                      s === normalizedStep
                     ? "w-8 bg-orange-500"
-                    : i < ['phone', 'otp', 'register'].indexOf(step === 'recovery' ? 'otp' : step)
+                        : i < progressSteps.indexOf(normalizedStep)
                       ? "w-8 bg-orange-300"
                       : "w-8 bg-gray-200 dark:bg-gray-700"
                 )}
               />
             ))}
           </div>
+            );
+          })()}
 
           {/* Title */}
           <h2
@@ -343,9 +395,24 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
               <button
                 type="button"
+                disabled={loading || !emailMagicLinkEnabled}
+                onClick={() => { setStep('email'); setError(''); setEmailMessage(''); }}
+                className={cn(
+                  "w-full transition-colors",
+                  emailMagicLinkEnabled
+                    ? "text-gray-500 dark:text-gray-400 hover:text-orange-500"
+                    : "text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                )}
+                style={{ marginTop: '12px', padding: '10px', fontSize: '14px' }}
+              >
+                Use email instead
+              </button>
+
+              <button
+                type="button"
                 onClick={() => { setStep('recovery'); setError(''); }}
                 className="w-full text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors"
-                style={{ marginTop: '12px', padding: '10px', fontSize: '14px' }}
+                style={{ padding: '10px', fontSize: '14px' }}
               >
                 Lost SIM access? Use a recovery code
               </button>
@@ -457,6 +524,112 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
                 style={{ padding: '10px', fontSize: '14px' }}
               >
                 Use recovery code instead
+              </button>
+            </form>
+          ) : step === 'email' ? (
+            /* Email Magic Link Step */
+            <form onSubmit={handleSendEmailLink}>
+              <div style={{ marginBottom: '24px' }}>
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="flex items-center text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors min-h-[44px]"
+                  style={{ fontSize: '14px', marginBottom: '16px', gap: '4px' }}
+                >
+                  <ArrowRight style={{ width: '16px', height: '16px', transform: 'rotate(180deg)' }} />
+                  Back
+                </button>
+
+                <label
+                  className="block font-medium text-gray-700 dark:text-gray-300"
+                  style={{ fontSize: '14px', marginBottom: '10px' }}
+                >
+                  Email Address
+                </label>
+                <p
+                  className="text-gray-500 dark:text-gray-400"
+                  style={{ fontSize: '13px', marginBottom: '14px' }}
+                >
+                  Enter your email to receive a one-time sign-in link.
+                </p>
+
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={handleEmailChange}
+                    placeholder="you@example.com"
+                    className={cn(
+                      "w-full border border-gray-200 dark:border-gray-600",
+                      "bg-white dark:bg-gray-700 text-gray-900 dark:text-white",
+                      "placeholder:text-gray-400 dark:placeholder:text-gray-500",
+                      "focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500",
+                      "transition-all duration-200"
+                    )}
+                    style={{
+                      padding: '15px 48px 15px 16px',
+                      borderRadius: '12px',
+                      fontSize: '16px',
+                    }}
+                    autoFocus
+                  />
+                  <Mail
+                    className="absolute text-orange-400"
+                    style={{ right: '16px', top: '50%', transform: 'translateY(-50%)', width: '20px', height: '20px' }}
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div
+                  role="alert"
+                  className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                  style={{ padding: '12px 14px', borderRadius: '10px', marginBottom: '20px' }}
+                >
+                  <p className="text-red-600 dark:text-red-400" style={{ fontSize: '14px' }}>{error}</p>
+                </div>
+              )}
+
+              {emailMessage && (
+                <div
+                  className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800"
+                  style={{ padding: '12px 14px', borderRadius: '10px', marginBottom: '20px' }}
+                >
+                  <p className="text-emerald-700 dark:text-emerald-300" style={{ fontSize: '14px' }}>{emailMessage}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || !email.trim()}
+                className={cn(
+                  "w-full font-medium flex items-center justify-center transition-all duration-300",
+                  email.trim() && !loading
+                    ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
+                )}
+                style={{ padding: '14px 20px', borderRadius: '12px', gap: '8px', fontSize: '15px' }}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin" style={{ width: '18px', height: '18px' }} />
+                    Sending link...
+                  </>
+                ) : (
+                  <>
+                    <Mail style={{ width: '18px', height: '18px' }} />
+                    Send Magic Link
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setStep('phone'); setError(''); setEmailMessage(''); }}
+                className="w-full text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors"
+                style={{ marginTop: '12px', padding: '10px', fontSize: '14px' }}
+              >
+                Use phone verification instead
               </button>
             </form>
           ) : (

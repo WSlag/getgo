@@ -68,9 +68,9 @@ export default defineConfig({
       stderr: 'pipe',
     },
 
-    // Firebase Emulators (auth + firestore only — skips functions/storage for faster startup)
+    // Firebase Emulators (auth + firestore + functions)
     {
-      command: 'firebase emulators:start --only auth,firestore',
+      command: 'firebase emulators:start --only auth,firestore,functions',
       url: 'http://127.0.0.1:9099', // Auth emulator (simpler than waiting for UI)
       reuseExistingServer: !process.env.CI,
       timeout: 180 * 1000, // 3 minutes — allows JAR download on first run

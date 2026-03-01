@@ -87,6 +87,9 @@ const api = {
     getRecoveryStatus: () => callFunction('authGetRecoveryStatus', {}),
     generateRecoveryCodes: () => callFunction('authGenerateRecoveryCodes', {}),
     recoverySignIn: (data) => callFunction('authRecoverySignIn', data || {}),
+    prepareEmailMagicLinkSignIn: (data) => callFunction('authPrepareEmailMagicLinkSignIn', data || {}),
+    finalizeEmailLinking: (data) => callFunction('authFinalizeEmailLinking', data || {}),
+    disableEmailMagicLink: () => callFunction('authDisableEmailMagicLink', {}),
   },
 
   optimize: {

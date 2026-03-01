@@ -17,6 +17,15 @@ export const TEST_PHONE_NUMBERS = {
 };
 
 /**
+ * Test emails for magic-link fallback auth scenarios.
+ */
+export const TEST_EMAILS = {
+  shipper: 'shipper.magiclink@example.com',
+  trucker: 'trucker.magiclink@example.com',
+  broker: 'broker.magiclink@example.com',
+};
+
+/**
  * Generate test user data for registration
  */
 export function generateTestUser(role = 'shipper', index = 0) {

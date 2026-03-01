@@ -31,6 +31,10 @@ export function ProfilePage({ onNavigateToActivity }) {
     switchRole,
     logout,
     updateProfile,
+    startEmailLinking,
+    disableEmailFallback,
+    emailMagicLinkEnabled,
+    emailAuthStatus,
     getRecoveryStatus,
     generateRecoveryCodes
   } = useAuth();
@@ -56,6 +60,10 @@ export function ProfilePage({ onNavigateToActivity }) {
   const [recoveryError, setRecoveryError] = useState('');
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [generatedRecoveryCodes, setGeneratedRecoveryCodes] = useState([]);
+  const [emailAuthInput, setEmailAuthInput] = useState('');
+  const [emailAuthLoading, setEmailAuthLoading] = useState(false);
+  const [emailAuthMessage, setEmailAuthMessage] = useState('');
+  const [emailAuthError, setEmailAuthError] = useState('');
 
   const openEditModal = () => {
     setEditForm({
@@ -147,6 +155,45 @@ export function ProfilePage({ onNavigateToActivity }) {
     loadRecoveryStatus();
   }, [userProfile, getRecoveryStatus, loadRecoveryStatus]);
 
+  useEffect(() => {
+    setEmailAuthInput(userProfile?.email || '');
+  }, [userProfile?.email]);
+
+  const handleSendEmailMagicLink = async () => {
+    if (!startEmailLinking) return;
+    if (!emailMagicLinkEnabled) {
+      setEmailAuthError('Email backup login is currently unavailable.');
+      return;
+    }
+
+    setEmailAuthLoading(true);
+    setEmailAuthError('');
+    setEmailAuthMessage('');
+
+    const result = await startEmailLinking(emailAuthInput);
+    if (!result.success) {
+      setEmailAuthError(result.error || 'Unable to send email link.');
+    } else {
+      setEmailAuthMessage(result.message || 'Check your email for the magic link.');
+    }
+    setEmailAuthLoading(false);
+  };
+
+  const handleDisableEmailMagicLink = async () => {
+    if (!disableEmailFallback) return;
+    setEmailAuthLoading(true);
+    setEmailAuthError('');
+    setEmailAuthMessage('');
+
+    const result = await disableEmailFallback();
+    if (!result.success) {
+      setEmailAuthError(result.error || 'Unable to disable email backup login.');
+    } else {
+      setEmailAuthMessage('Email backup login has been disabled.');
+    }
+    setEmailAuthLoading(false);
+  };
+
   const handleGenerateRecoveryCodes = async () => {
     if (!generateRecoveryCodes) return;
     setRecoveryLoading(true);
@@ -186,8 +233,20 @@ export function ProfilePage({ onNavigateToActivity }) {
     return colors[badge] || colors['STARTER'];
   };
 
+  const backupEmailEnabled = emailAuthStatus?.enabled === true && emailAuthStatus?.verified === true;
+  const backupEmailConfigured = Boolean(emailAuthStatus?.email);
+  const backupEmailStatusLabel = backupEmailEnabled
+    ? 'Enabled'
+    : (backupEmailConfigured ? 'Pending' : 'Not configured');
+  const backupEmailStatusClass = backupEmailEnabled
+    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+    : (backupEmailConfigured
+      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300');
+
   return (
     <main
+      data-testid="profile-page"
       className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto"
       style={{
         padding: isMobile ? '16px' : '24px',
@@ -481,6 +540,78 @@ export function ProfilePage({ onNavigateToActivity }) {
             <KeyRound className="size-5 text-orange-500" />
             Security & Recovery
           </h2>
+          <div
+            data-testid="backup-email-card"
+            className="rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700"
+            style={{ padding: '16px', marginBottom: '14px' }}
+          >
+            <div className="flex items-center justify-between" style={{ gap: '10px' }}>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                Backup Email Login
+              </p>
+              <span className={cn('text-xs font-medium px-2 py-1 rounded-full', backupEmailStatusClass)}>
+                {backupEmailStatusLabel}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400" style={{ marginTop: '4px' }}>
+              Keep phone OTP as primary and use magic link as fallback.
+            </p>
+            <div style={{ marginTop: '12px' }}>
+              <label className="text-xs text-gray-500 dark:text-gray-400">Email for backup login</label>
+              <Input
+                type="email"
+                value={emailAuthInput}
+                onChange={(e) => {
+                  setEmailAuthInput(e.target.value);
+                  setEmailAuthError('');
+                  setEmailAuthMessage('');
+                }}
+                placeholder="you@example.com"
+                disabled={emailAuthLoading || !emailMagicLinkEnabled}
+                className="mt-1"
+              />
+            </div>
+            {!emailMagicLinkEnabled && (
+              <p className="text-xs text-gray-500 dark:text-gray-400" style={{ marginTop: '8px' }}>
+                Email backup login is disabled for this environment.
+              </p>
+            )}
+
+            {emailAuthError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg" style={{ padding: '10px 12px', marginTop: '10px' }}>
+                <p className="text-xs text-red-600 dark:text-red-400">{emailAuthError}</p>
+              </div>
+            )}
+
+            {emailAuthMessage && (
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg" style={{ padding: '10px 12px', marginTop: '10px' }}>
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">{emailAuthMessage}</p>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row" style={{ gap: '8px', marginTop: '12px' }}>
+              <Button
+                type="button"
+                variant="gradient"
+                onClick={handleSendEmailMagicLink}
+                disabled={emailAuthLoading || !emailMagicLinkEnabled || !emailAuthInput.trim()}
+                className="flex-1"
+              >
+                <Mail className="size-4 mr-2" />
+                {backupEmailEnabled ? 'Resend Magic Link' : 'Send Magic Link'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleDisableEmailMagicLink}
+                disabled={emailAuthLoading || !backupEmailConfigured}
+                className="flex-1"
+              >
+                Disable Email Backup
+              </Button>
+            </div>
+          </div>
+
           <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700" style={{ padding: '16px', marginBottom: '14px' }}>
             <p className="text-sm font-medium text-gray-900 dark:text-white">
               Recovery Codes
@@ -609,7 +740,7 @@ export function ProfilePage({ onNavigateToActivity }) {
             {/* Email */}
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
-                Email Address
+                Email Address (Profile Only)
               </label>
               <Input
                 type="email"
@@ -617,6 +748,9 @@ export function ProfilePage({ onNavigateToActivity }) {
                 onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                 placeholder="your@email.com"
               />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                Backup email login is managed in Security &amp; Recovery.
+              </p>
             </div>
 
             {/* Facebook */}

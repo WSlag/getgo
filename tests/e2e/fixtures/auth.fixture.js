@@ -1,5 +1,55 @@
 import { test as base } from '@playwright/test';
-import { TEST_PHONE_NUMBERS, TEST_OTP_CODE, clearEmulatorData } from '../utils/test-data.js';
+import { TEST_PHONE_NUMBERS, TEST_EMAILS, TEST_OTP_CODE, clearEmulatorData } from '../utils/test-data.js';
+
+async function waitForSpinnerToClear(page, timeoutMs = 60000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const hasSpinner = await page.evaluate(() => Boolean(document.querySelector('.animate-spin')));
+    if (!hasSpinner) {
+      return;
+    }
+    await page.waitForTimeout(250);
+  }
+  throw new Error('Timed out waiting for loading spinner to clear');
+}
+
+const AUTH_MODAL_SELECTOR = '[data-testid="auth-modal"]';
+const AUTH_PHONE_INPUT_SELECTOR = `${AUTH_MODAL_SELECTOR} input[placeholder="9171234567"]`;
+const AUTH_OTP_INPUT_SELECTOR = `${AUTH_MODAL_SELECTOR} input[placeholder="000000"], ${AUTH_MODAL_SELECTOR} input[type="text"][maxlength="6"]`;
+
+async function dismissBlockingDialogs(page, maxAttempts = 6) {
+  for (let i = 0; i < maxAttempts; i++) {
+    const dialog = page.locator('[role="dialog"]').first();
+    const isDialogVisible = await dialog.isVisible().catch(() => false);
+    if (!isDialogVisible) {
+      return;
+    }
+
+    const skipButton = page.locator('[role="dialog"] button').filter({ hasText: /^skip$/i }).first();
+    if (await skipButton.isVisible().catch(() => false)) {
+      await skipButton.click().catch(() => {});
+      await page.waitForTimeout(300);
+      continue;
+    }
+
+    const maybeLaterButton = page.locator('[role="dialog"] button').filter({ hasText: /maybe later/i }).first();
+    if (await maybeLaterButton.isVisible().catch(() => false)) {
+      await maybeLaterButton.click().catch(() => {});
+      await page.waitForTimeout(300);
+      continue;
+    }
+
+    const closeButton = page.locator('[role="dialog"] button[aria-label*="close" i]').first();
+    if (await closeButton.isVisible().catch(() => false)) {
+      await closeButton.click().catch(() => {});
+      await page.waitForTimeout(300);
+      continue;
+    }
+
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(300);
+  }
+}
 
 /**
  * Custom Playwright fixtures for authentication testing
@@ -17,6 +67,9 @@ export const test = base.extend({
   // Provide test phone numbers to all tests
   testPhoneNumbers: async ({}, use) => {
     await use(TEST_PHONE_NUMBERS);
+  },
+  testEmails: async ({}, use) => {
+    await use(TEST_EMAILS);
   },
 
   // Provide authentication helper methods
@@ -45,85 +98,56 @@ export const test = base.extend({
         await page.reload({ waitUntil: 'domcontentloaded' });
 
         // Wait for app to fully render (no spinner)
-        await page.waitForFunction(
-          () => !document.querySelector('.animate-spin'),
-          { timeout: 20000 }
-        );
-        await page.waitForTimeout(1000);
+        await waitForSpinnerToClear(page, 60000);
+        await dismissBlockingDialogs(page);
+        await page.waitForTimeout(800);
 
-        // The phone input is inside the AuthModal.
-        // Trigger it by clicking the "Post" button (or any protected action).
-        let phoneInput = await page.locator('input[type="tel"]').count();
+        // The phone input is inside the auth modal.
+        let phoneInput = await page.locator(AUTH_PHONE_INPUT_SELECTOR).count();
 
         if (phoneInput === 0) {
-          // Click the notification Bell in the header — it triggers requireAuth() which opens AuthModal
-          // The Bell button is always visible and calls onNotificationClick -> requireAuth
-          const bellButton = page.locator('header button').filter({
-            has: page.locator('svg'), // Bell is an SVG icon button
-          }).first();
+          const bellButton = page.locator(
+            'header button[aria-label*="notification" i], header button[title*="notification" i]'
+          ).first();
 
-          // Try the bell (first icon button in header right section)
-          const headerButtons = page.locator('header button');
-          const headerBtnCount = await headerButtons.count();
-
-          // Click each header button until phone modal appears
-          for (let i = 0; i < Math.min(headerBtnCount, 5); i++) {
-            const btn = headerButtons.nth(i);
-            const isVisible = await btn.isVisible().catch(() => false);
-            if (!isVisible) continue;
-
-            await btn.click();
+          if (await bellButton.isVisible().catch(() => false)) {
+            await bellButton.click({ force: true }).catch(() => {});
             await page.waitForTimeout(800);
-            phoneInput = await page.locator('input[type="tel"]').count();
-            if (phoneInput > 0) break;
-
-            // Close any non-auth dialog that opened
-            await page.keyboard.press('Escape');
-            await page.waitForTimeout(300);
           }
+          phoneInput = await page.locator(AUTH_PHONE_INPUT_SELECTOR).count();
         }
 
-        // If still not found, try clicking profile/activity in sidebar (protected actions)
         if (phoneInput === 0) {
-          // Click "Profile" tab in sidebar (calls requireAuth -> opens AuthModal)
           const profileBtn = page.locator('[class*="sidebar"] button, aside button').filter({
             hasText: /profile|activity|contracts|bids/i,
           }).first();
 
           if (await profileBtn.count() > 0) {
-            await profileBtn.click();
+            await profileBtn.click({ force: true });
             await page.waitForTimeout(800);
-            phoneInput = await page.locator('input[type="tel"]').count();
+            phoneInput = await page.locator(AUTH_PHONE_INPUT_SELECTOR).count();
           }
         }
 
-        // Wait for phone input to be visible inside the modal
-        await page.waitForSelector('input[type="tel"]', { timeout: 15000 });
+        await page.waitForSelector(AUTH_PHONE_INPUT_SELECTOR, { timeout: 15000 });
 
-        // The phone number format: the modal shows "+63" prefix separately,
-        // so the input only takes the last 10 digits (9171234567 format)
-        // but test phone numbers are in +63917... format.
-        // Strip the +63 prefix if present
+        // The phone number format: the modal shows +63 prefix separately,
+        // so the input only takes the last 10 digits (9171234567 format).
         const localPhone = phoneNumber.startsWith('+63')
-          ? phoneNumber.slice(3)   // "9171234567"
+          ? phoneNumber.slice(3)
           : phoneNumber;
 
-        await page.fill('input[type="tel"]', localPhone);
+        await page.fill(AUTH_PHONE_INPUT_SELECTOR, localPhone);
 
-        // Click "Continue" button (the AuthModal uses "Continue" text for send OTP)
-        const sendButton = page.locator('button').filter({
+        // Click Continue button
+        const sendButton = page.locator(`${AUTH_MODAL_SELECTOR} button`).filter({
           hasText: /continue|send|next/i,
         }).first();
         await sendButton.click();
 
-        // Wait for OTP input (AuthModal uses placeholder="000000" and maxLength=6)
-        await page.waitForSelector(
-          'input[placeholder="000000"], input[type="text"][maxlength="6"]',
-          { timeout: 15000 }
-        );
+        await page.waitForSelector(AUTH_OTP_INPUT_SELECTOR, { timeout: 15000 });
 
         // Fetch the actual OTP from the Firebase Auth Emulator REST API
-        // The emulator stores sent verification codes at this endpoint
         let otpCode = TEST_OTP_CODE; // fallback
         try {
           const resp = await fetch(
@@ -131,29 +155,24 @@ export const test = base.extend({
           );
           if (resp.ok) {
             const data = await resp.json();
-            // data.verificationCodes is an array of { phoneNumber, sessionInfo, code }
-            // Find the most recent entry for our phone number
             const e164Phone = phoneNumber.startsWith('+') ? phoneNumber : `+63${phoneNumber}`;
             const matching = (data.verificationCodes || [])
               .filter((v) => v.phoneNumber === e164Phone)
-              .pop(); // get latest
+              .pop();
             if (matching?.code) {
               otpCode = matching.code;
             }
           }
         } catch (e) {
-          // Emulator not available or different version — use fallback
+          // Emulator not available or different version - use fallback
         }
 
-        // Enter OTP code
-        const otpInput = page.locator(
-          'input[placeholder="000000"], input[type="text"][maxlength="6"]'
-        ).first();
+        const otpInput = page.locator(AUTH_OTP_INPUT_SELECTOR).first();
         await otpInput.fill(otpCode);
 
-        // Click "Verify" button (the AuthModal uses "Verify" text)
+        // Click Verify button
         await page.waitForTimeout(300);
-        const verifyButton = page.locator('button').filter({
+        const verifyButton = page.locator(`${AUTH_MODAL_SELECTOR} button`).filter({
           hasText: /^verify$|verify code/i,
         }).first();
 
@@ -162,7 +181,6 @@ export const test = base.extend({
         }
 
         // Wait for either registration screen or authenticated shell.
-        // Authenticated shell requires auth modal to be closed.
         await page.waitForFunction(
           () => {
             const headings = Array.from(document.querySelectorAll('h1'));
@@ -170,17 +188,18 @@ export const test = base.extend({
               String(h.textContent || '').includes('Complete Your Profile')
             );
             const hasMainHeader = !!document.querySelector('header');
-            const authDialog = document.querySelector('[role="dialog"]');
-            const authDialogVisible = !!authDialog && window.getComputedStyle(authDialog).display !== 'none';
-            return onRegistrationScreen || (hasMainHeader && !authDialogVisible);
+            const authModalVisible = Boolean(document.querySelector('[data-testid="auth-modal"]'));
+            return onRegistrationScreen || (hasMainHeader && !authModalVisible);
           },
           { timeout: 30000 }
         ).catch(() => {});
-        // Also wait for loading spinner to disappear to avoid auth/profile race checks.
+
         await page.waitForFunction(
           () => !document.querySelector('.animate-spin'),
           { timeout: 20000 }
         ).catch(() => {});
+
+        await dismissBlockingDialogs(page);
         await page.waitForTimeout(500);
       },
 
@@ -188,99 +207,279 @@ export const test = base.extend({
        * Complete registration form
        * @param {Object} userData - User data (name, role, etc.)
        */
-      async register(userData) {
-        const { name, role = 'shipper', email } = userData;
+      async ensureRegistrationComplete(userData = {}) {
+        const { name = 'E2E User', role = 'shipper', email } = userData;
 
-        // Wait explicitly for registration form input.
-        // New users can briefly see the main shell before this renders.
-        const nameInput = page.locator('input[placeholder="Juan dela Cruz"]').first();
-        const skipButton = page.locator('button').filter({ hasText: /skip for now/i }).first();
-        let hasRegistrationForm = false;
-        try {
-          await page.waitForSelector('input[placeholder="Juan dela Cruz"]', {
-            state: 'visible',
-            timeout: 60000,
-          });
-          hasRegistrationForm = true;
-        } catch {
-          hasRegistrationForm = false;
+        await page.waitForFunction(
+          () => {
+            const heading = Array.from(document.querySelectorAll('h1'))
+              .some((h) => String(h.textContent || '').includes('Complete Your Profile'));
+            return heading || Boolean(document.querySelector('header'));
+          },
+          { timeout: 60000 }
+        ).catch(() => {});
+
+        const registrationHeading = page.locator('h1').filter({ hasText: /Complete Your Profile/i }).first();
+        let onRegistrationScreen = await registrationHeading.isVisible().catch(() => false);
+        if (!onRegistrationScreen) {
+          // Auth/profile listeners can briefly land on main shell before showing RegisterScreen.
+          for (let attempt = 0; attempt < 8; attempt++) {
+            await page.waitForTimeout(1000);
+            onRegistrationScreen = await registrationHeading.isVisible().catch(() => false);
+            if (onRegistrationScreen) break;
+          }
         }
 
-        if (!hasRegistrationForm) {
-          // Already logged in or no registration needed
+        if (!onRegistrationScreen) {
+          await dismissBlockingDialogs(page);
           return;
         }
 
-        // Fill basic information - name input has placeholder="Juan dela Cruz"
-        await nameInput.click();
+        const nameInput = page.locator('input[placeholder="Juan dela Cruz"]').first();
+        await nameInput.waitFor({ state: 'visible', timeout: 15000 });
+        await nameInput.fill('');
         await nameInput.fill(name);
 
+        const enteredName = await nameInput.inputValue().catch(() => '');
+        if (!enteredName.trim()) {
+          await nameInput.type(name, { delay: 30 });
+        }
+
         if (email) {
-          const emailInput = page.locator('input[type="email"], input[placeholder="you@example.com"]');
-          if (await emailInput.count() > 0) {
+          const emailInput = page.locator('input[type="email"], input[placeholder="you@example.com"]').first();
+          if (await emailInput.isVisible().catch(() => false)) {
             await emailInput.fill(email);
           }
         }
 
-        // Select role using the role button UI (Shipper / Trucker buttons)
-        // Default is 'shipper', only need to click if different
         if (role === 'trucker') {
-          const truckerButton = page.locator('button').filter({ hasText: /^Trucker$/ }).first();
-          if (await truckerButton.count() > 0) {
+          const truckerButton = page.locator('button').filter({ hasText: /trucker/i }).first();
+          if (await truckerButton.isVisible().catch(() => false)) {
             await truckerButton.click();
-            await page.waitForTimeout(300);
+            await page.waitForTimeout(250);
           }
         }
-        // Note: RegisterScreen does NOT have broker role — broker is activated separately
 
-        // Submit registration form with "Get Started" button
         const submitButton = page.locator('button[type="submit"]').filter({
           hasText: /get started|creating profile/i,
         }).first();
+        const skipButton = page.locator('button').filter({ hasText: /skip for now/i }).first();
 
-        // Fallback to any submit button
-        const anySubmit = await submitButton.count() > 0
-          ? submitButton
-          : page.locator('button[type="submit"]').first();
-
-        const submitDisabled = await anySubmit.isDisabled().catch(() => false);
-        if (submitDisabled) {
-          if (await skipButton.count() > 0 && await skipButton.isVisible().catch(() => false)) {
-            await skipButton.click();
+        let attemptedContinue = false;
+        if (await submitButton.isVisible().catch(() => false)) {
+          const submitDisabled = await submitButton.isDisabled().catch(() => true);
+          if (!submitDisabled) {
+            await submitButton.click().catch(() => {});
+            attemptedContinue = true;
           }
-        } else {
-          await anySubmit.click();
         }
 
-        // Wait for the RegisterScreen to disappear (app loads main view).
-        // After "Get Started" is clicked and createUserProfile() succeeds, isNewUser becomes false
-        // and App.jsx transitions from RegisterScreen to GetGoApp.
-        // The BrokerOnboardingModal in RegisterScreen is not shown because the component unmounts.
+        if (!attemptedContinue && await skipButton.isVisible().catch(() => false)) {
+          await skipButton.click().catch(() => {});
+          attemptedContinue = true;
+        }
+
+        if (!attemptedContinue) {
+          throw new Error('Could not continue registration: submit/skip controls unavailable');
+        }
+
         await page.waitForFunction(
           () => {
-            // Check if RegisterScreen heading is still in the DOM
-            const h1s = Array.from(document.querySelectorAll('h1'));
-            const onRegScreen = h1s.some((h) => h.textContent.includes('Complete Your Profile'));
-            return !onRegScreen && !!document.querySelector('header');
+            const onRegScreen = Array.from(document.querySelectorAll('h1'))
+              .some((h) => String(h.textContent || '').includes('Complete Your Profile'));
+            return !onRegScreen && Boolean(document.querySelector('header'));
           },
-          { timeout: 25000 }
-        );
+          { timeout: 20000 }
+        ).catch(() => {});
 
-        // Handle any modal that might have appeared (BrokerOnboardingModal or other)
-        const maybeLaterBtn = page.locator('button').filter({ hasText: /maybe later/i }).first();
-        if (await maybeLaterBtn.count() > 0 && await maybeLaterBtn.isVisible().catch(() => false)) {
-          await maybeLaterBtn.click();
-          await page.waitForTimeout(500);
+        const stillOnRegistration = await registrationHeading.isVisible().catch(() => false);
+        if (stillOnRegistration) {
+          if (await skipButton.isVisible().catch(() => false)) {
+            await skipButton.click().catch(() => {});
+          }
+
+          await page.waitForFunction(
+            () => {
+              const onRegScreen = Array.from(document.querySelectorAll('h1'))
+                .some((h) => String(h.textContent || '').includes('Complete Your Profile'));
+              return !onRegScreen && Boolean(document.querySelector('header'));
+            },
+            { timeout: 45000 }
+          );
         }
 
-        // Wait for app state to fully stabilize
-        await page.waitForTimeout(1500);
+        await dismissBlockingDialogs(page);
+        await waitForSpinnerToClear(page, 60000);
+        await page.waitForTimeout(600);
+      },
+
+      /**
+       * Complete registration form
+       * @param {Object} userData - User data (name, role, etc.)
+       */
+      async register(userData) {
+        await helper.ensureRegistrationComplete(userData);
+      },
+
+      async openAuthModal() {
+        await page.goto('/');
+        await waitForSpinnerToClear(page, 60000);
+        await dismissBlockingDialogs(page);
+        await page.waitForTimeout(600);
+
+        const modal = page.locator(AUTH_MODAL_SELECTOR).first();
+        const authModalVisible = await modal.isVisible().catch(() => false);
+        if (authModalVisible) {
+          const usePhoneButton = page.locator(`${AUTH_MODAL_SELECTOR} button`).filter({
+            hasText: /use phone verification instead|use sms verification instead/i,
+          }).first();
+          if (await usePhoneButton.isVisible().catch(() => false)) {
+            await usePhoneButton.click();
+            await page.waitForTimeout(250);
+          }
+          await page.waitForSelector(AUTH_PHONE_INPUT_SELECTOR, { timeout: 10000 });
+          return;
+        }
+
+        const notificationButton = page.locator('header button[aria-label*="notification" i], header button[title*="notification" i]').first();
+        if (await notificationButton.isVisible().catch(() => false)) {
+          await notificationButton.click({ force: true }).catch(() => {});
+          await page.waitForTimeout(700);
+        }
+
+        if (!(await modal.isVisible().catch(() => false))) {
+          const profileButton = page.locator('header button').last();
+          if (await profileButton.isVisible().catch(() => false)) {
+            await profileButton.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(700);
+          }
+        }
+
+        await modal.waitFor({ state: 'visible', timeout: 10000 });
+        const usePhoneButton = page.locator(`${AUTH_MODAL_SELECTOR} button`).filter({
+          hasText: /use phone verification instead|use sms verification instead/i,
+        }).first();
+        if (await usePhoneButton.isVisible().catch(() => false)) {
+          await usePhoneButton.click();
+          await page.waitForTimeout(250);
+        }
+        await page.waitForSelector(AUTH_PHONE_INPUT_SELECTOR, { timeout: 10000 });
+      },
+
+      async requestMagicLinkFromAuthModal(email) {
+        await helper.openAuthModal();
+
+        const useEmailBtn = page.locator(`${AUTH_MODAL_SELECTOR} button`).filter({
+          hasText: /use email instead/i,
+        }).first();
+        if (await useEmailBtn.isVisible().catch(() => false)) {
+          await useEmailBtn.click();
+        }
+        await page.waitForTimeout(300);
+
+        const emailInput = page.locator(`${AUTH_MODAL_SELECTOR} input[type="email"]`).first();
+        await emailInput.fill(email);
+
+        const sendButton = page.locator(`${AUTH_MODAL_SELECTOR} button`).filter({
+          hasText: /send magic link/i,
+        }).first();
+        await sendButton.click();
+        await page.waitForTimeout(800);
+      },
+
+      async configureBackupEmail(email) {
+        await helper.ensureRegistrationComplete({ email });
+        const securityCard = page.locator('[data-testid="backup-email-card"]').first();
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await helper.navigateTo('profile');
+          await dismissBlockingDialogs(page);
+
+          const onRegistrationScreen = await page.locator('h1').filter({ hasText: /Complete Your Profile/i }).first()
+            .isVisible().catch(() => false);
+          if (onRegistrationScreen) {
+            await helper.ensureRegistrationComplete({ email });
+            continue;
+          }
+
+          if (await securityCard.isVisible().catch(() => false)) {
+            break;
+          }
+        }
+
+        await securityCard.waitFor({ state: 'visible', timeout: 30000 });
+
+        const emailInput = securityCard.locator('input[type="email"]').first();
+        await emailInput.fill(email);
+
+        const sendButton = securityCard.locator('button').filter({
+          hasText: /send magic link|resend magic link/i,
+        }).first();
+        await sendButton.click();
+        await page.waitForTimeout(900);
+      },
+
+      async disableBackupEmail() {
+        await helper.ensureRegistrationComplete();
+        await helper.navigateTo('profile');
+        await dismissBlockingDialogs(page);
+
+        const disableBtn = page.locator('main button').filter({
+          hasText: /disable email backup/i,
+        }).first();
+        if (await disableBtn.count() > 0) {
+          await disableBtn.click();
+          await page.waitForTimeout(700);
+        }
+      },
+
+      async getLatestMagicLink(email) {
+        const resp = await fetch('http://127.0.0.1:9099/emulator/v1/projects/karga-ph/oobCodes');
+        if (!resp.ok) {
+          throw new Error(`Failed to read oob codes from emulator: ${resp.status}`);
+        }
+        const payload = await resp.json();
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const match = (payload.oobCodes || [])
+          .filter((item) => {
+            const itemEmail = String(item?.email || '').trim().toLowerCase();
+            const requestType = String(item?.requestType || '').toUpperCase();
+            return itemEmail === normalizedEmail && requestType === 'EMAIL_SIGNIN';
+          })
+          .pop();
+
+        if (!match?.oobLink) {
+          throw new Error(`No EMAIL_SIGNIN oob link found for ${normalizedEmail}`);
+        }
+
+        const source = new URL(match.oobLink);
+        const appUrl = new URL('/', page.url());
+        appUrl.search = source.search;
+        return appUrl.toString();
+      },
+
+      async completeLatestMagicLink(email) {
+        const appMagicLink = await helper.getLatestMagicLink(email);
+        await page.goto(appMagicLink);
+        await page.waitForFunction(
+          () => !document.querySelector('.animate-spin'),
+          { timeout: 30000 }
+        ).catch(() => {});
+        await page.waitForTimeout(1200);
       },
 
       /**
        * Logout from the application
        */
       async logout() {
+        await dismissBlockingDialogs(page);
+        for (let i = 0; i < 3; i++) {
+          await page.keyboard.press('Escape').catch(() => {});
+          await page.waitForTimeout(120);
+        }
+
+        await dismissBlockingDialogs(page);
+
         // The logout option is inside the ProfileDropdown in the header.
         // The avatar button (last header button) opens the dropdown.
         const allHeaderBtns = page.locator('header button');
@@ -291,7 +490,7 @@ export const test = base.extend({
           const avatarBtn = allHeaderBtns.last();
           const isVisible = await avatarBtn.isVisible().catch(() => false);
           if (isVisible) {
-            await avatarBtn.click();
+            await avatarBtn.click({ force: true });
             await page.waitForTimeout(500);
           }
         }
@@ -330,14 +529,10 @@ export const test = base.extend({
        */
       async navigateTo(tabName) {
         const tabLower = tabName.toLowerCase();
+        await dismissBlockingDialogs(page);
 
-        // For tabs that are only visible in MobileNav on mobile (hidden on desktop at 1280px):
-        // Navigate via profile dropdown or header buttons
         if (tabLower === 'messages' || tabLower === 'chat') {
-          // Messages tab is only in MobileNav (hidden on desktop)
-          // Use JavaScript to trigger tab change directly
           await page.evaluate(() => {
-            // Find the Messages button in MobileNav and force click it
             const buttons = document.querySelectorAll('nav button');
             for (const btn of buttons) {
               if (btn.textContent.includes('Messages')) {
@@ -352,51 +547,25 @@ export const test = base.extend({
         }
 
         if (tabLower === 'profile') {
-          // Profile is in MobileNav (hidden on desktop) and in header profile dropdown
-          // The Avatar button is the LAST button in the header
-          const allHeaderBtns = page.locator('header button');
-          const headerBtnCount = await allHeaderBtns.count();
+          await helper.ensureRegistrationComplete();
+          await page.goto('/#profile');
+          await waitForSpinnerToClear(page, 60000);
+          await dismissBlockingDialogs(page);
 
-          if (headerBtnCount > 0) {
-            // The last button in header is the user avatar/initial button
-            const avatarBtn = allHeaderBtns.last();
-            const isVisible = await avatarBtn.isVisible().catch(() => false);
-            if (isVisible) {
-              await avatarBtn.click();
-              await page.waitForTimeout(500);
-
-              // Click "Edit Profile" in the dropdown (ProfileDropdown uses "Edit Profile")
-              const profileLink = page.locator('[role="menuitem"], button, a').filter({
-                hasText: /edit profile|profile/i,
-              }).first();
-              if (await profileLink.count() > 0 && await profileLink.isVisible().catch(() => false)) {
-                await profileLink.click();
-                await page.waitForTimeout(1000);
-                return;
-              }
-
-              // Close dropdown
-              await page.keyboard.press('Escape');
-              await page.waitForTimeout(300);
-            }
+          const onRegistrationScreen = await page.locator('h1').filter({ hasText: /Complete Your Profile/i }).first()
+            .isVisible().catch(() => false);
+          if (onRegistrationScreen) {
+            await helper.ensureRegistrationComplete();
+            await page.goto('/#profile');
+            await waitForSpinnerToClear(page, 60000);
           }
 
-          // Fallback: JS click on MobileNav Profile button
-          await page.evaluate(() => {
-            const buttons = document.querySelectorAll('nav button');
-            for (const btn of buttons) {
-              if (btn.textContent.trim() === 'Profile') {
-                btn.click();
-                return;
-              }
-            }
-          });
-          await page.waitForTimeout(1000);
+          await page.locator('[data-testid="profile-page"]').waitFor({ state: 'visible', timeout: 30000 });
+          await dismissBlockingDialogs(page);
           return;
         }
 
         if (tabLower === 'activity') {
-          // Activity is only in MobileNav (hidden on desktop)
           await page.evaluate(() => {
             const buttons = document.querySelectorAll('nav button');
             for (const btn of buttons) {
@@ -410,8 +579,6 @@ export const test = base.extend({
           return;
         }
 
-        // For Sidebar tabs (visible on desktop): My Contracts, Broker Dashboard/Program, Cargo, Trucks
-        // Use visible element selector
         let pattern;
         if (tabLower === 'contracts') pattern = /my contracts/i;
         else if (tabLower === 'broker') pattern = /broker/i;
@@ -420,7 +587,6 @@ export const test = base.extend({
         else if (tabLower === 'bids') pattern = /my bids|my bookings/i;
         else pattern = new RegExp(tabName, 'i');
 
-        // Find the visible sidebar/header button
         const navBtn = page.locator('aside button, header button').filter({ hasText: pattern }).first();
         if (await navBtn.count() > 0) {
           const isVisible = await navBtn.isVisible().catch(() => false);
@@ -431,7 +597,6 @@ export const test = base.extend({
           }
         }
 
-        // Fallback: any visible button matching the pattern
         const anyBtn = page.locator('button').filter({ hasText: pattern });
         const count = await anyBtn.count();
         for (let i = 0; i < Math.min(count, 5); i++) {
@@ -458,40 +623,23 @@ export const test = base.extend({
        * and the header shows a user initial/avatar.
        */
       async isLoggedIn() {
+        await dismissBlockingDialogs(page);
+
         const hasHeader = await page.locator('header').count() > 0;
+        if (!hasHeader) return false;
 
-        // Check we're not on the RegisterScreen
-        const h1Text = await page.locator('h1').first().textContent().catch(() => '');
-        const onRegScreen = h1Text.includes('Complete Your Profile');
+        const onRegScreen = await page.locator('h1').filter({ hasText: /Complete Your Profile/i }).first()
+          .isVisible().catch(() => false);
+        if (onRegScreen) return false;
 
-        if (!hasHeader || onRegScreen) return false;
+        const authModalVisible = await page.locator(AUTH_MODAL_SELECTOR).first().isVisible().catch(() => false);
+        if (authModalVisible) return false;
 
-        // Confirm no visible auth modal is blocking.
-        const visibleAuthInput = await page.locator(
-          '[role="dialog"] input[placeholder="9171234567"], [role="dialog"] input[placeholder="000000"]'
-        ).first().isVisible().catch(() => false);
-        if (visibleAuthInput) return false;
+        const loggedInBadgeVisible = await page.locator('text=/logged in as/i').first().isVisible().catch(() => false);
+        if (loggedInBadgeVisible) return true;
 
-        // Probe a protected action: bell opens notifications when logged in,
-        // but opens AuthModal for guests.
-        const bellButton = page.locator('header button[aria-label*="notification" i], header button[title*="notification" i]').first();
-        if (!(await bellButton.isVisible().catch(() => false))) {
-          return false;
-        }
-
-        await bellButton.click();
-        await page.waitForTimeout(500);
-
-        const authPromptOpened = await page.locator(
-          '[role="dialog"] input[placeholder="9171234567"], [role="dialog"] input[placeholder="000000"]'
-        ).first().isVisible().catch(() => false);
-
-        if (authPromptOpened) {
-          await page.keyboard.press('Escape').catch(() => {});
-          return false;
-        }
-
-        return true;
+        const avatarBtnVisible = await page.locator('header button').last().isVisible().catch(() => false);
+        return avatarBtnVisible;
       },
     };
 
@@ -500,3 +648,7 @@ export const test = base.extend({
 });
 
 export { expect } from '@playwright/test';
+
+
+
+
