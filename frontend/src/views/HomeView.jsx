@@ -9,6 +9,11 @@ import { canBidCargoStatus, canBookTruckStatus } from '@/utils/listingStatus';
 import BrokerHomeCard from '@/components/broker/BrokerHomeCard';
 
 const ITEMS_PER_PAGE = 20;
+const TOP_RESET_THRESHOLD = 8;
+const HIDE_SCROLL_TOP_MIN = 56;
+const HIDE_DELTA_THRESHOLD = 8;
+const SHOW_UP_DELTA_THRESHOLD = 20;
+const REVEAL_LOCK_MS = 350;
 
 export function HomeView({
   activeMarket = 'cargo',
@@ -55,14 +60,24 @@ export function HomeView({
 
   // Pagination: show ITEMS_PER_PAGE at a time with "Load More"
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+  const [showMobileListingControls, setShowMobileListingControls] = useState(true);
   const visibleListings = listings.slice(0, visibleCount);
   const hasMore = visibleCount < listings.length;
 
   const scrollContainerRef = useRef(null);
+  const lastScrollTopRef = useRef(0);
+  const downScrollDistanceRef = useRef(0);
+  const upScrollDistanceRef = useRef(0);
+  const revealLockUntilRef = useRef(0);
 
   // Reset visible count and scroll position when market or filter changes
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE);
+    setShowMobileListingControls(true);
+    lastScrollTopRef.current = 0;
+    downScrollDistanceRef.current = 0;
+    upScrollDistanceRef.current = 0;
+    revealLockUntilRef.current = 0;
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
@@ -96,6 +111,60 @@ export function HomeView({
   const listingCountLabel = activeMarket === 'cargo'
     ? (currentRole === 'shipper' && !isBroker ? 'cargo posts' : 'cargo listings')
     : (currentRole === 'trucker' && !isBroker ? 'truck posts' : 'trucks');
+  const handleHomeScroll = (e) => {
+    onScroll?.(e);
+
+    const scrollTop = e.currentTarget?.scrollTop ?? e.target?.scrollTop ?? 0;
+    const delta = scrollTop - lastScrollTopRef.current;
+
+    if (!isMobile) {
+      lastScrollTopRef.current = scrollTop;
+      downScrollDistanceRef.current = 0;
+      upScrollDistanceRef.current = 0;
+      revealLockUntilRef.current = 0;
+      return;
+    }
+
+    if (scrollTop <= TOP_RESET_THRESHOLD) {
+      if (!showMobileListingControls) {
+        setShowMobileListingControls(true);
+      }
+      lastScrollTopRef.current = scrollTop;
+      downScrollDistanceRef.current = 0;
+      upScrollDistanceRef.current = 0;
+      revealLockUntilRef.current = 0;
+      return;
+    }
+
+    if (delta > 0) {
+      downScrollDistanceRef.current += delta;
+      upScrollDistanceRef.current = 0;
+
+      if (scrollTop > HIDE_SCROLL_TOP_MIN && downScrollDistanceRef.current >= HIDE_DELTA_THRESHOLD) {
+        if (showMobileListingControls) {
+          setShowMobileListingControls(false);
+          revealLockUntilRef.current = Date.now() + REVEAL_LOCK_MS;
+        }
+      }
+    } else if (delta < 0) {
+      if (Date.now() < revealLockUntilRef.current) {
+        lastScrollTopRef.current = scrollTop;
+        return;
+      }
+
+      upScrollDistanceRef.current += Math.abs(delta);
+      downScrollDistanceRef.current = 0;
+
+      if (upScrollDistanceRef.current >= SHOW_UP_DELTA_THRESHOLD) {
+        if (!showMobileListingControls) {
+          setShowMobileListingControls(true);
+          revealLockUntilRef.current = 0;
+        }
+      }
+    }
+
+    lastScrollTopRef.current = scrollTop;
+  };
 
   return (
     <main
@@ -110,7 +179,7 @@ export function HomeView({
         paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px',
         overscrollBehaviorY: 'contain',
       }}
-      onScroll={onScroll}
+      onScroll={handleHomeScroll}
     >
       {/* Suspension Banner */}
       {isAccountSuspended && (
@@ -214,7 +283,16 @@ export function HomeView({
         </div>
 
         {isMobile && (
-          <>
+          <div
+            data-testid="home-mobile-listing-controls"
+            className="max-lg:transition-[max-height,opacity] max-lg:duration-300 max-lg:ease-out"
+            style={{
+              maxHeight: showMobileListingControls ? '220px' : '0px',
+              opacity: showMobileListingControls ? 1 : 0,
+              overflow: 'hidden',
+              pointerEvents: showMobileListingControls ? 'auto' : 'none',
+            }}
+          >
             <div data-testid="home-listing-summary" style={{ marginBottom: '12px' }}>
               <h2
                 data-testid="home-listing-header"
@@ -262,7 +340,7 @@ export function HomeView({
                 </button>
               ))}
             </div>
-          </>
+          </div>
         )}
       </div>
 
