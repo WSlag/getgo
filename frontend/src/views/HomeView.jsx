@@ -139,6 +139,19 @@ export function HomeView({
       return;
     }
 
+    // Avoid animating two stacked regions at once: while app header is visible,
+    // keep listing controls pinned and only start collapsing once header is hidden.
+    if (mobileHeaderVisible && scrollTop < HIDE_SCROLL_TOP_MIN + 40) {
+      if (!showMobileListingControls) {
+        setShowMobileListingControls(true);
+      }
+      lastScrollTopRef.current = scrollTop;
+      downScrollDistanceRef.current = 0;
+      upScrollDistanceRef.current = 0;
+      revealLockUntilRef.current = 0;
+      return;
+    }
+
     if (delta > 0) {
       downScrollDistanceRef.current += delta;
       upScrollDistanceRef.current = 0;
@@ -295,11 +308,11 @@ export function HomeView({
               opacity: showMobileListingControls ? 1 : 0,
               overflow: 'hidden',
               pointerEvents: showMobileListingControls ? 'auto' : 'none',
+              paddingBottom: showMobileListingControls ? '16px' : '0px',
             }}
           >
             <div
               data-testid="home-filter-pills"
-              className="mb-4"
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
