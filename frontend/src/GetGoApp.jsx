@@ -4,7 +4,7 @@
  * while preserving all existing Firebase functionality
  */
 
-import React, { useMemo, useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback, useLayoutEffect, Suspense, lazy } from 'react';
 import { Loader2, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -176,9 +176,11 @@ export default function GetGoApp() {
 
   // Mobile header scroll-to-hide for Home tab, hidden for other tabs
   // Header is position:fixed on mobile so show/hide never causes layout shift
+  const headerRef = useRef(null);
   const lastScrollY = useRef(0);
   const hiddenHeaderScrollY = useRef(0);
   const [mobileHeaderVisible, setMobileHeaderVisible] = useState(true);
+  const [mobileHeaderHeight, setMobileHeaderHeight] = useState(74);
 
   const handleHomeScroll = useCallback((e) => {
     const scrollTop = e.currentTarget?.scrollTop ?? e.target?.scrollTop ?? 0;
@@ -195,6 +197,66 @@ export default function GetGoApp() {
   }, []);
 
   const showMobileHeader = activeTab === 'home' ? mobileHeaderVisible : false;
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const mobileQuery = window.matchMedia('(max-width: 1023px)');
+    let rafId = null;
+
+    const measureHeaderHeight = () => {
+      if (!mobileQuery.matches) {
+        setMobileHeaderHeight(74);
+        return;
+      }
+
+      const measuredHeight = headerRef.current?.getBoundingClientRect().height;
+      const nextHeight = Number.isFinite(measuredHeight) && measuredHeight > 0 ? measuredHeight : 74;
+      setMobileHeaderHeight((prev) => (Math.abs(prev - nextHeight) > 0.5 ? nextHeight : prev));
+    };
+
+    const scheduleMeasure = () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      rafId = window.requestAnimationFrame(measureHeaderHeight);
+    };
+
+    scheduleMeasure();
+
+    let resizeObserver;
+    if (typeof window.ResizeObserver !== 'undefined' && headerRef.current) {
+      resizeObserver = new window.ResizeObserver(() => {
+        scheduleMeasure();
+      });
+      resizeObserver.observe(headerRef.current);
+    }
+
+    const handleViewportChange = () => scheduleMeasure();
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('orientationchange', handleViewportChange);
+    if (mobileQuery.addEventListener) {
+      mobileQuery.addEventListener('change', handleViewportChange);
+    } else {
+      mobileQuery.addListener(handleViewportChange);
+    }
+
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('orientationchange', handleViewportChange);
+      if (mobileQuery.removeEventListener) {
+        mobileQuery.removeEventListener('change', handleViewportChange);
+      } else {
+        mobileQuery.removeListener(handleViewportChange);
+      }
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, [showMobileHeader]);
 
   // Reset mobile header when switching to home tab
   useEffect(() => {
@@ -1624,6 +1686,7 @@ export default function GetGoApp() {
     <div className="flex flex-col h-screen h-[100dvh] min-h-screen min-h-[100svh] overflow-hidden bg-gray-50 dark:bg-gray-950">
       {/* Header */}
       <Header
+        headerRef={headerRef}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         darkMode={darkMode}
@@ -1723,6 +1786,7 @@ export default function GetGoApp() {
               onPostListing={handlePostClick}
               onScroll={handleHomeScroll}
               mobileHeaderVisible={showMobileHeader}
+              mobileHeaderHeight={mobileHeaderHeight}
             />
           </ErrorBoundary>
         )}
