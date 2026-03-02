@@ -14,6 +14,7 @@ const HIDE_SCROLL_TOP_MIN = 56;
 const HIDE_DELTA_THRESHOLD = 24;
 const SHOW_UP_DELTA_THRESHOLD = 24;
 const REVEAL_LOCK_MS = 420;
+const MOBILE_LISTING_CONTROLS_COLLAPSE_ENABLED = false;
 
 export function HomeView({
   activeMarket = 'cargo',
@@ -102,12 +103,8 @@ export function HomeView({
   const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
   const showSavedSearchesCard = !isMobile || savedSearches.length > 0 || hasCurrentSearchPreset;
   const mobileStickyPaddingTop = 8;
-  // Header is fixed on mobile; reserve that height with a spacer so sticky
-  // controls do not visually overlap listing cards.
   const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
-  // Keep spacer height stable to avoid layout jumps when the mobile header
-  // animates in/out of view while scrolling.
-  const mobileHeaderSpacerHeight = Math.max(0, resolvedMobileHeaderHeight);
+  const resolvedMobileStickyTop = mobileHeaderVisible ? Math.max(0, resolvedMobileHeaderHeight) : 0;
   const listingHeaderTitle = activeMarket === 'cargo'
     ? (currentRole === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
     : (currentRole === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks');
@@ -119,6 +116,20 @@ export function HomeView({
 
     const scrollTop = e.currentTarget?.scrollTop ?? e.target?.scrollTop ?? 0;
     const delta = scrollTop - lastScrollTopRef.current;
+
+    // Keep mobile controls static for real-device stability.
+    // Collapsing this region with max-height causes visible jump/reflow while
+    // scrolling across the first cards on iOS/Android browsers.
+    if (!MOBILE_LISTING_CONTROLS_COLLAPSE_ENABLED) {
+      if (!showMobileListingControls) {
+        setShowMobileListingControls(true);
+      }
+      lastScrollTopRef.current = scrollTop;
+      downScrollDistanceRef.current = 0;
+      upScrollDistanceRef.current = 0;
+      revealLockUntilRef.current = 0;
+      return;
+    }
 
     if (!isMobile) {
       lastScrollTopRef.current = scrollTop;
@@ -225,17 +236,6 @@ export function HomeView({
         </div>
       )}
 
-      {/* Sticky Mobile Header: Market Switcher + Search */}
-      {isMobile && (
-        <div
-          aria-hidden="true"
-          style={{
-            height: `${mobileHeaderSpacerHeight}px`,
-            overflowAnchor: 'none',
-          }}
-        />
-      )}
-
       <div
         data-testid="home-sticky-controls"
         className={cn(
@@ -245,7 +245,7 @@ export function HomeView({
         )}
         style={{
           padding: isMobile ? `${mobileStickyPaddingTop}px 16px 0` : '0',
-          top: isMobile ? '0px' : undefined,
+          top: isMobile ? `${resolvedMobileStickyTop}px` : undefined,
           overflowAnchor: 'none',
         }}
       >
