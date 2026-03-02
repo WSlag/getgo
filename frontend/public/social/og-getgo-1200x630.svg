@@ -27,17 +27,25 @@
   <circle cx="1120" cy="442" r="240" fill="url(#orbLight)" />
   <circle cx="90" cy="590" r="220" fill="#FFFFFF" opacity="0.16" />
 
-  <rect x="66" y="78" width="760" height="474" rx="22" fill="url(#panelGradient)" filter="url(#softShadow)" />
-  <rect x="66" y="78" width="760" height="10" fill="#FF7A24" />
+  <rect x="58" y="78" width="760" height="474" rx="22" fill="url(#panelGradient)" filter="url(#softShadow)" />
+  <rect x="58" y="78" width="760" height="10" fill="#FF7A24" />
 
-  <text x="118" y="167" fill="#D9DEE7" font-family="Outfit, Poppins, Arial, sans-serif" font-size="54" font-weight="700" letter-spacing="0.5">GetGo</text>
-  <text x="118" y="262" fill="#FFFFFF" font-family="Outfit, Poppins, Arial, sans-serif" font-size="76" font-weight="800">Your Cargo Marketplace</text>
-  <text x="118" y="337" fill="#DEE2EB" font-family="Outfit, Poppins, Arial, sans-serif" font-size="44" font-weight="500">Connect with trusted truckers across the Philippines.</text>
+  <text x="108" y="160" fill="#D9DEE7" font-family="Outfit, Poppins, Arial, sans-serif" font-size="56" font-weight="700" letter-spacing="0.5">GetGo</text>
 
-  <rect x="118" y="420" width="300" height="58" rx="29" fill="#FF7A24" opacity="0.2" />
-  <text x="148" y="459" fill="#FFEFE2" font-family="Outfit, Poppins, Arial, sans-serif" font-size="34" font-weight="700">getgoph.web.app</text>
+  <text x="108" y="248" fill="#FFFFFF" font-family="Outfit, Poppins, Arial, sans-serif" font-size="70" font-weight="800">
+    <tspan x="108" dy="0">Your Cargo</tspan>
+    <tspan x="108" dy="82">Marketplace</tspan>
+  </text>
 
-  <g transform="translate(840,240)" stroke="#FFFFFF" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <text x="108" y="404" fill="#DEE2EB" font-family="Outfit, Poppins, Arial, sans-serif" font-size="24" font-weight="500">
+    <tspan x="108" dy="0">Connect with trusted truckers</tspan>
+    <tspan x="108" dy="36">across the Philippines.</tspan>
+  </text>
+
+  <rect x="108" y="452" width="326" height="64" rx="32" fill="#FF7A24" opacity="0.22" />
+  <text x="136" y="494" fill="#FFEFE2" font-family="Outfit, Poppins, Arial, sans-serif" font-size="40" font-weight="700">getgoph.web.app</text>
+
+  <g transform="translate(850,240)" stroke="#FFFFFF" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round">
     <path d="M0 92 H286" opacity="0.8" />
     <path d="M92 20 H190 L230 56 H286 V164 H0 Z" opacity="0.92" />
     <path d="M188 56 H228 V98 H188 Z" opacity="0.85" />
