@@ -78,14 +78,8 @@ test.describe('Mobile Responsiveness', () => {
   });
 
   test('should align home filter pills evenly on mobile', async ({ page }) => {
-    const listingHeader = page.getByTestId('home-listing-header');
-    const listingCount = page.getByTestId('home-listing-count');
-    const listingSummary = page.getByTestId('home-listing-summary');
     const mobileListingControls = page.getByTestId('home-mobile-listing-controls');
     await expect(mobileListingControls).toBeVisible();
-    await expect(listingSummary).toBeVisible();
-    await expect(listingHeader).toBeVisible();
-    await expect(listingCount).toBeVisible();
 
     const filterRow = page.getByTestId('home-filter-pills');
     await expect(filterRow).toBeVisible();
@@ -129,18 +123,18 @@ test.describe('Mobile Responsiveness', () => {
     expect(Math.abs(second.top - third.top)).toBeLessThanOrEqual(1);
 
     const verticalOrder = await page.evaluate(() => {
-      const summary = document.querySelector('[data-testid="home-listing-summary"]');
+      const searchInput = document.querySelector('[data-testid="home-sticky-controls"] input[type="text"]');
       const pills = document.querySelector('[data-testid="home-filter-pills"]');
-      if (!summary || !pills) return null;
-      const summaryRect = summary.getBoundingClientRect();
+      if (!searchInput || !pills) return null;
+      const searchRect = searchInput.getBoundingClientRect();
       const pillsRect = pills.getBoundingClientRect();
       return {
-        summaryBottom: summaryRect.bottom,
+        searchBottom: searchRect.bottom,
         pillsTop: pillsRect.top,
       };
     });
     expect(verticalOrder).not.toBeNull();
-    expect(verticalOrder.pillsTop).toBeGreaterThanOrEqual(verticalOrder.summaryBottom - 1);
+    expect(verticalOrder.pillsTop).toBeGreaterThanOrEqual(verticalOrder.searchBottom - 1);
   });
 
   test('should hide listing controls on scroll down and show them on scroll up', async ({ page }) => {
@@ -151,7 +145,7 @@ test.describe('Mobile Responsiveness', () => {
     await expect(listingControls).toBeVisible();
 
     const initialHeight = await listingControls.evaluate((el) => el.getBoundingClientRect().height);
-    expect(initialHeight).toBeGreaterThan(80);
+    expect(initialHeight).toBeGreaterThanOrEqual(44);
     const maxScrollTop = await page.evaluate(() => {
       const container = document.querySelector('[data-testid="home-scroll-container"]');
       if (!container) return 0;
@@ -180,7 +174,7 @@ test.describe('Mobile Responsiveness', () => {
     await page.waitForTimeout(300);
 
     const topHeight = await listingControls.evaluate((el) => el.getBoundingClientRect().height);
-    expect(topHeight).toBeGreaterThan(80);
+    expect(topHeight).toBeGreaterThanOrEqual(44);
   });
 
   test('should collapse mobile header and pin sticky controls to top on scroll', async ({ page }) => {
@@ -279,21 +273,16 @@ test.describe('Mobile Responsiveness Narrow Viewport', () => {
     expect(geometry.headerHeight).toBeGreaterThan(40);
     expect(geometry.stickyTop).toBeGreaterThanOrEqual(geometry.headerBottom - 2);
 
-    const summaryOnNarrow = page.getByTestId('home-listing-summary');
     const controlsOnNarrow = page.getByTestId('home-mobile-listing-controls');
     await expect(controlsOnNarrow).toBeVisible();
-    await expect(summaryOnNarrow).toBeVisible();
 
     const filterGeometry = await page.evaluate(() => {
       const row = document.querySelector('[data-testid="home-filter-pills"]');
-      const summary = document.querySelector('[data-testid="home-listing-summary"]');
       if (!row) return null;
       const rowRect = row.getBoundingClientRect();
-      const summaryRect = summary?.getBoundingClientRect() || null;
       const buttons = Array.from(row.querySelectorAll('button'));
       const rects = buttons.map((button) => button.getBoundingClientRect());
       return {
-        summaryBottom: summaryRect ? summaryRect.bottom : null,
         rowTop: rowRect.top,
         rowLeft: rowRect.left,
         rowRight: rowRect.right,
@@ -309,8 +298,7 @@ test.describe('Mobile Responsiveness Narrow Viewport', () => {
 
     expect(filterGeometry).not.toBeNull();
     expect(filterGeometry.buttonCount).toBe(3);
-    expect(filterGeometry.summaryBottom).not.toBeNull();
-    expect(filterGeometry.rowTop).toBeGreaterThanOrEqual(filterGeometry.summaryBottom - 1);
+    expect(filterGeometry.rowTop).toBeGreaterThanOrEqual(0);
     filterGeometry.rects.forEach((rect) => {
       expect(rect.left).toBeGreaterThanOrEqual(filterGeometry.rowLeft - 1);
       expect(rect.right).toBeLessThanOrEqual(filterGeometry.rowRight + 1);
@@ -339,7 +327,7 @@ test.describe('Mobile Responsiveness Narrow Viewport', () => {
     await page.waitForTimeout(450);
 
     const narrowRevealedHeight = await controlsOnNarrow.evaluate((el) => el.getBoundingClientRect().height);
-    expect(narrowRevealedHeight).toBeGreaterThan(80);
+    expect(narrowRevealedHeight).toBeGreaterThanOrEqual(44);
   });
 });
 

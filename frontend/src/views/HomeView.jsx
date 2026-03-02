@@ -287,31 +287,12 @@ export function HomeView({
             data-testid="home-mobile-listing-controls"
             className="max-lg:transition-[max-height,opacity] max-lg:duration-300 max-lg:ease-out"
             style={{
-              maxHeight: showMobileListingControls ? '220px' : '0px',
+              maxHeight: showMobileListingControls ? '120px' : '0px',
               opacity: showMobileListingControls ? 1 : 0,
               overflow: 'hidden',
               pointerEvents: showMobileListingControls ? 'auto' : 'none',
             }}
           >
-            <div data-testid="home-listing-summary" style={{ marginBottom: '12px' }}>
-              <h2
-                data-testid="home-listing-header"
-                className="font-bold text-base text-gray-900 dark:text-white"
-                style={{ marginBottom: '4px' }}
-              >
-                {listingHeaderTitle}
-              </h2>
-              <p
-                data-testid="home-listing-count"
-                className="text-xs text-gray-600 dark:text-gray-400"
-              >
-                <span className="font-semibold text-orange-500">
-                  {listingCount} {listingCountLabel}
-                </span>{' '}
-                available
-              </p>
-            </div>
-
             <div
               data-testid="home-filter-pills"
               className="mb-4"
