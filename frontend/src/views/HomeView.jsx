@@ -163,13 +163,8 @@ export function HomeView({
         )}
         style={{
           padding: isMobile ? `${mobileStickyPaddingTop}px 16px 0` : '0',
-          top: isMobile ? `${resolvedMobileHeaderHeight}px` : undefined,
-          transform: isMobile
-            ? (mobileHeaderVisible ? 'translateY(0)' : `translateY(calc(-100% - ${resolvedMobileHeaderHeight}px))`)
-            : undefined,
-          opacity: isMobile ? (mobileHeaderVisible ? 1 : 0) : undefined,
-          transition: isMobile ? 'transform 300ms ease-out, opacity 300ms ease-out' : undefined,
-          pointerEvents: isMobile && !mobileHeaderVisible ? 'none' : undefined,
+          top: isMobile ? `${mobileHeaderVisible ? resolvedMobileHeaderHeight : 0}px` : undefined,
+          transition: isMobile ? 'top 300ms ease-out' : undefined,
           overflowAnchor: 'none',
         }}
       >
@@ -236,7 +231,14 @@ export function HomeView({
         {isMobile && (
           <div
             data-testid="home-mobile-listing-controls"
-            style={{ paddingBottom: '16px', overflowAnchor: 'none' }}
+            style={{
+              maxHeight: mobileHeaderVisible ? '120px' : '0px',
+              opacity: mobileHeaderVisible ? 1 : 0,
+              overflow: 'hidden',
+              paddingBottom: mobileHeaderVisible ? '16px' : '0px',
+              transition: 'max-height 300ms ease-out, opacity 300ms ease-out, padding-bottom 300ms ease-out',
+              overflowAnchor: 'none',
+            }}
           >
             <div
               data-testid="home-filter-pills"
