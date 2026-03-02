@@ -4,6 +4,7 @@ import App from './App.jsx'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
 import { initSentry } from './services/sentryService'
+/* global __APP_BUILD_ID__ */
 
 initSentry();
 
@@ -35,7 +36,7 @@ function recoverFromChunkLoadFailure(reason) {
   window.location.reload();
 }
 
-async function syncBuildVersionAndRefreshCaches() {
+function syncBuildVersionAndRefreshCaches() {
   if (typeof window === 'undefined') return;
 
   const previousBuildId = window.localStorage.getItem(BUILD_ID_STORAGE_KEY);
@@ -57,21 +58,16 @@ async function syncBuildVersionAndRefreshCaches() {
   }
   window.sessionStorage.setItem(BUILD_REFRESH_GUARD_KEY, APP_BUILD_ID);
 
-  try {
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map((registration) => registration.unregister()));
-    }
-
-    if ('caches' in window) {
-      const cacheKeys = await window.caches.keys();
-      await Promise.all(cacheKeys.map((key) => window.caches.delete(key)));
-    }
-  } catch (error) {
-    console.warn('[app] Failed to clear old caches after build upgrade:', error);
+  // In-app browsers can briefly report offline during navigation.
+  // Avoid aggressive cache clears; do a single soft refresh when online.
+  if (!navigator.onLine) {
+    window.addEventListener('online', () => window.location.reload(), { once: true });
+    return;
   }
 
-  window.location.reload();
+  const refreshedUrl = new URL(window.location.href);
+  refreshedUrl.searchParams.set('build', APP_BUILD_ID.slice(0, 19));
+  window.location.replace(refreshedUrl.toString());
 }
 
 if (typeof window !== 'undefined') {
