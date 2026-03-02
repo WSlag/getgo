@@ -6,6 +6,7 @@
       <stop offset="100%" stop-color="#FF5722"/>
     </linearGradient>
   </defs>
+  <g transform="translate(32 32) scale(0.875)">
   <!-- Rounded rectangle background -->
   <rect width="512" height="512" rx="100" ry="100" fill="url(#bgGrad)"/>
   <!-- "GetGo" text -->
@@ -26,4 +27,5 @@
   <circle cx="170" cy="400" r="8" fill="white"/>
   <circle cx="240" cy="400" r="8" fill="white"/>
   <circle cx="370" cy="400" r="8" fill="white"/>
+  </g>
 </svg>
