@@ -645,23 +645,25 @@ export function HomeView({
         </p>
       </div>
 
-      {/* Filter Pills - Horizontal scroll on mobile */}
-      <div className={cn(
-        "flex",
-        isMobile ? "overflow-x-auto pb-2 scrollbar-hide" : ""
-      )} style={{ gap: isMobile ? '8px' : '12px', marginBottom: isMobile ? '16px' : '20px' }}>
+      {/* Filter Pills */}
+      <div
+        data-testid="home-filter-pills"
+        className={cn(
+          isMobile ? "grid grid-cols-3 gap-2 mb-4" : "flex gap-3 mb-5"
+        )}
+      >
         {filterOptions.map((option) => (
           <button
             key={option.id}
+            data-testid={`home-filter-pill-${option.id}`}
             onClick={() => onFilterChange?.(option.id)}
             className={cn(
-              "rounded-xl font-medium transition-all duration-300 active:scale-95 whitespace-nowrap flex-shrink-0",
-              isMobile ? "text-xs" : "text-sm hover:scale-105",
+              "rounded-xl font-medium transition-all duration-300 active:scale-95 whitespace-nowrap min-h-11 border",
+              isMobile ? "w-full text-xs px-3 py-2.5" : "text-sm px-6 py-2.5 hover:scale-105",
               filterStatus === option.id
-                ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30"
+                ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30 border-transparent"
                 : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
             )}
-            style={{ padding: isMobile ? '8px 16px' : '10px 24px' }}
           >
             {option.label}
           </button>

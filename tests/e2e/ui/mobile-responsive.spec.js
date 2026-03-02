@@ -77,6 +77,49 @@ test.describe('Mobile Responsiveness', () => {
     await expect(header).toBeVisible();
   });
 
+  test('should align home filter pills evenly on mobile', async ({ page }) => {
+    const filterRow = page.getByTestId('home-filter-pills');
+    await expect(filterRow).toBeVisible();
+
+    const allPill = page.getByTestId('home-filter-pill-all');
+    const openPill = page.getByTestId('home-filter-pill-open');
+    const waitingPill = page.getByTestId('home-filter-pill-waiting');
+    await expect(allPill).toBeVisible();
+    await expect(openPill).toBeVisible();
+    await expect(waitingPill).toBeVisible();
+
+    const geometry = await filterRow.evaluate((row) => {
+      const rowRect = row.getBoundingClientRect();
+      const buttons = Array.from(row.querySelectorAll('button'));
+      const rects = buttons.map((button) => button.getBoundingClientRect());
+      return {
+        rowLeft: rowRect.left,
+        rowRight: rowRect.right,
+        buttonCount: rects.length,
+        rects: rects.map((rect) => ({
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          height: rect.height,
+          top: rect.top,
+        })),
+      };
+    });
+
+    expect(geometry.buttonCount).toBe(3);
+
+    const [first, second, third] = geometry.rects;
+    expect(first.left).toBeGreaterThanOrEqual(geometry.rowLeft - 1);
+    expect(third.right).toBeLessThanOrEqual(geometry.rowRight + 1);
+
+    expect(Math.abs(first.height - second.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(second.height - third.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(first.width - second.width)).toBeLessThanOrEqual(2);
+    expect(Math.abs(second.width - third.width)).toBeLessThanOrEqual(2);
+    expect(Math.abs(first.top - second.top)).toBeLessThanOrEqual(1);
+    expect(Math.abs(second.top - third.top)).toBeLessThanOrEqual(1);
+  });
+
   test('should collapse mobile header and pin sticky controls to top on scroll', async ({ page }) => {
     const scrollContainer = page.getByTestId('home-scroll-container');
     const header = page.getByTestId('app-header');
@@ -160,6 +203,33 @@ test.describe('Mobile Responsiveness Narrow Viewport', () => {
     expect(geometry).not.toBeNull();
     expect(geometry.headerHeight).toBeGreaterThan(40);
     expect(geometry.stickyTop).toBeGreaterThanOrEqual(geometry.headerBottom - 2);
+
+    const filterGeometry = await page.evaluate(() => {
+      const row = document.querySelector('[data-testid="home-filter-pills"]');
+      if (!row) return null;
+      const rowRect = row.getBoundingClientRect();
+      const buttons = Array.from(row.querySelectorAll('button'));
+      const rects = buttons.map((button) => button.getBoundingClientRect());
+      return {
+        rowLeft: rowRect.left,
+        rowRight: rowRect.right,
+        buttonCount: rects.length,
+        rects: rects.map((rect) => ({
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          height: rect.height,
+        })),
+      };
+    });
+
+    expect(filterGeometry).not.toBeNull();
+    expect(filterGeometry.buttonCount).toBe(3);
+    filterGeometry.rects.forEach((rect) => {
+      expect(rect.left).toBeGreaterThanOrEqual(filterGeometry.rowLeft - 1);
+      expect(rect.right).toBeLessThanOrEqual(filterGeometry.rowRight + 1);
+      expect(rect.height).toBeGreaterThanOrEqual(44);
+    });
   });
 });
 
