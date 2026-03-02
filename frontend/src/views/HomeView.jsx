@@ -648,9 +648,13 @@ export function HomeView({
       {/* Filter Pills */}
       <div
         data-testid="home-filter-pills"
-        className={cn(
-          isMobile ? "grid grid-cols-3 gap-2 mb-4" : "flex gap-3 mb-5"
-        )}
+        className={cn(isMobile ? "mb-4" : "flex gap-3 mb-5")}
+        style={isMobile ? {
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: '8px',
+          alignItems: 'stretch',
+        } : undefined}
       >
         {filterOptions.map((option) => (
           <button
@@ -658,12 +662,13 @@ export function HomeView({
             data-testid={`home-filter-pill-${option.id}`}
             onClick={() => onFilterChange?.(option.id)}
             className={cn(
-              "rounded-xl font-medium transition-all duration-300 active:scale-95 whitespace-nowrap min-h-11 border",
-              isMobile ? "w-full text-xs px-3 py-2.5" : "text-sm px-6 py-2.5 hover:scale-105",
+              "rounded-xl font-medium transition-all duration-300 active:scale-95 min-h-11 border flex items-center justify-center text-center",
+              isMobile ? "w-full min-w-0 text-xs px-2 py-2.5 whitespace-normal leading-tight" : "whitespace-nowrap text-sm px-6 py-2.5 hover:scale-105",
               filterStatus === option.id
                 ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30 border-transparent"
                 : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
             )}
+            style={isMobile ? { width: '100%' } : undefined}
           >
             {option.label}
           </button>
