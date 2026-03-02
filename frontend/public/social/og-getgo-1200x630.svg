@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">GetGo - Your Cargo Marketplace</title>
+  <desc id="desc">GetGo social preview card with brand gradient, marketplace tagline, and truck motif.</desc>
+
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF9A56" />
+      <stop offset="55%" stop-color="#FF6B35" />
+      <stop offset="100%" stop-color="#FF5722" />
+    </linearGradient>
+    <radialGradient id="orbLight" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.26" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="panelGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0C1326" stop-opacity="0.92" />
+      <stop offset="100%" stop-color="#1E162B" stop-opacity="0.88" />
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#2A1307" flood-opacity="0.28" />
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bgGradient)" />
+
+  <circle cx="1060" cy="138" r="160" fill="url(#orbLight)" />
+  <circle cx="1120" cy="442" r="240" fill="url(#orbLight)" />
+  <circle cx="90" cy="590" r="220" fill="#FFFFFF" opacity="0.16" />
+
+  <rect x="66" y="78" width="760" height="474" rx="22" fill="url(#panelGradient)" filter="url(#softShadow)" />
+  <rect x="66" y="78" width="760" height="10" fill="#FF7A24" />
+
+  <text x="118" y="167" fill="#D9DEE7" font-family="Outfit, Poppins, Arial, sans-serif" font-size="54" font-weight="700" letter-spacing="0.5">GetGo</text>
+  <text x="118" y="262" fill="#FFFFFF" font-family="Outfit, Poppins, Arial, sans-serif" font-size="76" font-weight="800">Your Cargo Marketplace</text>
+  <text x="118" y="337" fill="#DEE2EB" font-family="Outfit, Poppins, Arial, sans-serif" font-size="44" font-weight="500">Connect with trusted truckers across the Philippines.</text>
+
+  <rect x="118" y="420" width="300" height="58" rx="29" fill="#FF7A24" opacity="0.2" />
+  <text x="148" y="459" fill="#FFEFE2" font-family="Outfit, Poppins, Arial, sans-serif" font-size="34" font-weight="700">getgoph.web.app</text>
+
+  <g transform="translate(840,240)" stroke="#FFFFFF" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M0 92 H286" opacity="0.8" />
+    <path d="M92 20 H190 L230 56 H286 V164 H0 Z" opacity="0.92" />
+    <path d="M188 56 H228 V98 H188 Z" opacity="0.85" />
+    <circle cx="70" cy="170" r="30" />
+    <circle cx="198" cy="170" r="30" />
+    <path d="M286 164 C320 164 338 134 338 104 C338 82 326 64 304 56" opacity="0.75" />
+    <path d="M28 56 C8 72 -6 94 -6 118" opacity="0.5" stroke-dasharray="2 16" />
+  </g>
+</svg>
