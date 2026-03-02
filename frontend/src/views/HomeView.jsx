@@ -105,6 +105,9 @@ export function HomeView({
   // Header is fixed on mobile; sticky controls follow measured header height.
   const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
   const mobileStickyTop = mobileHeaderVisible ? Math.max(0, resolvedMobileHeaderHeight) : 0;
+  // `position: sticky` keeps its original layout slot, so when we offset by the
+  // mobile header height we also reserve the same amount below to avoid overlap.
+  const mobileStickyCompensation = isMobile ? mobileStickyTop : 0;
   const listingHeaderTitle = activeMarket === 'cargo'
     ? (currentRole === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
     : (currentRole === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks');
@@ -215,11 +218,12 @@ export function HomeView({
         className={cn(
           "lg:relative lg:z-auto",
           "max-lg:sticky max-lg:z-40 max-lg:bg-gray-50 max-lg:dark:bg-gray-950",
-          "max-lg:transition-[top] max-lg:duration-300 max-lg:ease-out"
+          "max-lg:transition-[top,margin-bottom] max-lg:duration-300 max-lg:ease-out"
         )}
         style={{
           padding: isMobile ? `${mobileStickyPaddingTop}px 16px 0` : '0',
           top: isMobile ? `${mobileStickyTop}px` : undefined,
+          marginBottom: mobileStickyCompensation ? `${mobileStickyCompensation}px` : undefined,
         }}
       >
         {/* Mobile Market Switcher - only visible on mobile */}
