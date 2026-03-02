@@ -9,12 +9,6 @@ import { canBidCargoStatus, canBookTruckStatus } from '@/utils/listingStatus';
 import BrokerHomeCard from '@/components/broker/BrokerHomeCard';
 
 const ITEMS_PER_PAGE = 20;
-const TOP_RESET_THRESHOLD = 8;
-const HIDE_SCROLL_TOP_MIN = 56;
-const HIDE_DELTA_THRESHOLD = 24;
-const SHOW_UP_DELTA_THRESHOLD = 24;
-const REVEAL_LOCK_MS = 420;
-const MOBILE_LISTING_CONTROLS_COLLAPSE_ENABLED = false;
 
 export function HomeView({
   activeMarket = 'cargo',
@@ -61,31 +55,36 @@ export function HomeView({
 
   // Pagination: show ITEMS_PER_PAGE at a time with "Load More"
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
-  const [showMobileListingControls, setShowMobileListingControls] = useState(true);
+  const [controlsHeight, setControlsHeight] = useState(140);
   const visibleListings = listings.slice(0, visibleCount);
   const hasMore = visibleCount < listings.length;
 
   const scrollContainerRef = useRef(null);
-  const lastScrollTopRef = useRef(0);
-  const downScrollDistanceRef = useRef(0);
-  const upScrollDistanceRef = useRef(0);
-  const revealLockUntilRef = useRef(0);
+  const controlsRef = useRef(null);
+
+  // Detect mobile screen for compact cards
+  const isMobile = useMediaQuery('(max-width: 1023px)');
 
   // Reset visible count and scroll position when market or filter changes
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE);
-    setShowMobileListingControls(true);
-    lastScrollTopRef.current = 0;
-    downScrollDistanceRef.current = 0;
-    upScrollDistanceRef.current = 0;
-    revealLockUntilRef.current = 0;
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
   }, [activeMarket, filterStatus, searchQuery]);
 
-  // Detect mobile screen for compact cards
-  const isMobile = useMediaQuery('(max-width: 1023px)');
+  // Measure controls height so spacer stays accurate
+  useEffect(() => {
+    if (!isMobile || !controlsRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect?.height;
+      if (Number.isFinite(h) && h > 0) {
+        setControlsHeight((prev) => (Math.abs(prev - h) > 0.5 ? h : prev));
+      }
+    });
+    observer.observe(controlsRef.current);
+    return () => observer.disconnect();
+  }, [isMobile]);
 
   const filterOptions = [
     { id: 'all', label: 'All' },
@@ -104,7 +103,6 @@ export function HomeView({
   const showSavedSearchesCard = !isMobile || savedSearches.length > 0 || hasCurrentSearchPreset;
   const mobileStickyPaddingTop = 8;
   const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
-  const resolvedMobileStickyTop = mobileHeaderVisible ? Math.max(0, resolvedMobileHeaderHeight) : 0;
   const listingHeaderTitle = activeMarket === 'cargo'
     ? (currentRole === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
     : (currentRole === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks');
@@ -113,84 +111,6 @@ export function HomeView({
     : (currentRole === 'trucker' && !isBroker ? 'truck posts' : 'trucks');
   const handleHomeScroll = (e) => {
     onScroll?.(e);
-
-    const scrollTop = e.currentTarget?.scrollTop ?? e.target?.scrollTop ?? 0;
-    const delta = scrollTop - lastScrollTopRef.current;
-
-    // Keep mobile controls static for real-device stability.
-    // Collapsing this region with max-height causes visible jump/reflow while
-    // scrolling across the first cards on iOS/Android browsers.
-    if (!MOBILE_LISTING_CONTROLS_COLLAPSE_ENABLED) {
-      if (!showMobileListingControls) {
-        setShowMobileListingControls(true);
-      }
-      lastScrollTopRef.current = scrollTop;
-      downScrollDistanceRef.current = 0;
-      upScrollDistanceRef.current = 0;
-      revealLockUntilRef.current = 0;
-      return;
-    }
-
-    if (!isMobile) {
-      lastScrollTopRef.current = scrollTop;
-      downScrollDistanceRef.current = 0;
-      upScrollDistanceRef.current = 0;
-      revealLockUntilRef.current = 0;
-      return;
-    }
-
-    if (scrollTop <= TOP_RESET_THRESHOLD) {
-      if (!showMobileListingControls) {
-        setShowMobileListingControls(true);
-      }
-      lastScrollTopRef.current = scrollTop;
-      downScrollDistanceRef.current = 0;
-      upScrollDistanceRef.current = 0;
-      revealLockUntilRef.current = 0;
-      return;
-    }
-
-    // Avoid animating two stacked regions at once: while app header is visible,
-    // keep listing controls pinned and only start collapsing once header is hidden.
-    if (mobileHeaderVisible && scrollTop < HIDE_SCROLL_TOP_MIN + 40) {
-      if (!showMobileListingControls) {
-        setShowMobileListingControls(true);
-      }
-      lastScrollTopRef.current = scrollTop;
-      downScrollDistanceRef.current = 0;
-      upScrollDistanceRef.current = 0;
-      revealLockUntilRef.current = 0;
-      return;
-    }
-
-    if (delta > 0) {
-      downScrollDistanceRef.current += delta;
-      upScrollDistanceRef.current = 0;
-
-      if (scrollTop > HIDE_SCROLL_TOP_MIN && downScrollDistanceRef.current >= HIDE_DELTA_THRESHOLD) {
-        if (showMobileListingControls) {
-          setShowMobileListingControls(false);
-          revealLockUntilRef.current = Date.now() + REVEAL_LOCK_MS;
-        }
-      }
-    } else if (delta < 0) {
-      if (Date.now() < revealLockUntilRef.current) {
-        lastScrollTopRef.current = scrollTop;
-        return;
-      }
-
-      upScrollDistanceRef.current += Math.abs(delta);
-      downScrollDistanceRef.current = 0;
-
-      if (upScrollDistanceRef.current >= SHOW_UP_DELTA_THRESHOLD) {
-        if (!showMobileListingControls) {
-          setShowMobileListingControls(true);
-          revealLockUntilRef.current = 0;
-        }
-      }
-    }
-
-    lastScrollTopRef.current = scrollTop;
   };
 
   return (
@@ -200,8 +120,6 @@ export function HomeView({
       className={cn("flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto", className)}
       style={{
         padding: isMobile ? '0' : '24px',
-        // Mobile header offset is handled by sticky controls' `top`.
-        // Keeping extra container top padding creates a visible gap.
         paddingTop: isMobile ? '0' : '24px',
         paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px',
         overscrollBehaviorY: 'contain',
@@ -237,15 +155,21 @@ export function HomeView({
       )}
 
       <div
+        ref={controlsRef}
         data-testid="home-sticky-controls"
         className={cn(
           "lg:relative lg:z-auto",
-          "max-lg:sticky max-lg:z-40 max-lg:bg-gray-50 max-lg:dark:bg-gray-950",
-          "max-lg:transition-none"
+          "max-lg:fixed max-lg:left-0 max-lg:right-0 max-lg:z-40 max-lg:bg-gray-50 max-lg:dark:bg-gray-950"
         )}
         style={{
           padding: isMobile ? `${mobileStickyPaddingTop}px 16px 0` : '0',
-          top: isMobile ? `${resolvedMobileStickyTop}px` : undefined,
+          top: isMobile ? `${resolvedMobileHeaderHeight}px` : undefined,
+          transform: isMobile
+            ? (mobileHeaderVisible ? 'translateY(0)' : `translateY(calc(-100% - ${resolvedMobileHeaderHeight}px))`)
+            : undefined,
+          opacity: isMobile ? (mobileHeaderVisible ? 1 : 0) : undefined,
+          transition: isMobile ? 'transform 300ms ease-out, opacity 300ms ease-out' : undefined,
+          pointerEvents: isMobile && !mobileHeaderVisible ? 'none' : undefined,
           overflowAnchor: 'none',
         }}
       >
@@ -312,15 +236,7 @@ export function HomeView({
         {isMobile && (
           <div
             data-testid="home-mobile-listing-controls"
-            className="max-lg:transition-[max-height,opacity] max-lg:duration-300 max-lg:ease-out"
-            style={{
-              maxHeight: showMobileListingControls ? '120px' : '0px',
-              opacity: showMobileListingControls ? 1 : 0,
-              overflow: 'hidden',
-              pointerEvents: showMobileListingControls ? 'auto' : 'none',
-              paddingBottom: showMobileListingControls ? '16px' : '0px',
-              overflowAnchor: 'none',
-            }}
+            style={{ paddingBottom: '16px', overflowAnchor: 'none' }}
           >
             <div
               data-testid="home-filter-pills"
@@ -352,6 +268,18 @@ export function HomeView({
           </div>
         )}
       </div>
+
+      {/* Spacer: reserves constant space for fixed header + controls on mobile so content is never hidden behind them */}
+      {isMobile && (
+        <div
+          data-testid="home-fixed-spacer"
+          style={{
+            height: `${resolvedMobileHeaderHeight + controlsHeight}px`,
+            flexShrink: 0,
+            overflowAnchor: 'none',
+          }}
+        />
+      )}
 
       {/* Scrollable Content */}
       <div style={{ padding: isMobile ? '8px 16px 0' : '0' }}>
