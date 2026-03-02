@@ -102,9 +102,10 @@ export function HomeView({
   const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
   const showSavedSearchesCard = !isMobile || savedSearches.length > 0 || hasCurrentSearchPreset;
   const mobileStickyPaddingTop = 8;
-  // Header is fixed on mobile; sticky controls follow measured header height.
+  // Header is fixed on mobile; reserve that height with a spacer so sticky
+  // controls do not visually overlap listing cards.
   const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
-  const mobileStickyTop = mobileHeaderVisible ? Math.max(0, resolvedMobileHeaderHeight) : 0;
+  const mobileHeaderSpacerHeight = mobileHeaderVisible ? Math.max(0, resolvedMobileHeaderHeight) : 0;
   const listingHeaderTitle = activeMarket === 'cargo'
     ? (currentRole === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
     : (currentRole === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks');
@@ -223,16 +224,24 @@ export function HomeView({
       )}
 
       {/* Sticky Mobile Header: Market Switcher + Search */}
+      {isMobile && (
+        <div
+          aria-hidden="true"
+          className="max-lg:transition-[height] max-lg:duration-300 max-lg:ease-out"
+          style={{ height: `${mobileHeaderSpacerHeight}px` }}
+        />
+      )}
+
       <div
         data-testid="home-sticky-controls"
         className={cn(
           "lg:relative lg:z-auto",
           "max-lg:sticky max-lg:z-40 max-lg:bg-gray-50 max-lg:dark:bg-gray-950",
-          "max-lg:transition-[top] max-lg:duration-300 max-lg:ease-out"
+          "max-lg:transition-none"
         )}
         style={{
           padding: isMobile ? `${mobileStickyPaddingTop}px 16px 0` : '0',
-          top: isMobile ? `${mobileStickyTop}px` : undefined,
+          top: isMobile ? '0px' : undefined,
         }}
       >
         {/* Mobile Market Switcher - only visible on mobile */}
