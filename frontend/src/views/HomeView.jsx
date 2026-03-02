@@ -90,6 +90,12 @@ export function HomeView({
   // Header is fixed on mobile; sticky controls follow measured header height.
   const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
   const mobileStickyTop = mobileHeaderVisible ? Math.max(0, resolvedMobileHeaderHeight) : 0;
+  const listingHeaderTitle = activeMarket === 'cargo'
+    ? (currentRole === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
+    : (currentRole === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks');
+  const listingCountLabel = activeMarket === 'cargo'
+    ? (currentRole === 'shipper' && !isBroker ? 'cargo posts' : 'cargo listings')
+    : (currentRole === 'trucker' && !isBroker ? 'truck posts' : 'trucks');
 
   return (
     <main
@@ -206,6 +212,58 @@ export function HomeView({
             )}
           </div>
         </div>
+
+        {isMobile && (
+          <>
+            <div data-testid="home-listing-summary" style={{ marginBottom: '12px' }}>
+              <h2
+                data-testid="home-listing-header"
+                className="font-bold text-base text-gray-900 dark:text-white"
+                style={{ marginBottom: '4px' }}
+              >
+                {listingHeaderTitle}
+              </h2>
+              <p
+                data-testid="home-listing-count"
+                className="text-xs text-gray-600 dark:text-gray-400"
+              >
+                <span className="font-semibold text-orange-500">
+                  {listingCount} {listingCountLabel}
+                </span>{' '}
+                available
+              </p>
+            </div>
+
+            <div
+              data-testid="home-filter-pills"
+              className="mb-4"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gap: '8px',
+                alignItems: 'stretch',
+              }}
+            >
+              {filterOptions.map((option) => (
+                <button
+                  key={option.id}
+                  data-testid={`home-filter-pill-${option.id}`}
+                  onClick={() => onFilterChange?.(option.id)}
+                  className={cn(
+                    "rounded-xl font-medium transition-all duration-300 active:scale-95 min-h-11 border flex items-center justify-center text-center",
+                    "w-full min-w-0 text-xs px-2 py-2.5 whitespace-normal leading-tight",
+                    filterStatus === option.id
+                      ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30 border-transparent"
+                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
+                  )}
+                  style={{ width: '100%' }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Scrollable Content */}
@@ -622,39 +680,29 @@ export function HomeView({
       )}
 
       {/* Available Cargo/Trucks Header - Figma style */}
-      <div style={{ marginBottom: isMobile ? '12px' : '16px' }}>
+      {!isMobile && (
+      <div style={{ marginBottom: '16px' }}>
         <h2 className={cn(
-          "font-bold text-gray-900 dark:text-white",
-          isMobile ? "text-base" : "text-xl"
+          "font-bold text-gray-900 dark:text-white text-xl"
         )} style={{ marginBottom: '4px' }}>
-          {activeMarket === 'cargo'
-            ? (currentRole === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
-            : (currentRole === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks')}
+          {listingHeaderTitle}
         </h2>
         <p className={cn(
-          "text-gray-600 dark:text-gray-400",
-          isMobile ? "text-xs" : "text-sm"
+          "text-gray-600 dark:text-gray-400 text-sm"
         )}>
           <span className="font-semibold text-orange-500">
-            {listingCount}{' '}
-            {activeMarket === 'cargo'
-              ? (currentRole === 'shipper' && !isBroker ? 'cargo posts' : 'cargo listings')
-              : (currentRole === 'trucker' && !isBroker ? 'truck posts' : 'trucks')}
+            {listingCount} {listingCountLabel}
           </span>{' '}
           available
         </p>
       </div>
+      )}
 
       {/* Filter Pills */}
+      {!isMobile && (
       <div
         data-testid="home-filter-pills"
-        className={cn(isMobile ? "mb-4" : "flex gap-3 mb-5")}
-        style={isMobile ? {
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-          gap: '8px',
-          alignItems: 'stretch',
-        } : undefined}
+        className="flex gap-3 mb-5"
       >
         {filterOptions.map((option) => (
           <button
@@ -663,17 +711,17 @@ export function HomeView({
             onClick={() => onFilterChange?.(option.id)}
             className={cn(
               "rounded-xl font-medium transition-all duration-300 active:scale-95 min-h-11 border flex items-center justify-center text-center",
-              isMobile ? "w-full min-w-0 text-xs px-2 py-2.5 whitespace-normal leading-tight" : "whitespace-nowrap text-sm px-6 py-2.5 hover:scale-105",
+              "whitespace-nowrap text-sm px-6 py-2.5 hover:scale-105",
               filterStatus === option.id
                 ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30 border-transparent"
                 : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
             )}
-            style={isMobile ? { width: '100%' } : undefined}
           >
             {option.label}
           </button>
         ))}
       </div>
+      )}
 
       {/* Listings Grid - Compact on mobile (12px gap), full on desktop (32px gap) */}
       {listings.length > 0 ? (
