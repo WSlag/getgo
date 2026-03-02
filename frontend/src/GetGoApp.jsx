@@ -175,15 +175,69 @@ export default function GetGoApp() {
   } = useAuthGuard();
 
   // Mobile header scroll-to-hide for Home tab, hidden for other tabs
-  // Keep the mobile header pinned on Home to avoid jitter with nested sticky controls.
+  // Use hysteresis so header hide/show feels stable with nested sticky controls.
+  const HEADER_TOP_RESET = 8;
+  const HEADER_HIDE_SCROLL_MIN = 40;
+  const HEADER_HIDE_DOWN_THRESHOLD = 18;
+  const HEADER_SHOW_UP_THRESHOLD = 18;
+  const HEADER_DIRECTION_DELTA = 2;
+  const HEADER_REVEAL_LOCK_MS = 180;
   const headerRef = useRef(null);
+  const lastScrollY = useRef(0);
+  const downScrollDistance = useRef(0);
+  const upScrollDistance = useRef(0);
+  const revealLockUntil = useRef(0);
   const [mobileHeaderVisible, setMobileHeaderVisible] = useState(true);
   const [mobileHeaderHeight, setMobileHeaderHeight] = useState(74);
 
-  const handleHomeScroll = useCallback(() => {
-    // No-op for directional hide/reveal; keep header stable.
-    setMobileHeaderVisible((prev) => (prev ? prev : true));
-  }, []);
+  const handleHomeScroll = useCallback((e) => {
+    const scrollTop = e.currentTarget?.scrollTop ?? e.target?.scrollTop ?? 0;
+    const delta = scrollTop - lastScrollY.current;
+
+    if (scrollTop <= HEADER_TOP_RESET) {
+      if (!mobileHeaderVisible) {
+        setMobileHeaderVisible(true);
+      }
+      lastScrollY.current = scrollTop;
+      downScrollDistance.current = 0;
+      upScrollDistance.current = 0;
+      revealLockUntil.current = 0;
+      return;
+    }
+
+    if (delta > HEADER_DIRECTION_DELTA) {
+      downScrollDistance.current += delta;
+      upScrollDistance.current = 0;
+
+      if (
+        mobileHeaderVisible
+        && scrollTop > HEADER_HIDE_SCROLL_MIN
+        && (
+          downScrollDistance.current >= HEADER_HIDE_DOWN_THRESHOLD
+          || scrollTop >= HEADER_HIDE_SCROLL_MIN + 36
+        )
+      ) {
+        setMobileHeaderVisible(false);
+        revealLockUntil.current = Date.now() + HEADER_REVEAL_LOCK_MS;
+        downScrollDistance.current = 0;
+      }
+    } else if (delta < -HEADER_DIRECTION_DELTA) {
+      if (Date.now() < revealLockUntil.current) {
+        lastScrollY.current = scrollTop;
+        return;
+      }
+
+      upScrollDistance.current += Math.abs(delta);
+      downScrollDistance.current = 0;
+
+      if (!mobileHeaderVisible && upScrollDistance.current >= HEADER_SHOW_UP_THRESHOLD) {
+        setMobileHeaderVisible(true);
+        upScrollDistance.current = 0;
+      }
+    }
+
+    lastScrollY.current = scrollTop;
+  }, [mobileHeaderVisible]);
 
   const showMobileHeader = activeTab === 'home' ? mobileHeaderVisible : false;
 
@@ -251,12 +305,20 @@ export default function GetGoApp() {
   useEffect(() => {
     if (activeTab === 'home') {
       setMobileHeaderVisible(true);
+      lastScrollY.current = 0;
+      downScrollDistance.current = 0;
+      upScrollDistance.current = 0;
+      revealLockUntil.current = 0;
     }
   }, [activeTab]);
 
   // Keep header visible when marketplace controls change.
   useEffect(() => {
     setMobileHeaderVisible(true);
+    lastScrollY.current = 0;
+    downScrollDistance.current = 0;
+    upScrollDistance.current = 0;
+    revealLockUntil.current = 0;
   }, [activeMarket, filterStatus, searchQuery]);
 
   // When switching markets, also reset the filter so filter pills start fresh
