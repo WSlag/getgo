@@ -9,9 +9,9 @@ import { canBidCargoStatus, canBookTruckStatus } from '@/utils/listingStatus';
 import BrokerHomeCard from '@/components/broker/BrokerHomeCard';
 
 const ITEMS_PER_PAGE = 20;
-const TOP_RESET_THRESHOLD = 8;
-const HIDE_SCROLL_TOP_MIN = 56;
-const HIDE_DELTA_THRESHOLD = 8;
+const TOP_RESET_THRESHOLD = 2;
+const HIDE_SCROLL_TOP_MIN = 2;
+const HIDE_DELTA_THRESHOLD = 1;
 const SHOW_UP_DELTA_THRESHOLD = 20;
 const REVEAL_LOCK_MS = 350;
 
