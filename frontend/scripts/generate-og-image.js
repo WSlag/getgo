@@ -4,7 +4,7 @@ import path from 'path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const inputSvg = path.join(__dirname, '../public/social/og-getgo-1200x630.svg');
-const outputJpg = path.join(__dirname, '../public/social/og-getgo-1200x630.jpg');
+const outputJpg = path.join(__dirname, '../public/social/og-getgo-1200x630-v2.jpg');
 
 const WIDTH = 1200;
 const HEIGHT = 630;
