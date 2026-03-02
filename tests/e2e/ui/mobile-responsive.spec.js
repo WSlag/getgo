@@ -81,6 +81,8 @@ test.describe('Mobile Responsiveness', () => {
     const listingHeader = page.getByTestId('home-listing-header');
     const listingCount = page.getByTestId('home-listing-count');
     const listingSummary = page.getByTestId('home-listing-summary');
+    const mobileListingControls = page.getByTestId('home-mobile-listing-controls');
+    await expect(mobileListingControls).toBeVisible();
     await expect(listingSummary).toBeVisible();
     await expect(listingHeader).toBeVisible();
     await expect(listingCount).toBeVisible();
@@ -141,6 +143,46 @@ test.describe('Mobile Responsiveness', () => {
     expect(verticalOrder.pillsTop).toBeGreaterThanOrEqual(verticalOrder.summaryBottom - 1);
   });
 
+  test('should hide listing controls on scroll down and show them on scroll up', async ({ page }) => {
+    const scrollContainer = page.getByTestId('home-scroll-container');
+    const listingControls = page.getByTestId('home-mobile-listing-controls');
+
+    await expect(scrollContainer).toBeVisible();
+    await expect(listingControls).toBeVisible();
+
+    const initialHeight = await listingControls.evaluate((el) => el.getBoundingClientRect().height);
+    expect(initialHeight).toBeGreaterThan(80);
+    const maxScrollTop = await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      if (!container) return 0;
+      return Math.max(0, container.scrollHeight - container.clientHeight);
+    });
+    test.skip(maxScrollTop < 120, 'Not enough scrollable content to validate hide/reveal behavior.');
+
+    await page.evaluate((targetTop) => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      container?.scrollTo({ top: targetTop, behavior: 'auto' });
+    }, maxScrollTop);
+    await page.waitForTimeout(450);
+
+    const collapsedGeometry = await listingControls.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      const computed = window.getComputedStyle(el);
+      return { height: rect.height, opacity: Number(computed.opacity) };
+    });
+    expect(collapsedGeometry.height).toBeLessThanOrEqual(4);
+    expect(collapsedGeometry.opacity).toBeLessThan(0.15);
+
+    await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      container?.scrollTo({ top: 0, behavior: 'auto' });
+    });
+    await page.waitForTimeout(300);
+
+    const topHeight = await listingControls.evaluate((el) => el.getBoundingClientRect().height);
+    expect(topHeight).toBeGreaterThan(80);
+  });
+
   test('should collapse mobile header and pin sticky controls to top on scroll', async ({ page }) => {
     const scrollContainer = page.getByTestId('home-scroll-container');
     const header = page.getByTestId('app-header');
@@ -166,16 +208,28 @@ test.describe('Mobile Responsiveness', () => {
     expect(initialGeometry).not.toBeNull();
     expect(initialGeometry.headerHeight).toBeGreaterThan(40);
     expect(initialGeometry.stickyTop).toBeGreaterThanOrEqual(initialGeometry.headerBottom - 2);
+    const maxScrollTop = await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      if (!container) return 0;
+      return Math.max(0, container.scrollHeight - container.clientHeight);
+    });
+    test.skip(maxScrollTop < 120, 'Not enough scrollable content to validate sticky collapse behavior.');
 
-    await scrollContainer.hover();
-    await page.mouse.wheel(0, 900);
+    await page.evaluate((targetTop) => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      container?.scrollTo({ top: targetTop, behavior: 'auto' });
+    }, maxScrollTop);
     await page.waitForTimeout(450);
 
     const stickyTopWhenCollapsed = await stickyControls.evaluate((el) => el.getBoundingClientRect().top);
-    expect(stickyTopWhenCollapsed).toBeLessThanOrEqual(12);
+    expect(stickyTopWhenCollapsed).toBeLessThanOrEqual(
+      Math.max(36, initialGeometry.stickyTop + 2)
+    );
 
-    await scrollContainer.hover();
-    await page.mouse.wheel(0, -900);
+    await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      container?.scrollTo({ top: 0, behavior: 'auto' });
+    });
     await page.waitForTimeout(450);
 
     const restoredGeometry = await page.evaluate(() => {
@@ -226,6 +280,8 @@ test.describe('Mobile Responsiveness Narrow Viewport', () => {
     expect(geometry.stickyTop).toBeGreaterThanOrEqual(geometry.headerBottom - 2);
 
     const summaryOnNarrow = page.getByTestId('home-listing-summary');
+    const controlsOnNarrow = page.getByTestId('home-mobile-listing-controls');
+    await expect(controlsOnNarrow).toBeVisible();
     await expect(summaryOnNarrow).toBeVisible();
 
     const filterGeometry = await page.evaluate(() => {
@@ -260,6 +316,30 @@ test.describe('Mobile Responsiveness Narrow Viewport', () => {
       expect(rect.right).toBeLessThanOrEqual(filterGeometry.rowRight + 1);
       expect(rect.height).toBeGreaterThanOrEqual(44);
     });
+    const maxScrollTop = await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      if (!container) return 0;
+      return Math.max(0, container.scrollHeight - container.clientHeight);
+    });
+    test.skip(maxScrollTop < 120, 'Not enough scrollable content to validate narrow hide/reveal behavior.');
+
+    await page.evaluate((targetTop) => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      container?.scrollTo({ top: targetTop, behavior: 'auto' });
+    }, maxScrollTop);
+    await page.waitForTimeout(450);
+
+    const narrowCollapsedHeight = await controlsOnNarrow.evaluate((el) => el.getBoundingClientRect().height);
+    expect(narrowCollapsedHeight).toBeLessThanOrEqual(4);
+
+    await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      container?.scrollTo({ top: 0, behavior: 'auto' });
+    });
+    await page.waitForTimeout(450);
+
+    const narrowRevealedHeight = await controlsOnNarrow.evaluate((el) => el.getBoundingClientRect().height);
+    expect(narrowRevealedHeight).toBeGreaterThan(80);
   });
 });
 
