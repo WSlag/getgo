@@ -9,7 +9,8 @@
     "lint": "eslint src",
     "test": "npm run lint && npm run build",
     "preview": "vite preview",
-    "generate-icons": "node scripts/generate-icons.js"
+    "generate-icons": "node scripts/generate-icons.js",
+    "generate:og": "node scripts/generate-og-image.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.6",

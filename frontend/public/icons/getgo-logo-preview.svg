@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">GetGo Logo Preview</title>
+  <desc id="desc">Orange rounded-square logo with a white truck and the text GetGo.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF9A56" />
+      <stop offset="55%" stop-color="#FF6B35" />
+      <stop offset="100%" stop-color="#FF5722" />
+    </linearGradient>
+  </defs>
+
+  <rect x="20" y="20" width="472" height="472" rx="96" fill="url(#bg)" />
+
+  <text
+    x="256"
+    y="170"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="72"
+    font-weight="700"
+    fill="#FFFFFF"
+    letter-spacing="-1.5"
+  >
+    GetGo
+  </text>
+
+  <rect x="86" y="230" width="212" height="116" rx="14" fill="#FFFFFF" />
+  <rect x="300" y="264" width="122" height="82" rx="14" fill="#FFFFFF" />
+  <rect x="325" y="280" width="64" height="42" rx="8" fill="#FF8B50" />
+
+  <circle cx="164" cy="370" r="34" fill="#FF6B35" />
+  <circle cx="252" cy="370" r="34" fill="#FF6B35" />
+  <circle cx="372" cy="370" r="34" fill="#FF6B35" />
+
+  <circle cx="164" cy="370" r="18" fill="#FFFFFF" />
+  <circle cx="252" cy="370" r="18" fill="#FFFFFF" />
+  <circle cx="372" cy="370" r="18" fill="#FFFFFF" />
+</svg>
