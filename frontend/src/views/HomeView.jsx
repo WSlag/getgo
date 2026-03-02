@@ -47,6 +47,7 @@ export function HomeView({
   onPostListing,
   onScroll,
   mobileHeaderVisible = true,
+  mobileHeaderHeight = 74,
 }) {
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
@@ -86,9 +87,9 @@ export function HomeView({
   const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
   const showSavedSearchesCard = !isMobile || savedSearches.length > 0 || hasCurrentSearchPreset;
   const mobileStickyPaddingTop = mobileHeaderVisible ? 6 : 8;
-  // Header is position:fixed on mobile — sticky controls need matching top offset
-  const MOBILE_HEADER_HEIGHT = 74;
-  const mobileStickyTop = mobileHeaderVisible ? MOBILE_HEADER_HEIGHT : 0;
+  // Header is fixed on mobile; sticky controls follow measured header height.
+  const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
+  const mobileStickyTop = mobileHeaderVisible ? Math.max(0, resolvedMobileHeaderHeight) : 0;
 
   return (
     <main

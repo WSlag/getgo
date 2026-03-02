@@ -22,6 +22,7 @@ export function Header({
   onHelpSupport,
   user = {},
   mobileVisible = true,
+  headerRef = null,
 }) {
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
@@ -31,6 +32,7 @@ export function Header({
   ];
   return (
     <header
+      ref={headerRef}
       data-testid="app-header"
       className={cn(
         "z-50 backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 border-b border-gray-200/50 dark:border-gray-800/50",

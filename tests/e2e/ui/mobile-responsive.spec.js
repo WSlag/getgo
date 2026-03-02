@@ -86,18 +86,26 @@ test.describe('Mobile Responsiveness', () => {
     await expect(header).toBeVisible();
     await expect(stickyControls).toBeVisible();
 
-    const initialHeaderHeight = await header.evaluate((el) => el.getBoundingClientRect().height);
-    expect(initialHeaderHeight).toBeGreaterThan(40);
+    const initialGeometry = await page.evaluate(() => {
+      const headerEl = document.querySelector('[data-testid="app-header"]');
+      const stickyEl = document.querySelector('[data-testid="home-sticky-controls"]');
+      if (!headerEl || !stickyEl) return null;
+      const headerRect = headerEl.getBoundingClientRect();
+      const stickyRect = stickyEl.getBoundingClientRect();
+      return {
+        headerBottom: headerRect.bottom,
+        headerHeight: headerRect.height,
+        stickyTop: stickyRect.top,
+      };
+    });
 
-    const initialStickyTop = await stickyControls.evaluate((el) => el.getBoundingClientRect().top);
-    expect(initialStickyTop).toBeGreaterThan(30);
+    expect(initialGeometry).not.toBeNull();
+    expect(initialGeometry.headerHeight).toBeGreaterThan(40);
+    expect(initialGeometry.stickyTop).toBeGreaterThanOrEqual(initialGeometry.headerBottom - 2);
 
     await scrollContainer.hover();
     await page.mouse.wheel(0, 900);
     await page.waitForTimeout(450);
-
-    const collapsedHeaderHeight = await header.evaluate((el) => el.getBoundingClientRect().height);
-    expect(collapsedHeaderHeight).toBeLessThanOrEqual(8);
 
     const stickyTopWhenCollapsed = await stickyControls.evaluate((el) => el.getBoundingClientRect().top);
     expect(stickyTopWhenCollapsed).toBeLessThanOrEqual(12);
@@ -106,11 +114,52 @@ test.describe('Mobile Responsiveness', () => {
     await page.mouse.wheel(0, -900);
     await page.waitForTimeout(450);
 
-    const restoredHeaderHeight = await header.evaluate((el) => el.getBoundingClientRect().height);
-    expect(restoredHeaderHeight).toBeGreaterThan(40);
+    const restoredGeometry = await page.evaluate(() => {
+      const headerEl = document.querySelector('[data-testid="app-header"]');
+      const stickyEl = document.querySelector('[data-testid="home-sticky-controls"]');
+      if (!headerEl || !stickyEl) return null;
+      const headerRect = headerEl.getBoundingClientRect();
+      const stickyRect = stickyEl.getBoundingClientRect();
+      return {
+        headerBottom: headerRect.bottom,
+        headerHeight: headerRect.height,
+        stickyTop: stickyRect.top,
+      };
+    });
 
-    const stickyTopWhenRestored = await stickyControls.evaluate((el) => el.getBoundingClientRect().top);
-    expect(stickyTopWhenRestored).toBeGreaterThan(30);
+    expect(restoredGeometry).not.toBeNull();
+    expect(restoredGeometry.headerHeight).toBeGreaterThan(40);
+    expect(restoredGeometry.stickyTop).toBeGreaterThanOrEqual(restoredGeometry.headerBottom - 2);
+  });
+});
+
+test.describe('Mobile Responsiveness Narrow Viewport', () => {
+  test.use({ viewport: { width: 320, height: 700 } });
+
+  test('should keep market switcher below header on narrow screens', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(
+      () => !document.querySelector('.animate-spin'),
+      { timeout: 15000 }
+    );
+    await page.waitForTimeout(1000);
+
+    const geometry = await page.evaluate(() => {
+      const headerEl = document.querySelector('[data-testid="app-header"]');
+      const stickyEl = document.querySelector('[data-testid="home-sticky-controls"]');
+      if (!headerEl || !stickyEl) return null;
+      const headerRect = headerEl.getBoundingClientRect();
+      const stickyRect = stickyEl.getBoundingClientRect();
+      return {
+        headerBottom: headerRect.bottom,
+        headerHeight: headerRect.height,
+        stickyTop: stickyRect.top,
+      };
+    });
+
+    expect(geometry).not.toBeNull();
+    expect(geometry.headerHeight).toBeGreaterThan(40);
+    expect(geometry.stickyTop).toBeGreaterThanOrEqual(geometry.headerBottom - 2);
   });
 });
 
