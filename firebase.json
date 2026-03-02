@@ -16,7 +16,9 @@
         "firebase-debug.log",
         "firebase-debug.*.log"
       ],
-      "predeploy": []
+      "predeploy": [
+        "node scripts/guard-firebase-project.cjs functions"
+      ]
     }
   ],
   "hosting": {
@@ -143,6 +145,9 @@
         "source": "**",
         "destination": "/index.html"
       }
+    ],
+    "predeploy": [
+      "node scripts/guard-firebase-project.cjs hosting:main"
     ]
   },
   "emulators": {
