@@ -120,6 +120,10 @@ export function TruckDetailsModal({
 
   if (!truck) return null;
   const displayStatus = truck.uiStatus || toTruckUiStatus(truck.status);
+  const canBookNow = !isOwner && currentRole === 'shipper' && canBookTruckStatus(truck.status);
+  const canReopen = isOwner && truck.status === 'negotiating';
+  const canReferListing = isBroker && !isOwner && canRefer && onRefer;
+  const hasPrimaryFooterActions = canBookNow || canReopen || canReferListing;
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -609,8 +613,15 @@ export function TruckDetailsModal({
         )}
 
         {/* Action Buttons */}
-        <div className="flex" style={{ gap: isMobile ? '8px' : '12px', paddingTop: isMobile ? '16px' : '20px' }}>
-          {!isOwner && currentRole === 'shipper' && canBookTruckStatus(truck.status) && (
+        <div
+          className="flex"
+          style={{
+            gap: isMobile ? '8px' : '12px',
+            paddingTop: isMobile ? '16px' : '20px',
+            alignItems: 'stretch',
+          }}
+        >
+          {canBookNow && (
             <Button
               variant="gradient"
               size={isMobile ? "default" : "lg"}
@@ -620,7 +631,7 @@ export function TruckDetailsModal({
               Book Now
             </Button>
           )}
-          {isOwner && truck.status === 'negotiating' && (
+          {canReopen && (
             <Button
               variant="outline"
               size={isMobile ? "default" : "lg"}
@@ -631,7 +642,7 @@ export function TruckDetailsModal({
               Reopen for Booking
             </Button>
           )}
-          {isBroker && !isOwner && canRefer && onRefer && (
+          {canReferListing && (
             <Button
               variant="outline"
               size={isMobile ? "default" : "lg"}
@@ -642,10 +653,10 @@ export function TruckDetailsModal({
             </Button>
           )}
           <Button
-            variant="ghost"
+            variant={hasPrimaryFooterActions ? "outline" : "ghost"}
             size={isMobile ? "default" : "lg"}
             onClick={onClose}
-            className="w-full"
+            className={hasPrimaryFooterActions ? "flex-1" : "w-full"}
           >
             Close
           </Button>
