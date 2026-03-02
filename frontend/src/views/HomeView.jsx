@@ -105,7 +105,9 @@ export function HomeView({
   // Header is fixed on mobile; reserve that height with a spacer so sticky
   // controls do not visually overlap listing cards.
   const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
-  const mobileHeaderSpacerHeight = mobileHeaderVisible ? Math.max(0, resolvedMobileHeaderHeight) : 0;
+  // Keep spacer height stable to avoid layout jumps when the mobile header
+  // animates in/out of view while scrolling.
+  const mobileHeaderSpacerHeight = Math.max(0, resolvedMobileHeaderHeight);
   const listingHeaderTitle = activeMarket === 'cargo'
     ? (currentRole === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
     : (currentRole === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks');
@@ -227,8 +229,10 @@ export function HomeView({
       {isMobile && (
         <div
           aria-hidden="true"
-          className="max-lg:transition-[height] max-lg:duration-300 max-lg:ease-out"
-          style={{ height: `${mobileHeaderSpacerHeight}px` }}
+          style={{
+            height: `${mobileHeaderSpacerHeight}px`,
+            overflowAnchor: 'none',
+          }}
         />
       )}
 
@@ -242,6 +246,7 @@ export function HomeView({
         style={{
           padding: isMobile ? `${mobileStickyPaddingTop}px 16px 0` : '0',
           top: isMobile ? '0px' : undefined,
+          overflowAnchor: 'none',
         }}
       >
         {/* Mobile Market Switcher - only visible on mobile */}
@@ -314,6 +319,7 @@ export function HomeView({
               overflow: 'hidden',
               pointerEvents: showMobileListingControls ? 'auto' : 'none',
               paddingBottom: showMobileListingControls ? '16px' : '0px',
+              overflowAnchor: 'none',
             }}
           >
             <div

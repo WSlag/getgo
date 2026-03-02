@@ -299,7 +299,7 @@ export default function GetGoApp() {
         resizeObserver.disconnect();
       }
     };
-  }, [showMobileHeader]);
+  }, []);
 
   // Reset mobile header when switching to home tab
   useEffect(() => {
