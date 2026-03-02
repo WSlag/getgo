@@ -55,12 +55,13 @@ export function HomeView({
 
   // Pagination: show ITEMS_PER_PAGE at a time with "Load More"
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
-  const [controlsHeight, setControlsHeight] = useState(140);
+  // Fixed height for mobile controls (market tabs + search bar only, no filter pills)
+  // Using a fixed value avoids ResizeObserver-triggered re-renders that cause scroll jumps
+  const controlsHeight = 110;
   const visibleListings = listings.slice(0, visibleCount);
   const hasMore = visibleCount < listings.length;
 
   const scrollContainerRef = useRef(null);
-  const controlsRef = useRef(null);
 
   // Detect mobile screen for compact cards
   const isMobile = useMediaQuery('(max-width: 1023px)');
@@ -72,19 +73,6 @@ export function HomeView({
       scrollContainerRef.current.scrollTop = 0;
     }
   }, [activeMarket, filterStatus, searchQuery]);
-
-  // Measure controls height so spacer stays accurate
-  useEffect(() => {
-    if (!isMobile || !controlsRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      const h = entries[0]?.contentRect?.height;
-      if (Number.isFinite(h) && h > 0) {
-        setControlsHeight((prev) => (Math.abs(prev - h) > 0.5 ? h : prev));
-      }
-    });
-    observer.observe(controlsRef.current);
-    return () => observer.disconnect();
-  }, [isMobile]);
 
   const filterOptions = [
     { id: 'all', label: 'All' },
@@ -155,7 +143,6 @@ export function HomeView({
       )}
 
       <div
-        ref={controlsRef}
         data-testid="home-sticky-controls"
         className={cn(
           "lg:relative lg:z-auto",
@@ -228,47 +215,6 @@ export function HomeView({
           </div>
         </div>
 
-        {isMobile && (
-          <div
-            data-testid="home-mobile-listing-controls"
-            style={{
-              maxHeight: mobileHeaderVisible ? '120px' : '0px',
-              opacity: mobileHeaderVisible ? 1 : 0,
-              overflow: 'hidden',
-              paddingBottom: mobileHeaderVisible ? '16px' : '0px',
-              transition: 'max-height 300ms ease-out, opacity 300ms ease-out, padding-bottom 300ms ease-out',
-              overflowAnchor: 'none',
-            }}
-          >
-            <div
-              data-testid="home-filter-pills"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                gap: '8px',
-                alignItems: 'stretch',
-              }}
-            >
-              {filterOptions.map((option) => (
-                <button
-                  key={option.id}
-                  data-testid={`home-filter-pill-${option.id}`}
-                  onClick={() => onFilterChange?.(option.id)}
-                  className={cn(
-                    "rounded-xl font-medium transition-all duration-300 active:scale-95 min-h-11 border flex items-center justify-center text-center",
-                    "w-full min-w-0 text-xs px-2 py-2.5 whitespace-normal leading-tight",
-                    filterStatus === option.id
-                      ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30 border-transparent"
-                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
-                  )}
-                  style={{ width: '100%' }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Spacer: reserves constant space for fixed header + controls on mobile so content is never hidden behind them */}
