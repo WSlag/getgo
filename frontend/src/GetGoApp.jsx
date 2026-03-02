@@ -175,25 +175,14 @@ export default function GetGoApp() {
   } = useAuthGuard();
 
   // Mobile header scroll-to-hide for Home tab, hidden for other tabs
-  // Header is position:fixed on mobile so show/hide never causes layout shift
+  // Keep the mobile header pinned on Home to avoid jitter with nested sticky controls.
   const headerRef = useRef(null);
-  const lastScrollY = useRef(0);
-  const hiddenHeaderScrollY = useRef(0);
   const [mobileHeaderVisible, setMobileHeaderVisible] = useState(true);
   const [mobileHeaderHeight, setMobileHeaderHeight] = useState(74);
 
-  const handleHomeScroll = useCallback((e) => {
-    const scrollTop = e.currentTarget?.scrollTop ?? e.target?.scrollTop ?? 0;
-    const delta = scrollTop - lastScrollY.current;
-    if (scrollTop <= 8) {
-      setMobileHeaderVisible(true);
-    } else if (delta > 6 && scrollTop > 50) {
-      setMobileHeaderVisible(false);
-      hiddenHeaderScrollY.current = scrollTop;
-    } else if (delta < -6 && scrollTop < hiddenHeaderScrollY.current - 24) {
-      setMobileHeaderVisible(true);
-    }
-    lastScrollY.current = scrollTop;
+  const handleHomeScroll = useCallback(() => {
+    // No-op for directional hide/reveal; keep header stable.
+    setMobileHeaderVisible((prev) => (prev ? prev : true));
   }, []);
 
   const showMobileHeader = activeTab === 'home' ? mobileHeaderVisible : false;
@@ -262,16 +251,11 @@ export default function GetGoApp() {
   useEffect(() => {
     if (activeTab === 'home') {
       setMobileHeaderVisible(true);
-      lastScrollY.current = 0;
-      hiddenHeaderScrollY.current = 0;
     }
   }, [activeTab]);
 
-  // Reset scroll tracking refs when market/filter/search changes so stale
-  // deltas don't cause the header to flicker after content reflows
+  // Keep header visible when marketplace controls change.
   useEffect(() => {
-    lastScrollY.current = 0;
-    hiddenHeaderScrollY.current = 0;
     setMobileHeaderVisible(true);
   }, [activeMarket, filterStatus, searchQuery]);
 
