@@ -7,8 +7,11 @@ import { initSentry } from './services/sentryService'
 
 initSentry();
 
+const APP_BUILD_ID = typeof __APP_BUILD_ID__ === 'string' ? __APP_BUILD_ID__ : 'dev';
 const CHUNK_RELOAD_WINDOW_MS = 30000;
 const CHUNK_RELOAD_KEY = 'karga_chunk_reload_ts';
+const BUILD_ID_STORAGE_KEY = 'getgo_build_id';
+const BUILD_REFRESH_GUARD_KEY = 'getgo_build_refresh_guard';
 
 function isDynamicImportFailure(reason) {
   const message = String(reason?.message || reason || '');
@@ -32,7 +35,48 @@ function recoverFromChunkLoadFailure(reason) {
   window.location.reload();
 }
 
+async function syncBuildVersionAndRefreshCaches() {
+  if (typeof window === 'undefined') return;
+
+  const previousBuildId = window.localStorage.getItem(BUILD_ID_STORAGE_KEY);
+  if (!previousBuildId) {
+    window.localStorage.setItem(BUILD_ID_STORAGE_KEY, APP_BUILD_ID);
+    return;
+  }
+
+  if (previousBuildId === APP_BUILD_ID) {
+    window.sessionStorage.removeItem(BUILD_REFRESH_GUARD_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(BUILD_ID_STORAGE_KEY, APP_BUILD_ID);
+
+  // Prevent reload loops if cache clearing fails for any reason.
+  if (window.sessionStorage.getItem(BUILD_REFRESH_GUARD_KEY) === APP_BUILD_ID) {
+    return;
+  }
+  window.sessionStorage.setItem(BUILD_REFRESH_GUARD_KEY, APP_BUILD_ID);
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+
+    if ('caches' in window) {
+      const cacheKeys = await window.caches.keys();
+      await Promise.all(cacheKeys.map((key) => window.caches.delete(key)));
+    }
+  } catch (error) {
+    console.warn('[app] Failed to clear old caches after build upgrade:', error);
+  }
+
+  window.location.reload();
+}
+
 if (typeof window !== 'undefined') {
+  syncBuildVersionAndRefreshCaches();
+
   window.addEventListener('vite:preloadError', (event) => {
     event.preventDefault();
     recoverFromChunkLoadFailure(event?.payload || event?.error || 'vite:preloadError');
