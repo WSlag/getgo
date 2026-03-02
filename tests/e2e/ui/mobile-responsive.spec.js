@@ -137,7 +137,7 @@ test.describe('Mobile Responsiveness', () => {
     expect(verticalOrder.pillsTop).toBeGreaterThanOrEqual(verticalOrder.searchBottom - 1);
   });
 
-  test('should hide listing controls on scroll down and show them on scroll up', async ({ page }) => {
+  test('should keep listing controls stable while scrolling', async ({ page }) => {
     const scrollContainer = page.getByTestId('home-scroll-container');
     const listingControls = page.getByTestId('home-mobile-listing-controls');
 
@@ -159,13 +159,13 @@ test.describe('Mobile Responsiveness', () => {
     }, maxScrollTop);
     await page.waitForTimeout(450);
 
-    const collapsedGeometry = await listingControls.evaluate((el) => {
+    const scrolledGeometry = await listingControls.evaluate((el) => {
       const rect = el.getBoundingClientRect();
       const computed = window.getComputedStyle(el);
       return { height: rect.height, opacity: Number(computed.opacity) };
     });
-    expect(collapsedGeometry.height).toBeLessThanOrEqual(4);
-    expect(collapsedGeometry.opacity).toBeLessThan(0.15);
+    expect(scrolledGeometry.height).toBeGreaterThanOrEqual(44);
+    expect(scrolledGeometry.opacity).toBeGreaterThan(0.95);
 
     await page.evaluate(() => {
       const container = document.querySelector('[data-testid="home-scroll-container"]');
@@ -202,6 +202,23 @@ test.describe('Mobile Responsiveness', () => {
     expect(initialGeometry).not.toBeNull();
     expect(initialGeometry.headerHeight).toBeGreaterThan(40);
     expect(initialGeometry.stickyTop).toBeGreaterThanOrEqual(initialGeometry.headerBottom - 2);
+
+    const warmupScrollTop = await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      if (!container) return 0;
+      return Math.min(24, Math.max(0, container.scrollHeight - container.clientHeight));
+    });
+    if (warmupScrollTop > 0) {
+      await page.evaluate((targetTop) => {
+        const container = document.querySelector('[data-testid="home-scroll-container"]');
+        container?.scrollTo({ top: targetTop, behavior: 'auto' });
+      }, warmupScrollTop);
+      await page.waitForTimeout(160);
+
+      const warmupStickyTop = await stickyControls.evaluate((el) => el.getBoundingClientRect().top);
+      expect(warmupStickyTop).toBeGreaterThanOrEqual(initialGeometry.stickyTop - 3);
+    }
+
     const maxScrollTop = await page.evaluate(() => {
       const container = document.querySelector('[data-testid="home-scroll-container"]');
       if (!container) return 0;
@@ -317,8 +334,8 @@ test.describe('Mobile Responsiveness Narrow Viewport', () => {
     }, maxScrollTop);
     await page.waitForTimeout(450);
 
-    const narrowCollapsedHeight = await controlsOnNarrow.evaluate((el) => el.getBoundingClientRect().height);
-    expect(narrowCollapsedHeight).toBeLessThanOrEqual(4);
+    const narrowScrolledHeight = await controlsOnNarrow.evaluate((el) => el.getBoundingClientRect().height);
+    expect(narrowScrolledHeight).toBeGreaterThanOrEqual(44);
 
     await page.evaluate(() => {
       const container = document.querySelector('[data-testid="home-scroll-container"]');
