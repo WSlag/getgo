@@ -1,5 +1,11 @@
 import { test as base } from '@playwright/test';
-import { TEST_PHONE_NUMBERS, TEST_EMAILS, TEST_OTP_CODE, clearEmulatorData } from '../utils/test-data.js';
+import {
+  TEST_PHONE_NUMBERS,
+  TEST_EMAILS,
+  TEST_OTP_CODE,
+  EMULATOR_PROJECT_ID,
+  clearEmulatorData,
+} from '../utils/test-data.js';
 
 async function waitForSpinnerToClear(page, timeoutMs = 60000) {
   const deadline = Date.now() + timeoutMs;
@@ -151,7 +157,7 @@ export const test = base.extend({
         let otpCode = TEST_OTP_CODE; // fallback
         try {
           const resp = await fetch(
-            'http://127.0.0.1:9099/emulator/v1/projects/karga-ph/verificationCodes'
+            `http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/verificationCodes`
           );
           if (resp.ok) {
             const data = await resp.json();
@@ -434,7 +440,7 @@ export const test = base.extend({
       },
 
       async getLatestMagicLink(email) {
-        const resp = await fetch('http://127.0.0.1:9099/emulator/v1/projects/karga-ph/oobCodes');
+        const resp = await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/oobCodes`);
         if (!resp.ok) {
           throw new Error(`Failed to read oob codes from emulator: ${resp.status}`);
         }

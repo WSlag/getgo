@@ -1,6 +1,6 @@
 [
   {
-    "origin": ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "https://karga-ph.web.app", "https://karga-ph.firebaseapp.com", "https://karga.ph", "https://www.karga.ph"],
+    "origin": ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "https://getgoph.web.app", "https://getgoph-a09bb.web.app", "https://getgoph-a09bb.firebaseapp.com", "https://karga.ph", "https://www.karga.ph", "https://karga-ph.web.app", "https://karga-ph.firebaseapp.com"],
     "method": ["GET", "POST", "PUT", "DELETE", "HEAD"],
     "maxAgeSeconds": 3600,
     "responseHeader": ["Content-Type", "Authorization", "Content-Length", "User-Agent", "x-goog-resumable"]

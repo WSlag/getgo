@@ -1,5 +1,24 @@
 {
   "projects": {
-    "default": "karga-ph"
-  }
+    "default": "getgoph-a09bb",
+    "prod-karga": "karga-ph",
+    "prod-getgoph": "getgoph-a09bb"
+  },
+  "targets": {
+    "getgoph-a09bb": {
+      "hosting": {
+        "main": [
+          "getgoph"
+        ]
+      }
+    },
+    "karga-ph": {
+      "hosting": {
+        "main": [
+          "karga-ph"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

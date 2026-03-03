@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+process.env.PW_FIREBASE_PROJECT_ID = process.env.PW_FIREBASE_PROJECT_ID || 'karga-ph';
+
 /**
  * Playwright E2E Test Configuration for Karga Marketplace
  *

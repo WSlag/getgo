@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
@@ -61,6 +61,7 @@ export function useMyBids(userId) {
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const deniedListingReadsRef = useRef(new Set());
 
   useEffect(() => {
     if (!userId) {
@@ -68,6 +69,7 @@ export function useMyBids(userId) {
       setLoading(false);
       return;
     }
+    deniedListingReadsRef.current.clear();
 
     const q = query(
       collection(db, 'bids'),
@@ -90,8 +92,14 @@ export function useMyBids(userId) {
             // Determine which listing to fetch
             const listingId = bid.cargoListingId || bid.truckListingId;
             const listingCollection = bid.cargoListingId ? 'cargoListings' : 'truckListings';
+            const listingKey = `${listingCollection}:${listingId}`;
 
             if (!listingId) return bid;
+            // Most display fields are copied into bid at write time.
+            // Skip extra reads unless core fields are missing.
+            const needsListingRead = !bid.origin || !bid.destination || !bid.listingOwnerName || !bid.listingOwnerId;
+            if (!needsListingRead) return bid;
+            if (deniedListingReadsRef.current.has(listingKey)) return bid;
 
             try {
               const listingRef = doc(db, listingCollection, listingId);
@@ -123,7 +131,15 @@ export function useMyBids(userId) {
                 };
               }
             } catch (err) {
-              console.warn('Error fetching listing for bid:', bid.id, err);
+              if (err?.code === 'permission-denied') {
+                // Avoid retrying/logging the same denied listing on every snapshot update.
+                deniedListingReadsRef.current.add(listingKey);
+                if (import.meta.env.DEV) {
+                  console.warn('Skipping denied listing read for bid:', bid.id, listingKey);
+                }
+              } else {
+                console.warn('Error fetching listing for bid:', bid.id, err);
+              }
             }
 
             return bid;

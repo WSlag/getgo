@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>QR Code Generator — karga.ph</title>
+<style>
+  body { font-family: monospace; background: #111; color: #eee; padding: 20px; }
+  #qr-output { margin: 20px 0; }
+  #svg-code { width: 100%; height: 300px; background: #222; color: #0f0; padding: 10px; font-size: 11px; border: 1px solid #444; }
+  button { background: #f7941d; color: #000; border: none; padding: 10px 20px; font-size: 14px; cursor: pointer; margin: 5px; border-radius: 4px; font-weight: bold; }
+</style>
+</head>
+<body>
+<h2>GetGo PH QR Code — https://getgoph.web.app</h2>
+<div id="qr-output"></div>
+<br>
+<button onclick="copyInlineSVG()">Copy Inline SVG (for HTML embedding)</button>
+<button onclick="copyDataURI()">Copy as Data URI (img src)</button>
+<br><br>
+<textarea id="svg-code" placeholder="SVG code will appear here..."></textarea>
+
+<script>
+// ─── Minimal QR Code encoder (Version 2, ECC Level M, byte mode) ───────────
+// Encodes short URLs reliably into a scannable QR code
+
+const URL_TO_ENCODE = "https://getgoph.web.app";
+
+// GF(256) arithmetic for Reed-Solomon
+const GF_EXP = new Uint8Array(512);
+const GF_LOG = new Uint8Array(256);
+(function initGF() {
+  let x = 1;
+  for (let i = 0; i < 255; i++) {
+    GF_EXP[i] = x;
+    GF_LOG[x] = i;
+    x = x << 1;
+    if (x & 0x100) x ^= 0x11d;
+  }
+  for (let i = 255; i < 512; i++) GF_EXP[i] = GF_EXP[i - 255];
+})();
+
+function gfMul(a, b) {
+  if (a === 0 || b === 0) return 0;
+  return GF_EXP[GF_LOG[a] + GF_LOG[b]];
+}
+
+function gfPolyMul(p, q) {
+  const r = new Uint8Array(p.length + q.length - 1);
+  for (let i = 0; i < p.length; i++)
+    for (let j = 0; j < q.length; j++)
+      r[i + j] ^= gfMul(p[i], q[j]);
+  return r;
+}
+
+function rsGeneratorPoly(degree) {
+  let g = new Uint8Array([1]);
+  for (let i = 0; i < degree; i++)
+    g = gfPolyMul(g, new Uint8Array([1, GF_EXP[i]]));
+  return g;
+}
+
+function rsEncode(data, nsym) {
+  const gen = rsGeneratorPoly(nsym);
+  const msg = new Uint8Array(data.length + nsym);
+  msg.set(data);
+  for (let i = 0; i < data.length; i++) {
+    const coef = msg[i];
+    if (coef !== 0)
+      for (let j = 1; j < gen.length; j++)
+        msg[i + j] ^= gfMul(gen[j], coef);
+  }
+  return msg.slice(data.length);
+}
+
+// QR Version 2 (25×25), ECC M = 16 EC codewords, 28 data codewords
+function encodeQR(text) {
+  const VERSION = 2;
+  const SIZE = 17 + VERSION * 4; // 25
+  const EC_CODEWORDS = 16;
+
+  // Build data bits: mode(byte=0100) + char count + data + terminator + padding
+  const bytes = [];
+  for (let i = 0; i < text.length; i++) bytes.push(text.charCodeAt(i));
+
+  const bits = [];
+  const push = (val, len) => {
+    for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1);
+  };
+
+  push(0b0100, 4);       // Byte mode
+  push(bytes.length, 8); // Char count
+  for (const b of bytes) push(b, 8);
+  push(0, 4); // Terminator
+  while (bits.length % 8) bits.push(0); // Byte align
+
+  const codewords = [];
+  for (let i = 0; i < bits.length; i += 8) {
+    let b = 0;
+    for (let j = 0; j < 8; j++) b = (b << 1) | (bits[i + j] || 0);
+    codewords.push(b);
+  }
+
+  // Pad to capacity (28 data codewords for V2-M)
+  const DATA_CODEWORDS = 28;
+  const PAD = [0xec, 0x11];
+  let pi = 0;
+  while (codewords.length < DATA_CODEWORDS) codewords.push(PAD[pi++ % 2]);
+
+  const ecBytes = rsEncode(new Uint8Array(codewords), EC_CODEWORDS);
+  const finalCodewords = [...codewords, ...ecBytes];
+
+  // Convert to final bit stream
+  const finalBits = [];
+  for (const cw of finalCodewords)
+    for (let i = 7; i >= 0; i--) finalBits.push((cw >> i) & 1);
+
+  // Initialize matrix
+  const mat = Array.from({ length: SIZE }, () => new Array(SIZE).fill(-1));
+  const used = Array.from({ length: SIZE }, () => new Array(SIZE).fill(false));
+
+  function setModule(r, c, v) {
+    mat[r][c] = v;
+    used[r][c] = true;
+  }
+
+  // Finder pattern
+  function drawFinder(r, c) {
+    for (let dr = -1; dr <= 7; dr++)
+      for (let dc = -1; dc <= 7; dc++) {
+        const rr = r + dr, cc = c + dc;
+        if (rr < 0 || rr >= SIZE || cc < 0 || cc >= SIZE) continue;
+        const inOuter = dr >= 0 && dr <= 6 && (dc === 0 || dc === 6 || dr === 0 || dr === 6);
+        const inInner = dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4;
+        const inSep = dr === -1 || dr === 7 || dc === -1 || dc === 7;
+        setModule(rr, cc, inSep ? 0 : (inOuter || inInner ? 1 : 0));
+      }
+  }
+
+  drawFinder(0, 0);
+  drawFinder(0, SIZE - 7);
+  drawFinder(SIZE - 7, 0);
+
+  // Timing patterns
+  for (let i = 8; i < SIZE - 8; i++) {
+    setModule(6, i, i % 2 === 0 ? 1 : 0);
+    setModule(i, 6, i % 2 === 0 ? 1 : 0);
+  }
+
+  // Alignment pattern (V2: one at row 18, col 18)
+  const ALIGN_POS = [18];
+  for (const ar of ALIGN_POS)
+    for (const ac of ALIGN_POS) {
+      if (used[ar][ac]) continue;
+      for (let dr = -2; dr <= 2; dr++)
+        for (let dc = -2; dc <= 2; dc++) {
+          const isOuter = Math.abs(dr) === 2 || Math.abs(dc) === 2;
+          const isCenter = dr === 0 && dc === 0;
+          setModule(ar + dr, ac + dc, isOuter || isCenter ? 1 : 0);
+        }
+    }
+
+  // Format info placeholder (dark module)
+  setModule(8, SIZE - 8, 1);
+
+  // Reserve format info areas
+  function reserveFormat(r, c) { if (!used[r][c]) { used[r][c] = true; } }
+  for (let i = 0; i <= 8; i++) {
+    reserveFormat(8, i); reserveFormat(i, 8);
+    reserveFormat(8, SIZE - 1 - i); reserveFormat(SIZE - 1 - i, 8);
+  }
+
+  // Place data bits (zigzag)
+  let bitIdx = 0;
+  let upward = true;
+  for (let right = SIZE - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (let vert = 0; vert < SIZE; vert++) {
+      const row = upward ? SIZE - 1 - vert : vert;
+      for (let lr = 0; lr < 2; lr++) {
+        const col = right - lr;
+        if (!used[row][col]) {
+          mat[row][col] = bitIdx < finalBits.length ? finalBits[bitIdx] : 0;
+          bitIdx++;
+        }
+      }
+    }
+    upward = !upward;
+  }
+
+  // Apply mask pattern 0: (row+col) % 2 === 0
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++)
+      if (!used[r][c] && (r + c) % 2 === 0) mat[r][c] ^= 1;
+
+  // Write format string for ECC=M(01), mask=0(000): 101010000010010
+  const FORMAT = [1,0,1,0,1,0,0,0,0,0,1,0,0,1,0];
+  let fi = 0;
+  for (let i = 0; i <= 5; i++) { mat[8][i] = FORMAT[fi]; mat[i][8] = FORMAT[14 - fi]; fi++; }
+  mat[8][7] = FORMAT[6]; mat[7][8] = FORMAT[8];
+  mat[8][8] = FORMAT[7];
+  for (let i = 0; i < 7; i++) {
+    mat[SIZE - 1 - i][8] = FORMAT[i];
+    mat[8][SIZE - 1 - i] = FORMAT[14 - i];
+  }
+
+  return { mat, size: SIZE };
+}
+
+function renderQRtoSVG(text, pixelSize = 8, quietZone = 4) {
+  const { mat, size } = encodeQR(text);
+  const total = (size + quietZone * 2) * pixelSize;
+  let rects = '';
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (mat[r][c] === 1) {
+        const x = (c + quietZone) * pixelSize;
+        const y = (r + quietZone) * pixelSize;
+        rects += `<rect x="${x}" y="${y}" width="${pixelSize}" height="${pixelSize}" fill="#000"/>`;
+      }
+    }
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" width="${total}" height="${total}" shape-rendering="crispEdges">
+  <rect width="${total}" height="${total}" fill="#fff"/>
+  ${rects}
+</svg>`;
+}
+
+// Render and display
+const svgString = renderQRtoSVG(URL_TO_ENCODE, 8, 4);
+document.getElementById('qr-output').innerHTML = svgString;
+document.getElementById('svg-code').value = svgString;
+
+function copyInlineSVG() {
+  const ta = document.getElementById('svg-code');
+  ta.select();
+  document.execCommand('copy');
+  alert('Inline SVG copied! Paste into HTML files.');
+}
+
+function copyDataURI() {
+  const encoded = btoa(unescape(encodeURIComponent(svgString)));
+  const dataURI = `data:image/svg+xml;base64,${encoded}`;
+  navigator.clipboard.writeText(dataURI).then(() => alert('Data URI copied!'));
+}
+</script>
+</body>
+</html>
