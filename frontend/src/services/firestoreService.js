@@ -421,38 +421,70 @@ export const reopenListing = async (listingId, listingType) => {
 // CHAT MESSAGES
 // ============================================================
 
-export const sendChatMessage = async (bidId, senderId, senderName, message, recipientId) => {
-  const batch = writeBatch(db);
+export const sendChatMessage = async (bidId, senderId, senderName, message) => {
+  const normalizedBidId = typeof bidId === 'string' ? bidId.trim() : '';
+  const normalizedSenderId = typeof senderId === 'string' ? senderId.trim() : '';
+  const normalizedSenderName = typeof senderName === 'string' && senderName.trim()
+    ? senderName.trim()
+    : 'User';
+  const normalizedMessage = typeof message === 'string' ? message.trim() : '';
 
-  // Create message
-  const messageRef = doc(collection(db, 'bids', bidId, 'messages'));
-  batch.set(messageRef, {
-    senderId,
-    senderName,
-    recipientId: recipientId || null,
-    message,
+  if (!normalizedBidId || !normalizedSenderId || !normalizedMessage) {
+    const err = new Error('Missing required chat message parameters');
+    err.code = 'invalid-argument';
+    throw err;
+  }
+
+  if (normalizedMessage.length > 2000) {
+    const err = new Error('Message is too long');
+    err.code = 'invalid-argument';
+    throw err;
+  }
+
+  const bidRef = doc(db, 'bids', normalizedBidId);
+  const bidSnap = await getDoc(bidRef);
+  if (!bidSnap.exists()) {
+    const err = new Error('Bid not found');
+    err.code = 'not-found';
+    throw err;
+  }
+
+  const bidData = bidSnap.data() || {};
+  const bidderId = typeof bidData.bidderId === 'string' ? bidData.bidderId.trim() : '';
+  const listingOwnerId = typeof bidData.listingOwnerId === 'string' ? bidData.listingOwnerId.trim() : '';
+
+  if (!bidderId || !listingOwnerId) {
+    const err = new Error('Bid participant data is incomplete');
+    err.code = 'failed-precondition';
+    throw err;
+  }
+
+  if (normalizedSenderId !== bidderId && normalizedSenderId !== listingOwnerId) {
+    const err = new Error('Sender is not a participant in this bid');
+    err.code = 'permission-denied';
+    throw err;
+  }
+
+  const recipientId = normalizedSenderId === bidderId ? listingOwnerId : bidderId;
+  if (!recipientId || recipientId === normalizedSenderId) {
+    const err = new Error('Unable to determine message recipient');
+    err.code = 'failed-precondition';
+    throw err;
+  }
+
+  const messageRef = doc(collection(db, 'bids', normalizedBidId, 'messages'));
+  await setDoc(messageRef, {
+    senderId: normalizedSenderId,
+    senderName: normalizedSenderName,
+    recipientId,
+    message: normalizedMessage,
     read: false,
     isRead: false,
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 
-  // Create notification for recipient
-  const notifRef = doc(collection(db, 'users', recipientId, 'notifications'));
-  batch.set(notifRef, {
-    type: 'NEW_MESSAGE',
-    title: 'New Message',
-    message: `${senderName}: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`,
-    data: {
-      bidId,
-      senderId,
-      senderName
-    },
-    isRead: false,
-    createdAt: serverTimestamp()
-  });
-
-  await batch.commit();
-  return { id: messageRef.id };
+  return { id: messageRef.id, recipientId };
 };
 
 export const markMessagesRead = async (bidId, userId) => {

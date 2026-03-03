@@ -66,10 +66,38 @@ export function ChatModal({
 
   // Determine the other party's info
   const isCargo = listingType === 'cargo';
-  const otherPartyName = isCargo
-    ? (listing?.shipper || listing?.userName || 'Shipper')
-    : (listing?.trucker || listing?.userName || 'Trucker');
-  const otherPartyId = listing?.userId;
+  const participantContext = useMemo(() => {
+    const currentUserId = currentUser?.uid || null;
+    const bidderId = bid?.bidderId || null;
+    const listingOwnerId = bid?.listingOwnerId || listing?.userId || null;
+    const defaultName = isCargo
+      ? (listing?.shipper || listing?.userName || 'Shipper')
+      : (listing?.trucker || listing?.userName || 'Trucker');
+
+    if (!currentUserId) {
+      return { otherPartyId: listingOwnerId || bidderId, otherPartyName: defaultName };
+    }
+
+    if (currentUserId === bidderId) {
+      return {
+        otherPartyId: listingOwnerId,
+        otherPartyName: bid?.listingOwnerName || defaultName,
+      };
+    }
+
+    if (currentUserId === listingOwnerId) {
+      return {
+        otherPartyId: bidderId,
+        otherPartyName: bid?.bidderName || 'Bidder',
+      };
+    }
+
+    return {
+      otherPartyId: listingOwnerId || bidderId,
+      otherPartyName: defaultName,
+    };
+  }, [bid, currentUser?.uid, isCargo, listing?.shipper, listing?.trucker, listing?.userId, listing?.userName]);
+  const otherPartyName = participantContext.otherPartyName;
 
   // Fetch contract for this bid when modal opens
   useEffect(() => {
@@ -157,22 +185,26 @@ export function ChatModal({
     setError(null);
 
     try {
-      const recipientId = otherPartyId;
       const senderName = currentUser.displayName || currentUser.name || 'User';
 
-      // Send via Firestore
+      // Send message doc only; notification fan-out is server-side.
       await sendChatMessage(
         bidId,
         currentUser.uid,
         senderName,
-        message.trim(),
-        recipientId
+        message.trim()
       );
 
       setMessage('');
     } catch (err) {
       console.error('Failed to send message:', err);
-      setError('Failed to send message. Please try again.');
+      if (err?.code === 'permission-denied') {
+        setError('You can only message participants in this bid.');
+      } else if (err?.code === 'not-found') {
+        setError('This chat is no longer available.');
+      } else {
+        setError('Failed to send message. Please try again.');
+      }
     } finally {
       setSending(false);
     }
