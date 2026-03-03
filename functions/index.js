@@ -26,14 +26,22 @@ const {
   determineFinalStatus,
   createFraudLog
 } = require('./src/services/fraud');
-const { createContractFromApprovedFee } = require('./src/services/contractCreation');
-const { isTrustedPaymentScreenshotUrl } = require('./src/utils/storageUrl');
+const {
+  parseTrustedPaymentScreenshotUrl
+} = require('./src/utils/storageUrl');
 const { loadPlatformSettings } = require('./src/config/platformSettings');
 
 const { verifyAdmin } = require('./src/utils/adminAuth');
 
 const db = admin.firestore();
 const warnedMissingEnvVars = new Set();
+const ALLOWED_SCREENSHOT_CONTENT_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp'
+]);
+const DEFAULT_MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
 
 function safeErrorMessage(error) {
   if (!error) return 'Unknown error';
@@ -74,6 +82,87 @@ function warnMissingEnvVarOnce(name, context) {
   if (warnedMissingEnvVars.has(key)) return;
   warnedMissingEnvVars.add(key);
   console.warn(`${context}: ${name} is not configured. Falling back to degraded behavior.`);
+}
+
+function getScreenshotMetadataMode() {
+  const mode = String(process.env.GCASH_SCREENSHOT_METADATA_MODE || 'off').trim().toLowerCase();
+  if (mode === 'warn' || mode === 'enforce') return mode;
+  return 'off';
+}
+
+function getMaxScreenshotBytes() {
+  const rawValue = Number(process.env.GCASH_MAX_SCREENSHOT_BYTES || '');
+  if (Number.isFinite(rawValue) && rawValue > 0) {
+    return Math.floor(rawValue);
+  }
+  return DEFAULT_MAX_SCREENSHOT_BYTES;
+}
+
+function normalizeContentType(value) {
+  if (typeof value !== 'string') return '';
+  return value.split(';')[0].trim().toLowerCase();
+}
+
+async function validateScreenshotStorageMetadata(screenshotInfo) {
+  const mode = getScreenshotMetadataMode();
+  if (mode === 'off') {
+    return {
+      mode,
+      checked: false,
+      valid: true,
+      contentType: null,
+      size: null,
+      issues: []
+    };
+  }
+
+  const issues = [];
+  const storageBucket = screenshotInfo?.bucket || admin.app().options.storageBucket || '';
+  if (!storageBucket) {
+    warnMissingEnvVarOnce('storageBucket', 'validateScreenshotStorageMetadata');
+    issues.push('missing_storage_bucket');
+    return {
+      mode,
+      checked: false,
+      valid: false,
+      contentType: null,
+      size: null,
+      issues
+    };
+  }
+
+  try {
+    const fileRef = admin.storage().bucket(storageBucket).file(screenshotInfo.objectPath);
+    const [metadata] = await fileRef.getMetadata();
+    const contentType = normalizeContentType(metadata?.contentType);
+    const size = Number(metadata?.size || 0);
+    const maxScreenshotBytes = getMaxScreenshotBytes();
+
+    if (!ALLOWED_SCREENSHOT_CONTENT_TYPES.has(contentType)) {
+      issues.push(`invalid_content_type:${contentType || 'unknown'}`);
+    }
+    if (!Number.isFinite(size) || size <= 0 || size > maxScreenshotBytes) {
+      issues.push(`invalid_size:${Number.isFinite(size) ? size : 'unknown'}`);
+    }
+
+    return {
+      mode,
+      checked: true,
+      valid: issues.length === 0,
+      contentType: contentType || null,
+      size: Number.isFinite(size) ? size : null,
+      issues
+    };
+  } catch (error) {
+    return {
+      mode,
+      checked: true,
+      valid: false,
+      contentType: null,
+      size: null,
+      issues: [`metadata_read_failed:${safeErrorMessage(error)}`]
+    };
+  }
 }
 
 function getBearerTokenFromRequest(req) {
@@ -159,14 +248,29 @@ exports.processPaymentSubmission = onDocumentCreated(
       }
 
       // Security: reject untrusted screenshot URLs (SSRF defense)
-      if (!isTrustedPaymentScreenshotUrl(submission.screenshotUrl, submission.userId)) {
-        throw new Error('Untrusted screenshot URL');
+      const screenshotInfo = parseTrustedPaymentScreenshotUrl(submission.screenshotUrl, submission.userId);
+      if (!screenshotInfo.valid) {
+        throw new Error(`Untrusted screenshot URL (${screenshotInfo.reason})`);
       }
 
       // Check if order is expired
       if (order.expiresAt && order.expiresAt.toDate() < new Date()) {
         await handleExpiredOrder(snap.ref, submissionId, submission.userId);
         return;
+      }
+
+      // Optional defense-in-depth: verify storage metadata for screenshot object.
+      const screenshotMetadata = await validateScreenshotStorageMetadata(screenshotInfo);
+      if (!screenshotMetadata.valid) {
+        if (screenshotMetadata.mode === 'enforce') {
+          throw new Error(`Screenshot evidence metadata failed (${screenshotMetadata.issues.join(',')})`);
+        }
+        console.warn('Screenshot evidence metadata check failed (warn mode):', {
+          submissionId,
+          userId: submission.userId,
+          orderId: submission.orderId,
+          issues: screenshotMetadata.issues
+        });
       }
 
       // Step 3: Analyze image (get hash, dimensions, EXIF)
@@ -215,7 +319,9 @@ exports.processPaymentSubmission = onDocumentCreated(
       });
 
       // Step 9: Determine final status
-      let finalStatus = determineFinalStatus(validationResults, fraudResults);
+      let finalStatus = determineFinalStatus(validationResults, fraudResults, {
+        orderAmount: Number(order.amount || 0),
+      });
       const platformSettings = await loadPlatformSettings(db);
       if (
         finalStatus === 'approved' &&
@@ -253,6 +359,16 @@ exports.processPaymentSubmission = onDocumentCreated(
         imageHash: imageAnalysis.hash || null,
         imageDimensions: imageAnalysis.dimensions || null,
         exifData: imageAnalysis.exif || null,
+        evidenceStorage: {
+          bucket: screenshotInfo.bucket || null,
+          objectPath: screenshotInfo.objectPath || null,
+          metadataMode: screenshotMetadata.mode,
+          metadataChecked: screenshotMetadata.checked,
+          metadataValid: screenshotMetadata.valid,
+          contentType: screenshotMetadata.contentType,
+          size: screenshotMetadata.size,
+          issues: screenshotMetadata.issues
+        },
         status: finalStatus,
         resolvedAt: finalStatus !== 'manual_review'
           ? FieldValue.serverTimestamp()
@@ -278,11 +394,39 @@ exports.processPaymentSubmission = onDocumentCreated(
 
       // Step 11: If approved, credit wallet and update order
       if (finalStatus === 'approved') {
-        await approvePayment(submission, order, submissionId);
+        const approvalResult = await approvePayment(submission, order, submissionId);
+        if (approvalResult?.state === 'already_verified_other') {
+          await snap.ref.update({
+            status: 'rejected',
+            validationErrors: [
+              ...(validationResults.errors || []),
+              'Order already verified by another submission.'
+            ],
+            resolvedAt: FieldValue.serverTimestamp(),
+            resolvedBy: 'system',
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          await sendUserNotification(
+            submission.userId,
+            'rejected',
+            order.amount,
+            submissionId,
+            'This order was already verified by another submission.',
+            order.type
+          );
+          console.info('Payment submission skipped due to verified order:', {
+            submissionId,
+            orderId: submission.orderId,
+            userId: submission.userId,
+            verifiedSubmissionId: approvalResult.verifiedSubmissionId || null,
+          });
+          return;
+        }
         console.info('Payment submission approved and wallet credited:', {
           submissionId,
           orderId: submission.orderId,
-          userId: submission.userId
+          userId: submission.userId,
+          approvalState: approvalResult?.state || 'applied',
         });
       }
 
@@ -370,19 +514,43 @@ async function handleOCRFailure(submissionRef, submissionId, userId, error) {
  * Approve payment - handle platform fee or wallet top-up
  */
 async function approvePayment(submission, order, submissionId) {
-  // Update order status
-  await db.collection('orders').doc(submission.orderId).update({
-    status: 'verified',
-    verifiedAt: FieldValue.serverTimestamp(),
-    verifiedSubmissionId: submissionId,
-    updatedAt: FieldValue.serverTimestamp()
+  const verificationResult = await db.runTransaction(async (tx) => {
+    const orderRef = db.collection('orders').doc(submission.orderId);
+    const orderDoc = await tx.get(orderRef);
+    if (!orderDoc.exists) {
+      throw new Error(`Order not found: ${submission.orderId}`);
+    }
+
+    const currentOrder = orderDoc.data() || {};
+    if (currentOrder.status === 'verified') {
+      if (currentOrder.verifiedSubmissionId === submissionId) {
+        return { state: 'already_verified_same' };
+      }
+      return {
+        state: 'already_verified_other',
+        verifiedSubmissionId: currentOrder.verifiedSubmissionId || null,
+      };
+    }
+
+    tx.update(orderRef, {
+      status: 'verified',
+      verifiedAt: FieldValue.serverTimestamp(),
+      verifiedSubmissionId: submissionId,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+
+    return { state: 'applied' };
   });
+
+  if (verificationResult.state !== 'applied') {
+    return verificationResult;
+  }
 
   // Check if this is a platform fee payment or wallet top-up
   if (order.type === 'platform_fee') {
 
-    // Record in platformFees collection
-    await db.collection('platformFees').doc().set({
+    // Record platform fee exactly once using orderId as deterministic key.
+    await db.collection('platformFees').doc(order.orderId).set({
       bidId: order.bidId,
       userId: submission.userId,
       amount: order.amount,
@@ -390,7 +558,7 @@ async function approvePayment(submission, order, submissionId) {
       submissionId,
       orderId: order.orderId,
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }, { merge: true });
 
     // Update contract to mark platform fee as paid.
     // Keep lifecycle state for deferred-fee contracts (e.g. signed/completed),
@@ -505,40 +673,49 @@ async function approvePayment(submission, order, submissionId) {
     }
   } else {
     // Legacy: wallet top-up flow (kept for backward compatibility)
+    await db.runTransaction(async (tx) => {
+      const walletRef = db.collection('users').doc(submission.userId).collection('wallet').doc('main');
+      const walletTxRef = db.collection('users')
+        .doc(submission.userId)
+        .collection('walletTransactions')
+        .doc(`topup_${submissionId}`);
 
-    const batch = db.batch();
+      const [walletDoc, walletTxDoc] = await Promise.all([
+        tx.get(walletRef),
+        tx.get(walletTxRef),
+      ]);
 
-    // Credit user's wallet
-    const walletRef = db.collection('users').doc(submission.userId).collection('wallet').doc('main');
-    const walletDoc = await walletRef.get();
+      // Idempotency guard: this submission was already applied.
+      if (walletTxDoc.exists) {
+        return;
+      }
 
-    if (walletDoc.exists) {
-      batch.update(walletRef, {
-        balance: FieldValue.increment(order.amount),
-        updatedAt: FieldValue.serverTimestamp()
+      if (walletDoc.exists) {
+        tx.update(walletRef, {
+          balance: FieldValue.increment(order.amount),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      } else {
+        tx.set(walletRef, {
+          balance: order.amount,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      }
+
+      tx.set(walletTxRef, {
+        type: 'topup',
+        amount: order.amount,
+        method: 'GCash (Screenshot)',
+        description: 'Top-up via GCash screenshot verification',
+        reference: submissionId,
+        status: 'completed',
+        createdAt: FieldValue.serverTimestamp()
       });
-    } else {
-      batch.set(walletRef, {
-        balance: order.amount,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp()
-      });
-    }
-
-    // Create wallet transaction record
-    const txRef = db.collection('users').doc(submission.userId).collection('walletTransactions').doc();
-    batch.set(txRef, {
-      type: 'topup',
-      amount: order.amount,
-      method: 'GCash (Screenshot)',
-      description: `Top-up via GCash screenshot verification`,
-      reference: submissionId,
-      status: 'completed',
-      createdAt: FieldValue.serverTimestamp()
     });
-
-    await batch.commit();
   }
+
+  return verificationResult;
 }
 
 /**

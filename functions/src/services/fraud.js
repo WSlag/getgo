@@ -63,25 +63,25 @@ async function detectFraud({
     });
   }
 
-  // Rule 3: Receiver name mismatch
-  if (!validationResults.receiverMatch && ocrResults.extractedData?.receiverName) {
+  // Rule 3: Receiver name mismatch or missing receiver evidence
+  if (!validationResults.receiverMatch) {
     score += FRAUD_SCORES.RECEIVER_MISMATCH;
     flags.push('RECEIVER_MISMATCH');
     details.push({
       rule: 'RECEIVER_MISMATCH',
       expected: order.expectedReceiverName || order.gcashAccountName,
-      found: ocrResults.extractedData?.receiverName,
+      found: ocrResults.extractedData?.receiverName || null,
       score: FRAUD_SCORES.RECEIVER_MISMATCH
     });
   }
 
-  // Rule 4: Timestamp expired
-  if (!validationResults.timestampValid && ocrResults.extractedData?.transactionDate) {
+  // Rule 4: Timestamp invalid or missing timestamp evidence
+  if (!validationResults.timestampValid) {
     score += FRAUD_SCORES.TIMESTAMP_EXPIRED;
     flags.push('TIMESTAMP_EXPIRED');
     details.push({
       rule: 'TIMESTAMP_EXPIRED',
-      receiptTime: ocrResults.extractedData?.timestamp,
+      receiptTime: ocrResults.extractedData?.timestamp || null,
       maxAgeMinutes: THRESHOLDS.MAX_RECEIPT_AGE_MINUTES,
       score: FRAUD_SCORES.TIMESTAMP_EXPIRED
     });
@@ -307,35 +307,39 @@ async function checkDuplicateReference(db, refNumber, currentSubmissionId, userI
   try {
     // Clean reference number for lookup
     const cleanedRef = refNumber.replace(/\s+/g, '').toUpperCase();
+    const refDocRef = db.collection('referenceNumbers').doc(cleanedRef);
 
-    // Check in dedicated referenceNumbers collection
-    const refDoc = await db.collection('referenceNumbers').doc(cleanedRef).get();
+    // Use transaction to avoid TOCTOU races under concurrent submissions.
+    return await db.runTransaction(async (tx) => {
+      const refDoc = await tx.get(refDocRef);
+      if (refDoc.exists) {
+        const existingData = refDoc.data() || {};
 
-    if (refDoc.exists) {
-      const existingData = refDoc.data();
+        // If it's from a different submission, it's a duplicate.
+        if (existingData.submissionId !== currentSubmissionId) {
+          return {
+            isDuplicate: true,
+            existingSubmissionId: existingData.submissionId,
+            existingUserId: existingData.userId,
+            existingAmount: existingData.amount,
+            firstSeenAt: existingData.firstSeenAt
+          };
+        }
 
-      // If it's from a different submission, it's a duplicate
-      if (existingData.submissionId !== currentSubmissionId) {
-        return {
-          isDuplicate: true,
-          existingSubmissionId: existingData.submissionId,
-          existingUserId: existingData.userId,
-          existingAmount: existingData.amount,
-          firstSeenAt: existingData.firstSeenAt
-        };
+        // Idempotent retry for same submission.
+        return { isDuplicate: false };
       }
-    }
 
-    // Not a duplicate - store this reference
-    await db.collection('referenceNumbers').doc(cleanedRef).set({
-      referenceNumber: cleanedRef,
-      submissionId: currentSubmissionId,
-      userId: userId,
-      amount: amount,
-      firstSeenAt: FieldValue.serverTimestamp()
+      tx.create(refDocRef, {
+        referenceNumber: cleanedRef,
+        submissionId: currentSubmissionId,
+        userId: userId,
+        amount: amount,
+        firstSeenAt: FieldValue.serverTimestamp(),
+      });
+
+      return { isDuplicate: false };
     });
-
-    return { isDuplicate: false };
   } catch (error) {
     console.error('Error checking duplicate reference:', error);
     return { isDuplicate: false, error: error.message };
@@ -355,38 +359,53 @@ async function checkDuplicateHash(db, imageHash, currentSubmissionId) {
   }
 
   try {
-    // Check for exact match first
-    const exactMatch = await db
-      .collection('imageHashes')
-      .where('hash', '==', imageHash)
-      .limit(1)
-      .get();
+    const normalizedHash = String(imageHash).trim().toLowerCase();
+    const hashDocRef = db.collection('imageHashes').doc(normalizedHash);
 
-    if (!exactMatch.empty) {
-      const existing = exactMatch.docs[0].data();
-      if (existing.submissionId !== currentSubmissionId) {
-        return {
-          isDuplicate: true,
-          isSimilar: false,
-          existingSubmissionId: existing.submissionId,
-          similarity: 1.0
-        };
+    // Use transaction for atomic duplicate handling under contention.
+    return await db.runTransaction(async (tx) => {
+      const hashDoc = await tx.get(hashDocRef);
+      if (hashDoc.exists) {
+        const existing = hashDoc.data() || {};
+        if (existing.submissionId !== currentSubmissionId) {
+          return {
+            isDuplicate: true,
+            isSimilar: false,
+            existingSubmissionId: existing.submissionId,
+            similarity: 1.0
+          };
+        }
+
+        // Idempotent retry for same submission.
+        return { isDuplicate: false, isSimilar: false };
       }
-    }
 
-    // TODO: For similar image detection, we would need to:
-    // 1. Store perceptual hashes in a way that allows similarity search
-    // 2. Use Hamming distance to find similar hashes
-    // This is more complex and may require a different approach for scale
+      // Backward-compatibility: detect legacy records that used random document ids.
+      const legacySnapshot = await tx.get(
+        db.collection('imageHashes')
+          .where('hash', '==', normalizedHash)
+          .limit(1)
+      );
+      if (!legacySnapshot.empty) {
+        const existing = legacySnapshot.docs[0].data() || {};
+        if (existing.submissionId !== currentSubmissionId) {
+          return {
+            isDuplicate: true,
+            isSimilar: false,
+            existingSubmissionId: existing.submissionId,
+            similarity: 1.0
+          };
+        }
+      }
 
-    // Store this hash
-    await db.collection('imageHashes').add({
-      hash: imageHash,
-      submissionId: currentSubmissionId,
-      firstSeenAt: FieldValue.serverTimestamp()
+      tx.create(hashDocRef, {
+        hash: normalizedHash,
+        submissionId: currentSubmissionId,
+        firstSeenAt: FieldValue.serverTimestamp(),
+      });
+
+      return { isDuplicate: false, isSimilar: false };
     });
-
-    return { isDuplicate: false, isSimilar: false };
   } catch (error) {
     console.error('Error checking duplicate hash:', error);
     return { isDuplicate: false, isSimilar: false, error: error.message };
@@ -399,7 +418,18 @@ async function checkDuplicateHash(db, imageHash, currentSubmissionId) {
  * @param {Object} fraudResults - Fraud detection results
  * @returns {string} - Final status: 'approved', 'rejected', or 'manual_review'
  */
-function determineFinalStatus(validationResults, fraudResults) {
+function determineFinalStatus(validationResults, fraudResults, options = {}) {
+  const orderAmount = Number(options.orderAmount || 0);
+  const withinAutoApproveAmount = orderAmount > 0
+    ? orderAmount <= THRESHOLDS.MAX_AUTO_APPROVE_AMOUNT
+    : true;
+  const meetsRequiredSignals = Boolean(
+    validationResults?.amountMatch &&
+    validationResults?.referencePresent &&
+    validationResults?.receiverMatch &&
+    validationResults?.timestampValid
+  );
+
   // Auto-reject if critical fraud flags
   if (
     fraudResults.flags.includes('DUPLICATE_REFERENCE') ||
@@ -410,7 +440,11 @@ function determineFinalStatus(validationResults, fraudResults) {
 
   // Use recommended action from fraud detection
   if (fraudResults.recommendedAction === 'auto_approve') {
-    return 'approved';
+    // Harden auto-approval: only allow when all core receipt signals pass.
+    if (meetsRequiredSignals && withinAutoApproveAmount) {
+      return 'approved';
+    }
+    return 'manual_review';
   }
 
   if (fraudResults.recommendedAction === 'auto_reject') {
