@@ -1270,6 +1270,9 @@ const listingReferralTriggers = require('./src/triggers/listingReferralTriggers'
 exports.onCargoListingUpdatedForReferrals = listingReferralTriggers.onCargoListingUpdatedForReferrals;
 exports.onTruckListingUpdatedForReferrals = listingReferralTriggers.onTruckListingUpdatedForReferrals;
 
+const chatTriggers = require('./src/triggers/chatTriggers');
+exports.onChatMessageCreated = chatTriggers.onChatMessageCreated;
+
 // =============================================================================
 // SCHEDULED FUNCTIONS
 // =============================================================================

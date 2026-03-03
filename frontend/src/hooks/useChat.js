@@ -51,7 +51,7 @@ export function useChatActions() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const sendMessage = useCallback(async (bidId, senderId, senderName, message, recipientId) => {
+  const sendMessage = useCallback(async (bidId, senderId, senderName, message) => {
     if (!bidId || !senderId || !message?.trim()) {
       throw new Error('Missing required parameters');
     }
@@ -61,7 +61,7 @@ export function useChatActions() {
 
     try {
       // Send via Firestore (creates message + notification)
-      await sendChatMessage(bidId, senderId, senderName, message.trim(), recipientId);
+      await sendChatMessage(bidId, senderId, senderName, message.trim());
 
       setLoading(false);
       return { success: true };

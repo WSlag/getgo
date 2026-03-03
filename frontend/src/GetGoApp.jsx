@@ -1624,17 +1624,17 @@ export default function GetGoApp() {
   const handleOpenChatFromNotification = async (notification) => {
     const bidId = notification?.data?.bidId;
     if (!bidId) {
-      setActiveTab('chat');
+      setActiveTab('messages');
       return;
     }
 
     try {
       const { bid, listing, listingType } = await loadBidContext(bidId, notification.data);
       openModal('chat', { bid, listing, type: listingType, bidId: bid.id });
-      setActiveTab('chat');
+      setActiveTab('messages');
     } catch (error) {
       console.error('Failed to open chat notification:', error);
-      setActiveTab('chat');
+      setActiveTab('messages');
       showToast({
         type: 'error',
         title: 'Unable to open chat',
