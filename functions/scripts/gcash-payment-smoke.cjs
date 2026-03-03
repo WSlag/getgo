@@ -1,8 +1,15 @@
 const admin = require('firebase-admin');
 const axios = require('axios');
 const crypto = require('crypto');
+const {
+  checkDuplicateReference,
+  checkDuplicateHash,
+} = require('../src/services/fraud');
+const {
+  parseTrustedPaymentScreenshotUrl,
+} = require('../src/utils/storageUrl');
 
-const PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID || 'karga-ph';
+const PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID || 'getgoph-a09bb';
 const REGION = 'asia-southeast1';
 const EMULATOR_HOSTS = {
   auth: process.env.FIREBASE_AUTH_EMULATOR_HOST || '127.0.0.1:9099',
@@ -200,6 +207,74 @@ function appendDownloadToken(url, token) {
   return `${url}&token=${encodeURIComponent(token)}`;
 }
 
+function assertScreenshotUrlValidation({ url, userId, shouldPass, expectedReason }) {
+  const result = parseTrustedPaymentScreenshotUrl(url, userId);
+  if (shouldPass) {
+    assert(result.valid === true, `Expected trusted screenshot URL: ${url}, got ${result.reason || 'invalid'}`);
+    return;
+  }
+  assert(result.valid === false, `Expected rejected screenshot URL: ${url}`);
+  if (expectedReason) {
+    assert(
+      result.reason === expectedReason,
+      `Expected reason ${expectedReason} for ${url}, got ${result.reason || '<none>'}`
+    );
+  }
+}
+
+function runScreenshotUrlValidationMatrix(userId) {
+  const bucket = `${PROJECT_ID}.appspot.com`;
+  const goodObjectPath = `payments/${userId}/receipt.png`;
+  const goodFirebaseUrl = buildFirebaseStorageUrl(PROJECT_ID, goodObjectPath);
+  const goodGcsDirectUrl = `https://storage.googleapis.com/${bucket}/${goodObjectPath}`;
+  const goodGcsDownloadUrl =
+    `https://storage.googleapis.com/download/storage/v1/b/${bucket}/o/${encodeURIComponent(goodObjectPath)}?alt=media`;
+
+  const queryTrickUrl =
+    `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/notpayments%2Ffake.png?alt=media&path=${encodeURIComponent(goodObjectPath)}`;
+  const ownerMismatchUrl = buildFirebaseStorageUrl(PROJECT_ID, `payments/other-user/receipt.png`);
+  const traversalUrl =
+    `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent('../payments/' + userId + '/receipt.png')}?alt=media`;
+  const untrustedHostUrl = `https://example.com/${bucket}/${goodObjectPath}`;
+  const queryOnlyPaymentsUrl =
+    `https://storage.googleapis.com/${bucket}/notpayments/receipt.png?path=${encodeURIComponent(goodObjectPath)}`;
+
+  assertScreenshotUrlValidation({ url: goodFirebaseUrl, userId, shouldPass: true });
+  assertScreenshotUrlValidation({ url: goodGcsDirectUrl, userId, shouldPass: true });
+  assertScreenshotUrlValidation({ url: goodGcsDownloadUrl, userId, shouldPass: true });
+
+  assertScreenshotUrlValidation({
+    url: queryTrickUrl,
+    userId,
+    shouldPass: false,
+    expectedReason: 'outside_payments_prefix',
+  });
+  assertScreenshotUrlValidation({
+    url: ownerMismatchUrl,
+    userId,
+    shouldPass: false,
+    expectedReason: 'owner_mismatch',
+  });
+  assertScreenshotUrlValidation({
+    url: traversalUrl,
+    userId,
+    shouldPass: false,
+    expectedReason: 'invalid_storage_path',
+  });
+  assertScreenshotUrlValidation({
+    url: untrustedHostUrl,
+    userId,
+    shouldPass: false,
+    expectedReason: 'untrusted_origin',
+  });
+  assertScreenshotUrlValidation({
+    url: queryOnlyPaymentsUrl,
+    userId,
+    shouldPass: false,
+    expectedReason: 'outside_payments_prefix',
+  });
+}
+
 async function createSmokeScreenshotUrl(userId, label) {
   const objectPath = `payments/${userId}/${label}-${Date.now()}.png`;
 
@@ -253,7 +328,10 @@ async function main() {
   console.log('1/8 Clearing emulators...');
   await clearEmulators();
 
-  console.log('2/8 Seeding users, claims, and contracts...');
+  console.log('2/8 Validating screenshot URL parser matrix...');
+  runScreenshotUrlValidationMatrix(truckerUid);
+
+  console.log('3/8 Seeding users, claims, and contracts...');
   const now = admin.firestore.FieldValue.serverTimestamp();
   await seedUser(
     { uid: shipperUid, phoneNumber: '+639171110001' },
@@ -454,7 +532,51 @@ async function main() {
   const pendingAfterApprovalIds = (pendingAfterApproval.orders || []).map((o) => o.orderId || o.id);
   assert(!pendingAfterApprovalIds.includes(order1.orderId), 'Approved order should not remain in pending orders');
 
-  console.log('6/8 Running manual rejection path...');
+  console.log('6/10 Validating replay protection for already-verified order...');
+  const replayScreenshotUrl = await createSmokeScreenshotUrl(truckerUid, 'smoke-replay');
+  const replaySubmissionRef = await db.collection('paymentSubmissions').add({
+    orderId: order1.orderId,
+    bidId: bid1Id,
+    userId: truckerUid,
+    screenshotUrl: replayScreenshotUrl,
+    status: 'pending',
+    ocrStatus: 'pending',
+    validationErrors: ['Synthetic replay submission'],
+    createdAt: now,
+    uploadedAt: now,
+    updatedAt: now,
+  });
+  const replaySubmissionId = replaySubmissionRef.id;
+  await waitForSubmissionProcessing(replaySubmissionId);
+
+  const replayApprove = await callFunction('adminApprovePayment', adminToken, {
+    submissionId: replaySubmissionId,
+    notes: 'Replay approval should be side-effect safe',
+  });
+  assert(replayApprove?.success === true, 'Replay adminApprovePayment should return success');
+
+  const orderAfterReplayDoc = await db.collection('orders').doc(order1.orderId).get();
+  const orderAfterReplay = orderAfterReplayDoc.data() || {};
+  assert(
+    orderAfterReplay.verifiedSubmissionId === submission1Id,
+    'Replay approval must not overwrite order.verifiedSubmissionId'
+  );
+
+  const platformFeeAfterReplay = await findOnePlatformFeeByBid(bid1Id);
+  assert(platformFeeAfterReplay, 'Platform fee must still exist after replay attempt');
+  assert(
+    platformFeeAfterReplay.submissionId === submission1Id,
+    'Replay approval must not overwrite recorded platform fee submission'
+  );
+
+  const truckerAfterReplayDoc = await db.collection('users').doc(truckerUid).get();
+  const truckerAfterReplay = truckerAfterReplayDoc.data() || {};
+  assert(
+    Number(truckerAfterReplay.outstandingPlatformFees) === amount2,
+    `Replay approval must not decrement outstandingPlatformFees again, got ${truckerAfterReplay.outstandingPlatformFees}`
+  );
+
+  console.log('7/10 Running manual rejection path...');
   const secondOrderResponse = await callFunction('createPlatformFeeOrder', truckerToken, {
     bidId: bid2Id,
     idempotencyKey: 'smoke-order-2',
@@ -491,7 +613,7 @@ async function main() {
   });
   assert(rejectResult?.success === true, 'adminRejectPayment should return success');
 
-  console.log('7/8 Verifying rejection side effects...');
+  console.log('8/10 Verifying rejection side effects...');
   const submission2Doc = await db.collection('paymentSubmissions').doc(submission2Id).get();
   const submission2 = submission2Doc.data() || {};
   assert(submission2.status === 'rejected', `Expected submission2 status rejected, got ${submission2.status}`);
@@ -519,10 +641,109 @@ async function main() {
   const finalPendingIds = (finalPending.orders || []).map((o) => o.orderId || o.id);
   assert(finalPendingIds.length === 0, `Expected no pending orders at end, got ${finalPendingIds.join(', ') || 'none'}`);
 
-  console.log('8/8 GCash payment smoke test passed.');
+  console.log('9/12 Validating duplicate reference/hash atomicity...');
+  const raceRef = `RACE${Date.now()}123456`;
+  const [refRaceA, refRaceB] = await Promise.all([
+    checkDuplicateReference(db, raceRef, 'race-submission-a', truckerUid, 123),
+    checkDuplicateReference(db, raceRef, 'race-submission-b', shipperUid, 123),
+  ]);
+  const referenceRaceResults = [refRaceA, refRaceB];
+  const referenceDuplicateCount = referenceRaceResults.filter((result) => result.isDuplicate).length;
+  assert(
+    referenceDuplicateCount === 1,
+    `Expected exactly one duplicate reference in race, got ${referenceDuplicateCount}`
+  );
+
+  const raceHash = `racehash${Date.now().toString(16)}`;
+  const [hashRaceA, hashRaceB] = await Promise.all([
+    checkDuplicateHash(db, raceHash, 'race-hash-submission-a'),
+    checkDuplicateHash(db, raceHash, 'race-hash-submission-b'),
+  ]);
+  const hashRaceResults = [hashRaceA, hashRaceB];
+  const hashDuplicateCount = hashRaceResults.filter((result) => result.isDuplicate).length;
+  assert(
+    hashDuplicateCount === 1,
+    `Expected exactly one duplicate hash in race, got ${hashDuplicateCount}`
+  );
+
+  console.log('10/12 Validating top-up idempotency guard...');
+  const topupAmount = 300;
+  const topupOrderResponse = await callFunction('createTopUpOrder', truckerToken, {
+    amount: topupAmount,
+    idempotencyKey: 'smoke-topup-1',
+  });
+  assert(topupOrderResponse?.success === true, 'Expected createTopUpOrder success');
+  const topupOrderId = topupOrderResponse?.order?.orderId;
+  assert(topupOrderId, 'Top-up order missing orderId');
+
+  const topupScreenshot1 = await createSmokeScreenshotUrl(truckerUid, 'topup-1');
+  const topupSubmission1Ref = await db.collection('paymentSubmissions').add({
+    orderId: topupOrderId,
+    userId: truckerUid,
+    screenshotUrl: topupScreenshot1,
+    status: 'pending',
+    ocrStatus: 'pending',
+    validationErrors: ['Synthetic top-up submission'],
+    createdAt: now,
+    uploadedAt: now,
+    updatedAt: now,
+  });
+  const topupSubmission1Id = topupSubmission1Ref.id;
+  await waitForSubmissionProcessing(topupSubmission1Id);
+  await callFunction('adminApprovePayment', adminToken, {
+    submissionId: topupSubmission1Id,
+    notes: 'Top-up first approval',
+  });
+
+  const topupScreenshot2 = await createSmokeScreenshotUrl(truckerUid, 'topup-2');
+  const topupSubmission2Ref = await db.collection('paymentSubmissions').add({
+    orderId: topupOrderId,
+    userId: truckerUid,
+    screenshotUrl: topupScreenshot2,
+    status: 'pending',
+    ocrStatus: 'pending',
+    validationErrors: ['Synthetic top-up replay submission'],
+    createdAt: now,
+    uploadedAt: now,
+    updatedAt: now,
+  });
+  const topupSubmission2Id = topupSubmission2Ref.id;
+  await waitForSubmissionProcessing(topupSubmission2Id);
+  await callFunction('adminApprovePayment', adminToken, {
+    submissionId: topupSubmission2Id,
+    notes: 'Top-up replay approval should be side-effect safe',
+  });
+
+  const walletDoc = await db.collection('users').doc(truckerUid).collection('wallet').doc('main').get();
+  const walletData = walletDoc.data() || {};
+  assert(
+    Number(walletData.balance || 0) === topupAmount,
+    `Top-up replay must not double-credit wallet. Expected ${topupAmount}, got ${walletData.balance || 0}`
+  );
+
+  const walletTxSnap = await db.collection('users')
+    .doc(truckerUid)
+    .collection('walletTransactions')
+    .where('type', '==', 'topup')
+    .where('status', '==', 'completed')
+    .get();
+  assert(walletTxSnap.size === 1, `Expected one completed top-up wallet transaction, got ${walletTxSnap.size}`);
+  const walletTx = walletTxSnap.docs[0].data() || {};
+  assert(
+    walletTx.reference === topupSubmission1Id,
+    `Expected wallet transaction reference ${topupSubmission1Id}, got ${walletTx.reference}`
+  );
+
+  console.log('11/12 Validating deterministic hash document write...');
+  const hashDocSnap = await db.collection('imageHashes').doc(raceHash).get();
+  assert(hashDocSnap.exists, 'Expected deterministic image hash document to exist');
+  const hashDocData = hashDocSnap.data() || {};
+  assert(hashDocData.hash === raceHash, `Expected stored hash ${raceHash}, got ${hashDocData.hash}`);
+
+  console.log('12/12 GCash payment smoke test passed.');
   console.log(`Approved submission: ${submission1Id}`);
   console.log(`Rejected submission: ${submission2Id}`);
-  console.log(`Order IDs: ${order1.orderId}, ${order2Id}`);
+  console.log(`Order IDs: ${order1.orderId}, ${order2Id}, ${topupOrderId}`);
 }
 
 main()
