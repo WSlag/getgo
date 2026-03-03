@@ -101,6 +101,7 @@ const api = {
   wallet: {
     createPlatformFeeOrder: (data) => callFunction('createPlatformFeeOrder', data),
     createTopUpOrder: (data) => callFunction('createTopUpOrder', data),
+    submitPaymentSubmission: (data) => callFunction('submitPaymentSubmission', data),
     getOrder: (orderId) => callFunction('getOrder', { orderId }),
     getPendingOrders: () => callFunction('getPendingOrders', {}),
     getGcashConfig: () => callFunction('getGcashConfig', {}),

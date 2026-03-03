@@ -27,6 +27,7 @@ import api from '@/services/api';
 
 const DEFAULT_GCASH_QR_URL = '/assets/gcash_qrcode.png';
 const DEFAULT_GCASH_ACCOUNT_NUMBER = '09272241557';
+const ORDER_ACCEPTING_UPLOAD_STATUSES = new Set(['awaiting_upload', 'processing']);
 
 const generateIdempotencyKey = (prefix, entityId) => {
   const randomPart = typeof globalThis.crypto?.randomUUID === 'function'
@@ -189,9 +190,24 @@ export function GCashPaymentModal({
       return;
     }
 
+    if (preview) {
+      URL.revokeObjectURL(preview);
+    }
     setFile(selectedFile);
     setPreview(URL.createObjectURL(selectedFile));
     setError(null);
+  };
+
+  const resetForNewOrder = (nextError = null) => {
+    if (bidId) {
+      createOrderRequestKeyRef.current = generateIdempotencyKey('platform_fee_order', bidId);
+    } else {
+      createOrderRequestKeyRef.current = null;
+    }
+    setOrder(null);
+    setStep('info');
+    setError(nextError);
+    clearFile();
   };
 
   const handleUpload = async () => {
@@ -202,16 +218,71 @@ export function GCashPaymentModal({
 
     try {
       const screenshotUrl = await uploadPaymentScreenshot(order.orderId, file);
-      await createPaymentSubmission({
-        orderId: order.orderId,
-        bidId: bidId || null, // Link to bid for platform fee tracking
-        screenshotUrl,
-      });
+      try {
+        await api.wallet.submitPaymentSubmission({
+          orderId: order.orderId,
+          bidId: bidId || null,
+          screenshotUrl,
+        });
+      } catch (submissionError) {
+        const code = String(submissionError?.code || '').toLowerCase();
+        const message = String(submissionError?.message || '').toLowerCase();
+        const callableMissing =
+          code.includes('unimplemented') ||
+          code.includes('not-found') ||
+          message.includes('function not found') ||
+          message.includes('does not exist');
+
+        if (!callableMissing) {
+          throw submissionError;
+        }
+
+        // Backward-compatible path for environments where callable rollout is pending.
+        await createPaymentSubmission({
+          orderId: order.orderId,
+          bidId: bidId || null, // Link to bid for platform fee tracking
+          screenshotUrl,
+        });
+      }
 
       setStep('status');
       clearFile();
     } catch (err) {
       console.error('Upload error:', err);
+      const code = String(err?.code || '').toLowerCase();
+      const message = String(err?.message || '').toLowerCase();
+      const isPermissionError =
+        code.includes('permission-denied') ||
+        message.includes('missing or insufficient permissions');
+      const isInactiveOrderError =
+        code.includes('failed-precondition') && (
+          message.includes('order has expired') ||
+          message.includes('not accepting uploads')
+        );
+
+      if (isPermissionError || isInactiveOrderError) {
+        let latestOrderStatus = null;
+        try {
+          const orderLookup = await api.wallet.getOrder(order.orderId);
+          latestOrderStatus = orderLookup?.order?.status || null;
+        } catch {
+          // Ignore lookup errors and fall back to generic handling below.
+        }
+
+        if (latestOrderStatus && !ORDER_ACCEPTING_UPLOAD_STATUSES.has(String(latestOrderStatus))) {
+          resetForNewOrder('This payment request is no longer active. Please create a new one and upload again.');
+          return;
+        }
+
+        if (isInactiveOrderError) {
+          resetForNewOrder('This payment request expired or was closed. Please generate a fresh payment QR.');
+          return;
+        }
+
+        setError('Payment upload was blocked by permissions. Please retry. If it still fails, reopen the app in your default browser.');
+        return;
+      }
+
       setError(err.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
@@ -219,9 +290,12 @@ export function GCashPaymentModal({
   };
 
   const handleRetry = () => {
-    setStep('qr');
-    setError(null);
-    clearFile();
+    const hasExpiredOrderError = Array.isArray(submission?.validationErrors)
+      && submission.validationErrors.some((msg) => /order has expired/i.test(String(msg)));
+    const retryMessage = hasExpiredOrderError
+      ? 'Your previous payment request expired. Please create a new one.'
+      : null;
+    resetForNewOrder(retryMessage);
   };
 
   const handleClose = () => {
@@ -483,11 +557,22 @@ export function GCashPaymentModal({
 
       {/* Footer */}
       <div style={{ display: 'flex', gap: '12px', paddingTop: '8px' }}>
-        <Button variant="ghost" onClick={() => setStep('info')} disabled={loading} style={{ flex: 1 }}>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setError(null);
+            setStep('info');
+          }}
+          disabled={loading}
+          style={{ flex: 1 }}
+        >
           Back
         </Button>
         <button
-          onClick={() => setStep('upload')}
+          onClick={() => {
+            setError(null);
+            setStep('upload');
+          }}
           style={{
             flex: 2,
             padding: '12px 20px',
@@ -628,7 +713,15 @@ export function GCashPaymentModal({
 
       {/* Footer */}
       <div style={{ display: 'flex', gap: '12px', paddingTop: '8px' }}>
-        <Button variant="ghost" onClick={() => setStep('qr')} disabled={uploading} style={{ flex: 1 }}>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setError(null);
+            setStep('qr');
+          }}
+          disabled={uploading}
+          style={{ flex: 1 }}
+        >
           Back
         </Button>
         <button

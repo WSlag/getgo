@@ -21,6 +21,9 @@ import {
   uploadPaymentScreenshot,
   createPaymentSubmission
 } from '@/services/firestoreService';
+import api from '@/services/api';
+
+const ORDER_ACCEPTING_UPLOAD_STATUSES = new Set(['awaiting_upload', 'processing']);
 
 export function PaymentUploadModal({
   open,
@@ -56,6 +59,9 @@ export function PaymentUploadModal({
       return;
     }
 
+    if (preview) {
+      URL.revokeObjectURL(preview);
+    }
     setFile(selectedFile);
     setPreview(URL.createObjectURL(selectedFile));
     setError(null);
@@ -83,23 +89,74 @@ export function PaymentUploadModal({
       // 1. Upload screenshot to Firebase Storage
       const screenshotUrl = await uploadPaymentScreenshot(order.orderId, file);
 
-      // 2. Create payment submission in Firestore
-      // This will trigger the Cloud Function to process it
-      const submission = await createPaymentSubmission({
-        orderId: order.orderId,
-        screenshotUrl,
-      });
+      // 2. Create payment submission using callable, with Firestore fallback
+      let submission = null;
+      try {
+        const submissionResponse = await api.wallet.submitPaymentSubmission({
+          orderId: order.orderId,
+          screenshotUrl,
+          bidId: order?.bidId || null,
+        });
+        submission = submissionResponse?.submission || null;
+      } catch (submissionError) {
+        const code = String(submissionError?.code || '').toLowerCase();
+        const message = String(submissionError?.message || '').toLowerCase();
+        const callableMissing =
+          code.includes('unimplemented') ||
+          code.includes('not-found') ||
+          message.includes('function not found') ||
+          message.includes('does not exist');
+
+        if (!callableMissing) {
+          throw submissionError;
+        }
+
+        submission = await createPaymentSubmission({
+          orderId: order.orderId,
+          screenshotUrl,
+          bidId: order?.bidId || null,
+        });
+      }
 
       setSuccess(true);
 
       // 3. Notify parent component after short delay
       setTimeout(() => {
-        onUploadComplete?.(order.orderId, submission.id);
+        onUploadComplete?.(order.orderId, submission?.id || null);
       }, 1000);
 
     } catch (err) {
       console.error('Upload error:', err);
-      setError(err.message || 'Upload failed. Please try again.');
+      const code = String(err?.code || '').toLowerCase();
+      const message = String(err?.message || '').toLowerCase();
+      const isPermissionError =
+        code.includes('permission-denied') ||
+        message.includes('missing or insufficient permissions');
+      const isInactiveOrderError =
+        code.includes('failed-precondition') && (
+          message.includes('order has expired') ||
+          message.includes('not accepting uploads')
+        );
+
+      if (isPermissionError || isInactiveOrderError) {
+        let latestOrderStatus = null;
+        try {
+          const orderLookup = await api.wallet.getOrder(order.orderId);
+          latestOrderStatus = orderLookup?.order?.status || null;
+        } catch {
+          // Ignore lookup errors and show generic permission message.
+        }
+
+        if (latestOrderStatus && !ORDER_ACCEPTING_UPLOAD_STATUSES.has(String(latestOrderStatus))) {
+          setError('This payment request is no longer active. Please create a new one and upload again.');
+        } else if (isInactiveOrderError) {
+          setError('This payment request expired or was closed. Please create a fresh payment request.');
+        } else {
+          setError('Payment upload was blocked by permissions. Please retry in your default browser.');
+        }
+      } else {
+        setError(err.message || 'Upload failed. Please try again.');
+      }
       setUploading(false);
     }
   };

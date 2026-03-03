@@ -13,9 +13,11 @@ const {
   shouldBlockForMaintenance,
 } = require('../config/platformSettings');
 const { assertAppCheck } = require('../utils/appCheck');
+const { isTrustedPaymentScreenshotUrl } = require('../utils/storageUrl');
 
 const IDEMPOTENCY_COLLECTION = 'idempotency';
-const ACTIVE_PLATFORM_FEE_ORDER_STATUSES = new Set(['awaiting_upload', 'pending', 'submitted', 'processing']);
+const ACTIVE_GCASH_ORDER_STATUSES = new Set(['awaiting_upload', 'pending', 'submitted', 'processing']);
+const ORDER_UPLOAD_ALLOWED_STATUSES = new Set(['awaiting_upload', 'processing']);
 const isProductionRuntime = process.env.NODE_ENV === 'production';
 
 function checkAppToken(context) {
@@ -96,6 +98,20 @@ function timestampToMillis(value) {
   return 0;
 }
 
+function isOrderExpired(order, nowMs = Date.now()) {
+  const expiresAtMs = timestampToMillis(order?.expiresAt);
+  return expiresAtMs > 0 && expiresAtMs <= nowMs;
+}
+
+function isReusableOrder(order, userId, orderType, nowMs = Date.now()) {
+  if (!order) return false;
+  if (order.userId !== userId) return false;
+  if (order.type !== orderType) return false;
+  if (!ACTIVE_GCASH_ORDER_STATUSES.has(order.status)) return false;
+  if (isOrderExpired(order, nowMs)) return false;
+  return true;
+}
+
 function buildPlatformOrderResponse(orderData, gcashConfig) {
   const expiresAtDate = orderData.expiresAt?.toDate ? orderData.expiresAt.toDate() : null;
   return {
@@ -166,6 +182,8 @@ exports.createPlatformFeeOrder = onCall(
   const lockRef = getIdempotencyLockRef(db, userId, 'createPlatformFeeOrder', idempotencyKey);
 
   const result = await db.runTransaction(async (tx) => {
+    const nowMs = Date.now();
+
     if (lockRef) {
       const lockDoc = await tx.get(lockRef);
       if (lockDoc.exists) {
@@ -177,7 +195,19 @@ exports.createPlatformFeeOrder = onCall(
             if (existingLockedOrder.userId !== userId) {
               throw new HttpsError('permission-denied', 'Idempotency key belongs to a different user');
             }
-            return { orderData: existingLockedOrder, reused: true };
+            if (isReusableOrder(existingLockedOrder, userId, 'platform_fee', nowMs)) {
+              return { orderData: existingLockedOrder, reused: true };
+            }
+            if (
+              ACTIVE_GCASH_ORDER_STATUSES.has(existingLockedOrder.status) &&
+              isOrderExpired(existingLockedOrder, nowMs)
+            ) {
+              tx.update(lockedOrderDoc.ref, {
+                status: 'expired',
+                expiredAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
+              });
+            }
           }
         }
       }
@@ -252,12 +282,26 @@ exports.createPlatformFeeOrder = onCall(
         .where('bidId', '==', bidId)
         .limit(20)
     );
-    const reusableOrder = existingOrdersSnap.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .filter((order) =>
-        order.userId === userId &&
-        order.type === 'platform_fee' &&
-        ACTIVE_PLATFORM_FEE_ORDER_STATUSES.has(order.status))
+    const existingOrders = existingOrdersSnap.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    for (const existingOrder of existingOrders) {
+      if (
+        existingOrder.userId === userId &&
+        existingOrder.type === 'platform_fee' &&
+        ACTIVE_GCASH_ORDER_STATUSES.has(existingOrder.status) &&
+        isOrderExpired(existingOrder, nowMs)
+      ) {
+        tx.update(db.collection('orders').doc(existingOrder.id), {
+          status: 'expired',
+          expiredAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    const reusableOrder = existingOrders
+      .filter((order) => isReusableOrder(order, userId, 'platform_fee', nowMs))
       .sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt))[0];
 
     if (reusableOrder) {
@@ -387,6 +431,8 @@ exports.createTopUpOrder = onCall(
   const lockRef = getIdempotencyLockRef(db, userId, 'createTopUpOrder', idempotencyKey);
 
   const result = await db.runTransaction(async (tx) => {
+    const nowMs = Date.now();
+
     if (lockRef) {
       const lockDoc = await tx.get(lockRef);
       if (lockDoc.exists) {
@@ -398,7 +444,19 @@ exports.createTopUpOrder = onCall(
             if (existingLockedOrder.userId !== userId) {
               throw new HttpsError('permission-denied', 'Idempotency key belongs to a different user');
             }
-            return { orderData: existingLockedOrder, reused: true };
+            if (isReusableOrder(existingLockedOrder, userId, 'topup', nowMs)) {
+              return { orderData: existingLockedOrder, reused: true };
+            }
+            if (
+              ACTIVE_GCASH_ORDER_STATUSES.has(existingLockedOrder.status) &&
+              isOrderExpired(existingLockedOrder, nowMs)
+            ) {
+              tx.update(lockedOrderDoc.ref, {
+                status: 'expired',
+                expiredAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
+              });
+            }
           }
         }
       }
@@ -487,6 +545,101 @@ exports.getGcashConfig = onCall(
       maxDailyTopup: runtimeGcashConfig.maxDailyTopup,
       orderExpiryMinutes: runtimeGcashConfig.orderExpiryMinutes,
       paymentVerificationEnabled: runtimeSettings?.features?.paymentVerificationEnabled !== false,
+    };
+  }
+);
+
+/**
+ * Submit a payment screenshot for processing.
+ * Server-authoritative fallback for clients that may hit Firestore rule/App Check edge cases.
+ */
+exports.submitPaymentSubmission = onCall(
+  { region: 'asia-southeast1' },
+  async (request) => {
+    const data = request.data || {};
+    const context = request;
+    checkAppToken(context);
+
+    if (!context.auth) {
+      throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
+
+    const userId = context.auth.uid;
+    const orderId = typeof data.orderId === 'string' ? data.orderId.trim() : '';
+    const screenshotUrl = typeof data.screenshotUrl === 'string' ? data.screenshotUrl.trim() : '';
+    const bidId = typeof data.bidId === 'string' && data.bidId.trim()
+      ? data.bidId.trim()
+      : null;
+
+    if (!orderId) {
+      throw new HttpsError('invalid-argument', 'orderId is required');
+    }
+    if (!screenshotUrl) {
+      throw new HttpsError('invalid-argument', 'screenshotUrl is required');
+    }
+    if (screenshotUrl.length > 2048) {
+      throw new HttpsError('invalid-argument', 'screenshotUrl is too long');
+    }
+    if (!isTrustedPaymentScreenshotUrl(screenshotUrl, userId)) {
+      throw new HttpsError(
+        'invalid-argument',
+        'screenshotUrl must be a trusted Firebase Storage payment URL'
+      );
+    }
+
+    const db = admin.firestore();
+    const orderRef = db.collection('orders').doc(orderId);
+    const orderDoc = await orderRef.get();
+
+    if (!orderDoc.exists) {
+      throw new HttpsError('not-found', 'Order not found');
+    }
+
+    const order = orderDoc.data() || {};
+    if (order.userId !== userId) {
+      throw new HttpsError('permission-denied', 'Access denied');
+    }
+    if (isOrderExpired(order)) {
+      throw new HttpsError('failed-precondition', 'Order has expired. Please create a new payment request.');
+    }
+    if (!ORDER_UPLOAD_ALLOWED_STATUSES.has(order.status)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Order is not accepting uploads. Please create a new payment request.'
+      );
+    }
+
+    const submissionRef = db.collection('paymentSubmissions').doc();
+    const timestamp = FieldValue.serverTimestamp();
+    const submissionData = {
+      orderId,
+      bidId: bidId || order.bidId || null,
+      userId,
+      screenshotUrl,
+      status: 'pending',
+      ocrStatus: 'pending',
+      uploadedAt: timestamp,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    const batch = db.batch();
+    batch.set(submissionRef, submissionData);
+    batch.update(orderRef, {
+      status: 'processing',
+      updatedAt: timestamp,
+    });
+    await batch.commit();
+
+    return {
+      success: true,
+      reused: false,
+      submission: {
+        id: submissionRef.id,
+        orderId,
+        status: 'pending',
+        ocrStatus: 'pending',
+      },
     };
   }
 );
