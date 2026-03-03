@@ -262,15 +262,39 @@ exports.processPaymentSubmission = onDocumentCreated(
       };
 
       await snap.ref.update(updateData);
+      console.info('Payment submission processed:', {
+        submissionId,
+        orderId: submission.orderId,
+        userId: submission.userId,
+        finalStatus,
+        validationPassed: validationResults.allPassed,
+        amountMatch: validationResults.amountMatch,
+        receiverMatch: validationResults.receiverMatch,
+        referencePresent: validationResults.referencePresent,
+        fraudScore: fraudResults.score,
+        requiresManualReview: fraudResults.requiresReview,
+        fraudFlags: fraudResults.flags || []
+      });
 
       // Step 11: If approved, credit wallet and update order
       if (finalStatus === 'approved') {
         await approvePayment(submission, order, submissionId);
+        console.info('Payment submission approved and wallet credited:', {
+          submissionId,
+          orderId: submission.orderId,
+          userId: submission.userId
+        });
       }
 
       // Step 12: If rejected, update order status
       if (finalStatus === 'rejected') {
         await rejectPayment(submission.orderId, validationResults.errors);
+        console.info('Payment submission rejected:', {
+          submissionId,
+          orderId: submission.orderId,
+          userId: submission.userId,
+          validationErrors: validationResults.errors || []
+        });
       }
 
       // Step 13: Create fraud log for audit trail
@@ -287,7 +311,12 @@ exports.processPaymentSubmission = onDocumentCreated(
       }
 
     } catch (error) {
-      console.error('Error processing submission:', safeErrorMessage(error));
+      console.error('Error processing submission:', {
+        submissionId,
+        orderId: submission?.orderId || null,
+        userId: submission?.userId || null,
+        error: safeErrorMessage(error)
+      });
 
       // Update submission with error status
       await snap.ref.update({

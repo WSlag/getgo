@@ -175,6 +175,14 @@
       "collectionGroup": "paymentSubmissions",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "paymentSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "bidId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
