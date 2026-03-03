@@ -46,7 +46,7 @@ function safeErrorMessage(error) {
 
 function getAllowedOrigins() {
   const rawOrigins = process.env.ALLOWED_ORIGIN
-    || 'https://karga-ph.web.app,https://karga-ph.firebaseapp.com,https://karga.ph,https://www.karga.ph';
+    || 'https://getgoph.web.app,https://getgoph-a09bb.web.app,https://getgoph-a09bb.firebaseapp.com,https://karga.ph,https://www.karga.ph,https://karga-ph.web.app,https://karga-ph.firebaseapp.com';
   return rawOrigins
     .split(',')
     .map((origin) => origin.trim())
@@ -56,7 +56,7 @@ function getAllowedOrigins() {
 function applyCors(req, res, options = {}) {
   const allowedOrigins = getAllowedOrigins();
   const requestOrigin = req.headers.origin || '';
-  const defaultOrigin = allowedOrigins[0] || 'https://karga-ph.web.app';
+  const defaultOrigin = allowedOrigins[0] || 'https://getgoph.web.app';
   const originToSet = allowedOrigins.includes(requestOrigin) ? requestOrigin : defaultOrigin;
 
   res.set('Access-Control-Allow-Origin', originToSet);
@@ -314,7 +314,7 @@ async function handleExpiredOrder(submissionRef, submissionId, userId) {
   await submissionRef.update({
     ocrStatus: 'completed',
     status: 'rejected',
-    validationErrors: ['Order has expired. Please create a new top-up request.'],
+    validationErrors: ['Order has expired. Please create a new payment request.'],
     resolvedAt: FieldValue.serverTimestamp(),
     resolvedBy: 'system',
     updatedAt: FieldValue.serverTimestamp()
@@ -1146,6 +1146,7 @@ exports.getContractByBid = contractFunctions.getContractByBid;
 const walletFunctions = require('./src/api/wallet');
 exports.createPlatformFeeOrder = walletFunctions.createPlatformFeeOrder;
 exports.createTopUpOrder = walletFunctions.createTopUpOrder;
+exports.submitPaymentSubmission = walletFunctions.submitPaymentSubmission;
 exports.getGcashConfig = walletFunctions.getGcashConfig;
 exports.getOrder = walletFunctions.getOrder;
 exports.getPendingOrders = walletFunctions.getPendingOrders;
