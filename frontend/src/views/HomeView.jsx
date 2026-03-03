@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { Filter, X, Radio, MapPin, Navigation, MapPinned, Route, ChevronRight, AlertCircle, BookmarkPlus, Bookmark, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CargoCard } from '@/components/cargo/CargoCard';
@@ -55,13 +55,12 @@ export function HomeView({
 
   // Pagination: show ITEMS_PER_PAGE at a time with "Load More"
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
-  // Fixed height for mobile controls (market tabs + search bar only, no filter pills)
-  // Using a fixed value avoids ResizeObserver-triggered re-renders that cause scroll jumps
-  const controlsHeight = 110;
+  const [controlsHeight, setControlsHeight] = useState(110);
   const visibleListings = listings.slice(0, visibleCount);
   const hasMore = visibleCount < listings.length;
 
   const scrollContainerRef = useRef(null);
+  const stickyControlsRef = useRef(null);
 
   // Detect mobile screen for compact cards
   const isMobile = useMediaQuery('(max-width: 1023px)');
@@ -73,6 +72,43 @@ export function HomeView({
       scrollContainerRef.current.scrollTop = 0;
     }
   }, [activeMarket, filterStatus, searchQuery]);
+
+  // Keep mobile spacer aligned with actual sticky controls height.
+  // Measure on mount and viewport/layout changes, not on scroll.
+  useLayoutEffect(() => {
+    if (!isMobile || typeof window === 'undefined') {
+      return undefined;
+    }
+
+    let rafId = null;
+
+    const measureStickyControlsHeight = () => {
+      const measuredHeight = stickyControlsRef.current?.getBoundingClientRect()?.height;
+      if (!Number.isFinite(measuredHeight) || measuredHeight <= 0) return;
+
+      const nextHeight = Math.ceil(measuredHeight);
+      setControlsHeight((prev) => (Math.abs(prev - nextHeight) > 0.5 ? nextHeight : prev));
+    };
+
+    const scheduleMeasure = () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      rafId = window.requestAnimationFrame(measureStickyControlsHeight);
+    };
+
+    scheduleMeasure();
+    window.addEventListener('resize', scheduleMeasure);
+    window.addEventListener('orientationchange', scheduleMeasure);
+
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener('resize', scheduleMeasure);
+      window.removeEventListener('orientationchange', scheduleMeasure);
+    };
+  }, [isMobile, activeMarket, currentRole, isBroker, searchQuery]);
 
   const filterOptions = [
     { id: 'all', label: 'All' },
@@ -143,6 +179,7 @@ export function HomeView({
       )}
 
       <div
+        ref={stickyControlsRef}
         data-testid="home-sticky-controls"
         className={cn(
           "lg:relative lg:z-auto",
@@ -230,7 +267,7 @@ export function HomeView({
       )}
 
       {/* Scrollable Content */}
-      <div style={{ padding: isMobile ? '8px 16px 0' : '0' }}>
+      <div data-testid="home-scroll-content" style={{ padding: isMobile ? '8px 16px 0' : '0' }}>
       {/* Saved Searches */}
       {showSavedSearchesCard && (
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900" style={{ padding: isMobile ? '12px' : '16px', marginBottom: isMobile ? '12px' : '16px' }}>
@@ -549,7 +586,10 @@ export function HomeView({
 
                     {/* Action Button */}
                     <button
-                      onClick={() => onTrackLive?.(shipment)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onTrackLive?.(shipment);
+                      }}
                       style={{
                         width: '100%',
                         background: 'linear-gradient(to right, #f59e0b, #f97316)',

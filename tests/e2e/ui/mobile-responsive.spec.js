@@ -77,75 +77,97 @@ test.describe('Mobile Responsiveness', () => {
     await expect(header).toBeVisible();
   });
 
-  test('should align home filter pills evenly on mobile', async ({ page }) => {
-    const mobileListingControls = page.getByTestId('home-mobile-listing-controls');
-    await expect(mobileListingControls).toBeVisible();
+  test('should keep first home content below sticky controls on mobile', async ({ page }) => {
+    const stickyControls = page.getByTestId('home-sticky-controls');
+    const content = page.getByTestId('home-scroll-content');
 
-    const filterRow = page.getByTestId('home-filter-pills');
-    await expect(filterRow).toBeVisible();
+    await expect(stickyControls).toBeVisible();
+    await expect(content).toBeVisible();
 
-    const allPill = page.getByTestId('home-filter-pill-all');
-    const openPill = page.getByTestId('home-filter-pill-open');
-    const waitingPill = page.getByTestId('home-filter-pill-waiting');
-    await expect(allPill).toBeVisible();
-    await expect(openPill).toBeVisible();
-    await expect(waitingPill).toBeVisible();
+    const geometry = await page.evaluate(() => {
+      const sticky = document.querySelector('[data-testid="home-sticky-controls"]');
+      const contentEl = document.querySelector('[data-testid="home-scroll-content"]');
+      if (!sticky || !contentEl) return null;
 
-    const geometry = await filterRow.evaluate((row) => {
-      const rowRect = row.getBoundingClientRect();
-      const buttons = Array.from(row.querySelectorAll('button'));
-      const rects = buttons.map((button) => button.getBoundingClientRect());
+      const stickyRect = sticky.getBoundingClientRect();
+      const contentRect = contentEl.getBoundingClientRect();
       return {
-        rowLeft: rowRect.left,
-        rowRight: rowRect.right,
-        buttonCount: rects.length,
-        rects: rects.map((rect) => ({
+        stickyBottom: stickyRect.bottom,
+        contentTop: contentRect.top,
+      };
+    });
+
+    expect(geometry).not.toBeNull();
+    expect(geometry.contentTop).toBeGreaterThanOrEqual(geometry.stickyBottom - 1);
+  });
+
+  test('should align home market pills and search controls on mobile', async ({ page }) => {
+    const stickyControls = page.getByTestId('home-sticky-controls');
+    await expect(stickyControls).toBeVisible();
+
+    const cargoButton = page.getByRole('button', { name: /cargo/i }).first();
+    const trucksButton = page.getByRole('button', { name: /trucks/i }).first();
+    await expect(cargoButton).toBeVisible();
+    await expect(trucksButton).toBeVisible();
+
+    const geometry = await page.evaluate(() => {
+      const sticky = document.querySelector('[data-testid="home-sticky-controls"]');
+      if (!sticky) return null;
+
+      const stickyRect = sticky.getBoundingClientRect();
+      const marketButtons = Array.from(sticky.querySelectorAll('button')).slice(0, 2);
+      const buttonRects = marketButtons.map((button) => button.getBoundingClientRect());
+      const searchInput = sticky.querySelector('input[type="text"]');
+      const searchRect = searchInput?.getBoundingClientRect();
+
+      return {
+        stickyLeft: stickyRect.left,
+        stickyRight: stickyRect.right,
+        buttonCount: buttonRects.length,
+        buttons: buttonRects.map((rect) => ({
           left: rect.left,
           right: rect.right,
           width: rect.width,
           height: rect.height,
           top: rect.top,
+          bottom: rect.bottom,
         })),
+        searchTop: searchRect?.top ?? null,
       };
     });
 
-    expect(geometry.buttonCount).toBe(3);
+    expect(geometry).not.toBeNull();
+    expect(geometry.buttonCount).toBe(2);
 
-    const [first, second, third] = geometry.rects;
-    expect(first.left).toBeGreaterThanOrEqual(geometry.rowLeft - 1);
-    expect(third.right).toBeLessThanOrEqual(geometry.rowRight + 1);
-
-    expect(Math.abs(first.height - second.height)).toBeLessThanOrEqual(1);
-    expect(Math.abs(second.height - third.height)).toBeLessThanOrEqual(1);
-    expect(Math.abs(first.width - second.width)).toBeLessThanOrEqual(2);
-    expect(Math.abs(second.width - third.width)).toBeLessThanOrEqual(2);
-    expect(Math.abs(first.top - second.top)).toBeLessThanOrEqual(1);
-    expect(Math.abs(second.top - third.top)).toBeLessThanOrEqual(1);
-
-    const verticalOrder = await page.evaluate(() => {
-      const searchInput = document.querySelector('[data-testid="home-sticky-controls"] input[type="text"]');
-      const pills = document.querySelector('[data-testid="home-filter-pills"]');
-      if (!searchInput || !pills) return null;
-      const searchRect = searchInput.getBoundingClientRect();
-      const pillsRect = pills.getBoundingClientRect();
-      return {
-        searchBottom: searchRect.bottom,
-        pillsTop: pillsRect.top,
-      };
-    });
-    expect(verticalOrder).not.toBeNull();
-    expect(verticalOrder.pillsTop).toBeGreaterThanOrEqual(verticalOrder.searchBottom - 1);
+    const [cargoRect, trucksRect] = geometry.buttons;
+    expect(cargoRect.left).toBeGreaterThanOrEqual(geometry.stickyLeft - 1);
+    expect(trucksRect.right).toBeLessThanOrEqual(geometry.stickyRight + 1);
+    expect(Math.abs(cargoRect.height - trucksRect.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(cargoRect.width - trucksRect.width)).toBeLessThanOrEqual(2);
+    expect(Math.abs(cargoRect.top - trucksRect.top)).toBeLessThanOrEqual(1);
+    expect(geometry.searchTop).not.toBeNull();
+    expect(geometry.searchTop).toBeGreaterThanOrEqual(cargoRect.bottom - 1);
   });
 
   test('should keep listing controls stable while scrolling', async ({ page }) => {
     const scrollContainer = page.getByTestId('home-scroll-container');
-    const listingControls = page.getByTestId('home-mobile-listing-controls');
+    const listingControls = page.getByTestId('home-sticky-controls');
 
     await expect(scrollContainer).toBeVisible();
     await expect(listingControls).toBeVisible();
 
-    const initialHeight = await listingControls.evaluate((el) => el.getBoundingClientRect().height);
-    expect(initialHeight).toBeGreaterThanOrEqual(44);
+    const initialGeometry = await listingControls.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      const computed = window.getComputedStyle(el);
+      return {
+        top: rect.top,
+        height: rect.height,
+        opacity: Number(computed.opacity),
+      };
+    });
+    expect(initialGeometry.height).toBeGreaterThanOrEqual(90);
+    expect(initialGeometry.opacity).toBeGreaterThan(0.95);
+
     const maxScrollTop = await page.evaluate(() => {
       const container = document.querySelector('[data-testid="home-scroll-container"]');
       if (!container) return 0;
@@ -162,10 +184,16 @@ test.describe('Mobile Responsiveness', () => {
     const scrolledGeometry = await listingControls.evaluate((el) => {
       const rect = el.getBoundingClientRect();
       const computed = window.getComputedStyle(el);
-      return { height: rect.height, opacity: Number(computed.opacity) };
+      return {
+        top: rect.top,
+        height: rect.height,
+        opacity: Number(computed.opacity),
+      };
     });
-    expect(scrolledGeometry.height).toBeGreaterThanOrEqual(44);
+    expect(scrolledGeometry.height).toBeGreaterThanOrEqual(90);
+    expect(Math.abs(scrolledGeometry.height - initialGeometry.height)).toBeLessThanOrEqual(2);
     expect(scrolledGeometry.opacity).toBeGreaterThan(0.95);
+    expect(scrolledGeometry.top).toBeLessThanOrEqual(initialGeometry.top + 2);
 
     await page.evaluate(() => {
       const container = document.querySelector('[data-testid="home-scroll-container"]');
@@ -173,8 +201,12 @@ test.describe('Mobile Responsiveness', () => {
     });
     await page.waitForTimeout(300);
 
-    const topHeight = await listingControls.evaluate((el) => el.getBoundingClientRect().height);
-    expect(topHeight).toBeGreaterThanOrEqual(44);
+    const restoredGeometry = await listingControls.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      return { top: rect.top, height: rect.height };
+    });
+    expect(restoredGeometry.height).toBeGreaterThanOrEqual(90);
+    expect(restoredGeometry.top).toBeGreaterThanOrEqual(initialGeometry.top - 6);
   });
 
   test('should collapse mobile header and pin sticky controls to top on scroll', async ({ page }) => {
@@ -290,37 +322,45 @@ test.describe('Mobile Responsiveness Narrow Viewport', () => {
     expect(geometry.headerHeight).toBeGreaterThan(40);
     expect(geometry.stickyTop).toBeGreaterThanOrEqual(geometry.headerBottom - 2);
 
-    const controlsOnNarrow = page.getByTestId('home-mobile-listing-controls');
+    const controlsOnNarrow = page.getByTestId('home-sticky-controls');
     await expect(controlsOnNarrow).toBeVisible();
 
-    const filterGeometry = await page.evaluate(() => {
-      const row = document.querySelector('[data-testid="home-filter-pills"]');
-      if (!row) return null;
-      const rowRect = row.getBoundingClientRect();
-      const buttons = Array.from(row.querySelectorAll('button'));
+    const controlGeometry = await page.evaluate(() => {
+      const sticky = document.querySelector('[data-testid="home-sticky-controls"]');
+      if (!sticky) return null;
+      const stickyRect = sticky.getBoundingClientRect();
+      const buttons = Array.from(sticky.querySelectorAll('button')).slice(0, 2);
       const rects = buttons.map((button) => button.getBoundingClientRect());
+      const searchInput = sticky.querySelector('input[type="text"]');
+      const searchRect = searchInput?.getBoundingClientRect();
       return {
-        rowTop: rowRect.top,
-        rowLeft: rowRect.left,
-        rowRight: rowRect.right,
+        rowTop: rects[0]?.top ?? null,
+        rowLeft: stickyRect.left,
+        rowRight: stickyRect.right,
         buttonCount: rects.length,
         rects: rects.map((rect) => ({
           left: rect.left,
           right: rect.right,
           width: rect.width,
           height: rect.height,
+          top: rect.top,
+          bottom: rect.bottom,
         })),
+        searchTop: searchRect?.top ?? null,
       };
     });
 
-    expect(filterGeometry).not.toBeNull();
-    expect(filterGeometry.buttonCount).toBe(3);
-    expect(filterGeometry.rowTop).toBeGreaterThanOrEqual(0);
-    filterGeometry.rects.forEach((rect) => {
-      expect(rect.left).toBeGreaterThanOrEqual(filterGeometry.rowLeft - 1);
-      expect(rect.right).toBeLessThanOrEqual(filterGeometry.rowRight + 1);
+    expect(controlGeometry).not.toBeNull();
+    expect(controlGeometry.buttonCount).toBe(2);
+    expect(controlGeometry.rowTop).toBeGreaterThanOrEqual(0);
+    controlGeometry.rects.forEach((rect) => {
+      expect(rect.left).toBeGreaterThanOrEqual(controlGeometry.rowLeft - 1);
+      expect(rect.right).toBeLessThanOrEqual(controlGeometry.rowRight + 1);
       expect(rect.height).toBeGreaterThanOrEqual(44);
     });
+    expect(controlGeometry.searchTop).not.toBeNull();
+    expect(controlGeometry.searchTop).toBeGreaterThanOrEqual(controlGeometry.rects[0].bottom - 1);
+
     const maxScrollTop = await page.evaluate(() => {
       const container = document.querySelector('[data-testid="home-scroll-container"]');
       if (!container) return 0;
@@ -335,7 +375,7 @@ test.describe('Mobile Responsiveness Narrow Viewport', () => {
     await page.waitForTimeout(450);
 
     const narrowScrolledHeight = await controlsOnNarrow.evaluate((el) => el.getBoundingClientRect().height);
-    expect(narrowScrolledHeight).toBeGreaterThanOrEqual(44);
+    expect(narrowScrolledHeight).toBeGreaterThanOrEqual(90);
 
     await page.evaluate(() => {
       const container = document.querySelector('[data-testid="home-scroll-container"]');
@@ -344,7 +384,7 @@ test.describe('Mobile Responsiveness Narrow Viewport', () => {
     await page.waitForTimeout(450);
 
     const narrowRevealedHeight = await controlsOnNarrow.evaluate((el) => el.getBoundingClientRect().height);
-    expect(narrowRevealedHeight).toBeGreaterThanOrEqual(44);
+    expect(narrowRevealedHeight).toBeGreaterThanOrEqual(90);
   });
 });
 
