@@ -12,7 +12,7 @@ import {
   linkWithCredential,
 } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, waitForAppCheckInitialization } from '../firebase';
+import { auth, db, waitForAppCheckInitialization, isAuthAppVerificationBypassed } from '../firebase';
 import api from '../services/api';
 
 const AuthContext = createContext();
@@ -739,7 +739,9 @@ export function AuthProvider({ children }) {
       }
 
       await waitForAppCheckInitialization();
-      await preloadAuthRecaptchaEnterpriseScript();
+      if (!isAuthAppVerificationBypassed) {
+        await preloadAuthRecaptchaEnterpriseScript();
+      }
       const verifier = getRecaptchaVerifier();
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
 

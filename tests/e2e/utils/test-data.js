@@ -4,6 +4,8 @@
 
 // Firebase Auth Emulator accepts this OTP code for all test phone numbers
 export const TEST_OTP_CODE = '123456';
+export const EMULATOR_PROJECT_ID =
+  process.env.PW_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'karga-ph';
 
 /**
  * Pre-configured test phone numbers for different user roles
@@ -110,12 +112,12 @@ export async function waitForElement(page, selector, options = {}) {
 export async function clearEmulatorData() {
   try {
     // Clear Auth emulator
-    await fetch('http://127.0.0.1:9099/emulator/v1/projects/karga-ph/accounts', {
+    await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/accounts`, {
       method: 'DELETE',
     });
 
     // Clear Firestore emulator
-    await fetch('http://127.0.0.1:8080/emulator/v1/projects/karga-ph/databases/(default)/documents', {
+    await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${EMULATOR_PROJECT_ID}/databases/(default)/documents`, {
       method: 'DELETE',
     });
 

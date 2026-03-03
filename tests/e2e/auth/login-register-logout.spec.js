@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth.fixture.js';
-import { generateTestUser } from '../utils/test-data.js';
+import { EMULATOR_PROJECT_ID, generateTestUser } from '../utils/test-data.js';
 
 /**
  * Authentication Flow E2E Tests
@@ -198,14 +198,14 @@ test.describe('Authentication Flow', () => {
     await authHelper.disableBackupEmail();
     await authHelper.logout();
 
-    const countBeforeResp = await fetch('http://127.0.0.1:9099/emulator/v1/projects/karga-ph/oobCodes');
+    const countBeforeResp = await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/oobCodes`);
     const countBeforePayload = await countBeforeResp.json();
     const countBefore = Array.isArray(countBeforePayload?.oobCodes) ? countBeforePayload.oobCodes.length : 0;
 
     await authHelper.requestMagicLinkFromAuthModal(testEmails.trucker);
     await new Promise((resolve) => setTimeout(resolve, 700));
 
-    const countAfterResp = await fetch('http://127.0.0.1:9099/emulator/v1/projects/karga-ph/oobCodes');
+    const countAfterResp = await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/oobCodes`);
     const countAfterPayload = await countAfterResp.json();
     const countAfter = Array.isArray(countAfterPayload?.oobCodes) ? countAfterPayload.oobCodes.length : 0;
 

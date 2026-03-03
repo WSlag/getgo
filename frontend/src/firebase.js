@@ -45,6 +45,25 @@ function extractHost(value) {
   }
 }
 
+function parseHostAllowlist(rawValue) {
+  if (!rawValue || typeof rawValue !== 'string') return [];
+  return rawValue
+    .split(',')
+    .map((entry) => extractHost(entry).toLowerCase())
+    .filter(Boolean);
+}
+
+function isProjectHostedDomain(host, projectId) {
+  if (!host || !projectId) return false;
+  const normalizedHost = String(host).trim().toLowerCase();
+  const normalizedProjectId = String(projectId).trim().toLowerCase();
+  if (!normalizedHost || !normalizedProjectId) return false;
+  return (
+    normalizedHost === `${normalizedProjectId}.web.app`
+    || normalizedHost === `${normalizedProjectId}.firebaseapp.com`
+  );
+}
+
 function resolveAuthDomain(configuredAuthDomain) {
   // Keep authDomain stable by default.
   // Set VITE_USE_RUNTIME_AUTH_DOMAIN=true to opt in to host-based authDomain overrides.
@@ -55,7 +74,12 @@ function resolveAuthDomain(configuredAuthDomain) {
 
   const currentHost = extractHost(window.location.hostname);
   const configuredHost = extractHost(configuredAuthDomain);
-  const siteHost = extractHost(import.meta.env.VITE_SITE_URL || '');
+  const currentHostLower = currentHost.toLowerCase();
+  const allowlistedHosts = parseHostAllowlist(import.meta.env.VITE_RUNTIME_AUTH_DOMAIN_ALLOWLIST || '');
+  const allowlistedSet = new Set(allowlistedHosts);
+  const canUseCurrentHostAsAuthDomain =
+    isProjectHostedDomain(currentHostLower, firebaseConfig.projectId)
+    || allowlistedSet.has(currentHostLower);
 
   if (!currentHost || !configuredHost || currentHost === configuredHost) {
     return configuredAuthDomain;
@@ -66,12 +90,14 @@ function resolveAuthDomain(configuredAuthDomain) {
     return configuredAuthDomain;
   }
 
-  const isFirebaseHostedDomain =
-    currentHost.endsWith('.web.app') || currentHost.endsWith('.firebaseapp.com');
-  const isConfiguredSiteHost = siteHost && currentHost === siteHost;
-
-  if (isFirebaseHostedDomain || isConfiguredSiteHost) {
+  if (canUseCurrentHostAsAuthDomain) {
     return currentHost;
+  }
+
+  if (import.meta.env.DEV) {
+    console.warn(
+      `[firebase] Skipping runtime authDomain override for ${currentHost}; host is not allow-listed for project ${firebaseConfig.projectId}.`
+    );
   }
 
   return configuredAuthDomain;
@@ -303,6 +329,11 @@ if (shouldInitializeAppCheck) {
 
 // Initialize services
 export const auth = getAuth(app);
+const disableAuthAppVerificationForTesting = useEmulator;
+if (disableAuthAppVerificationForTesting) {
+  auth.settings.appVerificationDisabledForTesting = true;
+}
+export const isAuthAppVerificationBypassed = disableAuthAppVerificationForTesting;
 export const db = (() => {
   try {
     // Use memory cache in emulator mode to avoid persistence conflicts

@@ -1,0 +1,21 @@
+{
+  "name": "getgoph-facebook-agent",
+  "version": "1.0.0",
+  "description": "GetGo PH Facebook Marketing Agent — Claude-powered AI for content generation, campaign planning, and ad copy",
+  "type": "module",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "dev": "node --watch agent.js",
+    "generate-posts": "node agent.js --task generate-posts",
+    "generate-ads": "node agent.js --task generate-ads",
+    "generate-script": "node agent.js --task generate-script",
+    "plan-week": "node agent.js --task plan-week",
+    "interactive": "node agent.js --interactive"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^16.4.5",
+    "readline": "^1.3.0"
+  }
+}
