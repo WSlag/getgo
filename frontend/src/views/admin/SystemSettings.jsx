@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Settings,
   Percent,
@@ -124,6 +124,13 @@ export function SystemSettings() {
   const [referralProgramEnabled, setReferralProgramEnabled] = useState(true);
   const [autoApproveEnabled, setAutoApproveEnabled] = useState(false);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const savedTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
+  }, []);
 
   const applySettings = (settings = {}) => {
     setPlatformFeePercent(String(settings?.platformFee?.percentage ?? 5));
@@ -243,7 +250,11 @@ export function SystemSettings() {
 
       applySettings(response?.settings || {});
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => {
+        savedTimerRef.current = null;
+        setSaved(false);
+      }, 3000);
     } catch (saveError) {
       setError(saveError?.message || 'Failed to save system settings');
     } finally {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -51,6 +51,7 @@ export function AdminDashboard({ onBackToApp }) {
     pendingBrokerPayouts: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
+  const refreshTimerRef = useRef(null);
 
   // Fetch badge counts
   const fetchBadges = useCallback(async (brokerPayoutRequests) => {
@@ -83,11 +84,21 @@ export function AdminDashboard({ onBackToApp }) {
     return () => clearInterval(interval);
   }, [fetchBadges]);
 
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
+
   // Handle refresh
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchBadges();
-    setTimeout(() => setRefreshing(false), 500);
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      setRefreshing(false);
+    }, 500);
   };
 
   // Redirect if not admin

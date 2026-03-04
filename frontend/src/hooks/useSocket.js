@@ -70,6 +70,8 @@ export function useSocket(userId) {
           });
         }
       });
+    }, (error) => {
+      if (import.meta.env.DEV) console.warn('useSocket: bids listener error:', error?.message || error);
     });
     unsubscribers.push(unsubBids);
 
@@ -104,6 +106,8 @@ export function useSocket(userId) {
           }
         }
       });
+    }, (error) => {
+      if (import.meta.env.DEV) console.warn('useSocket: notifications listener error:', error?.message || error);
     });
     unsubscribers.push(unsubNotifs);
 
@@ -132,6 +136,8 @@ export function useSocket(userId) {
           });
         }
       });
+    }, (error) => {
+      if (import.meta.env.DEV) console.warn('useSocket: shipments listener error:', error?.message || error);
     });
     unsubscribers.push(unsubShipments);
 

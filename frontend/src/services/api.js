@@ -39,6 +39,8 @@ async function callFunction(name, data = {}) {
 
     const err = new Error(error.message || 'Function call failed');
     err.code = error.code;
+    err.details = error.details || null;
+    err.cause = error;
     throw err;
   }
 }
