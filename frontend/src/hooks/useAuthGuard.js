@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 /**
@@ -25,6 +25,13 @@ export function useAuthGuard() {
 
   // Use ref to store the pending action to avoid stale closure issues
   const pendingActionRef = useRef(null);
+  const pendingTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    };
+  }, []);
 
   /**
    * Check if user is fully authenticated (has auth + profile)
@@ -57,8 +64,10 @@ export function useAuthGuard() {
    */
   const executePendingAction = useCallback(() => {
     if (pendingActionRef.current) {
+      if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
       // Small delay to ensure auth state is fully updated
-      setTimeout(() => {
+      pendingTimerRef.current = setTimeout(() => {
+        pendingTimerRef.current = null;
         pendingActionRef.current?.();
         pendingActionRef.current = null;
       }, 100);

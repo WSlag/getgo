@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Check, MessageSquare, Package, Star, AlertCircle, Banknote, X } from 'lucide-react';
 
@@ -27,16 +27,31 @@ const COLOR_MAP = {
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
+  const timersRef = useRef(new Map());
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((timerId) => clearTimeout(timerId));
+      timersRef.current.clear();
+    };
+  }, []);
 
   const showToast = useCallback((toast) => {
     const id = `${Date.now()}-${Math.random()}`;
     setToasts((prev) => [...prev, { id, ...toast }]);
-    setTimeout(() => {
+    const timerId = setTimeout(() => {
+      timersRef.current.delete(id);
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 5000);
+    timersRef.current.set(id, timerId);
   }, []);
 
   const dismissToast = useCallback((id) => {
+    const timerId = timersRef.current.get(id);
+    if (timerId) {
+      clearTimeout(timerId);
+      timersRef.current.delete(id);
+    }
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 

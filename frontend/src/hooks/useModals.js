@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 /**
  * Custom hook for managing modal states
@@ -30,6 +30,14 @@ export function useModals() {
 
   // Modal data (e.g., selected cargo for bid modal)
   const [modalData, setModalData] = useState({});
+  const modalClearTimersRef = useRef(new Map());
+
+  useEffect(() => {
+    return () => {
+      modalClearTimersRef.current.forEach((t) => clearTimeout(t));
+      modalClearTimersRef.current.clear();
+    };
+  }, []);
 
   const openModal = useCallback((modalName, data = null) => {
     setModals(prev => ({ ...prev, [modalName]: true }));
@@ -40,14 +48,19 @@ export function useModals() {
 
   const closeModal = useCallback((modalName) => {
     setModals(prev => ({ ...prev, [modalName]: false }));
+    // Clear previous timer for same modal if exists
+    const prevTimer = modalClearTimersRef.current.get(modalName);
+    if (prevTimer) clearTimeout(prevTimer);
     // Clear modal data after a delay (for exit animations)
-    setTimeout(() => {
+    const timerId = setTimeout(() => {
+      modalClearTimersRef.current.delete(modalName);
       setModalData(prev => {
         const next = { ...prev };
         delete next[modalName];
         return next;
       });
     }, 300);
+    modalClearTimersRef.current.set(modalName, timerId);
   }, []);
 
   const toggleModal = useCallback((modalName) => {

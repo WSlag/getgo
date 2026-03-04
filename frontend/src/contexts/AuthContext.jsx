@@ -457,6 +457,9 @@ export function AuthProvider({ children }) {
     const shipperRef = doc(db, 'users', authUser.uid, 'shipperProfile', 'profile');
     const unsubShipper = onSnapshot(shipperRef, (snap) => {
       setShipperProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+    }, (error) => {
+      console.error('Error listening to shipper profile:', error);
+      setShipperProfile(null);
     });
 
     return unsubShipper;
@@ -469,6 +472,9 @@ export function AuthProvider({ children }) {
     const truckerRef = doc(db, 'users', authUser.uid, 'truckerProfile', 'profile');
     const unsubTrucker = onSnapshot(truckerRef, (snap) => {
       setTruckerProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+    }, (error) => {
+      console.error('Error listening to trucker profile:', error);
+      setTruckerProfile(null);
     });
 
     return unsubTrucker;
@@ -481,6 +487,9 @@ export function AuthProvider({ children }) {
     const brokerRef = doc(db, 'users', authUser.uid, 'brokerProfile', 'profile');
     const unsubBroker = onSnapshot(brokerRef, (snap) => {
       setBrokerProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+    }, (error) => {
+      console.error('Error listening to broker profile:', error);
+      setBrokerProfile(null);
     });
 
     return unsubBroker;
@@ -493,6 +502,9 @@ export function AuthProvider({ children }) {
     const walletRef = doc(db, 'users', authUser.uid, 'wallet', 'main');
     const unsubWallet = onSnapshot(walletRef, (snap) => {
       setWallet(snap.exists() ? { id: snap.id, ...snap.data() } : { balance: 0 });
+    }, (error) => {
+      console.error('Error listening to wallet:', error);
+      setWallet({ balance: 0 });
     });
 
     return unsubWallet;
@@ -739,9 +751,12 @@ export function AuthProvider({ children }) {
       }
 
       await waitForAppCheckInitialization();
-      if (!isAuthAppVerificationBypassed) {
-        await preloadAuthRecaptchaEnterpriseScript();
-      }
+      // NOTE: Do NOT preload the reCAPTCHA Enterprise script here.
+      // App Check already initialises grecaptcha.enterprise with its own site key.
+      // Pre-loading a second Enterprise script with the Identity Platform key
+      // conflicts with the singleton grecaptcha.enterprise instance, causing
+      // INVALID_APP_CREDENTIAL errors on sendVerificationCode.
+      // Firebase Auth SDK (v11+) handles its own reCAPTCHA flow internally.
       const verifier = getRecaptchaVerifier();
       const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
 

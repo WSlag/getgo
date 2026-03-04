@@ -346,7 +346,7 @@ export const db = (() => {
       }),
     });
   } catch (err) {
-    console.warn('Firestore persistent cache unavailable, using memory cache:', err?.message || err);
+    if (import.meta.env.DEV) console.warn('Firestore persistent cache unavailable, using memory cache:', err?.message || err);
     return initializeFirestore(app, { localCache: memoryLocalCache() });
   }
 })();
