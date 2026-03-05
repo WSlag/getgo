@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Bell, Moon, Sun, HelpCircle, LogOut, ChevronRight, Star, Truck, Package, Users, ClipboardList } from 'lucide-react';
+import { User, Bell, Moon, Sun, HelpCircle, LogOut, ChevronRight, Star, Truck, Package, Users, ClipboardList, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ export function ProfileDropdown({
   user = {},
   currentRole = 'shipper',
   isBroker = false,
+  isAdmin = false,
   darkMode = false,
   onToggleDarkMode,
   onMyActivity,
@@ -21,6 +22,7 @@ export function ProfileDropdown({
   onEditProfile,
   onNotificationSettings,
   onHelpSupport,
+  onAdminDashboard,
   onLogout,
   children,
   className,
@@ -230,6 +232,22 @@ export function ProfileDropdown({
               <ChevronRight className="size-4 shrink-0 text-gray-400" />
             </div>
           </DropdownMenuItem>
+
+          {/* Admin Dashboard (Mobile only) */}
+          {isAdmin && (
+            <DropdownMenuItem
+              onSelect={onAdminDashboard}
+              className={cn(menuItemClass, 'lg:hidden')}
+            >
+              <div className="flex w-full min-w-0 items-center gap-3">
+                <div className="size-8 shrink-0 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+                  <Shield className="size-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <span className="min-w-0 flex-1 truncate text-sm text-amber-700 dark:text-amber-300">Admin Dashboard</span>
+                <ChevronRight className="size-4 shrink-0 text-amber-500/80" />
+              </div>
+            </DropdownMenuItem>
+          )}
         </div>
 
         <DropdownMenuSeparator className="m-0" />

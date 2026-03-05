@@ -13,6 +13,7 @@ export function Header({
   userInitial = 'U',
   currentRole = 'shipper',
   isBroker = false,
+  isAdmin = false,
   onLogout,
   onNotificationClick,
   onProfileClick,
@@ -20,6 +21,7 @@ export function Header({
   onEditProfile,
   onNotificationSettings,
   onHelpSupport,
+  onAdminDashboard,
   user = {},
   mobileVisible = true,
   headerRef = null,
@@ -135,11 +137,13 @@ export function Header({
               darkMode={darkMode}
               onToggleDarkMode={onToggleDarkMode}
               isBroker={isBroker}
+              isAdmin={isAdmin}
               onMyActivity={() => onTabChange?.('activity')}
               onBrokerDashboard={onBrokerClick}
               onEditProfile={onEditProfile}
               onNotificationSettings={onNotificationSettings}
               onHelpSupport={onHelpSupport}
+              onAdminDashboard={onAdminDashboard}
               onLogout={onLogout}
             >
               <button
