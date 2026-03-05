@@ -6,7 +6,7 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const { FieldValue } = require('firebase-admin/firestore');
+const { FieldPath, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const {
   loadPlatformSettings,
   shouldBlockForMaintenance,
@@ -39,6 +39,12 @@ const {
   upsertBrokerListingReferral,
   logReferralAudit,
 } = require('../services/brokerListingReferralService');
+const {
+  DAILY_REFERRAL_TIME_ZONE,
+  getDateKeyInTimeZone,
+  getDailyUsageForDate,
+  buildListingReferralSummary,
+} = require('../services/brokerReferralMetrics');
 
 const REGION = 'asia-southeast1';
 const MIN_PAYOUT_AMOUNT = 500;
@@ -205,10 +211,10 @@ function enrichBrokerActivityItem(item = {}) {
 function applyActivityDateFilters(query, dateFrom, dateTo) {
   let nextQuery = query;
   if (dateFrom) {
-    nextQuery = nextQuery.where('activityAt', '>=', admin.firestore.Timestamp.fromDate(dateFrom));
+    nextQuery = nextQuery.where('activityAt', '>=', Timestamp.fromDate(dateFrom));
   }
   if (dateTo) {
-    nextQuery = nextQuery.where('activityAt', '<=', admin.firestore.Timestamp.fromDate(dateTo));
+    nextQuery = nextQuery.where('activityAt', '<=', Timestamp.fromDate(dateTo));
   }
   return nextQuery;
 }
@@ -229,7 +235,7 @@ async function buildAccurateBrokerActivitySummary(db, {
     let query = db.collection(MARKET_ACTIVITY_COLLECTION)
       .where('brokerId', '==', brokerId)
       .orderBy('activityAt', 'desc')
-      .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+      .orderBy(FieldPath.documentId(), 'desc');
     query = applyActivityDateFilters(query, dateFrom, dateTo);
     if (lastDoc) {
       query = query.startAfter(lastDoc);
@@ -253,6 +259,54 @@ async function buildAccurateBrokerActivitySummary(db, {
   }
 
   return buildBrokerActivitySummary(filteredItems);
+}
+
+async function buildAccurateListingReferralSummary(db, {
+  brokerId,
+  statusFilter = 'all',
+  listingTypeFilter = 'all',
+}) {
+  const pageSize = 250;
+  let lastDoc = null;
+  let hasMore = true;
+  const summaryItems = [];
+  const nowMs = Date.now();
+
+  while (hasMore) {
+    let query = db.collection(LISTING_REFERRAL_COLLECTION)
+      .where('brokerId', '==', brokerId)
+      .orderBy('updatedAt', 'desc')
+      .orderBy(FieldPath.documentId(), 'desc');
+
+    if (statusFilter !== 'all') {
+      query = query.where('status', '==', statusFilter);
+    }
+    if (listingTypeFilter !== 'all') {
+      query = query.where('listingType', '==', listingTypeFilter);
+    }
+    if (lastDoc) {
+      query = query.startAfter(lastDoc);
+    }
+
+    const snap = await query.limit(pageSize).get();
+    if (snap.empty) {
+      hasMore = false;
+      break;
+    }
+
+    snap.docs.forEach((doc) => {
+      const item = doc.data() || {};
+      summaryItems.push({
+        status: item.status,
+        updatedAtMs: toMillis(item.updatedAt),
+      });
+    });
+
+    lastDoc = snap.docs[snap.docs.length - 1] || null;
+    hasMore = snap.size === pageSize;
+  }
+
+  return buildListingReferralSummary(summaryItems, nowMs);
 }
 
 async function generateUniqueReferralCode(db, role) {
@@ -546,10 +600,10 @@ exports.brokerGetReferredUsers = functions.region(REGION).https.onCall(async (da
   let query = db.collection('brokerReferrals')
     .where('brokerId', '==', brokerId)
     .orderBy('createdAt', 'desc')
-    .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+    .orderBy(FieldPath.documentId(), 'desc');
 
   if (cursor) {
-    query = query.startAfter(admin.firestore.Timestamp.fromMillis(cursor.ts), cursor.id);
+    query = query.startAfter(Timestamp.fromMillis(cursor.ts), cursor.id);
   }
 
   const snap = await query.limit(limit + 1).get();
@@ -648,18 +702,29 @@ exports.brokerReferListing = functions.region(REGION).https.onCall(async (data, 
 
   const usersMap = await getMaskedUserMap(db, [...requestedUsers, brokerId, listingOwnerId]);
   const now = Date.now();
-  const expiresAt = admin.firestore.Timestamp.fromMillis(now + REFERRAL_TTL_MS);
+  const expiresAt = Timestamp.fromMillis(now + REFERRAL_TTL_MS);
   const createdErrors = [];
   let createdCount = 0;
   let resentCount = 0;
   let skippedCount = 0;
-
-  const brokerDailyUsage = Number(broker.dailyListingReferralCount || 0);
-  if (brokerDailyUsage >= MAX_DAILY_LISTING_REFERRALS) {
+  const dailyReferralDate = getDateKeyInTimeZone(new Date(now), DAILY_REFERRAL_TIME_ZONE);
+  const brokerDailyUsage = getDailyUsageForDate(broker, dailyReferralDate);
+  const dailyAvailableSlots = Math.max(0, MAX_DAILY_LISTING_REFERRALS - brokerDailyUsage);
+  if (dailyAvailableSlots <= 0) {
     throw new functions.https.HttpsError('resource-exhausted', 'Daily referral limit reached');
   }
 
   for (const referredUserId of requestedUsers) {
+    if ((createdCount + resentCount) >= dailyAvailableSlots) {
+      skippedCount += 1;
+      createdErrors.push({
+        referredUserId,
+        code: 'daily-limit',
+        message: 'Daily referral limit reached',
+      });
+      continue;
+    }
+
     if (!attributedUserIds.has(referredUserId)) {
       skippedCount += 1;
       createdErrors.push({ referredUserId, code: 'not-attributed', message: 'User is not attributed to this broker' });
@@ -735,7 +800,8 @@ exports.brokerReferListing = functions.region(REGION).https.onCall(async (data, 
   const totalSent = createdCount + resentCount;
   if (totalSent > 0) {
     await db.collection('brokers').doc(brokerId).set({
-      dailyListingReferralCount: FieldValue.increment(totalSent),
+      dailyListingReferralDate: dailyReferralDate,
+      dailyListingReferralCount: brokerDailyUsage + totalSent,
       lastListingReferralAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
@@ -747,6 +813,9 @@ exports.brokerReferListing = functions.region(REGION).https.onCall(async (data, 
     resentCount,
     skippedCount,
     errors: createdErrors,
+    dailyLimit: MAX_DAILY_LISTING_REFERRALS,
+    dailyUsage: brokerDailyUsage + totalSent,
+    dailyRemaining: Math.max(0, MAX_DAILY_LISTING_REFERRALS - (brokerDailyUsage + totalSent)),
   };
 });
 
@@ -783,7 +852,7 @@ exports.brokerGetListingReferrals = functions.region(REGION).https.onCall(async 
   let query = db.collection(LISTING_REFERRAL_COLLECTION)
     .where('brokerId', '==', brokerId)
     .orderBy('updatedAt', 'desc')
-    .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+    .orderBy(FieldPath.documentId(), 'desc');
   if (statusFilter !== 'all') {
     query = query.where('status', '==', statusFilter);
   }
@@ -791,7 +860,7 @@ exports.brokerGetListingReferrals = functions.region(REGION).https.onCall(async 
     query = query.where('listingType', '==', listingTypeFilter);
   }
   if (cursor) {
-    query = query.startAfter(admin.firestore.Timestamp.fromMillis(cursor.ts), cursor.id);
+    query = query.startAfter(Timestamp.fromMillis(cursor.ts), cursor.id);
   }
 
   const snap = await query.limit(limit + 1).get();
@@ -799,14 +868,11 @@ exports.brokerGetListingReferrals = functions.region(REGION).https.onCall(async 
   const items = docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   const lastDoc = docs[docs.length - 1] || null;
 
-  const summary = {
-    total: items.length,
-    sent24h: items.filter((item) => Date.now() - toMillis(item.updatedAt) <= 24 * 60 * 60 * 1000).length,
-    sent7d: items.filter((item) => Date.now() - toMillis(item.updatedAt) <= 7 * 24 * 60 * 60 * 1000).length,
-    opened: items.filter((item) => item.status === 'opened').length,
-    acted: items.filter((item) => item.status === 'acted').length,
-    expired: items.filter((item) => item.status === 'expired').length,
-  };
+  const summary = await buildAccurateListingReferralSummary(db, {
+    brokerId,
+    statusFilter,
+    listingTypeFilter,
+  });
 
   return {
     items,
@@ -839,10 +905,10 @@ exports.referredGetListingReferrals = functions.region(REGION).https.onCall(asyn
   let query = db.collection(LISTING_REFERRAL_COLLECTION)
     .where('referredUserId', '==', referredUserId)
     .orderBy('updatedAt', 'desc')
-    .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+    .orderBy(FieldPath.documentId(), 'desc');
 
   if (cursor) {
-    query = query.startAfter(admin.firestore.Timestamp.fromMillis(cursor.ts), cursor.id);
+    query = query.startAfter(Timestamp.fromMillis(cursor.ts), cursor.id);
   }
 
   const scanLimit = Math.min(limit * 3, 150);
@@ -945,10 +1011,10 @@ exports.brokerGetMarketplaceActivity = functions.region(REGION).https.onCall(asy
   let query = db.collection(MARKET_ACTIVITY_COLLECTION)
     .where('brokerId', '==', brokerId)
     .orderBy('activityAt', 'desc')
-    .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+    .orderBy(FieldPath.documentId(), 'desc');
   query = applyActivityDateFilters(query, dateFrom, dateTo);
   if (cursor) {
-    query = query.startAfter(admin.firestore.Timestamp.fromMillis(cursor.ts), cursor.id);
+    query = query.startAfter(Timestamp.fromMillis(cursor.ts), cursor.id);
   }
 
   const scanLimit = Math.min(limit * 10, 1000);
