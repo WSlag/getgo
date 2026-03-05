@@ -32,9 +32,19 @@ This directory contains end-to-end (E2E) tests for the Karga trucking marketplac
 
 ### Running Tests
 
-**Run all tests:**
+**Run default tests (excludes backend-health):**
 ```bash
 npm run test:e2e
+```
+
+**Run full suite (includes backend-health):**
+```bash
+npm run test:e2e:all
+```
+
+**Run backend-health only:**
+```bash
+npm run test:e2e:backend-health
 ```
 
 **Visual test runner (recommended for debugging):**
@@ -73,10 +83,13 @@ All tests run against **Firebase Emulators** (not production):
 - **Storage Emulator:** Port 9199 (file storage)
 - **Emulator UI:** Port 4000 (http://127.0.0.1:4000)
 
-Playwright automatically starts all required servers:
-- Frontend (Vite): Port 5173
+Playwright automatically starts these required servers:
 - Backend API: Port 3001
+- Frontend (Vite): Port 5173
 - Firebase Emulators: Various ports
+
+Backend-health remains separated from the default suite by script selection, but uses the same auto-started backend server.
+If backend is unavailable for any reason, backend-health tests still have a skip guard with a clear reason.
 
 ### Test Phone Numbers
 

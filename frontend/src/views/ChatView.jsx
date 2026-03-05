@@ -6,16 +6,34 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useConversations } from '@/hooks/useConversations';
 import { sanitizeMessage } from '@/utils/messageUtils';
+import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
+import { inferConversationPerspectiveRole, getWorkspaceLabel } from '@/utils/workspace';
 
 export function ChatView({
   currentUser,
+  workspaceRole = 'shipper',
+  conversations: conversationsProp,
+  conversationsLoading = false,
   onOpenChat,
   onBrowseMarketplace,
   onCreateListing,
   darkMode = false,
 }) {
-  const { conversations, loading } = useConversations(currentUser?.uid);
+  const { conversations: hookConversations, loading: hookLoading } = useConversations(currentUser?.uid);
   const isMobile = useMediaQuery('(max-width: 1023px)');
+  const activeWorkspace = workspaceRole || 'shipper';
+  const baseConversations = conversationsProp || hookConversations;
+  const loading = conversationsProp ? conversationsLoading : hookLoading;
+  const scopedConversations = React.useMemo(() => {
+    if (!currentUser?.uid) return [];
+    if (activeWorkspace === 'broker') return [];
+    return sortEntitiesNewestFirst(
+      baseConversations.filter(
+        (conversation) => inferConversationPerspectiveRole(conversation, currentUser.uid) === activeWorkspace
+      ),
+      { fallbackKeys: ['lastActivityAt'] }
+    );
+  }, [baseConversations, currentUser?.uid, activeWorkspace]);
 
   const formatTimeAgo = (timestamp) => {
     if (!timestamp) return '';
@@ -85,7 +103,9 @@ export function ChatView({
           Messages
         </h2>
         <p style={{ fontSize: isMobile ? '13px' : '14px', color: '#6b7280' }}>
-          View your conversations here
+          {activeWorkspace === 'broker'
+            ? 'Broker workspace does not include direct bid chat threads'
+            : `View your ${getWorkspaceLabel(activeWorkspace)} workspace conversations`}
         </p>
       </div>
 
@@ -94,7 +114,7 @@ export function ChatView({
         <div className="flex items-center justify-center" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
           <Loader2 className="size-8 animate-spin text-orange-500" />
         </div>
-      ) : conversations.length === 0 ? (
+      ) : scopedConversations.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
           <div style={{
             width: '64px',
@@ -109,7 +129,7 @@ export function ChatView({
             <MessageSquare className="size-8 text-gray-400" />
           </div>
           <p style={{ fontSize: isMobile ? '15px' : '16px', fontWeight: '500', color: darkMode ? '#d1d5db' : '#4b5563', marginBottom: '4px' }}>
-            No conversations yet
+            No conversations in {getWorkspaceLabel(activeWorkspace)} workspace
           </p>
           <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>
             Your conversations will appear here
@@ -132,7 +152,7 @@ export function ChatView({
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
-          {conversations.map((conversation) => {
+          {scopedConversations.map((conversation) => {
             const Icon = conversation.listingType === 'cargo' ? Package : Truck;
             const isCargo = conversation.listingType === 'cargo';
             const hasUnread = conversation.unreadCount > 0;

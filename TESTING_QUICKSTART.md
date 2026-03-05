@@ -34,7 +34,19 @@ This opens Playwright's visual interface where you can:
 npm run test:e2e
 ```
 
-Runs all tests in the background and shows results in the terminal.
+Runs the default suite in the background (excludes backend-health).
+
+### Full Suite (Includes Backend-Health)
+
+```bash
+npm run test:e2e:all
+```
+
+### Backend-Health Only
+
+```bash
+npm run test:e2e:backend-health
+```
 
 ### Watch Tests Execute (Headed Mode)
 
@@ -71,11 +83,14 @@ The E2E tests cover:
 
 When you run tests, Playwright automatically:
 
-1. **Starts Firebase Emulators** (Auth, Firestore, Functions, Storage)
-2. **Starts Frontend** (Vite dev server on port 5173)
-3. **Starts Backend** (Express API on port 3001)
-4. **Runs Tests** against the emulated environment
-5. **Cleans Up** all servers when done
+1. **Starts Backend API** (Node server on port 3001)
+2. **Starts Firebase Emulators** (Auth, Firestore, Functions, Storage)
+3. **Starts Frontend** (Vite dev server on port 5173)
+4. **Runs tests** against the emulated environment
+5. **Cleans up** all servers when done
+
+Backend-health tests still target `http://127.0.0.1:3001` and are run separately by script.
+If backend is unavailable, backend-health tests are skipped by a short-term guard.
 
 **Important:** All tests run against emulators, not production! Zero risk to real data.
 
@@ -170,6 +185,7 @@ test.describe('My Feature', () => {
 Before committing changes, verify:
 
 - [ ] All tests pass: `npm run test:e2e`
+- [ ] Backend health (when backend is available): `npm run test:e2e:backend-health`
 - [ ] Setup is valid: `npm run test:verify`
 - [ ] Tests are independent (each test clears emulator data)
 - [ ] No production credentials in tests

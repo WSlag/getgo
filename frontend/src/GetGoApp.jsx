@@ -88,6 +88,16 @@ import LegalModal from '@/components/legal/LegalModal';
 import api from './services/api';
 import { guestCargoListings, guestTruckListings, guestActiveShipments } from '@/data/guestMarketplaceData';
 import { canBidCargoStatus, canBookTruckStatus, matchesMarketplaceFilter, normalizeListingStatus, toTruckUiStatus } from '@/utils/listingStatus';
+import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
+import {
+  WORKSPACE_ROLES,
+  normalizeWorkspaceRole,
+  getWorkspaceLabel,
+  inferBidPerspectiveRole,
+  inferConversationPerspectiveRole,
+  inferContractPerspectiveRole,
+  inferNotificationWorkspaceRole,
+} from '@/utils/workspace';
 
 const SAVED_SEARCHES_KEY_PREFIX = 'karga.savedSearches.v1';
 const SAVED_ROUTES_KEY_PREFIX = 'karga.savedRoutes.v1';
@@ -111,18 +121,17 @@ export default function GetGoApp() {
     currentRole,
     brokerProfile,
     isBroker,
-    switchRole,
     logout,
     isAdmin,
   } = useAuth();
 
   // Firebase Data Hooks - fetch ALL listings, filter in view layer
   // Pass authUser so hooks only subscribe when authenticated (avoids permission errors)
-  const { listings: firebaseCargoListings, loading: cargoLoading } = useCargoListings({ authUser });
-  const { listings: firebaseTruckListings, loading: truckLoading } = useTruckListings({ authUser });
-  const { notifications: firebaseNotifications, unreadCount: firebaseUnreadCount } = useNotifications(authUser?.uid);
+  const { listings: firebaseCargoListings } = useCargoListings({ authUser });
+  const { listings: firebaseTruckListings } = useTruckListings({ authUser });
+  const { notifications: firebaseNotifications } = useNotifications(authUser?.uid);
   const { bids: myBids } = useMyBids(authUser?.uid);
-  const { conversations } = useConversations(authUser?.uid);
+  const { conversations, loading: conversationsLoading } = useConversations(authUser?.uid);
   // Wallet removed - using direct GCash payment for platform fees
   const {
     shipments: firebaseShipments,
@@ -137,11 +146,13 @@ export default function GetGoApp() {
     setActiveTab,
     activeMarket,
     setActiveMarket,
+    workspaceRole,
+    setWorkspaceRole,
     filterStatus,
     setFilterStatus,
     searchQuery,
     setSearchQuery,
-  } = useMarketplace();
+  } = useMarketplace('home', 'cargo', normalizeWorkspaceRole(currentRole || 'shipper'));
   const { modals, openModal, closeModal, getModalData } = useModals();
 
   // Socket.io for instant notifications
@@ -369,7 +380,7 @@ export default function GetGoApp() {
 
   // Contracts state
   const [contracts, setContracts] = useState([]);
-  const [contractsLoading, setContractsLoading] = useState(false);
+  const [, setContractsLoading] = useState(false);
   const [contractFilter, setContractFilter] = useState('all');
   const [activityInitialMode, setActivityInitialMode] = useState('my');
 
@@ -379,12 +390,6 @@ export default function GetGoApp() {
   const [ratingLoading, setRatingLoading] = useState(false);
   const [savedSearches, setSavedSearches] = useState([]);
   const [savedRoutes, setSavedRoutes] = useState([]);
-
-  useEffect(() => {
-    if (activeTab !== 'activity' && activityInitialMode !== 'my') {
-      setActivityInitialMode('my');
-    }
-  }, [activeTab, activityInitialMode]);
 
   useEffect(() => {
     if (activeTab !== 'admin') {
@@ -530,7 +535,9 @@ export default function GetGoApp() {
     setContractsLoading(true);
     try {
       const response = await api.contracts.getAll();
-      setContracts(response.contracts || []);
+      setContracts(sortEntitiesNewestFirst(response.contracts || [], {
+        fallbackKeys: ['signedAt', 'completedAt', 'updatedAt'],
+      }));
     } catch (error) {
       console.error('Error fetching contracts:', error);
       setContracts([]);
@@ -557,14 +564,13 @@ export default function GetGoApp() {
     const unsubscribe = onSnapshot(
       contractsQuery,
       (snapshot) => {
-        const contractDocs = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        })).sort((a, b) => {
-          const aTime = a.createdAt?._seconds || 0;
-          const bTime = b.createdAt?._seconds || 0;
-          return bTime - aTime;
-        });
+        const contractDocs = sortEntitiesNewestFirst(
+          snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          })),
+          { fallbackKeys: ['signedAt', 'completedAt', 'updatedAt'] }
+        );
         setContracts(contractDocs);
         setContractsLoading(false);
       },
@@ -613,21 +619,52 @@ export default function GetGoApp() {
 
   // Use anonymized preview data for non-auth users to keep Home vibrant and conversion-focused.
   const userRole = currentRole || 'shipper';
+  const availableWorkspaces = useMemo(() => {
+    if (!authUser) return [normalizeWorkspaceRole(userRole, 'shipper')];
+
+    const next = [];
+    if (shipperProfile || userRole === 'shipper') next.push('shipper');
+    if (truckerProfile || userRole === 'trucker') next.push('trucker');
+    if (isBroker) next.push('broker');
+
+    const unique = Array.from(new Set(next.filter((role) => WORKSPACE_ROLES.includes(role))));
+    return unique.length > 0 ? unique : [normalizeWorkspaceRole(userRole, 'shipper')];
+  }, [authUser, shipperProfile, truckerProfile, userRole, isBroker]);
+  const activeWorkspace = availableWorkspaces.includes(workspaceRole)
+    ? workspaceRole
+    : availableWorkspaces[0];
+  const postingRole = activeWorkspace === 'broker' ? userRole : activeWorkspace;
+  const interactionRole = activeWorkspace === 'broker' ? userRole : activeWorkspace;
+
+  useEffect(() => {
+    if (!availableWorkspaces.includes(workspaceRole)) {
+      setWorkspaceRole(availableWorkspaces[0]);
+    }
+  }, [availableWorkspaces, workspaceRole, setWorkspaceRole]);
+
+  useEffect(() => {
+    if (activeWorkspace === 'broker') {
+      setActivityInitialMode('broker');
+    } else if (activityInitialMode !== 'my') {
+      setActivityInitialMode('my');
+    }
+  }, [activeWorkspace, activityInitialMode]);
+
   const isGuestUser = !authUser;
   const cargoListings = isGuestUser ? guestCargoListings : firebaseCargoListings;
   const truckListings = isGuestUser ? guestTruckListings : firebaseTruckListings;
-  const allShipments = isGuestUser
-    ? guestActiveShipments
-    : (firebaseShipments || []);
-  const activeShipments = isGuestUser
-    ? guestActiveShipments
-    : (firebaseActiveShipments || []);
-  const homeActiveShipments = isGuestUser
-    ? []
-    : activeShipments.filter((shipment) => shipment.status !== 'delivered');
-  const deliveredShipments = isGuestUser
-    ? guestActiveShipments.filter((s) => s.status === 'delivered')
-    : (firebaseDeliveredShipments || []);
+  const allShipments = useMemo(
+    () => (isGuestUser ? guestActiveShipments : (firebaseShipments || [])),
+    [isGuestUser, firebaseShipments]
+  );
+  const activeShipments = useMemo(
+    () => (isGuestUser ? guestActiveShipments : (firebaseActiveShipments || [])),
+    [isGuestUser, firebaseActiveShipments]
+  );
+  const deliveredShipments = useMemo(
+    () => (isGuestUser ? guestActiveShipments.filter((shipment) => shipment.status === 'delivered') : (firebaseDeliveredShipments || [])),
+    [isGuestUser, firebaseDeliveredShipments]
+  );
   const deliveredTripsAsTrucker = useMemo(() => {
     if (!authUser?.uid) return 0;
     const delivered = isGuestUser
@@ -641,18 +678,53 @@ export default function GetGoApp() {
     Number(userProfile?.tripsCompleted || 0),
     deliveredTripsAsTrucker
   );
-  const unreadNotifications = firebaseUnreadCount || 0;
+  const matchWorkspaceForShipment = useCallback((shipment, workspace) => {
+    if (workspace === 'broker') return true;
+    if (!authUser?.uid) return workspace === userRole;
+    if (workspace === 'shipper') return shipment?.shipperId === authUser.uid;
+    if (workspace === 'trucker') return shipment?.truckerId === authUser.uid;
+    return false;
+  }, [authUser?.uid, userRole]);
+
+  const workspaceConversations = useMemo(() => {
+    if (!authUser?.uid || activeWorkspace === 'broker') return [];
+    return sortEntitiesNewestFirst(
+      conversations.filter((conversation) => (
+        inferConversationPerspectiveRole(conversation, authUser.uid) === activeWorkspace
+      )),
+      { fallbackKeys: ['lastActivityAt'] }
+    );
+  }, [conversations, authUser?.uid, activeWorkspace]);
+
+  const workspaceNotifications = useMemo(() => {
+    const sorted = sortEntitiesNewestFirst(firebaseNotifications);
+    return sorted.filter((notification) => {
+      const inferredRole = inferNotificationWorkspaceRole(notification);
+      if (activeWorkspace === 'broker') {
+        return inferredRole === 'broker';
+      }
+      if (!inferredRole) {
+        return true;
+      }
+      return inferredRole === activeWorkspace;
+    });
+  }, [firebaseNotifications, activeWorkspace]);
+
+  const unreadNotifications = useMemo(
+    () => workspaceNotifications.filter((notification) => !isNotificationRead(notification)).length,
+    [workspaceNotifications]
+  );
   const unreadMessages = useMemo(
-    () => conversations.reduce((total, conversation) => total + Number(conversation.unreadCount || 0), 0),
-    [conversations]
+    () => workspaceConversations.reduce((total, conversation) => total + Number(conversation.unreadCount || 0), 0),
+    [workspaceConversations]
   );
   const unreadBids = useMemo(
     () =>
-      firebaseNotifications.filter((notification) => {
+      workspaceNotifications.filter((notification) => {
         const type = String(notification.type || '').toLowerCase();
         return !isNotificationRead(notification) && (type.includes('bid') || type === 'new_bid');
       }).length,
-    [firebaseNotifications]
+    [workspaceNotifications]
   );
   // Wallet removed - no balance tracking
 
@@ -692,55 +764,157 @@ export default function GetGoApp() {
     setActiveTab('contracts');
   };
 
-  // Counts for sidebar
-  const openCargoCount = cargoListings.filter(c => canBidCargoStatus(c.status)).length;
-  const availableTrucksCount = truckListings.filter(t => canBookTruckStatus(t.status)).length;
-  const activeShipmentsCount = activeShipments.length;
-  const pendingContractsCount = contracts.filter(c => c.status === 'draft').length;
-  const activeContractsCount = contracts.filter(c => c.status === 'signed' || c.status === 'in_transit').length;
+  const roleScopedCargoListings = useMemo(() => {
+    const scoped = cargoListings.filter((cargo) => {
+      if (isGuestUser) return true;
+      if (activeWorkspace === 'shipper') {
+        return cargo.shipperId === authUser?.uid || cargo.userId === authUser?.uid;
+      }
+      if (activeWorkspace === 'trucker') {
+        return true;
+      }
+      if (activeWorkspace === 'broker') {
+        return isBroker;
+      }
+      return true;
+    });
+    return sortEntitiesNewestFirst(scoped, { fallbackKeys: ['postedAt'] });
+  }, [cargoListings, isGuestUser, activeWorkspace, authUser?.uid, isBroker]);
 
-  // Activity badge (combined bids + contracts)
-  const activityBadge = useMemo(
-    () => unreadBids + pendingContractsCount,
-    [unreadBids, pendingContractsCount]
+  const roleScopedTruckListings = useMemo(() => {
+    const scoped = truckListings.filter((truck) => {
+      if (isGuestUser) return true;
+      if (activeWorkspace === 'trucker') {
+        return truck.truckerId === authUser?.uid || truck.userId === authUser?.uid;
+      }
+      if (activeWorkspace === 'shipper') {
+        return true;
+      }
+      if (activeWorkspace === 'broker') {
+        return isBroker;
+      }
+      return true;
+    });
+    return sortEntitiesNewestFirst(scoped, { fallbackKeys: ['postedAt'] });
+  }, [truckListings, isGuestUser, activeWorkspace, authUser?.uid, isBroker]);
+
+  const workspaceContracts = useMemo(() => {
+    if (activeWorkspace === 'broker') {
+      return sortEntitiesNewestFirst(contracts, {
+        fallbackKeys: ['signedAt', 'completedAt', 'updatedAt'],
+      });
+    }
+    return sortEntitiesNewestFirst(
+      contracts.filter((contract) => inferContractPerspectiveRole(contract, authUser?.uid) === activeWorkspace),
+      { fallbackKeys: ['signedAt', 'completedAt', 'updatedAt'] }
+    );
+  }, [contracts, activeWorkspace, authUser?.uid]);
+
+  const workspaceMyBids = useMemo(() => {
+    if (!authUser?.uid || activeWorkspace === 'broker') return [];
+    return sortEntitiesNewestFirst(
+      myBids.filter((bid) => inferBidPerspectiveRole(bid, authUser.uid) === activeWorkspace)
+    );
+  }, [myBids, authUser?.uid, activeWorkspace]);
+
+  const homeActiveShipments = useMemo(() => {
+    if (isGuestUser) return [];
+    return sortEntitiesNewestFirst(
+      activeShipments.filter((shipment) => matchWorkspaceForShipment(shipment, activeWorkspace))
+    );
+  }, [activeShipments, activeWorkspace, isGuestUser, matchWorkspaceForShipment]);
+
+  const workspaceActiveShipments = useMemo(
+    () => sortEntitiesNewestFirst(
+      activeShipments.filter((shipment) => matchWorkspaceForShipment(shipment, activeWorkspace))
+    ),
+    [activeShipments, activeWorkspace, matchWorkspaceForShipment]
   );
 
-  // Filter listings
-  const filteredCargoListings = cargoListings.filter(cargo => {
-    // Shippers only see their own cargo; truckers/brokers/guests see all
-    if (!isGuestUser && userRole === 'shipper' && !isBroker) {
-      if (!(cargo.shipperId === authUser.uid || cargo.userId === authUser.uid)) return false;
-    }
-    if (!matchesMarketplaceFilter(cargo.status, filterStatus)) return false;
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        cargo.shipper?.toLowerCase().includes(query) ||
-        cargo.origin?.toLowerCase().includes(query) ||
-        cargo.destination?.toLowerCase().includes(query) ||
-        cargo.cargoType?.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
+  const workspaceDeliveredShipments = useMemo(
+    () => sortEntitiesNewestFirst(
+      deliveredShipments.filter((shipment) => matchWorkspaceForShipment(shipment, activeWorkspace))
+    ),
+    [deliveredShipments, activeWorkspace, matchWorkspaceForShipment]
+  );
 
-  const filteredTruckListings = truckListings.filter(truck => {
-    // Truckers only see their own truck(s); shippers/brokers/guests see all
-    if (!isGuestUser && userRole === 'trucker' && !isBroker) {
-      if (!(truck.truckerId === authUser.uid || truck.userId === authUser.uid)) return false;
+  // Counts for sidebar
+  const openCargoCount = roleScopedCargoListings.filter((cargo) => canBidCargoStatus(cargo.status)).length;
+  const availableTrucksCount = roleScopedTruckListings.filter((truck) => canBookTruckStatus(truck.status)).length;
+  const activeShipmentsCount = workspaceActiveShipments.length;
+  const pendingContractsCount = workspaceContracts.filter((contract) => contract.status === 'draft').length;
+  const activeContractsCount = workspaceContracts.filter((contract) => ['signed', 'in_transit'].includes(contract.status)).length;
+
+  // Filter listings
+  const filteredCargoListings = useMemo(() => sortEntitiesNewestFirst(
+    roleScopedCargoListings.filter((cargo) => {
+      if (!matchesMarketplaceFilter(cargo.status, filterStatus)) return false;
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          cargo.shipper?.toLowerCase().includes(query) ||
+          cargo.origin?.toLowerCase().includes(query) ||
+          cargo.destination?.toLowerCase().includes(query) ||
+          cargo.cargoType?.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    }),
+    { fallbackKeys: ['postedAt'] }
+  ), [roleScopedCargoListings, filterStatus, searchQuery]);
+
+  const filteredTruckListings = useMemo(() => sortEntitiesNewestFirst(
+    roleScopedTruckListings.filter((truck) => {
+      if (!matchesMarketplaceFilter(truck.status, filterStatus)) return false;
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          truck.trucker?.toLowerCase().includes(query) ||
+          truck.origin?.toLowerCase().includes(query) ||
+          truck.destination?.toLowerCase().includes(query) ||
+          truck.vehicleType?.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    }),
+    { fallbackKeys: ['postedAt'] }
+  ), [roleScopedTruckListings, filterStatus, searchQuery]);
+
+  const homeRoleKpis = useMemo(() => {
+    if (activeWorkspace === 'shipper') {
+      return [
+        { id: 'active-cargo', label: 'Active Cargo', value: roleScopedCargoListings.filter((cargo) => canBidCargoStatus(cargo.status)).length },
+        { id: 'open-bids', label: 'Open Bids', value: unreadBids },
+        { id: 'contracted', label: 'Contracted', value: workspaceContracts.filter((contract) => ['signed', 'in_transit', 'completed'].includes(contract.status)).length },
+      ];
     }
-    if (!matchesMarketplaceFilter(truck.status, filterStatus)) return false;
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        truck.trucker?.toLowerCase().includes(query) ||
-        truck.origin?.toLowerCase().includes(query) ||
-        truck.destination?.toLowerCase().includes(query) ||
-        truck.vehicleType?.toLowerCase().includes(query)
-      );
+    if (activeWorkspace === 'trucker') {
+      return [
+        { id: 'available-trucks', label: 'Available Trucks', value: roleScopedTruckListings.filter((truck) => canBookTruckStatus(truck.status)).length },
+        { id: 'active-bids', label: 'Active Bids', value: workspaceMyBids.filter((bid) => ['pending', 'accepted'].includes(String(bid.status || '').toLowerCase())).length },
+        { id: 'in-transit', label: 'In Transit', value: workspaceActiveShipments.filter((shipment) => ['picked_up', 'in_transit'].includes(shipment.status)).length },
+      ];
     }
-    return true;
-  });
+    const activeParties = new Set();
+    workspaceContracts.forEach((contract) => {
+      (contract.participantIds || []).forEach((participantId) => activeParties.add(participantId));
+    });
+    return [
+      { id: 'managed-contracts', label: 'Managed Contracts', value: workspaceContracts.length },
+      { id: 'active-parties', label: 'Active Parties', value: activeParties.size },
+      { id: 'pending-actions', label: 'Pending Actions', value: pendingContractsCount + unreadNotifications },
+    ];
+  }, [
+    activeWorkspace,
+    roleScopedCargoListings,
+    roleScopedTruckListings,
+    unreadBids,
+    workspaceContracts,
+    workspaceMyBids,
+    workspaceActiveShipments,
+    pendingContractsCount,
+    unreadNotifications,
+  ]);
 
   const handleSaveCurrentSearch = () => {
     const normalizedQuery = String(searchQuery || '').trim();
@@ -755,6 +929,7 @@ export default function GetGoApp() {
 
     const isDuplicate = savedSearches.some((savedSearch) =>
       savedSearch.market === activeMarket
+      && savedSearch.workspaceRole === activeWorkspace
       && savedSearch.filterStatus === filterStatus
       && String(savedSearch.searchQuery || '').trim().toLowerCase() === normalizedQuery.toLowerCase()
     );
@@ -770,6 +945,7 @@ export default function GetGoApp() {
     const nextSavedSearch = {
       id: `search-${Date.now()}`,
       market: activeMarket,
+      workspaceRole: activeWorkspace,
       filterStatus,
       searchQuery: normalizedQuery,
       createdAt: Date.now(),
@@ -785,6 +961,9 @@ export default function GetGoApp() {
 
   const handleApplySavedSearch = (savedSearch) => {
     if (!savedSearch) return;
+    if (savedSearch.workspaceRole && availableWorkspaces.includes(savedSearch.workspaceRole)) {
+      setWorkspaceRole(savedSearch.workspaceRole);
+    }
     setActiveMarket(savedSearch.market || 'cargo');
     setFilterStatus(savedSearch.filterStatus || 'all');
     setSearchQuery(savedSearch.searchQuery || '');
@@ -1042,7 +1221,12 @@ export default function GetGoApp() {
   };
 
   const handleBrokerClick = () => {
-    requireAuth(() => setActiveTab('broker'), 'Sign in to access broker dashboard');
+    requireAuth(() => {
+      if (availableWorkspaces.includes('broker')) {
+        setWorkspaceRole('broker');
+      }
+      setActiveTab('broker');
+    }, 'Sign in to access broker dashboard');
   };
 
   const handleEditProfile = () => {
@@ -1610,6 +1794,10 @@ export default function GetGoApp() {
 
   const handleOpenBidFromNotification = async (notification) => {
     const bidId = notification?.data?.bidId;
+    const inferredWorkspace = inferNotificationWorkspaceRole(notification);
+    if (inferredWorkspace && availableWorkspaces.includes(inferredWorkspace)) {
+      setWorkspaceRole(inferredWorkspace);
+    }
     if (!bidId) {
       setActiveTab('bids');
       return;
@@ -1636,6 +1824,10 @@ export default function GetGoApp() {
 
   const handleOpenChatFromNotification = async (notification) => {
     const bidId = notification?.data?.bidId;
+    const inferredWorkspace = inferNotificationWorkspaceRole(notification);
+    if (inferredWorkspace && availableWorkspaces.includes(inferredWorkspace)) {
+      setWorkspaceRole(inferredWorkspace);
+    }
     if (!bidId) {
       setActiveTab('messages');
       return;
@@ -1683,6 +1875,10 @@ export default function GetGoApp() {
   const handleOpenListingFromNotification = async (notification) => {
     const listingId = notification?.data?.listingId;
     const listingType = notification?.data?.listingType;
+    const inferredWorkspace = inferNotificationWorkspaceRole(notification);
+    if (inferredWorkspace && availableWorkspaces.includes(inferredWorkspace)) {
+      setWorkspaceRole(inferredWorkspace);
+    }
     if (!listingId || !listingType) {
       setActiveTab('home');
       return;
@@ -1715,6 +1911,9 @@ export default function GetGoApp() {
     }
 
     try {
+      if (availableWorkspaces.includes('broker')) {
+        setWorkspaceRole('broker');
+      }
       await openListingByType(listingId, listingType);
       setActiveTab('home');
     } catch (error) {
@@ -1753,6 +1952,9 @@ export default function GetGoApp() {
         unreadNotifications={unreadNotifications}
         userInitial={userInitial}
         currentRole={userRole}
+        workspaceRole={activeWorkspace}
+        availableWorkspaces={availableWorkspaces}
+        onWorkspaceChange={setWorkspaceRole}
         isBroker={isBroker}
         isAdmin={isAdmin}
         onLogout={handleLogout}
@@ -1773,15 +1975,32 @@ export default function GetGoApp() {
         mobileVisible={showMobileHeader}
       />
 
+      {availableWorkspaces.length > 1 && (
+        <div
+          className="lg:hidden fixed right-4 z-40 pointer-events-none"
+          style={{
+            top: `${showMobileHeader ? mobileHeaderHeight + 6 : 8}px`,
+            transition: 'top 300ms ease-out',
+          }}
+        >
+          <div className="inline-flex items-center rounded-full border border-orange-200 dark:border-orange-800 bg-white/90 dark:bg-gray-900/90 px-3 py-1.5 text-xs font-semibold text-orange-700 dark:text-orange-300 shadow-sm backdrop-blur">
+            {getWorkspaceLabel(activeWorkspace)} Workspace
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-1 min-h-0">
         {/* Sidebar - Desktop only */}
         <Sidebar
           className="hidden lg:flex"
           currentRole={userRole}
+          workspaceRole={activeWorkspace}
+          availableWorkspaces={availableWorkspaces}
+          onWorkspaceChange={setWorkspaceRole}
           activeMarket={activeMarket}
           onMarketChange={handleSidebarMarketChange}
-          cargoCount={cargoListings.length}
-          truckCount={truckListings.length}
+          cargoCount={roleScopedCargoListings.length}
+          truckCount={roleScopedTruckListings.length}
           openCargoCount={openCargoCount}
           availableTrucksCount={availableTrucksCount}
           activeShipmentsCount={activeShipmentsCount}
@@ -1790,7 +2009,7 @@ export default function GetGoApp() {
           isAdmin={isAdmin}
           pendingPaymentsCount={pendingPaymentsCount}
           onPostClick={handlePostClick}
-          onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
+          onRouteOptimizerClick={activeWorkspace === 'trucker' ? handleRouteOptimizerClick : undefined}
           onMyBidsClick={() => requireAuth(() => setActiveTab('bids'), 'Sign in to view your bids')}
           onContractsClick={handleContractsClick}
           onBrokerClick={handleBrokerClick}
@@ -1826,11 +2045,14 @@ export default function GetGoApp() {
               onViewMap={handleViewMap}
               onReferListing={handleReferListing}
               currentRole={userRole}
+              workspaceRole={activeWorkspace}
+              workspaceOptions={availableWorkspaces}
+              onWorkspaceChange={setWorkspaceRole}
               currentUserId={authUser?.uid}
               darkMode={darkMode}
               activeShipments={homeActiveShipments}
               onTrackLive={handleTrackLive}
-              onRouteOptimizerClick={userRole === 'trucker' ? handleRouteOptimizerClick : undefined}
+              onRouteOptimizerClick={activeWorkspace === 'trucker' ? handleRouteOptimizerClick : undefined}
               currentUser={currentUser}
               savedSearches={savedSearches}
               onSaveCurrentSearch={handleSaveCurrentSearch}
@@ -1848,6 +2070,7 @@ export default function GetGoApp() {
               onScroll={handleHomeScroll}
               mobileHeaderVisible={showMobileHeader}
               mobileHeaderHeight={mobileHeaderHeight}
+              roleKpis={homeRoleKpis}
             />
           </ErrorBoundary>
         )}
@@ -1857,13 +2080,16 @@ export default function GetGoApp() {
             <ActivityView
               currentUser={currentUser}
               currentRole={userRole}
+              workspaceRole={activeWorkspace}
+              workspaceOptions={availableWorkspaces}
+              onWorkspaceChange={setWorkspaceRole}
               darkMode={darkMode}
               onOpenChat={(bid, listing) => {
                 openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
               }}
               onOpenContract={handleOpenContract}
               onBrowseMarketplace={() => {
-                setActiveMarket(userRole === 'trucker' ? 'cargo' : 'trucks');
+                setActiveMarket(activeWorkspace === 'trucker' ? 'cargo' : 'trucks');
                 setActiveTab('home');
               }}
               onCreateListing={handlePostClick}
@@ -1880,11 +2106,12 @@ export default function GetGoApp() {
         {activeTab === 'tracking' && (
           <ErrorBoundary>
             <TrackingView
-              shipments={allShipments}
-              activeShipments={activeShipments}
-              deliveredShipments={deliveredShipments}
+              shipments={sortEntitiesNewestFirst(allShipments)}
+              activeShipments={workspaceActiveShipments}
+              deliveredShipments={workspaceDeliveredShipments}
               loading={false}
               currentRole={userRole}
+              workspaceRole={activeWorkspace}
               currentUserId={authUser?.uid}
               darkMode={darkMode}
               onLocationUpdate={emitShipmentUpdate}
@@ -1895,9 +2122,10 @@ export default function GetGoApp() {
         {activeTab === 'notifications' && authUser && (
           <ErrorBoundary>
             <NotificationsView
-              notifications={firebaseNotifications}
+              notifications={workspaceNotifications}
               loading={false}
               unreadCount={unreadNotifications}
+              workspaceRole={activeWorkspace}
               currentUserId={authUser?.uid}
               onMarkAsRead={markNotificationRead}
               onMarkAllAsRead={markAllNotificationsRead}
@@ -1959,12 +2187,13 @@ export default function GetGoApp() {
           <ErrorBoundary>
             <BidsView
               currentUser={authUser}
-              currentRole={userRole}
+              currentRole={activeWorkspace}
+              workspaceRole={activeWorkspace}
               onOpenChat={(bid, listing) => {
                 openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
               }}
               onBrowseMarketplace={() => {
-                setActiveMarket(userRole === 'trucker' ? 'cargo' : 'trucks');
+                setActiveMarket(activeWorkspace === 'trucker' ? 'cargo' : 'trucks');
                 setActiveTab('home');
               }}
               onCreateListing={handlePostClick}
@@ -1977,10 +2206,10 @@ export default function GetGoApp() {
         {activeTab === 'bids' && !authUser && (
           <main className="flex-1 p-4 lg:p-8">
             <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              {userRole === 'trucker' ? 'My Bids' : 'My Bookings'}
+              {activeWorkspace === 'trucker' ? 'My Bids' : 'My Bookings'}
             </h2>
             <p className="text-gray-600 dark:text-gray-400">
-              Please sign in to view your {userRole === 'trucker' ? 'bids' : 'bookings'}.
+              Please sign in to view your {activeWorkspace === 'trucker' ? 'bids' : 'bookings'}.
             </p>
             <button
               onClick={() => promptSignInForTab('bids', 'Sign in to view your bids')}
@@ -1995,6 +2224,9 @@ export default function GetGoApp() {
           <ErrorBoundary>
             <ChatView
               currentUser={authUser}
+              workspaceRole={activeWorkspace}
+              conversations={workspaceConversations}
+              conversationsLoading={conversationsLoading}
               onOpenChat={(bid, listing, type) => {
                 openModal('chat', { bid, listing, type, bidId: bid.id });
               }}
@@ -2043,6 +2275,7 @@ export default function GetGoApp() {
             <ContractsView
               darkMode={darkMode}
               currentUser={{ id: authUser?.uid, ...userProfile }}
+              workspaceRole={activeWorkspace}
               onOpenContract={handleOpenContract}
               onBrowseMarketplace={() => setActiveTab('home')}
               onOpenActivity={() => setActiveTab('activity')}
@@ -2080,7 +2313,7 @@ export default function GetGoApp() {
         onPostClick={handlePostClick}
         unreadMessages={unreadMessages}
         unreadNotifications={unreadNotifications}
-        currentRole={userRole}
+        currentRole={activeWorkspace}
       />
 
       {/* Modals */}
@@ -2088,7 +2321,7 @@ export default function GetGoApp() {
       <PostModal
         open={modals.post}
         onClose={() => closeModal('post')}
-        currentRole={userRole}
+        currentRole={postingRole}
         loading={postLoading}
         onSubmit={async (data) => {
           if (!authUser?.uid || !userProfile) {
@@ -2098,7 +2331,7 @@ export default function GetGoApp() {
 
           setPostLoading(true);
           try {
-            if (userRole === 'shipper') {
+            if (postingRole === 'shipper') {
               // Upload photos first (if any)
               const photoUrls = await uploadListingPhotos(authUser.uid, data.photos || [], 'cargo');
 
@@ -2153,7 +2386,7 @@ export default function GetGoApp() {
         open={modals.bid}
         onClose={() => closeModal('bid')}
         listing={getModalData('bid')}
-        currentRole={userRole}
+        currentRole={interactionRole}
         isSuspended={isAccountSuspended}
         outstandingFees={Number(currentUser?.outstandingPlatformFees || currentUser?.outstandingFees || 0)}
         loading={bidLoading}
@@ -2274,7 +2507,7 @@ export default function GetGoApp() {
         open={modals.cargoDetails}
         onClose={() => closeModal('cargoDetails')}
         cargo={getModalData('cargoDetails')}
-        currentRole={userRole}
+        currentRole={interactionRole}
         isOwner={getModalData('cargoDetails') && isCargoOwner(getModalData('cargoDetails'))}
         isBroker={isBroker}
         onEdit={handleEditCargo}
@@ -2306,7 +2539,7 @@ export default function GetGoApp() {
         onOpenContract={handleOpenContract}
         userBidId={(() => {
           const cargo = getModalData('cargoDetails');
-          if (!cargo || !authUser || userRole !== 'trucker') return null;
+          if (!cargo || !authUser || interactionRole !== 'trucker') return null;
           // Find user's bid for this cargo from myBids
           const userBid = myBids.find(bid => bid.cargoListingId === cargo.id);
           return userBid?.id || null;
@@ -2319,7 +2552,7 @@ export default function GetGoApp() {
         open={modals.truckDetails}
         onClose={() => closeModal('truckDetails')}
         truck={getModalData('truckDetails')}
-        currentRole={userRole}
+        currentRole={interactionRole}
         isOwner={getModalData('truckDetails') && isTruckOwner(getModalData('truckDetails'))}
         isBroker={isBroker}
         onEdit={handleEditTruck}
@@ -2388,7 +2621,7 @@ export default function GetGoApp() {
         open={modals.myBids}
         onClose={() => closeModal('myBids')}
         currentUser={authUser}
-        currentRole={userRole}
+        currentRole={interactionRole}
         onOpenChat={(bid, listing) => {
           closeModal('myBids');
           openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });

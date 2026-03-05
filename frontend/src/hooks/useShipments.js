@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestor
 import { db } from '../firebase';
 import { getCoordinates } from '../utils/cityCoordinates';
 import { formatTimeAgo } from '../utils/dateFormatting';
+import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 
 export function useShipments(userId) {
   const [shipments, setShipments] = useState([]);
@@ -28,6 +29,9 @@ export function useShipments(userId) {
       (snapshot) => {
         const data = snapshot.docs.map((doc) => {
           const docData = doc.data();
+          const createdAt = parseTimestampSafely(docData.createdAt);
+          const updatedAt = parseTimestampSafely(docData.updatedAt);
+          const deliveredAt = parseTimestampSafely(docData.deliveredAt);
 
           // Get fallback coordinates from city names if lat/lng are missing
           const originFallback = getCoordinates(docData.origin);
@@ -54,17 +58,19 @@ export function useShipments(userId) {
           return {
             id: doc.id,
             ...docData,
-            createdAt: docData.createdAt?.toDate?.() || new Date(),
-            updatedAt: docData.updatedAt?.toDate?.() || new Date(),
-            deliveredAt: docData.deliveredAt?.toDate?.() || null,
+            createdAt: createdAt.date,
+            updatedAt: updatedAt.date,
+            deliveredAt: deliveredAt.date,
             currentLocation,
             originCoords,
             destCoords,
             // Format last update time
-            lastUpdate: formatTimeAgo(docData.updatedAt?.toDate?.() || new Date()),
+            lastUpdate: updatedAt.hasTimestamp
+              ? formatTimeAgo(updatedAt.date)
+              : (createdAt.hasTimestamp ? formatTimeAgo(createdAt.date) : ''),
           };
         });
-        setShipments(data);
+        setShipments(sortEntitiesNewestFirst(data, { fallbackKeys: ['deliveredAt'] }));
         setLoading(false);
         setError(null);
       },

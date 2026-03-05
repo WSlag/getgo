@@ -5,7 +5,9 @@
   "type": "module",
   "description": "E2E testing infrastructure for Karga trucking marketplace",
   "scripts": {
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --grep-invert \"Backend API Health\"",
+    "test:e2e:all": "playwright test",
+    "test:e2e:backend-health": "playwright test tests/e2e/api/backend-health.spec.js",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",

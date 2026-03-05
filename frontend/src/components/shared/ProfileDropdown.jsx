@@ -9,10 +9,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
+import { WorkspaceSwitcher } from '@/components/shared/WorkspaceSwitcher';
 
 export function ProfileDropdown({
   user = {},
   currentRole = 'shipper',
+  workspaceRole = 'shipper',
+  availableWorkspaces = ['shipper'],
+  onWorkspaceChange,
   isBroker = false,
   isAdmin = false,
   darkMode = false,
@@ -55,9 +59,19 @@ export function ProfileDropdown({
       icon: Truck,
       label: 'Trucker Account',
     },
+    broker: {
+      color: 'orange',
+      bgGradient: 'from-orange-50 to-amber-100 dark:from-orange-950/30 dark:to-amber-900/30',
+      badgeBg: 'bg-orange-100 dark:bg-orange-900/50',
+      badgeText: 'text-orange-600 dark:text-orange-300',
+      avatarBorder: 'border-orange-500',
+      icon: Users,
+      label: 'Broker Workspace',
+    },
   };
 
-  const config = roleConfig[currentRole] || roleConfig.shipper;
+  const displayRole = workspaceRole || currentRole;
+  const config = roleConfig[displayRole] || roleConfig.shipper;
   const RoleIcon = config.icon;
   const menuItemClass = 'w-full rounded-xl px-3 py-2.5 cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800';
 
@@ -89,8 +103,10 @@ export function ProfileDropdown({
                 className={cn(
                   "size-16 rounded-full border-3 flex items-center justify-center text-2xl font-semibold",
                   config.avatarBorder,
-                  currentRole === 'trucker'
+                  displayRole === 'trucker'
                     ? 'bg-emerald-500 text-white'
+                    : displayRole === 'broker'
+                      ? 'bg-orange-500 text-white'
                     : 'bg-blue-500 text-white'
                 )}
               >
@@ -126,6 +142,21 @@ export function ProfileDropdown({
         </div>
 
         <DropdownMenuSeparator className="m-0" />
+
+        {availableWorkspaces.length > 1 && (
+          <>
+            <div className="p-3">
+              <WorkspaceSwitcher
+                value={displayRole}
+                options={availableWorkspaces}
+                onChange={onWorkspaceChange}
+                compact
+                showLabel={false}
+              />
+            </div>
+            <DropdownMenuSeparator className="m-0" />
+          </>
+        )}
 
         {/* Menu Items */}
         <div className="p-2">

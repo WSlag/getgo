@@ -19,6 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import api from '@/services/api';
+import { sortEntitiesNewestFirst, getCanonicalTimestamp } from '@/utils/activitySorting';
+import { inferContractPerspectiveRole, getWorkspaceLabel } from '@/utils/workspace';
 
 const statusConfig = {
   draft: {
@@ -87,9 +89,20 @@ function shouldIncludeInFeeLedger(contract, userId) {
   return hasPayableUnpaidPlatformFee(contract, userId);
 }
 
+function getCounterpartyRoleForWorkspace(contract, workspace) {
+  if (workspace === 'shipper') return 'Trucker';
+  if (workspace === 'trucker') return 'Shipper';
+
+  const listingType = String(contract?.listingType || '').toLowerCase();
+  if (listingType === 'cargo') return 'Shipper + Trucker';
+  if (listingType === 'truck') return 'Trucker + Shipper';
+  return 'Participants';
+}
+
 export function ContractsView({
   darkMode,
   currentUser,
+  workspaceRole = 'shipper',
   onOpenContract,
   onBrowseMarketplace,
   onOpenActivity,
@@ -108,7 +121,9 @@ export function ContractsView({
       setLoading(true);
       try {
         const response = await api.contracts.getAll();
-        setContracts(response.contracts || []);
+        setContracts(sortEntitiesNewestFirst(response.contracts || [], {
+          fallbackKeys: ['signedAt', 'completedAt', 'deliveredAt'],
+        }));
       } catch (error) {
         console.error('Error fetching contracts:', error);
       } finally {
@@ -119,9 +134,16 @@ export function ContractsView({
     fetchContracts();
   }, []);
 
+  const workspaceScopedContracts = useMemo(() => {
+    if (workspaceRole === 'broker') {
+      return contracts;
+    }
+    return contracts.filter((contract) => inferContractPerspectiveRole(contract, currentUser?.id) === workspaceRole);
+  }, [contracts, currentUser?.id, workspaceRole]);
+
   // Filter contracts
   const filteredContracts = useMemo(() => {
-    return contracts.filter((contract) => {
+    const filtered = workspaceScopedContracts.filter((contract) => {
       // Status filter
       if (filterStatus === 'unpaid_fees') {
         // Show contracts with unpaid platform fees where current user is the payer
@@ -145,19 +167,22 @@ export function ContractsView({
 
       return true;
     });
-  }, [contracts, filterStatus, searchQuery, currentUser?.id]);
+    return sortEntitiesNewestFirst(filtered, {
+      fallbackKeys: ['signedAt', 'completedAt', 'deliveredAt'],
+    });
+  }, [workspaceScopedContracts, filterStatus, searchQuery, currentUser?.id]);
 
   // Group contracts by status
   const contractCounts = useMemo(() => {
     return {
-      all: contracts.length,
-      draft: contracts.filter((c) => c.status === 'draft').length,
-      signed: contracts.filter((c) => c.status === 'signed').length,
-      in_transit: contracts.filter((c) => c.status === 'in_transit').length,
-      completed: contracts.filter((c) => c.status === 'completed').length,
-      unpaid_fees: contracts.filter((c) => hasPayableUnpaidPlatformFee(c, currentUser?.id)).length,
+      all: workspaceScopedContracts.length,
+      draft: workspaceScopedContracts.filter((c) => c.status === 'draft').length,
+      signed: workspaceScopedContracts.filter((c) => c.status === 'signed').length,
+      in_transit: workspaceScopedContracts.filter((c) => c.status === 'in_transit').length,
+      completed: workspaceScopedContracts.filter((c) => c.status === 'completed').length,
+      unpaid_fees: workspaceScopedContracts.filter((c) => hasPayableUnpaidPlatformFee(c, currentUser?.id)).length,
     };
-  }, [contracts, currentUser?.id]);
+  }, [workspaceScopedContracts, currentUser?.id]);
 
   const formatPrice = (price) => {
     if (price === null || price === undefined) return '---';
@@ -197,17 +222,11 @@ export function ContractsView({
     }
   };
 
-  const toMillis = (value) => {
-    if (!value) return 0;
-    if (value.toDate && typeof value.toDate === 'function') return value.toDate().getTime();
-    if (value.seconds) return value.seconds * 1000;
-    const parsed = new Date(value).getTime();
-    return Number.isNaN(parsed) ? 0 : parsed;
-  };
+  const toMillis = (value) => getCanonicalTimestamp({ createdAt: value }).timestamp;
 
   const feeLedgerRows = useMemo(() => {
     // Only show platform fee ledger for contracts where current user is the fee payer
-    return [...contracts]
+    return [...workspaceScopedContracts]
       .filter((contract) => shouldIncludeInFeeLedger(contract, currentUser?.id))
       .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
       .map((contract) => ({
@@ -221,7 +240,7 @@ export function ContractsView({
         paidAt: contract.platformFeePaidAt,
         createdAt: contract.createdAt,
       }));
-  }, [contracts, currentUser?.id]);
+  }, [workspaceScopedContracts, currentUser?.id]);
 
   const feeLedgerSummary = useMemo(() => {
     const totalFees = feeLedgerRows.reduce((sum, row) => sum + row.amount, 0);
@@ -236,6 +255,20 @@ export function ContractsView({
       rows: feeLedgerRows.length,
     };
   }, [feeLedgerRows]);
+
+  const brokerSummary = useMemo(() => {
+    if (workspaceRole !== 'broker') return null;
+    const participantIds = new Set();
+    workspaceScopedContracts.forEach((contract) => {
+      (contract.participantIds || []).forEach((id) => participantIds.add(id));
+    });
+    return {
+      managedContracts: workspaceScopedContracts.length,
+      activeContracts: workspaceScopedContracts.filter((c) => ['signed', 'in_transit'].includes(c.status)).length,
+      pendingActions: workspaceScopedContracts.filter((c) => ['draft', 'disputed', 'cancelled'].includes(c.status)).length,
+      activeParties: participantIds.size,
+    };
+  }, [workspaceRole, workspaceScopedContracts]);
 
   const getSignatureStatus = (contract) => {
     const isCargo = contract.listingType === 'cargo';
@@ -253,6 +286,20 @@ export function ContractsView({
     if (userSigned) return { status: 'waiting', label: 'Waiting for Other Party' };
     return { status: 'pending', label: 'Your Signature Needed' };
   };
+
+  const statusFilters = useMemo(() => {
+    const filters = [
+      { value: 'all', label: 'All', count: contractCounts.all },
+      { value: 'draft', label: 'Pending', count: contractCounts.draft },
+      { value: 'signed', label: 'Active', count: contractCounts.signed },
+      { value: 'in_transit', label: 'In Transit', count: contractCounts.in_transit },
+      { value: 'completed', label: 'Completed', count: contractCounts.completed },
+    ];
+    if (workspaceRole !== 'broker') {
+      filters.splice(1, 0, { value: 'unpaid_fees', label: 'Unpaid Fees', count: contractCounts.unpaid_fees });
+    }
+    return filters;
+  }, [contractCounts, workspaceRole]);
 
   return (
     <div className={cn("flex-1", !embedded && "bg-gray-50 dark:bg-gray-950 overflow-y-auto")} style={!embedded ? { padding: isMobile ? '16px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' } : {}}>
@@ -275,10 +322,29 @@ export function ContractsView({
                 color: darkMode ? '#9ca3af' : '#6b7280',
                 fontSize: isMobile ? '12px' : '14px'
               }}>
-                View and manage your transportation contracts
+                View and manage your {getWorkspaceLabel(workspaceRole)} workspace contracts
               </p>
             </div>
           </div>
+          <div className="inline-flex items-center rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 px-3 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+            Workspace: {getWorkspaceLabel(workspaceRole)}
+          </div>
+        </div>
+      )}
+
+      {brokerSummary && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" style={{ marginBottom: isMobile ? '16px' : '20px' }}>
+          {[
+            { id: 'managed', label: 'Managed', value: brokerSummary.managedContracts },
+            { id: 'active', label: 'Active', value: brokerSummary.activeContracts },
+            { id: 'pending', label: 'Pending Actions', value: brokerSummary.pendingActions },
+            { id: 'parties', label: 'Active Parties', value: brokerSummary.activeParties },
+          ].map((item) => (
+            <div key={item.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800" style={{ padding: '12px 14px' }}>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">{item.label}</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white">{item.value}</p>
+            </div>
+          ))}
         </div>
       )}
 
@@ -309,14 +375,7 @@ export function ContractsView({
             width: isMobile ? '16px' : '20px',
             height: isMobile ? '16px' : '20px'
           }} className="text-gray-500 flex-shrink-0" />
-          {[
-            { value: 'all', label: 'All', count: contractCounts.all },
-            { value: 'unpaid_fees', label: 'Unpaid Fees', count: contractCounts.unpaid_fees },
-            { value: 'draft', label: 'Pending', count: contractCounts.draft },
-            { value: 'signed', label: 'Active', count: contractCounts.signed },
-            { value: 'in_transit', label: 'In Transit', count: contractCounts.in_transit },
-            { value: 'completed', label: 'Completed', count: contractCounts.completed },
-          ].map((filter) => (
+          {statusFilters.map((filter) => (
             <button
               key={filter.value}
               onClick={() => setFilterStatus(filter.value)}
@@ -343,7 +402,7 @@ export function ContractsView({
       </div>
 
       {/* Platform Fee Ledger */}
-      {feeLedgerRows.length > 0 && (
+      {workspaceRole !== 'broker' && feeLedgerRows.length > 0 && (
         <div
           className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
           style={{ marginBottom: isMobile ? '16px' : '20px', padding: isMobile ? '14px' : '16px' }}
@@ -438,8 +497,8 @@ export function ContractsView({
             {searchQuery
               ? 'Try adjusting your search or filters'
               : filterStatus === 'all'
-              ? 'Contracts will appear here once bids are accepted and platform fees are paid'
-              : `No ${statusConfig[filterStatus]?.label.toLowerCase()} contracts`}
+              ? `Contracts for ${getWorkspaceLabel(workspaceRole)} workspace will appear here once bids are accepted and fees are processed`
+              : `No ${statusConfig[filterStatus]?.label.toLowerCase()} contracts in ${getWorkspaceLabel(workspaceRole)} workspace`}
           </p>
           {!searchQuery && (
             <div className="flex flex-col sm:flex-row justify-center gap-2" style={{ marginTop: '16px' }}>
@@ -461,6 +520,13 @@ export function ContractsView({
             const config = statusConfig[contract.status] || statusConfig.draft;
             const StatusIcon = config.icon;
             const signatureStatus = getSignatureStatus(contract);
+            const latestLifecycleAt = sortEntitiesNewestFirst([
+              { id: 'updated', createdAt: contract.updatedAt },
+              { id: 'completed', createdAt: contract.completedAt },
+              { id: 'signed', createdAt: contract.signedAt },
+              { id: 'created', createdAt: contract.createdAt },
+            ])[0]?.createdAt;
+            const counterpartyRole = getCounterpartyRoleForWorkspace(contract, workspaceRole);
 
             return (
               <div
@@ -599,7 +665,11 @@ export function ContractsView({
                     {/* Date */}
                     <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
                       <Calendar className="size-4" />
-                      <span>{formatDate(contract.createdAt)}</span>
+                      <span>Updated {formatDate(latestLifecycleAt || contract.createdAt)}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium">
+                      Counterparty: {counterpartyRole}
                     </div>
 
                     {/* Signature Status (for draft contracts) */}

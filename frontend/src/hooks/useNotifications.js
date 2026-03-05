@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTimeAgo } from '../utils/dateFormatting';
+import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 
 const isRead = (notification) => notification?.isRead === true || notification?.read === true;
 
@@ -28,17 +29,17 @@ export function useNotifications(userId, maxResults = 50) {
       (snapshot) => {
         const data = snapshot.docs.map((doc) => {
           const docData = doc.data();
-          const createdAt = docData.createdAt?.toDate?.() || new Date();
+          const createdAt = parseTimestampSafely(docData.createdAt);
           return {
             id: doc.id,
             ...docData,
-            createdAt,
-            time: formatTimeAgo(createdAt),
+            createdAt: createdAt.date,
+            time: createdAt.hasTimestamp ? formatTimeAgo(createdAt.date) : '',
             read: isRead(docData),
             isRead: isRead(docData),
           };
         });
-        setNotifications(data);
+        setNotifications(sortEntitiesNewestFirst(data));
         setLoading(false);
         setError(null);
       },

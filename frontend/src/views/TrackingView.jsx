@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { MapPin, Package, Truck, Navigation, Radio, MapPinned, CheckCircle2, Home } from 'lucide-react';
+import { MapPin, Package, Truck, Navigation, Radio, MapPinned, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { Button } from '@/components/ui/button';
 import TrackingMap from '@/components/maps/TrackingMap';
 import api from '@/services/api';
 import { getCoordinates, getCityNames } from '@/utils/cityCoordinates';
+import { getWorkspaceLabel } from '@/utils/workspace';
 
 const statusConfig = {
   pending_pickup: { color: 'bg-slate-500', label: 'Awaiting Pickup', textColor: 'text-slate-500' },
@@ -75,10 +75,9 @@ function ShipmentStatusTracker({ status, darkMode = false }) {
 
 export function TrackingView({
   shipments = [],
-  activeShipments = [],
-  deliveredShipments = [],
   loading = false,
   currentRole = 'shipper',
+  workspaceRole = currentRole,
   currentUserId = null,
   darkMode = false,
   className,
@@ -89,6 +88,7 @@ export function TrackingView({
   const [showFullMap, setShowFullMap] = useState(false);
   const [updatingLocation, setUpdatingLocation] = useState(null);
   const [statusActionKey, setStatusActionKey] = useState(null);
+  const activeWorkspace = workspaceRole || currentRole;
 
   const selectedShipment = useMemo(() => {
     if (!selectedShipmentId) return null;
@@ -101,15 +101,43 @@ export function TrackingView({
     if (shipment?.truckerId && currentUserId) {
       return shipment.truckerId === currentUserId;
     }
-    return currentRole === 'trucker';
+    return activeWorkspace === 'trucker';
   };
 
   const isAssignedShipper = (shipment) => {
     if (shipment?.shipperId && currentUserId) {
       return shipment.shipperId === currentUserId;
     }
-    return currentRole === 'shipper';
+    return activeWorkspace === 'shipper';
   };
+
+  const roleScopedShipments = useMemo(() => {
+    if (activeWorkspace === 'broker') return shipments;
+    return shipments.filter((shipment) => {
+      if (activeWorkspace === 'shipper') {
+        if (shipment?.shipperId && currentUserId) {
+          return shipment.shipperId === currentUserId;
+        }
+        return true;
+      }
+      if (activeWorkspace === 'trucker') {
+        if (shipment?.truckerId && currentUserId) {
+          return shipment.truckerId === currentUserId;
+        }
+        return true;
+      }
+      return false;
+    });
+  }, [shipments, activeWorkspace, currentUserId]);
+
+  const scopedActiveShipments = useMemo(
+    () => roleScopedShipments.filter((shipment) => shipment.status !== 'delivered'),
+    [roleScopedShipments]
+  );
+  const scopedDeliveredShipments = useMemo(
+    () => roleScopedShipments.filter((shipment) => shipment.status === 'delivered'),
+    [roleScopedShipments]
+  );
 
   const canPickUp = (shipment) => (
     isAssignedTrucker(shipment) && shipment.status === 'pending_pickup'
@@ -381,9 +409,9 @@ export function TrackingView({
         </h1>
         <p style={{ color: darkMode ? '#9ca3af' : '#6b7280', fontSize: isMobile ? '14px' : '16px' }}>
           <span style={{ fontWeight: '600', color: '#f97316' }}>
-            {activeShipments.length} active
+            {scopedActiveShipments.length} active
           </span>
-          {' '}{activeShipments.length === 1 ? 'shipment' : 'shipments'} in progress
+          {' '}{scopedActiveShipments.length === 1 ? 'shipment' : 'shipments'} in progress for {getWorkspaceLabel(activeWorkspace)} workspace
         </p>
       </div>
 
@@ -391,9 +419,9 @@ export function TrackingView({
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent" />
         </div>
-      ) : activeShipments.length > 0 || deliveredShipments.length > 0 ? (
+      ) : scopedActiveShipments.length > 0 || scopedDeliveredShipments.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '24px' : '32px' }}>
-          {activeShipments.length > 0 && (
+          {scopedActiveShipments.length > 0 && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: isMobile ? '12px' : '16px' }}>
                 <Radio className="text-orange-500 animate-pulse" style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px' }} />
@@ -406,14 +434,14 @@ export function TrackingView({
                 gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
                 gap: isMobile ? '12px' : '24px',
               }}>
-                {activeShipments.map((shipment) => (
+                {scopedActiveShipments.map((shipment) => (
                   <ShipmentCard key={shipment.id} shipment={shipment} />
                 ))}
               </div>
             </div>
           )}
 
-          {deliveredShipments.length > 0 && (
+          {scopedDeliveredShipments.length > 0 && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: isMobile ? '12px' : '16px' }}>
                 <Package className="text-green-500" style={{ width: isMobile ? '16px' : '20px', height: isMobile ? '16px' : '20px' }} />
@@ -426,7 +454,7 @@ export function TrackingView({
                 gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
                 gap: isMobile ? '12px' : '24px',
               }}>
-                {deliveredShipments.map((shipment) => (
+                {scopedDeliveredShipments.map((shipment) => (
                   <ShipmentCard key={shipment.id} shipment={shipment} />
                 ))}
               </div>

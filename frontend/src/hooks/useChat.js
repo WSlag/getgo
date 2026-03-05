@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { sendChatMessage, markMessagesRead } from '../services/firestoreService';
+import { parseTimestampSafely, sortEntitiesOldestFirst } from '../utils/activitySorting';
 
 // Hook to get chat messages for a bid (real-time)
 export function useChat(bidId) {
@@ -24,12 +25,15 @@ export function useChat(bidId) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-        }));
-        setMessages(data);
+        const data = snapshot.docs.map((docSnap) => {
+          const messageData = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...messageData,
+            createdAt: parseTimestampSafely(messageData.createdAt).date,
+          };
+        });
+        setMessages(sortEntitiesOldestFirst(data, { fallbackKeys: ['sentAt'] }));
         setLoading(false);
         setError(null);
       },

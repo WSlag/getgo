@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Loader2, RefreshCw, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
+import { dedupeAndSortNewest } from '@/utils/activitySorting';
 
 function toDate(value) {
   if (!value) return null;
@@ -86,7 +87,11 @@ export function BrokerActivityView({ onToast }) {
         limit: 20,
         cursor: cursorValue,
       });
-      setItems((prev) => (append ? [...prev, ...(response?.items || [])] : (response?.items || [])));
+      setItems((prev) => (
+        append
+          ? dedupeAndSortNewest(prev, response?.items || [], { fallbackKeys: ['activityAt'] })
+          : dedupeAndSortNewest([], response?.items || [], { fallbackKeys: ['activityAt'] })
+      ));
       setSummary(response?.summary || null);
       setCursor(response?.nextCursor || null);
       setHasMore(Boolean(response?.hasMore));

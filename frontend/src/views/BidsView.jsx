@@ -6,10 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useMyBids } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
+import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
+import { inferBidPerspectiveRole, getWorkspaceLabel } from '@/utils/workspace';
 
 export function BidsView({
   currentUser,
   currentRole = 'trucker',
+  workspaceRole = currentRole,
   onOpenChat,
   onBrowseMarketplace,
   onCreateListing,
@@ -20,6 +23,7 @@ export function BidsView({
   const userId = currentUser?.uid || currentUser?.id;
   const { bids, loading } = useMyBids(userId);
   const isMobile = useMediaQuery('(max-width: 1023px)');
+  const activeWorkspace = workspaceRole || currentRole;
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -50,11 +54,18 @@ export function BidsView({
     return styles[status] || styles.pending;
   };
 
-  const isTrucker = currentRole === 'trucker';
+  const isTrucker = activeWorkspace === 'trucker';
   const title = isTrucker ? 'My Bids' : 'My Bookings';
   const description = isTrucker
     ? 'View and manage your cargo bids'
     : 'View and manage your truck bookings';
+  const scopedBids = React.useMemo(() => {
+    if (!userId) return [];
+    if (!['shipper', 'trucker'].includes(activeWorkspace)) return [];
+    return sortEntitiesNewestFirst(
+      bids.filter((bid) => inferBidPerspectiveRole(bid, userId) === activeWorkspace)
+    );
+  }, [bids, userId, activeWorkspace]);
 
   return (
     <main className={cn("flex-1", !embedded && "bg-gray-50 dark:bg-gray-950 overflow-y-auto")} style={!embedded ? { padding: isMobile ? '16px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' } : {}}>
@@ -78,7 +89,7 @@ export function BidsView({
             isTrucker ? "text-emerald-500" : "text-violet-500"
           )} />
         </div>
-      ) : bids.length === 0 ? (
+      ) : scopedBids.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
           <div style={{
             width: '64px',
@@ -93,7 +104,7 @@ export function BidsView({
             <FileText className="size-8 text-gray-400" />
           </div>
           <p style={{ fontSize: isMobile ? '15px' : '16px', fontWeight: '500', color: darkMode ? '#d1d5db' : '#4b5563', marginBottom: '4px' }}>
-            No {isTrucker ? 'bids' : 'bookings'} yet
+            No {isTrucker ? 'bids' : 'bookings'} in {getWorkspaceLabel(activeWorkspace)} workspace
           </p>
           <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>
             Your {isTrucker ? 'bids' : 'bookings'} will appear here
@@ -123,7 +134,7 @@ export function BidsView({
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
-          {bids.map((bid) => {
+          {scopedBids.map((bid) => {
             const Icon = bid.listingType === 'cargo' ? Package : Truck;
 
             return (

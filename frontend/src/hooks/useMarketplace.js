@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 
 const STORAGE_KEY = 'karga.marketplace.preferences.v1';
+const WORKSPACE_QUERY_KEY = 'workspace';
 
 const HASH_TABS = ['home', 'tracking', 'contracts', 'messages', 'notifications', 'profile', 'bids', 'broker', 'activity', 'help', 'admin'];
 
@@ -10,13 +11,25 @@ function getTabFromHash() {
   return HASH_TABS.includes(hash) ? hash : null;
 }
 
-function loadPreferences(initialTab, initialMarket) {
+function getWorkspaceFromUrl() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const currentUrl = new URL(window.location.href);
+    return currentUrl.searchParams.get(WORKSPACE_QUERY_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function loadPreferences(initialTab, initialMarket, initialWorkspace) {
   const hashTab = getTabFromHash();
+  const queryWorkspace = getWorkspaceFromUrl();
 
   if (typeof window === 'undefined') {
     return {
       activeTab: initialTab,
       activeMarket: initialMarket,
+      workspaceRole: initialWorkspace,
       filterStatus: 'all',
       searchQuery: '',
       sortBy: 'newest',
@@ -29,6 +42,7 @@ function loadPreferences(initialTab, initialMarket) {
       return {
         activeTab: hashTab || initialTab,
         activeMarket: initialMarket,
+        workspaceRole: queryWorkspace || initialWorkspace,
         filterStatus: 'all',
         searchQuery: '',
         sortBy: 'newest',
@@ -39,6 +53,7 @@ function loadPreferences(initialTab, initialMarket) {
     return {
       activeTab: hashTab || parsed.activeTab || initialTab,
       activeMarket: parsed.activeMarket || initialMarket,
+      workspaceRole: queryWorkspace || parsed.workspaceRole || initialWorkspace,
       filterStatus: parsed.filterStatus || 'all',
       searchQuery: parsed.searchQuery || '',
       sortBy: parsed.sortBy || 'newest',
@@ -48,6 +63,7 @@ function loadPreferences(initialTab, initialMarket) {
     return {
       activeTab: hashTab || initialTab,
       activeMarket: initialMarket,
+      workspaceRole: queryWorkspace || initialWorkspace,
       filterStatus: 'all',
       searchQuery: '',
       sortBy: 'newest',
@@ -59,10 +75,11 @@ function loadPreferences(initialTab, initialMarket) {
  * Custom hook for managing marketplace state
  * Handles tab navigation, market selection, filters, etc.
  */
-export function useMarketplace(initialTab = 'home', initialMarket = 'cargo') {
-  const [initialPreferences] = useState(() => loadPreferences(initialTab, initialMarket));
+export function useMarketplace(initialTab = 'home', initialMarket = 'cargo', initialWorkspace = 'shipper') {
+  const [initialPreferences] = useState(() => loadPreferences(initialTab, initialMarket, initialWorkspace));
   const [activeTab, setActiveTab] = useState(initialPreferences.activeTab);
   const [activeMarket, setActiveMarket] = useState(initialPreferences.activeMarket);
+  const [workspaceRole, setWorkspaceRole] = useState(initialPreferences.workspaceRole);
   const [filterStatus, setFilterStatus] = useState(initialPreferences.filterStatus);
   const [searchQuery, setSearchQuery] = useState(initialPreferences.searchQuery);
   const [sortBy, setSortBy] = useState(initialPreferences.sortBy);
@@ -70,11 +87,24 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo') {
   // Sync URL hash with active tab
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const hash = activeTab === 'home' ? '' : `#${activeTab}`;
-    if (window.location.hash !== hash) {
-      window.history.replaceState(null, '', hash || window.location.pathname);
-    }
+    const currentUrl = new URL(window.location.href);
+    const targetHash = activeTab === 'home' ? '' : `#${activeTab}`;
+    if (currentUrl.hash === targetHash) return;
+
+    currentUrl.hash = targetHash;
+    window.history.replaceState(null, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const currentUrl = new URL(window.location.href);
+    if (workspaceRole) {
+      currentUrl.searchParams.set(WORKSPACE_QUERY_KEY, workspaceRole);
+    } else {
+      currentUrl.searchParams.delete(WORKSPACE_QUERY_KEY);
+    }
+    window.history.replaceState(null, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+  }, [workspaceRole]);
 
   // Listen for browser back/forward hash changes
   useEffect(() => {
@@ -99,6 +129,7 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo') {
     const payload = {
       activeTab,
       activeMarket,
+      workspaceRole,
       filterStatus,
       searchQuery,
       sortBy,
@@ -109,7 +140,7 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo') {
     } catch (error) {
       console.warn('Failed to persist marketplace preferences:', error);
     }
-  }, [activeTab, activeMarket, filterStatus, searchQuery, sortBy]);
+  }, [activeTab, activeMarket, workspaceRole, filterStatus, searchQuery, sortBy]);
 
   const navigateTo = useCallback((tab) => {
     setActiveTab(tab);
@@ -131,6 +162,10 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo') {
     setSortBy(sort);
   }, []);
 
+  const updateWorkspaceRole = useCallback((role) => {
+    setWorkspaceRole(role);
+  }, []);
+
   const resetFilters = useCallback(() => {
     setFilterStatus('all');
     setSearchQuery('');
@@ -141,6 +176,7 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo') {
     // State
     activeTab,
     activeMarket,
+    workspaceRole,
     filterStatus,
     searchQuery,
     sortBy,
@@ -149,6 +185,8 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo') {
     setActiveTab,
     switchMarket,
     setActiveMarket,
+    updateWorkspaceRole,
+    setWorkspaceRole,
     updateFilter,
     setFilterStatus,
     updateSearch,

@@ -3,6 +3,9 @@ import { cn } from '@/lib/utils';
 
 export function Sidebar({
   currentRole = 'shipper',
+  workspaceRole = 'shipper',
+  availableWorkspaces = ['shipper'],
+  onWorkspaceChange,
   activeMarket = 'cargo',
   onMarketChange,
   cargoCount = 0,
@@ -42,9 +45,18 @@ export function Sidebar({
       badgeBg: 'bg-emerald-100 dark:bg-emerald-900/50',
       badgeText: 'text-emerald-600 dark:text-emerald-400',
     },
+    broker: {
+      icon: Users,
+      label: 'Broker Workspace',
+      bgGradient: 'from-orange-500 to-orange-600',
+      shadowColor: 'shadow-orange-500/30',
+      badgeBg: 'bg-orange-100 dark:bg-orange-900/50',
+      badgeText: 'text-orange-600 dark:text-orange-400',
+    },
   };
 
-  const config = accountConfig[currentRole] || accountConfig.shipper;
+  const displayRole = workspaceRole || currentRole;
+  const config = accountConfig[displayRole] || accountConfig.shipper;
   const AccountIcon = config.icon;
 
   return (
@@ -70,6 +82,25 @@ export function Sidebar({
             <p className="font-semibold">{config.label}</p>
           </div>
         </div>
+        {availableWorkspaces.length > 1 && (
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {availableWorkspaces.map((role) => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => onWorkspaceChange?.(role)}
+                className={cn(
+                  'rounded-lg text-xs font-semibold px-2 py-2 transition-all active:scale-95',
+                  role === displayRole
+                    ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30'
+                    : 'bg-white/80 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                )}
+              >
+                {role === 'shipper' ? 'Shipper' : role === 'trucker' ? 'Trucker' : 'Broker'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Browse Section */}
@@ -121,7 +152,7 @@ export function Sidebar({
           </button>
 
           {/* My Bids - For Truckers */}
-          {currentRole === 'trucker' && (
+          {displayRole === 'trucker' && (
             <button
               onClick={onMyBidsClick}
               className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
@@ -138,7 +169,7 @@ export function Sidebar({
           )}
 
           {/* My Bookings - For Shippers */}
-          {currentRole === 'shipper' && (
+          {displayRole === 'shipper' && (
             <button
               onClick={onMyBidsClick}
               className="w-full flex items-center gap-3 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
@@ -212,12 +243,14 @@ export function Sidebar({
         >
           <div className="flex items-center justify-center gap-2">
             <Plus className="size-5 group-hover:rotate-90 transition-transform duration-300" />
-            <span className="font-medium">{currentRole === 'shipper' ? 'Post Cargo' : 'Post Truck'}</span>
+            <span className="font-medium">
+              {displayRole === 'shipper' ? 'Post Cargo' : displayRole === 'trucker' ? 'Post Truck' : 'Post Listing'}
+            </span>
           </div>
         </button>
 
         {/* Route Optimizer - Truckers */}
-        {currentRole === 'trucker' && onRouteOptimizerClick && (
+        {displayRole === 'trucker' && onRouteOptimizerClick && (
           <button
             onClick={onRouteOptimizerClick}
             className="w-full rounded-xl bg-white/80 dark:bg-gray-800/80 text-gray-600 dark:text-gray-300 font-medium hover:shadow-md transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 border border-gray-200/50 dark:border-gray-700/50"

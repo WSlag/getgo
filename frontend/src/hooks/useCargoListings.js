@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { normalizeListingStatus } from '../utils/listingStatus';
+import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 
 export function useCargoListings(options = {}) {
   const {
@@ -46,7 +47,8 @@ export function useCargoListings(options = {}) {
       (snapshot) => {
         const data = snapshot.docs.map((doc) => {
           const docData = doc.data();
-          const createdAt = docData.createdAt?.toDate?.() || new Date();
+          const createdAt = parseTimestampSafely(docData.createdAt);
+          const updatedAt = parseTimestampSafely(docData.updatedAt);
 
           // Calculate distance if coordinates exist
           let distance = null;
@@ -73,7 +75,7 @@ export function useCargoListings(options = {}) {
             shipper: docData.userName || 'Unknown Shipper',
             company: docData.userName || 'Unknown Shipper',
             shipperTransactions: docData.userTransactions || 0,
-            postedAt: createdAt.getTime(),
+            postedAt: createdAt.timestamp,
             cargoPhotos: docData.photos || [],
             images: docData.photos || [],
             unit: docData.weightUnit || 'tons',
@@ -81,14 +83,14 @@ export function useCargoListings(options = {}) {
             estimatedTime: estimatedTime,
             bidCount: docData.bidCount || 0,
             // Keep original fields
-            createdAt: createdAt,
-            updatedAt: docData.updatedAt?.toDate?.() || new Date(),
+            createdAt: createdAt.date,
+            updatedAt: updatedAt.date,
             pickupDate: docData.pickupDate,
             originCoords: { lat: docData.originLat, lng: docData.originLng },
             destCoords: { lat: docData.destLat, lng: docData.destLng },
           };
         });
-        setListings(data);
+        setListings(sortEntitiesNewestFirst(data, { fallbackKeys: ['postedAt'] }));
         setLoading(false);
         setError(null);
       },
