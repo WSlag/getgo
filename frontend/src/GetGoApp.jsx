@@ -633,6 +633,10 @@ export default function GetGoApp() {
   const activeWorkspace = availableWorkspaces.includes(workspaceRole)
     ? workspaceRole
     : availableWorkspaces[0];
+  const primaryWorkspace = userRole === 'trucker' ? 'trucker' : 'shipper';
+  const homeWorkspace = availableWorkspaces.includes(primaryWorkspace)
+    ? primaryWorkspace
+    : availableWorkspaces[0];
   const postingRole = activeWorkspace === 'broker' ? userRole : activeWorkspace;
   const interactionRole = activeWorkspace === 'broker' ? userRole : activeWorkspace;
 
@@ -641,6 +645,12 @@ export default function GetGoApp() {
       setWorkspaceRole(availableWorkspaces[0]);
     }
   }, [availableWorkspaces, workspaceRole, setWorkspaceRole]);
+
+  useEffect(() => {
+    if (activeTab === 'home' && activeWorkspace !== homeWorkspace) {
+      setWorkspaceRole(homeWorkspace);
+    }
+  }, [activeTab, activeWorkspace, homeWorkspace, setWorkspaceRole]);
 
   useEffect(() => {
     if (activeWorkspace === 'broker') {
@@ -2046,8 +2056,6 @@ export default function GetGoApp() {
               onReferListing={handleReferListing}
               currentRole={userRole}
               workspaceRole={activeWorkspace}
-              workspaceOptions={availableWorkspaces}
-              onWorkspaceChange={setWorkspaceRole}
               currentUserId={authUser?.uid}
               darkMode={darkMode}
               activeShipments={homeActiveShipments}

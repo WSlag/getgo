@@ -31,8 +31,8 @@ export function WorkspaceSwitcher({
       )}
       <div
         className={cn(
-          'inline-flex items-center rounded-full border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 p-1 shadow-sm backdrop-blur',
-          compact ? 'gap-1' : 'gap-1.5'
+          'inline-flex items-center',
+          compact ? 'gap-2' : 'gap-3'
         )}
       >
         {normalizedOptions.map((role) => {
@@ -45,11 +45,11 @@ export function WorkspaceSwitcher({
               type="button"
               onClick={() => onChange?.(role)}
               className={cn(
-                'inline-flex items-center justify-center rounded-full font-semibold transition-all active:scale-95',
-                compact ? 'h-8 px-3 text-xs gap-1.5' : 'h-9 px-4 text-sm gap-2',
+                'inline-flex items-center justify-center border-b-2 border-transparent font-semibold transition-colors active:scale-95',
+                compact ? 'h-7 px-1.5 text-xs gap-1.5' : 'h-8 px-2 text-sm gap-2',
                 isActive
-                  ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
               )}
               aria-pressed={isActive}
             >
@@ -64,4 +64,3 @@ export function WorkspaceSwitcher({
 }
 
 export default WorkspaceSwitcher;
-
