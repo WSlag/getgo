@@ -127,4 +127,36 @@ test.describe('Tracking View', () => {
     ).count();
     expect(hasCargoOrTruckHeader).toBeGreaterThan(0);
   });
+
+  [
+    { role: 'shipper', phoneKey: 'shipper' },
+    { role: 'trucker', phoneKey: 'trucker' },
+  ].forEach(({ role, phoneKey }) => {
+    test(`should hide shipment tracking cards on authenticated ${role} homepage`, async ({
+      page,
+      authHelper,
+      testPhoneNumbers,
+    }) => {
+      await authHelper.login(testPhoneNumbers[phoneKey]);
+      const userData = generateTestUser(role, 3);
+      await authHelper.register(userData);
+
+      await page.waitForFunction(
+        () => !document.querySelector('.animate-spin'),
+        { timeout: 15000 }
+      );
+      await page.waitForTimeout(1500);
+
+      await expect(page.locator('text=/shipment tracking/i')).toHaveCount(0);
+      await expect(page.locator('text=/active shipments in progress/i')).toHaveCount(0);
+
+      const trackLiveButtons = page.locator('button').filter({ hasText: /track live/i });
+      await expect(trackLiveButtons).toHaveCount(0);
+
+      const hasCargoOrTruckHeader = await page.locator(
+        'text=/my cargo posts|available cargo|my truck posts|available trucks/i'
+      ).count();
+      expect(hasCargoOrTruckHeader).toBeGreaterThan(0);
+    });
+  });
 });

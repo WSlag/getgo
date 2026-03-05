@@ -836,13 +836,6 @@ export default function GetGoApp() {
     );
   }, [myBids, authUser?.uid, activeWorkspace]);
 
-  const homeActiveShipments = useMemo(() => {
-    if (isGuestUser) return [];
-    return sortEntitiesNewestFirst(
-      activeShipments.filter((shipment) => matchWorkspaceForShipment(shipment, activeWorkspace))
-    );
-  }, [activeShipments, activeWorkspace, isGuestUser, matchWorkspaceForShipment]);
-
   const workspaceActiveShipments = useMemo(
     () => sortEntitiesNewestFirst(
       activeShipments.filter((shipment) => matchWorkspaceForShipment(shipment, activeWorkspace))
@@ -1359,15 +1352,6 @@ export default function GetGoApp() {
       ? lastNonAdminTabRef.current
       : 'home';
     setActiveTab(fallbackTab);
-  };
-
-  const handleTrackLive = () => {
-    if (!authUser) {
-      requireAuth(() => setActiveTab('tracking'), 'Sign in to track shipments live');
-      return;
-    }
-
-    setActiveTab('tracking');
   };
 
   // Accept/Reject bid handlers
@@ -2066,8 +2050,6 @@ export default function GetGoApp() {
               workspaceRole={activeWorkspace}
               currentUserId={authUser?.uid}
               darkMode={darkMode}
-              activeShipments={homeActiveShipments}
-              onTrackLive={handleTrackLive}
               onRouteOptimizerClick={activeWorkspace === 'trucker' ? handleRouteOptimizerClick : undefined}
               currentUser={currentUser}
               savedSearches={savedSearches}
