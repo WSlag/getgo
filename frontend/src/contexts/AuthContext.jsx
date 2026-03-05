@@ -37,12 +37,48 @@ function normalizeEmail(value) {
   return email;
 }
 
+function resolveEmailLinkCallbackUrl() {
+  if (typeof window === 'undefined') {
+    throw new Error('Email link sign-in requires a browser environment.');
+  }
+
+  const configuredUrl = String(
+    import.meta.env.VITE_MAGIC_LINK_CALLBACK_URL
+    || import.meta.env.VITE_SITE_URL
+    || ''
+  ).trim();
+
+  if (!configuredUrl) {
+    return window.location.origin;
+  }
+
+  try {
+    return new URL(configuredUrl).toString();
+  } catch {
+    try {
+      return new URL(configuredUrl, window.location.origin).toString();
+    } catch {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[auth] Invalid email-link callback URL "${configuredUrl}". Falling back to ${window.location.origin}.`
+        );
+      }
+      return window.location.origin;
+    }
+  }
+}
+
 function buildEmailLinkActionSettings(mode = 'signin') {
   if (typeof window === 'undefined') {
     throw new Error('Email link sign-in requires a browser environment.');
   }
 
-  const callbackUrl = new URL(window.location.origin);
+  const callbackUrl = new URL(resolveEmailLinkCallbackUrl());
+  if (import.meta.env.DEV && callbackUrl.origin !== window.location.origin) {
+    console.info(
+      `[auth] Using canonical email-link callback origin ${callbackUrl.origin} (current origin: ${window.location.origin}).`
+    );
+  }
   callbackUrl.searchParams.set('emailLinkMode', mode);
   return {
     url: callbackUrl.toString(),
