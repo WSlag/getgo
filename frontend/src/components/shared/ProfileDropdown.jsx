@@ -74,6 +74,18 @@ export function ProfileDropdown({
   const config = roleConfig[displayRole] || roleConfig.shipper;
   const RoleIcon = config.icon;
   const menuItemClass = 'w-full rounded-xl px-3 py-2.5 cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800';
+  const fallbackPrimaryRole = availableWorkspaces.includes('trucker') && !availableWorkspaces.includes('shipper')
+    ? 'trucker'
+    : 'shipper';
+  const primaryRole = currentRole === 'trucker' || currentRole === 'shipper'
+    ? currentRole
+    : fallbackPrimaryRole;
+  const profileDropdownWorkspaces = Array.from(
+    new Set([
+      primaryRole,
+      ...(isBroker || availableWorkspaces.includes('broker') ? ['broker'] : []),
+    ])
+  );
 
   return (
     <DropdownMenu>
@@ -143,12 +155,12 @@ export function ProfileDropdown({
 
         <DropdownMenuSeparator className="m-0" />
 
-        {availableWorkspaces.length > 1 && (
+        {profileDropdownWorkspaces.length > 1 && (
           <>
             <div className="p-3">
               <WorkspaceSwitcher
                 value={displayRole}
-                options={availableWorkspaces}
+                options={profileDropdownWorkspaces}
                 onChange={onWorkspaceChange}
                 compact
                 showLabel={false}

@@ -7,7 +7,6 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { canBidCargoStatus, canBookTruckStatus } from '@/utils/listingStatus';
 import BrokerHomeCard from '@/components/broker/BrokerHomeCard';
-import { WorkspaceSwitcher } from '@/components/shared/WorkspaceSwitcher';
 import { getWorkspaceLabel } from '@/utils/workspace';
 
 const ITEMS_PER_PAGE = 20;
@@ -31,8 +30,6 @@ export function HomeView({
   onReferListing,
   currentRole = 'shipper',
   workspaceRole = 'shipper',
-  workspaceOptions = ['shipper'],
-  onWorkspaceChange,
   currentUserId = null,
   darkMode = false,
   className,
@@ -200,18 +197,6 @@ export function HomeView({
           overflowAnchor: 'none',
         }}
       >
-        {isMobile && (
-          <div className="mb-3">
-            <WorkspaceSwitcher
-              value={activeWorkspace}
-              options={workspaceOptions}
-              onChange={onWorkspaceChange}
-              compact
-              showLabel={false}
-              className="justify-center"
-            />
-          </div>
-        )}
         {/* Mobile Market Switcher - only visible on mobile */}
         <div className="lg:hidden flex gap-2" style={{ marginBottom: '16px' }}>
           <button
@@ -294,14 +279,6 @@ export function HomeView({
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Workspace</p>
             <p className="text-sm font-bold text-gray-900 dark:text-white">{workspaceLabel}</p>
           </div>
-          {!isMobile && (
-            <WorkspaceSwitcher
-              value={activeWorkspace}
-              options={workspaceOptions}
-              onChange={onWorkspaceChange}
-              showLabel={false}
-            />
-          )}
         </div>
         {roleKpis.length > 0 && (
           <div className="grid grid-cols-3 gap-2 mt-3">
