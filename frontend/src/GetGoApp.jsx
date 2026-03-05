@@ -350,8 +350,8 @@ export default function GetGoApp() {
 
   // Wallet removed - direct GCash payment flow
 
-  // Admin: Dashboard view state
-  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  // Admin: preserve last non-admin tab so "Back to App" returns users to context.
+  const lastNonAdminTabRef = useRef('home');
 
   // Onboarding Guide Modal
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
@@ -385,6 +385,12 @@ export default function GetGoApp() {
       setActivityInitialMode('my');
     }
   }, [activeTab, activityInitialMode]);
+
+  useEffect(() => {
+    if (activeTab !== 'admin') {
+      lastNonAdminTabRef.current = activeTab;
+    }
+  }, [activeTab]);
 
 
   const getUserErrorMessage = (error, fallback) => {
@@ -1123,11 +1129,18 @@ export default function GetGoApp() {
   };
 
   const handlePaymentReviewClick = () => {
-    setShowAdminDashboard(true);
+    if (!isAdmin) return;
+    if (activeTab !== 'admin') {
+      lastNonAdminTabRef.current = activeTab;
+    }
+    setActiveTab('admin');
   };
 
   const handleBackFromAdmin = () => {
-    setShowAdminDashboard(false);
+    const fallbackTab = lastNonAdminTabRef.current && lastNonAdminTabRef.current !== 'admin'
+      ? lastNonAdminTabRef.current
+      : 'home';
+    setActiveTab(fallbackTab);
   };
 
   const handleTrackLive = () => {
@@ -1719,8 +1732,8 @@ export default function GetGoApp() {
     setActiveTab('home');
   };
 
-  // If admin dashboard is open, render it instead of main app
-  if (showAdminDashboard && isAdmin) {
+  // If admin dashboard is open, render it instead of main app shell.
+  if (activeTab === 'admin') {
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950"><Loader2 className="size-6 animate-spin text-orange-500" /></div>}>
         <AdminDashboard onBackToApp={handleBackFromAdmin} />
@@ -1741,6 +1754,7 @@ export default function GetGoApp() {
         userInitial={userInitial}
         currentRole={userRole}
         isBroker={isBroker}
+        isAdmin={isAdmin}
         onLogout={handleLogout}
         onNotificationClick={handleNotificationClick}
         onProfileClick={handleProfileClick}
@@ -1748,6 +1762,7 @@ export default function GetGoApp() {
         onEditProfile={handleEditProfile}
         onNotificationSettings={handleNotificationSettings}
         onHelpSupport={handleHelpSupport}
+        onAdminDashboard={handlePaymentReviewClick}
         user={{
           name: userProfile?.name || 'User',
           initial: userInitial,
@@ -2052,7 +2067,7 @@ export default function GetGoApp() {
         )}
 
         {/* Fallback for invalid/unknown tabs */}
-        {!['home', 'activity', 'tracking', 'notifications', 'profile', 'broker', 'bids', 'messages', 'contracts', 'adminPayments', 'contractVerification', 'help'].includes(activeTab) && (
+        {!['home', 'activity', 'tracking', 'notifications', 'profile', 'broker', 'bids', 'messages', 'contracts', 'adminPayments', 'contractVerification', 'help', 'admin'].includes(activeTab) && (
           <NotFoundView onGoHome={() => setActiveTab('home')} />
         )}
         </Suspense>
