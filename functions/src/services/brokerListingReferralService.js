@@ -28,13 +28,31 @@ const TERMINAL_LISTING_REFERRAL_STATUSES = Object.freeze([
 const ACTIVITY_TYPES = Object.freeze({
   CARGO_BID: 'cargo_bid',
   TRUCK_BOOKING_BID: 'truck_booking_bid',
+  CARGO_CONTRACT_CREATED: 'cargo_contract_created',
+  CARGO_CONTRACT_SIGNED: 'cargo_contract_signed',
+  CARGO_CONTRACT_COMPLETED: 'cargo_contract_completed',
+  CARGO_CONTRACT_CANCELLED: 'cargo_contract_cancelled',
   TRUCK_BOOKING_CONTRACT_CREATED: 'truck_booking_contract_created',
   TRUCK_BOOKING_CONTRACT_SIGNED: 'truck_booking_contract_signed',
   TRUCK_BOOKING_CONTRACT_COMPLETED: 'truck_booking_contract_completed',
   TRUCK_BOOKING_CONTRACT_CANCELLED: 'truck_booking_contract_cancelled',
+  CARGO_SHIPMENT_STATUS: 'cargo_shipment_status',
+  TRUCK_DELIVERY_STATUS: 'truck_delivery_status',
 });
 
-const TYPE_FILTERS = new Set(['all', 'cargo_bids', 'truck_bookings', 'contracts']);
+const TYPE_BUCKETS = Object.freeze({
+  REFERRED_CARGO: 'referred_cargo',
+  REFERRED_TRUCK: 'referred_truck',
+});
+
+const TYPE_FILTERS = new Set([
+  'all',
+  TYPE_BUCKETS.REFERRED_CARGO,
+  TYPE_BUCKETS.REFERRED_TRUCK,
+  'cargo_bids', // backward-compatible alias
+  'truck_bookings', // backward-compatible alias
+  'contracts', // backward-compatible filter
+]);
 const STATUS_FILTERS = new Set(['all', 'pending', 'accepted', 'completed', 'cancelled']);
 const REFERRED_STATUS_FILTERS = new Set(['active', 'all', 'acted', 'expired', 'closed']);
 
@@ -146,6 +164,12 @@ function mapBidActivityType(listingType) {
   return listingType === 'truck' ? ACTIVITY_TYPES.TRUCK_BOOKING_BID : ACTIVITY_TYPES.CARGO_BID;
 }
 
+function mapListingTypeToTypeBucket(listingType) {
+  const normalized = normalizeListingType(listingType);
+  if (normalized === 'truck') return TYPE_BUCKETS.REFERRED_TRUCK;
+  return TYPE_BUCKETS.REFERRED_CARGO;
+}
+
 function mapBidStatusToActivityStatus(status) {
   const normalized = String(status || '').trim().toLowerCase();
   if (normalized === 'accepted' || normalized === 'contracted' || normalized === 'signed') return 'accepted';
@@ -154,9 +178,20 @@ function mapBidStatusToActivityStatus(status) {
   return 'pending';
 }
 
+function mapShipmentStatusToActivityStatus(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'delivered' || normalized === 'completed') return 'completed';
+  if (normalized === 'cancelled') return 'cancelled';
+  if (normalized === 'picked_up' || normalized === 'in_transit') return 'accepted';
+  return 'pending';
+}
+
 function normalizeTypeFilter(value) {
   const normalized = String(value || 'all').trim().toLowerCase();
-  return TYPE_FILTERS.has(normalized) ? normalized : null;
+  if (!TYPE_FILTERS.has(normalized)) return null;
+  if (normalized === 'cargo_bids') return TYPE_BUCKETS.REFERRED_CARGO;
+  if (normalized === 'truck_bookings') return TYPE_BUCKETS.REFERRED_TRUCK;
+  return normalized;
 }
 
 function normalizeStatusFilter(value) {
@@ -172,15 +207,24 @@ function normalizeReferredStatusFilter(value) {
 function matchesTypeFilter(item, typeFilter) {
   if (!item) return false;
   if (!typeFilter || typeFilter === 'all') return true;
-  if (typeFilter === 'cargo_bids') return item.activityType === ACTIVITY_TYPES.CARGO_BID;
-  if (typeFilter === 'truck_bookings') return item.activityType === ACTIVITY_TYPES.TRUCK_BOOKING_BID;
-  if (typeFilter === 'contracts') return String(item.activityType || '').startsWith('truck_booking_contract_');
+  const typeBucket = String(item.typeBucket || '').trim().toLowerCase();
+  const listingBucket = mapListingTypeToTypeBucket(item.listingType);
+
+  if (typeFilter === TYPE_BUCKETS.REFERRED_CARGO) {
+    return typeBucket === TYPE_BUCKETS.REFERRED_CARGO || listingBucket === TYPE_BUCKETS.REFERRED_CARGO;
+  }
+  if (typeFilter === TYPE_BUCKETS.REFERRED_TRUCK) {
+    return typeBucket === TYPE_BUCKETS.REFERRED_TRUCK || listingBucket === TYPE_BUCKETS.REFERRED_TRUCK;
+  }
+  if (typeFilter === 'contracts') return isContractLifecycleType(item.activityType);
   return false;
 }
 
 function matchesStatusFilter(item, statusFilter) {
   if (!item) return false;
   if (!statusFilter || statusFilter === 'all') return true;
+  const statusBucket = String(item.statusBucket || '').trim().toLowerCase();
+  if (statusBucket) return statusBucket === statusFilter;
   const normalized = String(item.status || '').trim().toLowerCase();
   if (statusFilter === 'pending') return normalized === 'pending' || normalized === 'draft' || normalized === 'open';
   if (statusFilter === 'accepted') {
@@ -206,10 +250,20 @@ function matchesReferredStatusFilter(item, statusFilter) {
   return true;
 }
 
+function isContractLifecycleType(activityType) {
+  const normalized = String(activityType || '').trim().toLowerCase();
+  return normalized.includes('_contract_')
+    || normalized === ACTIVITY_TYPES.CARGO_SHIPMENT_STATUS
+    || normalized === ACTIVITY_TYPES.TRUCK_DELIVERY_STATUS;
+}
+
 function buildBrokerActivitySummary(items = []) {
   const summary = {
     total: items.length,
     byType: {
+      referred_cargo: 0,
+      referred_truck: 0,
+      // Backward-compatible keys for existing clients.
       cargo_bids: 0,
       truck_bookings: 0,
       contracts: 0,
@@ -224,8 +278,14 @@ function buildBrokerActivitySummary(items = []) {
   };
 
   items.forEach((item) => {
-    if (matchesTypeFilter(item, 'cargo_bids')) summary.byType.cargo_bids += 1;
-    if (matchesTypeFilter(item, 'truck_bookings')) summary.byType.truck_bookings += 1;
+    if (matchesTypeFilter(item, TYPE_BUCKETS.REFERRED_CARGO)) {
+      summary.byType.referred_cargo += 1;
+      summary.byType.cargo_bids += 1;
+    }
+    if (matchesTypeFilter(item, TYPE_BUCKETS.REFERRED_TRUCK)) {
+      summary.byType.referred_truck += 1;
+      summary.byType.truck_bookings += 1;
+    }
     if (matchesTypeFilter(item, 'contracts')) summary.byType.contracts += 1;
 
     if (matchesStatusFilter(item, 'pending')) summary.byStatus.pending += 1;
@@ -344,13 +404,16 @@ module.exports = {
   maskDisplayName,
   getBrokerReferralForUser,
   mapBidActivityType,
+  mapListingTypeToTypeBucket,
   mapBidStatusToActivityStatus,
+  mapShipmentStatusToActivityStatus,
   normalizeTypeFilter,
   normalizeStatusFilter,
   normalizeReferredStatusFilter,
   matchesTypeFilter,
   matchesStatusFilter,
   matchesReferredStatusFilter,
+  isContractLifecycleType,
   buildBrokerActivitySummary,
   upsertBrokerMarketplaceActivity,
   upsertBrokerListingReferral,

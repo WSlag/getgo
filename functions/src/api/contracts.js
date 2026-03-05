@@ -13,6 +13,7 @@ const {
 const {
   ACTIVITY_TYPES,
   getBrokerReferralForUser,
+  mapListingTypeToTypeBucket,
   maskDisplayName,
   upsertBrokerMarketplaceActivity,
 } = require('../services/brokerListingReferralService');
@@ -133,7 +134,13 @@ async function getFirestoreBidData(bidId) {
   return { bid, listing, isCargo };
 }
 
-function resolveContractActivityType(phase) {
+function resolveContractActivityType(listingType, phase) {
+  if (String(listingType || '').toLowerCase() === 'cargo') {
+    if (phase === 'created') return ACTIVITY_TYPES.CARGO_CONTRACT_CREATED;
+    if (phase === 'signed') return ACTIVITY_TYPES.CARGO_CONTRACT_SIGNED;
+    if (phase === 'completed') return ACTIVITY_TYPES.CARGO_CONTRACT_COMPLETED;
+    return ACTIVITY_TYPES.CARGO_CONTRACT_CANCELLED;
+  }
   if (phase === 'created') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_CREATED;
   if (phase === 'signed') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_SIGNED;
   if (phase === 'completed') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_COMPLETED;
@@ -148,7 +155,8 @@ function resolveContractActivityStatus(phase) {
 }
 
 async function recordTruckBookingContractActivity(db, contractId, contract, phase) {
-  if (!contract || contract.listingType !== 'truck' || !contract.bidderId) return;
+  if (!contract || !contract.bidderId) return;
+  const listingType = String(contract.listingType || '').toLowerCase() === 'cargo' ? 'cargo' : 'truck';
 
   const referral = await getBrokerReferralForUser(contract.bidderId, db);
   if (!referral?.brokerId) return;
@@ -161,14 +169,17 @@ async function recordTruckBookingContractActivity(db, contractId, contract, phas
   await upsertBrokerMarketplaceActivity(`contract:${contractId}:${phase}`, {
     brokerId: referral.brokerId,
     referredUserId: contract.bidderId,
-    activityType: resolveContractActivityType(phase),
-    listingType: 'truck',
+    activityType: resolveContractActivityType(listingType, phase),
+    listingType,
+    listingId: contract.listingId || null,
     bidId: contract.bidId || null,
     contractId,
     amount: Number(contract.agreedPrice || 0) || null,
     origin: contract.pickupCity || contract.pickupAddress || null,
     destination: contract.deliveryCity || contract.deliveryAddress || null,
     status: resolveContractActivityStatus(phase),
+    statusBucket: resolveContractActivityStatus(phase),
+    typeBucket: mapListingTypeToTypeBucket(listingType),
     activityAt: admin.firestore.FieldValue.serverTimestamp(),
     referredUserMasked: maskDisplayName(referredDoc.exists ? referredDoc.data().name : null, referredDoc.exists ? referredDoc.data().phone : null),
     counterpartyMasked: maskDisplayName(counterpartyDoc?.exists ? counterpartyDoc.data().name : contract.listingOwnerName, counterpartyDoc?.exists ? counterpartyDoc.data().phone : null),

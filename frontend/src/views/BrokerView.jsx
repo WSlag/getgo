@@ -439,7 +439,7 @@ export function BrokerView({
               <h3 className="font-semibold text-gray-900 dark:text-white">Listing Referral Activity</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">Broker-referred cargo and truck posts summary</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => onOpenBrokerActivity?.()}>
+            <Button variant="gradient" size="sm" className="rounded-full px-3.5" onClick={() => onOpenBrokerActivity?.()}>
               Open Broker Activity
             </Button>
           </div>
