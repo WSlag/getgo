@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Search, Send } from 'lucide-react';
+import { Check, Loader2, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import api from '@/services/api';
@@ -145,15 +145,11 @@ export function ReferListingModal({
               <label className="block text-sm text-foreground mb-2">
                 Find referred users
               </label>
-              <div className="relative">
-                <Search className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search referred user"
-                  className="pl-10"
-                />
-              </div>
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search referred user"
+              />
             </div>
 
             <div className="rounded-xl border border-border bg-card max-h-56 overflow-y-auto">
