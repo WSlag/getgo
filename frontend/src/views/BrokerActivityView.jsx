@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, RefreshCw, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -57,6 +57,8 @@ export function BrokerActivityView({ onToast }) {
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
+  const requestSequenceRef = useRef(0);
+  const isMountedRef = useRef(true);
   const filterChipBaseClass = 'inline-flex items-center justify-center rounded-full text-[13px] font-semibold leading-none transition-all duration-200 active:scale-95';
   const activeFilterChipClass = 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30';
   const inactiveFilterChipClass = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600';
@@ -77,9 +79,19 @@ export function BrokerActivityView({ onToast }) {
     { id: 'cancelled', label: 'Cancelled' },
   ]), []);
 
-  const loadActivity = async ({ append = false, cursorValue = null } = {}) => {
+  const loadActivity = useCallback(async ({ append = false, cursorValue = null } = {}) => {
+    const requestId = requestSequenceRef.current + 1;
+    requestSequenceRef.current = requestId;
+
     setLoading(true);
     setError('');
+    if (!append) {
+      setItems([]);
+      setSummary(null);
+      setCursor(null);
+      setHasMore(false);
+    }
+
     try {
       const response = await api.broker.getMarketplaceActivity({
         typeFilter,
@@ -87,6 +99,11 @@ export function BrokerActivityView({ onToast }) {
         limit: 20,
         cursor: cursorValue,
       });
+
+      if (!isMountedRef.current || requestSequenceRef.current !== requestId) {
+        return;
+      }
+
       setItems((prev) => (
         append
           ? dedupeAndSortNewest(prev, response?.items || [], { fallbackKeys: ['activityAt'] })
@@ -96,16 +113,28 @@ export function BrokerActivityView({ onToast }) {
       setCursor(response?.nextCursor || null);
       setHasMore(Boolean(response?.hasMore));
     } catch (fetchError) {
+      if (!isMountedRef.current || requestSequenceRef.current !== requestId) {
+        return;
+      }
       setError(fetchError.message || 'Failed to load broker activity');
     } finally {
-      setLoading(false);
+      if (isMountedRef.current && requestSequenceRef.current === requestId) {
+        setLoading(false);
+      }
     }
-  };
+  }, [typeFilter, statusFilter]);
 
   useEffect(() => {
     loadActivity({ append: false, cursorValue: null });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typeFilter, statusFilter]);
+  }, [loadActivity]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      requestSequenceRef.current += 1;
+    };
+  }, []);
 
   const handleBackfill = async () => {
     setBackfilling(true);
@@ -116,7 +145,7 @@ export function BrokerActivityView({ onToast }) {
         title: 'Backfill complete',
         message: `Created ${response?.created || 0}, Updated ${response?.updated || 0}, Skipped ${response?.skipped || 0}`,
       });
-      loadActivity({ append: false, cursorValue: null });
+      await loadActivity({ append: false, cursorValue: null });
     } catch (backfillError) {
       onToast?.({
         type: 'error',

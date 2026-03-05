@@ -21,10 +21,9 @@ export default function ActivityView({
   onOpenMessages,
   onOpenListing,
   onToast,
-  unreadBids = 0,
-  pendingContractsCount = 0,
+  bidsCount = 0,
+  contractsCount = 0,
   isBroker = false,
-  initialMode = 'my',
 }) {
   const [activeSubTab, setActiveSubTab] = useState('bids');
   const isMobile = useMediaQuery('(max-width: 1023px)');
@@ -37,12 +36,6 @@ export default function ActivityView({
       setActiveSubTab('bids');
     }
   }, [hasReferredListings, activeSubTab]);
-
-  React.useEffect(() => {
-    if (!isBrokerWorkspace && isBroker && initialMode === 'broker') {
-      onWorkspaceChange?.('broker');
-    }
-  }, [initialMode, isBroker, isBrokerWorkspace, onWorkspaceChange]);
 
   return (
     <main
@@ -92,9 +85,9 @@ export default function ActivityView({
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+                <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
                 <span>{workspaceRole === 'trucker' ? 'My Bids' : 'My Bookings'}</span>
-                {unreadBids > 0 && (
+                {bidsCount > 0 && (
                   <span
                     className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[11px] font-bold rounded-full ${
                       activeSubTab === 'bids'
@@ -102,7 +95,7 @@ export default function ActivityView({
                         : 'bg-orange-500 text-white'
                     }`}
                   >
-                    {unreadBids}
+                    {bidsCount}
                   </span>
                 )}
               </span>
@@ -117,9 +110,9 @@ export default function ActivityView({
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+                <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
                 <span>Contracts</span>
-                {pendingContractsCount > 0 && (
+                {contractsCount > 0 && (
                   <span
                     className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[11px] font-bold rounded-full ${
                       activeSubTab === 'contracts'
@@ -127,7 +120,7 @@ export default function ActivityView({
                         : 'bg-yellow-500 text-white'
                     }`}
                   >
-                    {pendingContractsCount}
+                    {contractsCount}
                   </span>
                 )}
               </span>
@@ -191,4 +184,3 @@ export default function ActivityView({
     </main>
   );
 }
-
