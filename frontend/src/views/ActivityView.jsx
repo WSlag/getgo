@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import BidsView from './BidsView';
 import ContractsView from './ContractsView';
 import BrokerActivityView from './BrokerActivityView';
+import TruckerActivityView from './TruckerActivityView';
 import ReferredListingsView from './ReferredListingsView';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { WorkspaceSwitcher } from '@/components/shared/WorkspaceSwitcher';
@@ -26,10 +27,27 @@ export default function ActivityView({
   isBroker = false,
 }) {
   const [activeSubTab, setActiveSubTab] = useState('bids');
+  const [workspaceFilters, setWorkspaceFilters] = useState({
+    broker: { typeFilter: 'all', statusFilter: 'all' },
+    trucker: { typeFilter: 'all', statusFilter: 'all' },
+  });
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const hasReferredListings = Boolean(currentUser?.referredByBrokerId);
   const isBrokerWorkspace = workspaceRole === 'broker' && isBroker;
+  const isTruckerWorkspace = workspaceRole === 'trucker';
   const workspaceLabel = getWorkspaceLabel(workspaceRole);
+  const brokerFilters = workspaceFilters.broker || { typeFilter: 'all', statusFilter: 'all' };
+  const truckerFilters = workspaceFilters.trucker || { typeFilter: 'all', statusFilter: 'all' };
+
+  const setWorkspaceFilter = React.useCallback((workspace, key, value) => {
+    setWorkspaceFilters((prev) => ({
+      ...prev,
+      [workspace]: {
+        ...(prev[workspace] || { typeFilter: 'all', statusFilter: 'all' }),
+        [key]: value,
+      },
+    }));
+  }, []);
 
   React.useEffect(() => {
     if (!hasReferredListings && activeSubTab === 'referred') {
@@ -60,6 +78,8 @@ export default function ActivityView({
         }}>
           {isBrokerWorkspace
             ? 'Read-only view of referred users marketplace activity'
+            : isTruckerWorkspace
+              ? 'Track your bids, bookings, contracts, and delivery activity'
             : `Track your ${workspaceRole === 'trucker' ? 'bids' : 'bookings'} and contracts`}
         </p>
         <div style={{ marginTop: '12px' }}>
@@ -73,7 +93,7 @@ export default function ActivityView({
         </div>
       </div>
 
-      {!isBrokerWorkspace && (
+      {!isBrokerWorkspace && !isTruckerWorkspace && (
         <div style={{ marginBottom: '24px' }}>
           <div className="flex gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-full p-1">
             <button
@@ -145,7 +165,26 @@ export default function ActivityView({
 
       <div>
         {isBrokerWorkspace ? (
-          <BrokerActivityView onToast={onToast} />
+          <BrokerActivityView
+            onToast={onToast}
+            typeFilter={brokerFilters.typeFilter}
+            statusFilter={brokerFilters.statusFilter}
+            onTypeFilterChange={(value) => setWorkspaceFilter('broker', 'typeFilter', value)}
+            onStatusFilterChange={(value) => setWorkspaceFilter('broker', 'statusFilter', value)}
+          />
+        ) : isTruckerWorkspace ? (
+          <TruckerActivityView
+            currentUser={currentUser}
+            onOpenChat={onOpenChat}
+            onOpenContract={onOpenContract}
+            onBrowseMarketplace={onBrowseMarketplace}
+            onCreateListing={onCreateListing}
+            onOpenMessages={onOpenMessages}
+            typeFilter={truckerFilters.typeFilter}
+            statusFilter={truckerFilters.statusFilter}
+            onTypeFilterChange={(value) => setWorkspaceFilter('trucker', 'typeFilter', value)}
+            onStatusFilterChange={(value) => setWorkspaceFilter('trucker', 'statusFilter', value)}
+          />
         ) : (
           <>
             {activeSubTab === 'bids' && (

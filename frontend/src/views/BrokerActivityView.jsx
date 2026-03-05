@@ -47,18 +47,28 @@ function typeIcon(activityType) {
   return <FileText className="size-3.5" />;
 }
 
-export function BrokerActivityView({ onToast }) {
+export function BrokerActivityView({
+  onToast,
+  typeFilter,
+  statusFilter,
+  onTypeFilterChange,
+  onStatusFilterChange,
+}) {
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [internalTypeFilter, setInternalTypeFilter] = useState('all');
+  const [internalStatusFilter, setInternalStatusFilter] = useState('all');
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const requestSequenceRef = useRef(0);
   const isMountedRef = useRef(true);
+  const activeTypeFilter = typeFilter || internalTypeFilter;
+  const activeStatusFilter = statusFilter || internalStatusFilter;
+  const setTypeFilter = onTypeFilterChange || setInternalTypeFilter;
+  const setStatusFilter = onStatusFilterChange || setInternalStatusFilter;
   const filterChipBaseClass = 'inline-flex items-center justify-center rounded-full text-[13px] font-semibold leading-none transition-all duration-200 active:scale-95';
   const activeFilterChipClass = 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30';
   const inactiveFilterChipClass = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600';
@@ -94,8 +104,8 @@ export function BrokerActivityView({ onToast }) {
 
     try {
       const response = await api.broker.getMarketplaceActivity({
-        typeFilter,
-        statusFilter,
+        typeFilter: activeTypeFilter,
+        statusFilter: activeStatusFilter,
         limit: 20,
         cursor: cursorValue,
       });
@@ -122,7 +132,7 @@ export function BrokerActivityView({ onToast }) {
         setLoading(false);
       }
     }
-  }, [typeFilter, statusFilter]);
+  }, [activeTypeFilter, activeStatusFilter]);
 
   useEffect(() => {
     loadActivity({ append: false, cursorValue: null });
@@ -170,7 +180,7 @@ export function BrokerActivityView({ onToast }) {
                 onClick={() => setTypeFilter(filter.id)}
                 style={filterChipStyle}
                 className={`${filterChipBaseClass} ${
-                  typeFilter === filter.id
+                  activeTypeFilter === filter.id
                     ? activeFilterChipClass
                     : inactiveFilterChipClass
                 }`}
@@ -188,7 +198,7 @@ export function BrokerActivityView({ onToast }) {
                 onClick={() => setStatusFilter(filter.id)}
                 style={filterChipStyle}
                 className={`${filterChipBaseClass} ${
-                  statusFilter === filter.id
+                  activeStatusFilter === filter.id
                     ? activeFilterChipClass
                     : inactiveFilterChipClass
                 }`}
