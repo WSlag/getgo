@@ -3,8 +3,6 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Logo } from '@/components/shared/Logo';
 import { ProfileDropdown } from '@/components/shared/ProfileDropdown';
-import { WorkspaceSwitcher } from '@/components/shared/WorkspaceSwitcher';
-import { getWorkspaceLabel } from '@/utils/workspace';
 
 export function Header({
   activeTab = 'home',
@@ -106,14 +104,6 @@ export function Header({
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
-            <WorkspaceSwitcher
-              value={workspaceRole}
-              options={availableWorkspaces}
-              onChange={onWorkspaceChange}
-              className="hidden lg:flex"
-              showLabel={false}
-            />
-
             {/* Notification Bell */}
             <button
               onClick={onNotificationClick}
@@ -173,9 +163,6 @@ export function Header({
                 <span>{userInitial}</span>
               </button>
             </ProfileDropdown>
-            <span className="hidden lg:inline-flex items-center rounded-full border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:text-orange-300">
-              {getWorkspaceLabel(workspaceRole)}
-            </span>
           </div>
         </div>
       </div>
