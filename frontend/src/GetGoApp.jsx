@@ -1906,6 +1906,32 @@ export default function GetGoApp() {
     openModal('truckDetails', listing);
   };
 
+  const handleOpenActivityListing = async (listingItem) => {
+    const listingId = listingItem?.listingId || listingItem?.id;
+    const listingTypeRaw = listingItem?.listingType || listingItem?.type || 'cargo';
+    const listingType = String(listingTypeRaw || '').toLowerCase();
+    if (!listingId || !['cargo', 'truck'].includes(listingType)) {
+      showToast({
+        type: 'error',
+        title: 'Unable to open listing',
+        message: 'Listing details are unavailable.',
+      });
+      return;
+    }
+
+    try {
+      await openListingByType(listingId, listingType);
+      setActiveTab('home');
+    } catch (error) {
+      console.error('Failed to open activity listing:', error);
+      showToast({
+        type: 'error',
+        title: 'Unable to open listing',
+        message: error.message || 'The listing may no longer be available.',
+      });
+    }
+  };
+
   const handleOpenListingFromNotification = async (notification) => {
     const listingId = notification?.data?.listingId;
     const listingType = notification?.data?.listingType;
@@ -1924,34 +1950,6 @@ export default function GetGoApp() {
     } catch (error) {
       console.error('Failed to open listing notification:', error);
       setActiveTab('home');
-      showToast({
-        type: 'error',
-        title: 'Unable to open listing',
-        message: error.message || 'The listing may no longer be available.',
-      });
-    }
-  };
-
-  const handleOpenListingFromReferral = async (referralItem) => {
-    const listingId = referralItem?.listingId;
-    const listingType = referralItem?.listingType;
-    if (!listingId || !listingType) {
-      showToast({
-        type: 'error',
-        title: 'Invalid referral',
-        message: 'Listing details are unavailable for this referral.',
-      });
-      return;
-    }
-
-    try {
-      if (availableWorkspaces.includes('broker')) {
-        setWorkspaceRole('broker');
-      }
-      await openListingByType(listingId, listingType);
-      setActiveTab('home');
-    } catch (error) {
-      console.error('Failed to open referred listing:', error);
       showToast({
         type: 'error',
         title: 'Unable to open listing',
@@ -2112,7 +2110,7 @@ export default function GetGoApp() {
               }}
               onCreateListing={handlePostClick}
               onOpenMessages={() => setActiveTab('messages')}
-              onOpenListing={handleOpenListingFromReferral}
+              onOpenListing={handleOpenActivityListing}
               bidsCount={activityBidsCount}
               contractsCount={activityContractsCount}
               isBroker={isBroker}
