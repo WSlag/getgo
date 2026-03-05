@@ -97,7 +97,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/offline.html',
-        navigateFallbackDenylist: [/^\/api/],
+        navigateFallbackDenylist: [/^\/api/, /^\/__\//],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\./i,

@@ -18,11 +18,33 @@ Notes:
 
 1. Go to Authentication -> Settings -> Authorized domains.
 2. Add every domain that may open the magic link:
-   - Production: `karga-ph.web.app` and/or your custom domain.
+   - Production: `karga-ph.web.app`, `getgoph.web.app`, and/or your custom domain.
    - Staging domain (if used).
    - Local development: `localhost` and `127.0.0.1`.
 
 If a domain is missing, email-link completion fails.
+
+## 2.1) Set Canonical Callback URL for Email Links
+
+Use a single callback domain so magic links always return to the same host.
+
+1. In frontend production env, set:
+   - `VITE_SITE_URL=https://getgoph.web.app`
+   - Optional explicit override: `VITE_MAGIC_LINK_CALLBACK_URL=https://getgoph.web.app`
+2. Keep Firebase Auth project/domain as configured (`karga-ph`) and let Firebase handle the `__/auth/action` redirect.
+
+## 2.2) Prevent Service Worker from Intercepting Firebase Reserved Routes
+
+Firebase Auth uses reserved routes under `__/` (for example `__/auth/action`).
+Your PWA Workbox config must denylist these routes from `navigateFallback`.
+
+Required setting:
+
+```js
+navigateFallbackDenylist: [/^\/api/, /^\/__\//]
+```
+
+Without this, magic-link clicks can be routed to `offline.html` instead of Firebase Auth handler pages.
 
 ## 3) Deploy Backend and Rules with Feature Flag OFF
 
@@ -88,6 +110,9 @@ firebase deploy --only functions,hosting
    - status transitions (`Not configured` -> `Pending` -> `Enabled`)
 4. Disable backup email blocks future magic-link sends.
 5. Invalid/expired links fail safely.
+6. Clicking a magic link no longer lands on offline fallback page.
+7. `continueUrl` host in the auth link resolves to `https://getgoph.web.app` (canonical).
+8. For Facebook/Gmail/other in-app browsers, if completion is unstable, open the link in Chrome/Safari.
 
 ## 8) Run Regression Tests
 
@@ -100,3 +125,11 @@ Expected: full auth suite passes with phone flow unaffected.
 ## 9) Roll Out to All Users
 
 After internal verification, keep flags ON and monitor auth errors/logs.
+
+## 10) Firebase Console Branding Step
+
+To align user-facing copy with GetGo while keeping the current Firebase Auth project:
+
+1. Firebase Console -> Authentication -> Templates.
+2. Update subject/body text for email-link template to GetGo branding.
+3. Keep technical sender host/domain as provided by Firebase project configuration.
