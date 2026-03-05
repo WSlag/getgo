@@ -29,6 +29,8 @@ const {
   normalizeTypeFilter,
   normalizeStatusFilter,
   normalizeReferredStatusFilter,
+  mapListingTypeToTypeBucket,
+  mapShipmentStatusToActivityStatus,
   matchesTypeFilter,
   matchesStatusFilter,
   matchesReferredStatusFilter,
@@ -162,11 +164,95 @@ async function getMaskedUserMap(db, userIds = []) {
   return map;
 }
 
-function mapContractPhaseToType(phase) {
+function mapContractPhaseToType(listingType, phase) {
+  const normalizedType = String(listingType || '').toLowerCase() === 'cargo' ? 'cargo' : 'truck';
+  if (normalizedType === 'cargo') {
+    if (phase === 'created') return ACTIVITY_TYPES.CARGO_CONTRACT_CREATED;
+    if (phase === 'signed') return ACTIVITY_TYPES.CARGO_CONTRACT_SIGNED;
+    if (phase === 'completed') return ACTIVITY_TYPES.CARGO_CONTRACT_COMPLETED;
+    return ACTIVITY_TYPES.CARGO_CONTRACT_CANCELLED;
+  }
   if (phase === 'created') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_CREATED;
   if (phase === 'signed') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_SIGNED;
   if (phase === 'completed') return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_COMPLETED;
   return ACTIVITY_TYPES.TRUCK_BOOKING_CONTRACT_CANCELLED;
+}
+
+function normalizeActivityStatusBucket(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return 'pending';
+  if (['completed', 'delivered'].includes(normalized)) return 'completed';
+  if (['cancelled', 'rejected', 'withdrawn', 'waived'].includes(normalized)) return 'cancelled';
+  if (['accepted', 'contracted', 'signed', 'in_transit', 'picked_up'].includes(normalized)) return 'accepted';
+  return 'pending';
+}
+
+function enrichBrokerActivityItem(item = {}) {
+  const listingType = String(item.listingType || '').toLowerCase() === 'cargo' ? 'cargo' : 'truck';
+  const shipmentStatus = String(item.shipmentStatus || '').trim().toLowerCase() || null;
+  const statusBucket = String(item.statusBucket || '').trim().toLowerCase()
+    || normalizeActivityStatusBucket(shipmentStatus || item.status);
+  return {
+    ...item,
+    listingType,
+    typeBucket: item.typeBucket || mapListingTypeToTypeBucket(listingType),
+    statusBucket,
+    status: item.status || statusBucket,
+    shipmentStatus,
+  };
+}
+
+function applyActivityDateFilters(query, dateFrom, dateTo) {
+  let nextQuery = query;
+  if (dateFrom) {
+    nextQuery = nextQuery.where('activityAt', '>=', admin.firestore.Timestamp.fromDate(dateFrom));
+  }
+  if (dateTo) {
+    nextQuery = nextQuery.where('activityAt', '<=', admin.firestore.Timestamp.fromDate(dateTo));
+  }
+  return nextQuery;
+}
+
+async function buildAccurateBrokerActivitySummary(db, {
+  brokerId,
+  typeFilter,
+  statusFilter,
+  dateFrom = null,
+  dateTo = null,
+}) {
+  const pageSize = 250;
+  let lastDoc = null;
+  const filteredItems = [];
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = db.collection(MARKET_ACTIVITY_COLLECTION)
+      .where('brokerId', '==', brokerId)
+      .orderBy('activityAt', 'desc')
+      .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+    query = applyActivityDateFilters(query, dateFrom, dateTo);
+    if (lastDoc) {
+      query = query.startAfter(lastDoc);
+    }
+
+    const snap = await query.limit(pageSize).get();
+    if (snap.empty) {
+      hasMore = false;
+      break;
+    }
+
+    for (const doc of snap.docs) {
+      const item = enrichBrokerActivityItem({ id: doc.id, ...doc.data() });
+      if (matchesTypeFilter(item, typeFilter) && matchesStatusFilter(item, statusFilter)) {
+        filteredItems.push(item);
+      }
+    }
+
+    lastDoc = snap.docs[snap.docs.length - 1] || null;
+    hasMore = snap.size === pageSize;
+  }
+
+  return buildBrokerActivitySummary(filteredItems);
 }
 
 async function generateUniqueReferralCode(db, role) {
@@ -860,26 +946,26 @@ exports.brokerGetMarketplaceActivity = functions.region(REGION).https.onCall(asy
     .where('brokerId', '==', brokerId)
     .orderBy('activityAt', 'desc')
     .orderBy(admin.firestore.FieldPath.documentId(), 'desc');
-
-  if (dateFrom) {
-    query = query.where('activityAt', '>=', admin.firestore.Timestamp.fromDate(dateFrom));
-  }
-  if (dateTo) {
-    query = query.where('activityAt', '<=', admin.firestore.Timestamp.fromDate(dateTo));
-  }
+  query = applyActivityDateFilters(query, dateFrom, dateTo);
   if (cursor) {
     query = query.startAfter(admin.firestore.Timestamp.fromMillis(cursor.ts), cursor.id);
   }
 
-  const scanLimit = Math.min(limit * 4, 200);
+  const scanLimit = Math.min(limit * 10, 1000);
   const snap = await query.limit(scanLimit).get();
   const filtered = snap.docs
-    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .map((doc) => enrichBrokerActivityItem({ id: doc.id, ...doc.data() }))
     .filter((item) => matchesTypeFilter(item, typeFilter) && matchesStatusFilter(item, statusFilter));
 
   const items = filtered.slice(0, limit);
   const lastItem = items[items.length - 1] || null;
-  const summary = buildBrokerActivitySummary(filtered);
+  const summary = await buildAccurateBrokerActivitySummary(db, {
+    brokerId,
+    typeFilter,
+    statusFilter,
+    dateFrom,
+    dateTo,
+  });
 
   await db.collection('brokerAccessLogs').add({
     brokerId,
@@ -895,6 +981,11 @@ exports.brokerGetMarketplaceActivity = functions.region(REGION).https.onCall(asy
     hasMore: filtered.length > limit || snap.size === scanLimit,
     nextCursor: lastItem ? encodeCursor({ activityAt: lastItem.activityAt, id: lastItem.id }) : null,
     summary,
+    summaryMeta: {
+      isAccurate: true,
+      queryScope: 'full_filtered',
+      computedAt: new Date().toISOString(),
+    },
   };
 });
 
@@ -968,12 +1059,15 @@ exports.brokerBackfillMarketplaceActivity = functions.region(REGION).https.onCal
         referredUserId: bid.bidderId,
         activityType,
         listingType,
+        listingId,
+        typeBucket: mapListingTypeToTypeBucket(listingType),
         bidId: bidDoc.id,
         contractId: null,
         amount: Number(bid.price || 0) || null,
         origin: bid.origin || null,
         destination: bid.destination || null,
-        status: String(bid.status || 'pending').toLowerCase(),
+        status: normalizeActivityStatusBucket(bid.status),
+        statusBucket: normalizeActivityStatusBucket(bid.status),
         activityAt: bid.updatedAt || bid.createdAt || FieldValue.serverTimestamp(),
         referredUserMasked: userMaskMap[bid.bidderId]?.masked || 'User',
         counterpartyMasked: maskDisplayName(bid.listingOwnerName, null),
@@ -985,29 +1079,35 @@ exports.brokerBackfillMarketplaceActivity = functions.region(REGION).https.onCal
 
     const contractSnap = await db.collection('contracts')
       .where('bidderId', 'in', userChunk)
-      .where('listingType', '==', 'truck')
       .limit(300)
       .get();
+    const contractsById = new Map();
 
     for (const contractDoc of contractSnap.docs) {
       scanned += 1;
       const contract = contractDoc.data() || {};
+      contractsById.set(contractDoc.id, { id: contractDoc.id, ...contract });
+      const listingType = String(contract.listingType || '').toLowerCase() === 'cargo' ? 'cargo' : 'truck';
       const status = String(contract.status || '').toLowerCase();
       const phase = status === 'completed'
         ? 'completed'
         : (status === 'cancelled' ? 'cancelled' : (status === 'signed' ? 'signed' : 'created'));
       const eventId = `contract:${contractDoc.id}:${phase}`;
+      const statusBucket = normalizeActivityStatusBucket(status);
       const result = await upsertBrokerMarketplaceActivity(eventId, {
         brokerId,
         referredUserId: contract.bidderId,
-        activityType: mapContractPhaseToType(phase),
-        listingType: 'truck',
+        activityType: mapContractPhaseToType(listingType, phase),
+        listingType,
+        listingId: contract.listingId || null,
+        typeBucket: mapListingTypeToTypeBucket(listingType),
         bidId: contract.bidId || null,
         contractId: contractDoc.id,
         amount: Number(contract.agreedPrice || 0) || null,
         origin: contract.pickupCity || contract.pickupAddress || null,
         destination: contract.deliveryCity || contract.deliveryAddress || null,
-        status,
+        status: statusBucket,
+        statusBucket,
         activityAt: contract.updatedAt || contract.createdAt || FieldValue.serverTimestamp(),
         referredUserMasked: userMaskMap[contract.bidderId]?.masked || 'User',
         counterpartyMasked: maskDisplayName(contract.listingOwnerName, null),
@@ -1015,6 +1115,58 @@ exports.brokerBackfillMarketplaceActivity = functions.region(REGION).https.onCal
       }, db);
       if (result.created) created += 1;
       else if (result.updated) updated += 1;
+    }
+
+    const contractIds = [...contractsById.keys()];
+    for (let idx = 0; idx < contractIds.length; idx += 10) {
+      const contractChunk = contractIds.slice(idx, idx + 10);
+      if (contractChunk.length === 0) continue;
+
+      const shipmentSnap = await db.collection('shipments')
+        .where('contractId', 'in', contractChunk)
+        .limit(300)
+        .get();
+
+      for (const shipmentDoc of shipmentSnap.docs) {
+        scanned += 1;
+        const shipment = shipmentDoc.data() || {};
+        const contract = contractsById.get(shipment.contractId);
+        if (!contract || !contract.bidderId) {
+          skipped += 1;
+          continue;
+        }
+
+        const listingType = String(contract.listingType || '').toLowerCase() === 'cargo' ? 'cargo' : 'truck';
+        const shipmentStatus = String(shipment.status || 'pending_pickup').toLowerCase();
+        const statusBucket = mapShipmentStatusToActivityStatus(shipmentStatus);
+        const activityType = listingType === 'cargo'
+          ? ACTIVITY_TYPES.CARGO_SHIPMENT_STATUS
+          : ACTIVITY_TYPES.TRUCK_DELIVERY_STATUS;
+
+        const result = await upsertBrokerMarketplaceActivity(`shipment:${shipmentDoc.id}:${shipmentStatus}`, {
+          brokerId,
+          referredUserId: contract.bidderId,
+          activityType,
+          listingType,
+          listingId: contract.listingId || null,
+          typeBucket: mapListingTypeToTypeBucket(listingType),
+          bidId: contract.bidId || null,
+          contractId: shipment.contractId || null,
+          shipmentId: shipmentDoc.id,
+          amount: Number(contract.agreedPrice || 0) || null,
+          origin: contract.pickupCity || contract.pickupAddress || shipment.origin || null,
+          destination: contract.deliveryCity || contract.deliveryAddress || shipment.destination || null,
+          status: statusBucket,
+          statusBucket,
+          shipmentStatus,
+          activityAt: shipment.updatedAt || shipment.createdAt || FieldValue.serverTimestamp(),
+          referredUserMasked: userMaskMap[contract.bidderId]?.masked || 'User',
+          counterpartyMasked: maskDisplayName(contract.listingOwnerName, null),
+          source: 'backfill',
+        }, db);
+        if (result.created) created += 1;
+        else if (result.updated) updated += 1;
+      }
     }
   }
 

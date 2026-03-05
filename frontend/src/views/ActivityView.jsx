@@ -79,6 +79,7 @@ export default function ActivityView({
         {isBrokerWorkspace ? (
           <BrokerActivityView
             onToast={onToast}
+            onOpenListing={onOpenListing}
             typeFilter={brokerFilters.typeFilter}
             statusFilter={brokerFilters.statusFilter}
             onTypeFilterChange={(value) => setWorkspaceFilter('broker', 'typeFilter', value)}

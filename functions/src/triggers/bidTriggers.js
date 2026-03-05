@@ -10,6 +10,7 @@ const {
   LISTING_REFERRAL_COLLECTION,
   buildListingReferralId,
   getBrokerReferralForUser,
+  mapListingTypeToTypeBucket,
   mapBidActivityType,
   mapBidStatusToActivityStatus,
   maskDisplayName,
@@ -189,12 +190,15 @@ exports.onBidCreated = onDocumentCreated(
           referredUserId: bid.bidderId,
           activityType,
           listingType,
+          listingId: listingReference.listingId || null,
           bidId,
           contractId: null,
           amount: Number(bid.price || 0) || null,
           origin: bid.origin || null,
           destination: bid.destination || null,
           status: mapBidStatusToActivityStatus(bid.status),
+          statusBucket: mapBidStatusToActivityStatus(bid.status),
+          typeBucket: mapListingTypeToTypeBucket(listingType),
           activityAt: bid.createdAt || admin.firestore.FieldValue.serverTimestamp(),
           referredUserMasked: maskDisplayName(bidderDoc.exists ? bidderDoc.data().name : null, bidderDoc.exists ? bidderDoc.data().phone : null),
           counterpartyMasked: maskDisplayName(ownerDoc?.exists ? ownerDoc.data().name : bid.listingOwnerName, ownerDoc?.exists ? ownerDoc.data().phone : null),
@@ -288,8 +292,10 @@ exports.onBidStatusChanged = onDocumentUpdated(
       const activityRef = db.collection('brokerMarketplaceActivity').doc(`bid:${bidId}`);
       const activityDoc = await activityRef.get();
       if (activityDoc.exists) {
+        const nextStatusBucket = mapBidStatusToActivityStatus(after.status);
         await activityRef.set({
-          status: mapBidStatusToActivityStatus(after.status),
+          status: nextStatusBucket,
+          statusBucket: nextStatusBucket,
           activityAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });

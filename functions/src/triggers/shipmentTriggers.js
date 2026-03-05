@@ -3,8 +3,16 @@
  * Sends notifications on shipment status changes and location updates
  */
 
-const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
+const {
+  ACTIVITY_TYPES,
+  getBrokerReferralForUser,
+  mapListingTypeToTypeBucket,
+  mapShipmentStatusToActivityStatus,
+  maskDisplayName,
+  upsertBrokerMarketplaceActivity,
+} = require('../services/brokerListingReferralService');
 
 async function resolveParticipantIds(db, shipment) {
   let shipperId = shipment.shipperId || null;
@@ -34,6 +42,98 @@ async function resolveParticipantIds(db, shipment) {
 
   return { shipperId, truckerId };
 }
+
+function normalizeListingType(value) {
+  return String(value || '').toLowerCase() === 'cargo' ? 'cargo' : 'truck';
+}
+
+function normalizeShipmentStatus(value) {
+  return String(value || '').trim().toLowerCase() || 'pending_pickup';
+}
+
+function resolveShipmentActivityType(listingType) {
+  return listingType === 'cargo'
+    ? ACTIVITY_TYPES.CARGO_SHIPMENT_STATUS
+    : ACTIVITY_TYPES.TRUCK_DELIVERY_STATUS;
+}
+
+async function recordBrokerShipmentActivity(db, shipmentId, shipment, contract, shipmentStatusRaw) {
+  if (!contract || !contract.bidderId || !shipmentId) return;
+
+  const referredUserId = contract.bidderId;
+  const referral = await getBrokerReferralForUser(referredUserId, db);
+  if (!referral?.brokerId) return;
+
+  const listingType = normalizeListingType(contract.listingType);
+  const normalizedShipmentStatus = normalizeShipmentStatus(shipmentStatusRaw || shipment?.status);
+  const statusBucket = mapShipmentStatusToActivityStatus(normalizedShipmentStatus);
+  const [referredDoc, counterpartyDoc] = await Promise.all([
+    db.collection('users').doc(referredUserId).get(),
+    contract.listingOwnerId
+      ? db.collection('users').doc(contract.listingOwnerId).get()
+      : Promise.resolve(null),
+  ]);
+
+  await upsertBrokerMarketplaceActivity(`shipment:${shipmentId}:${normalizedShipmentStatus}`, {
+    brokerId: referral.brokerId,
+    referredUserId,
+    activityType: resolveShipmentActivityType(listingType),
+    listingType,
+    typeBucket: mapListingTypeToTypeBucket(listingType),
+    listingId: contract.listingId || null,
+    bidId: contract.bidId || null,
+    contractId: contract.id || shipment.contractId || null,
+    shipmentId,
+    amount: Number(contract.agreedPrice || 0) || null,
+    origin: contract.pickupCity || contract.pickupAddress || shipment.origin || null,
+    destination: contract.deliveryCity || contract.deliveryAddress || shipment.destination || null,
+    status: statusBucket,
+    statusBucket,
+    shipmentStatus: normalizedShipmentStatus,
+    activityAt: shipment.updatedAt || shipment.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+    referredUserMasked: maskDisplayName(
+      referredDoc.exists ? referredDoc.data().name : null,
+      referredDoc.exists ? referredDoc.data().phone : null
+    ),
+    counterpartyMasked: maskDisplayName(
+      counterpartyDoc?.exists ? counterpartyDoc.data().name : contract.listingOwnerName,
+      counterpartyDoc?.exists ? counterpartyDoc.data().phone : null
+    ),
+    source: 'trigger',
+  }, db);
+}
+
+exports.onShipmentCreated = onDocumentCreated(
+  {
+    region: 'asia-southeast1',
+    document: 'shipments/{shipmentId}',
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return null;
+    const shipment = snap.data() || {};
+    const shipmentId = event.params.shipmentId;
+    if (!shipment.contractId) return null;
+
+    const db = admin.firestore();
+    const contractDoc = await db.collection('contracts').doc(shipment.contractId).get();
+    if (!contractDoc.exists) return null;
+
+    try {
+      await recordBrokerShipmentActivity(
+        db,
+        shipmentId,
+        shipment,
+        { id: contractDoc.id, ...contractDoc.data() },
+        shipment.status || 'pending_pickup'
+      );
+    } catch (error) {
+      console.error('Failed to record broker shipment-created activity:', error);
+    }
+
+    return null;
+  }
+);
 
 /**
  * Notify shipper when shipment location is updated
@@ -156,6 +256,23 @@ exports.onShipmentStatusChanged = onDocumentUpdated(
         isRead: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+    }
+
+    if (after.contractId) {
+      try {
+        const contractDoc = await db.collection('contracts').doc(after.contractId).get();
+        if (contractDoc.exists) {
+          await recordBrokerShipmentActivity(
+            db,
+            shipmentId,
+            after,
+            { id: contractDoc.id, ...contractDoc.data() },
+            after.status
+          );
+        }
+      } catch (error) {
+        console.error('Failed to record broker shipment status activity:', error);
+      }
     }
 
     return null;

@@ -1464,6 +1464,7 @@ exports.onBidStatusChanged = bidTriggers.onBidStatusChanged;
 exports.onBidAccepted = bidTriggers.onBidAccepted;
 
 const shipmentTriggers = require('./src/triggers/shipmentTriggers');
+exports.onShipmentCreated = shipmentTriggers.onShipmentCreated;
 exports.onShipmentLocationUpdate = shipmentTriggers.onShipmentLocationUpdate;
 exports.onShipmentStatusChanged = shipmentTriggers.onShipmentStatusChanged;
 
