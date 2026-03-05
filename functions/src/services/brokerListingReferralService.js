@@ -1,4 +1,4 @@
-const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 
 const LISTING_REFERRAL_COLLECTION = 'brokerListingReferrals';
 const MARKET_ACTIVITY_COLLECTION = 'brokerMarketplaceActivity';
@@ -301,7 +301,7 @@ async function upsertBrokerMarketplaceActivity(eventId, payload, db) {
   const id = String(eventId || '').trim();
   if (!id) throw new Error('eventId is required');
 
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
   const ref = db.collection(MARKET_ACTIVITY_COLLECTION).doc(id);
   const existingDoc = await ref.get();
   const basePayload = {
@@ -323,7 +323,7 @@ async function upsertBrokerListingReferral(referralId, payload, db) {
   const id = String(referralId || '').trim();
   if (!id) throw new Error('referralId is required');
 
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
   const ref = db.collection(LISTING_REFERRAL_COLLECTION).doc(id);
   const existingDoc = await ref.get();
   if (!existingDoc.exists) {
@@ -348,7 +348,7 @@ async function logReferralAudit(db, eventType, actorId, referralDocId, metadata 
     actorId: String(actorId || ''),
     referralDocId: String(referralDocId || ''),
     metadata,
-    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    timestamp: FieldValue.serverTimestamp(),
   });
 }
 
@@ -368,7 +368,7 @@ async function closeListingReferralsByListing(db, listingId, listingType) {
   querySnap.docs.forEach((docSnap) => {
     batch.update(docSnap.ref, {
       status: LISTING_REFERRAL_STATUSES.CLOSED_LISTING,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
     batch.set(db.collection(REFERRAL_AUDIT_COLLECTION).doc(), {
       eventType: 'close_listing',
@@ -378,7 +378,7 @@ async function closeListingReferralsByListing(db, listingId, listingType) {
         listingId,
         listingType: normalizedType,
       },
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
   });
   await batch.commit();

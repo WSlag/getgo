@@ -106,6 +106,8 @@ export function NotificationsView({
             const hasListing = !!notification.data?.listingId;
             const isPaymentType = normalizedType.includes('PLATFORM_FEE') || normalizedType === 'ACCOUNT_SUSPENDED';
             const isChatRequest = normalizedType === 'CHAT_REQUEST';
+            const isBrokerListingReferral = normalizedType === 'BROKER_LISTING_REFERRAL';
+            const canOpenListing = hasListing && (isChatRequest || isBrokerListingReferral);
 
             return (
               <div
@@ -196,7 +198,7 @@ export function NotificationsView({
                       Pay Now
                     </Button>
                   )}
-                  {isChatRequest && hasListing && (
+                  {canOpenListing && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -208,7 +210,7 @@ export function NotificationsView({
                       }}
                     >
                       <MapPin className="size-4" />
-                      Open Listing
+                      {isBrokerListingReferral ? 'View Listing' : 'Open Listing'}
                     </Button>
                   )}
                 </div>

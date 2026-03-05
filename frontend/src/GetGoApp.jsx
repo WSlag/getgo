@@ -2096,6 +2096,7 @@ export default function GetGoApp() {
               bidsCount={activityBidsCount}
               contractsCount={activityContractsCount}
               isBroker={isBroker}
+              onToast={showToast}
             />
           </ErrorBoundary>
         )}

@@ -72,6 +72,9 @@ export function inferNotificationWorkspaceRole(notification = {}) {
   if (explicitRole) return explicitRole;
 
   const type = String(notification.type || '').toLowerCase();
+  // Referred recipients (non-broker users) should see broker listing referrals
+  // in their normal workspace feeds, not broker-only workspace.
+  if (type === 'broker_listing_referral') return null;
   if (type.includes('broker') || type.includes('referral')) return 'broker';
 
   const listingType = String(notification?.data?.listingType || '').toLowerCase();
@@ -105,4 +108,3 @@ export function inferNotificationWorkspaceRole(notification = {}) {
 
   return null;
 }
-

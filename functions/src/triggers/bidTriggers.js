@@ -5,6 +5,7 @@
 
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 const {
   ACTIVE_LISTING_REFERRAL_STATUSES,
   LISTING_REFERRAL_COLLECTION,
@@ -67,16 +68,16 @@ async function markListingReferralAsActed(db, bidId, bid, brokerId) {
 
     tx.update(referralRef, {
       status: 'acted',
-      actedAt: admin.firestore.FieldValue.serverTimestamp(),
+      actedAt: FieldValue.serverTimestamp(),
       actedBidId: bidId,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(db.collection('brokerListingReferralAudit').doc(), {
       eventType: 'act',
       actorId: bid.bidderId,
       referralDocId: referralId,
       metadata: { bidId, listingId, listingType },
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
   });
 }
@@ -142,14 +143,14 @@ exports.onBidCreated = onDocumentCreated(
         }
 
         tx.update(listingRef, {
-          bidCount: admin.firestore.FieldValue.increment(1),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          bidCount: FieldValue.increment(1),
+          updatedAt: FieldValue.serverTimestamp(),
         });
         tx.set(ledgerRef, {
           bidId,
           listingId,
           listingCollection,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
       });
     }
@@ -165,12 +166,12 @@ exports.onBidCreated = onDocumentCreated(
           message: `${bidderName} placed a bid of PHP ${Number(bid.price || 0).toLocaleString()} on your listing`,
           data: {
             bidId,
-            listingId: bid.listingId,
+            listingId: listingReference.listingId,
             bidderId: bid.bidderId,
             price: Number(bid.price || 0),
           },
           isRead: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
     }
 
@@ -199,7 +200,7 @@ exports.onBidCreated = onDocumentCreated(
           status: mapBidStatusToActivityStatus(bid.status),
           statusBucket: mapBidStatusToActivityStatus(bid.status),
           typeBucket: mapListingTypeToTypeBucket(listingType),
-          activityAt: bid.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+          activityAt: bid.createdAt || FieldValue.serverTimestamp(),
           referredUserMasked: maskDisplayName(bidderDoc.exists ? bidderDoc.data().name : null, bidderDoc.exists ? bidderDoc.data().phone : null),
           counterpartyMasked: maskDisplayName(ownerDoc?.exists ? ownerDoc.data().name : bid.listingOwnerName, ownerDoc?.exists ? ownerDoc.data().phone : null),
           source: 'trigger',
@@ -236,6 +237,7 @@ exports.onBidStatusChanged = onDocumentUpdated(
     }
 
     const db = admin.firestore();
+    const listingId = after.cargoListingId || after.truckListingId || after.listingId || null;
 
     // Get user names
     const ownerDoc = await db.collection('users').doc(after.listingOwnerId).get();
@@ -251,11 +253,11 @@ exports.onBidStatusChanged = onDocumentUpdated(
         message: `${ownerName} accepted your bid of ₱${after.price.toLocaleString()}`,
         data: {
           bidId,
-          listingId: after.listingId,
+          listingId,
           price: after.price,
         },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Notify listing owner
@@ -265,11 +267,11 @@ exports.onBidStatusChanged = onDocumentUpdated(
         message: `You accepted ${bidderName}'s bid of ₱${after.price.toLocaleString()}. Contract is being created.`,
         data: {
           bidId,
-          listingId: after.listingId,
+          listingId,
           price: after.price,
         },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
     } else if (after.status === 'rejected') {
       // Notify bidder
@@ -279,11 +281,11 @@ exports.onBidStatusChanged = onDocumentUpdated(
         message: `${ownerName} rejected your bid of ₱${after.price.toLocaleString()}`,
         data: {
           bidId,
-          listingId: after.listingId,
+          listingId,
           price: after.price,
         },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
     }
 
@@ -296,8 +298,8 @@ exports.onBidStatusChanged = onDocumentUpdated(
         await activityRef.set({
           status: nextStatusBucket,
           statusBucket: nextStatusBucket,
-          activityAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          activityAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
       }
     } catch (error) {
@@ -323,6 +325,7 @@ exports.onBidAccepted = onDocumentUpdated(
     const before = change.before.data();
     const after = change.after.data();
     const bidId = event.params.bidId;
+    const listingId = after.cargoListingId || after.truckListingId || after.listingId || null;
 
     // Only trigger when status changes to 'accepted'
     if (before.status !== 'accepted' && after.status === 'accepted') {
@@ -354,7 +357,7 @@ exports.onBidAccepted = onDocumentUpdated(
               actionRequired: 'PAY_PLATFORM_FEE',
             },
             isRead: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           });
 
         console.log(`Contract ${contract.id} created with outstanding platform fee for trucker ${after.bidderId}`);
@@ -367,9 +370,9 @@ exports.onBidAccepted = onDocumentUpdated(
             type: 'CONTRACT_CREATION_FAILED',
             title: 'Contract Creation Blocked',
             message: 'Contract was not created. The fee payer reached the outstanding fee limit or has account restrictions.',
-            data: { bidId, listingId: after.listingId },
+            data: { bidId, listingId },
             isRead: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           });
       }
     }
