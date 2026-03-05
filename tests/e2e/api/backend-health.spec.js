@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import net from 'node:net';
 
 /**
  * Backend API Health Tests
@@ -13,8 +14,33 @@ import { test, expect } from '@playwright/test';
  * endpoints (POST/PATCH/DELETE) reliably return 401 for unauthenticated users.
  */
 
+const BACKEND_HOST = process.env.PW_BACKEND_HOST || '127.0.0.1';
+const BACKEND_PORT = Number(process.env.PW_BACKEND_PORT || 3001);
+const API_BASE = `http://${BACKEND_HOST}:${BACKEND_PORT}/api`;
+
+const isBackendReachable = await new Promise((resolve) => {
+  const socket = net.connect({ host: BACKEND_HOST, port: BACKEND_PORT });
+
+  socket.setTimeout(1000);
+  socket.once('connect', () => {
+    socket.end();
+    resolve(true);
+  });
+  socket.once('timeout', () => {
+    socket.destroy();
+    resolve(false);
+  });
+  socket.once('error', () => {
+    socket.destroy();
+    resolve(false);
+  });
+});
+
 test.describe('Backend API Health', () => {
-  const API_BASE = 'http://127.0.0.1:3001/api';
+  test.skip(
+    !isBackendReachable,
+    `Backend API not reachable at ${BACKEND_HOST}:${BACKEND_PORT}. Start backend to run backend-health tests.`
+  );
 
   test('should return healthy status on /api/health', async ({ request }) => {
     const response = await request.get(`${API_BASE}/health`);

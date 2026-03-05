@@ -3,6 +3,7 @@ import { Bell, Clock, FileText, MessageSquare, Package, Wallet, MapPin } from 'l
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { getWorkspaceLabel } from '@/utils/workspace';
 
 function isNotificationRead(notification) {
   return notification?.isRead === true || notification?.read === true;
@@ -24,6 +25,7 @@ export function NotificationsView({
   notifications = [],
   loading = false,
   unreadCount = 0,
+  workspaceRole = 'shipper',
   onMarkAsRead,
   onMarkAllAsRead,
   currentUserId,
@@ -37,6 +39,7 @@ export function NotificationsView({
   darkMode = false,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
+  const workspaceLabel = getWorkspaceLabel(workspaceRole);
 
   const handleMarkRead = (notification) => {
     if (!currentUserId || !notification?.id || isNotificationRead(notification)) {
@@ -65,7 +68,7 @@ export function NotificationsView({
               color: darkMode ? '#9ca3af' : '#6b7280',
               fontSize: isMobile ? '12px' : '14px'
             }}>
-              {unreadCount > 0 ? `${unreadCount} unread updates` : 'All caught up'}
+              {unreadCount > 0 ? `${unreadCount} unread updates` : 'All caught up'} in {workspaceLabel} workspace
             </p>
           </div>
         </div>
@@ -83,7 +86,7 @@ export function NotificationsView({
       ) : notifications.length === 0 ? (
         <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-center" style={{ padding: isMobile ? '48px 16px' : '64px 24px' }}>
           <Bell className="mx-auto size-10 text-gray-400" />
-          <p style={{ marginTop: '8px', color: '#6b7280' }}>No notifications yet.</p>
+          <p style={{ marginTop: '8px', color: '#6b7280' }}>No notifications in {workspaceLabel} workspace.</p>
           <div className="flex flex-col sm:flex-row justify-center gap-2" style={{ marginTop: '16px' }}>
             <Button size={isMobile ? "sm" : "default"} variant="outline" onClick={onBrowseMarketplace}>
               Browse Listings

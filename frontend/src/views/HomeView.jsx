@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { Filter, X, Radio, MapPin, Navigation, MapPinned, Route, ChevronRight, AlertCircle, BookmarkPlus, Bookmark, Trash2, Loader2 } from 'lucide-react';
+import { Filter, X, Radio, MapPin, Navigation, MapPinned, Route, ChevronRight, AlertCircle, BookmarkPlus, Bookmark, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CargoCard } from '@/components/cargo/CargoCard';
 import { TruckCard } from '@/components/truck/TruckCard';
@@ -7,6 +7,8 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { canBidCargoStatus, canBookTruckStatus } from '@/utils/listingStatus';
 import BrokerHomeCard from '@/components/broker/BrokerHomeCard';
+import { WorkspaceSwitcher } from '@/components/shared/WorkspaceSwitcher';
+import { getWorkspaceLabel } from '@/utils/workspace';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -28,6 +30,9 @@ export function HomeView({
   onViewMap,
   onReferListing,
   currentRole = 'shipper',
+  workspaceRole = 'shipper',
+  workspaceOptions = ['shipper'],
+  onWorkspaceChange,
   currentUserId = null,
   darkMode = false,
   className,
@@ -48,7 +53,9 @@ export function HomeView({
   onScroll,
   mobileHeaderVisible = true,
   mobileHeaderHeight = 74,
+  roleKpis = [],
 }) {
+  const activeWorkspace = workspaceRole || currentRole;
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
   const isAccountSuspended = currentUser?.accountStatus === 'suspended' || currentUser?.isActive === false;
@@ -108,7 +115,7 @@ export function HomeView({
       window.removeEventListener('resize', scheduleMeasure);
       window.removeEventListener('orientationchange', scheduleMeasure);
     };
-  }, [isMobile, activeMarket, currentRole, isBroker, searchQuery]);
+  }, [isMobile, activeMarket, activeWorkspace, isBroker, searchQuery]);
 
   const filterOptions = [
     { id: 'all', label: 'All' },
@@ -128,11 +135,12 @@ export function HomeView({
   const mobileStickyPaddingTop = 8;
   const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
   const listingHeaderTitle = activeMarket === 'cargo'
-    ? (currentRole === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
-    : (currentRole === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks');
+    ? (activeWorkspace === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
+    : (activeWorkspace === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks');
   const listingCountLabel = activeMarket === 'cargo'
-    ? (currentRole === 'shipper' && !isBroker ? 'cargo posts' : 'cargo listings')
-    : (currentRole === 'trucker' && !isBroker ? 'truck posts' : 'trucks');
+    ? (activeWorkspace === 'shipper' && !isBroker ? 'cargo posts' : 'cargo listings')
+    : (activeWorkspace === 'trucker' && !isBroker ? 'truck posts' : 'trucks');
+  const workspaceLabel = getWorkspaceLabel(activeWorkspace);
   const handleHomeScroll = (e) => {
     onScroll?.(e);
   };
@@ -192,6 +200,18 @@ export function HomeView({
           overflowAnchor: 'none',
         }}
       >
+        {isMobile && (
+          <div className="mb-3">
+            <WorkspaceSwitcher
+              value={activeWorkspace}
+              options={workspaceOptions}
+              onChange={onWorkspaceChange}
+              compact
+              showLabel={false}
+              className="justify-center"
+            />
+          </div>
+        )}
         {/* Mobile Market Switcher - only visible on mobile */}
         <div className="lg:hidden flex gap-2" style={{ marginBottom: '16px' }}>
           <button
@@ -204,7 +224,7 @@ export function HomeView({
             )}
             style={{ padding: '12px 16px' }}
           >
-            {currentRole === 'shipper' && !isBroker ? 'My Cargo' : 'Cargo'}
+            {activeWorkspace === 'shipper' && !isBroker ? 'My Cargo' : 'Cargo'}
           </button>
           <button
             onClick={() => onMarketChange?.('trucks')}
@@ -216,7 +236,7 @@ export function HomeView({
             )}
             style={{ padding: '12px 16px' }}
           >
-            {currentRole === 'trucker' && !isBroker ? 'My Trucks' : 'Trucks'}
+            {activeWorkspace === 'trucker' && !isBroker ? 'My Trucks' : 'Trucks'}
           </button>
         </div>
 
@@ -268,6 +288,33 @@ export function HomeView({
 
       {/* Scrollable Content */}
       <div data-testid="home-scroll-content" style={{ padding: isMobile ? '8px 16px 0' : '0' }}>
+      <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900" style={{ padding: isMobile ? '12px' : '16px', marginBottom: isMobile ? '12px' : '16px' }}>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Workspace</p>
+            <p className="text-sm font-bold text-gray-900 dark:text-white">{workspaceLabel}</p>
+          </div>
+          {!isMobile && (
+            <WorkspaceSwitcher
+              value={activeWorkspace}
+              options={workspaceOptions}
+              onChange={onWorkspaceChange}
+              showLabel={false}
+            />
+          )}
+        </div>
+        {roleKpis.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            {roleKpis.map((kpi) => (
+              <div key={kpi.id} className="rounded-lg bg-gray-50 dark:bg-gray-800/70" style={{ padding: isMobile ? '8px 10px' : '10px 12px' }}>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{kpi.label}</p>
+                <p className="text-base font-bold text-gray-900 dark:text-white">{Number(kpi.value || 0).toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Saved Searches */}
       {showSavedSearchesCard && (
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900" style={{ padding: isMobile ? '12px' : '16px', marginBottom: isMobile ? '12px' : '16px' }}>
@@ -303,7 +350,7 @@ export function HomeView({
                   className="text-left"
                   style={{ fontSize: '12px', color: darkMode ? '#d1d5db' : '#374151' }}
                 >
-                  {savedSearch.market === 'trucks' ? 'Trucks' : 'Cargo'}: {savedSearch.searchQuery || 'All'} ({savedSearch.filterStatus || 'all'})
+                  {savedSearch.workspaceRole ? `${savedSearch.workspaceRole.toUpperCase()} · ` : ''}{savedSearch.market === 'trucks' ? 'Trucks' : 'Cargo'}: {savedSearch.searchQuery || 'All'} ({savedSearch.filterStatus || 'all'})
                 </button>
                 <button
                   type="button"
@@ -630,7 +677,7 @@ export function HomeView({
       )}
 
       {/* Route Optimizer Card - Mobile only, Trucker only */}
-      {currentRole === 'trucker' && onRouteOptimizerClick && (
+      {activeWorkspace === 'trucker' && onRouteOptimizerClick && (
         <div className="lg:hidden" style={{ marginBottom: isMobile ? '24px' : '32px' }}>
           <button
             onClick={onRouteOptimizerClick}
@@ -743,7 +790,7 @@ export function HomeView({
                     onBid={() => onBidCargo?.(cargo)}
                     onContact={() => onContactShipper?.(cargo)}
                     onViewMap={() => onViewMap?.(cargo)}
-                    canBid={currentRole === 'trucker' && !isAccountSuspended && canBidCargoStatus(cargo.status)}
+                    canBid={activeWorkspace === 'trucker' && !isAccountSuspended && canBidCargoStatus(cargo.status)}
                     isOwner={currentUserId && (cargo.shipperId === currentUserId || cargo.userId === currentUserId)}
                     canRefer={Boolean(
                       isBroker
@@ -765,7 +812,7 @@ export function HomeView({
                     onBook={() => onBookTruck?.(truck)}
                     onContact={() => onContactTrucker?.(truck)}
                     onViewMap={() => onViewMap?.(truck)}
-                    canBook={currentRole === 'shipper' && !isAccountSuspended && canBookTruckStatus(truck.status)}
+                    canBook={activeWorkspace === 'shipper' && !isAccountSuspended && canBookTruckStatus(truck.status)}
                     isOwner={currentUserId && (truck.truckerId === currentUserId || truck.userId === currentUserId)}
                     canRefer={Boolean(
                       isBroker
@@ -807,7 +854,7 @@ export function HomeView({
               ? `No ${activeMarket} found matching "${searchQuery}". Try a different search term.`
               : filterStatus !== 'all'
                 ? `No ${activeMarket} with "${filterStatus}" status. Try changing the filter.`
-                : `There are currently no ${activeMarket === 'cargo' ? 'cargo listings' : 'available trucks'}. Check back later!`}
+                : `There are currently no ${activeMarket === 'cargo' ? 'cargo listings' : 'available trucks'} for ${workspaceLabel} workspace.`}
           </p>
           <div className="flex flex-col sm:flex-row gap-2 mt-4">
             {(searchQuery || filterStatus !== 'all') && (
@@ -826,7 +873,7 @@ export function HomeView({
               size={isMobile ? "sm" : "default"}
               onClick={onPostListing}
             >
-              {currentRole === 'trucker' ? 'Post Truck' : 'Post Cargo'}
+              {activeWorkspace === 'trucker' ? 'Post Truck' : 'Post Cargo'}
             </Button>
           </div>
         </div>

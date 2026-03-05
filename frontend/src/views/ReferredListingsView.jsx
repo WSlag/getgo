@@ -3,6 +3,7 @@ import { Clock3, ExternalLink, Loader2, X, FileText } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { dedupeAndSortNewest } from '@/utils/activitySorting';
 
 function toDate(value) {
   if (!value) return null;
@@ -53,7 +54,11 @@ export function ReferredListingsView({
         limit: 20,
         cursor: cursorValue,
       });
-      setItems((prev) => (append ? [...prev, ...(response?.items || [])] : (response?.items || [])));
+      setItems((prev) => (
+        append
+          ? dedupeAndSortNewest(prev, response?.items || [])
+          : dedupeAndSortNewest([], response?.items || [])
+      ));
       setCursor(response?.nextCursor || null);
       setHasMore(Boolean(response?.hasMore));
     } catch (fetchError) {
@@ -83,7 +88,7 @@ export function ReferredListingsView({
         referralId: item.id,
         action: 'opened',
       });
-    } catch (errorOpen) {
+    } catch {
       // Non-blocking; user should still be able to open the listing.
     } finally {
       setUpdatingId(null);

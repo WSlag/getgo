@@ -4,10 +4,15 @@ import ContractsView from './ContractsView';
 import BrokerActivityView from './BrokerActivityView';
 import ReferredListingsView from './ReferredListingsView';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { WorkspaceSwitcher } from '@/components/shared/WorkspaceSwitcher';
+import { getWorkspaceLabel } from '@/utils/workspace';
 
 export default function ActivityView({
   currentUser,
   currentRole,
+  workspaceRole = 'shipper',
+  workspaceOptions = ['shipper'],
+  onWorkspaceChange,
   darkMode,
   onOpenChat,
   onOpenContract,
@@ -22,23 +27,22 @@ export default function ActivityView({
   initialMode = 'my',
 }) {
   const [activeSubTab, setActiveSubTab] = useState('bids');
-  const [viewMode, setViewMode] = useState(isBroker && initialMode === 'broker' ? 'broker' : 'my');
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const hasReferredListings = Boolean(currentUser?.referredByBrokerId);
-
-  React.useEffect(() => {
-    if (isBroker && initialMode === 'broker') {
-      setViewMode('broker');
-      return;
-    }
-    setViewMode('my');
-  }, [isBroker, initialMode]);
+  const isBrokerWorkspace = workspaceRole === 'broker' && isBroker;
+  const workspaceLabel = getWorkspaceLabel(workspaceRole);
 
   React.useEffect(() => {
     if (!hasReferredListings && activeSubTab === 'referred') {
       setActiveSubTab('bids');
     }
   }, [hasReferredListings, activeSubTab]);
+
+  React.useEffect(() => {
+    if (!isBrokerWorkspace && isBroker && initialMode === 'broker') {
+      onWorkspaceChange?.('broker');
+    }
+  }, [initialMode, isBroker, isBrokerWorkspace, onWorkspaceChange]);
 
   return (
     <main
@@ -48,7 +52,6 @@ export default function ActivityView({
         paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px'
       }}
     >
-      {/* Header */}
       <div style={{ marginBottom: isMobile ? '20px' : '24px' }}>
         <h1 style={{
           fontWeight: 'bold',
@@ -56,50 +59,28 @@ export default function ActivityView({
           color: darkMode ? '#fff' : '#111827',
           marginBottom: '8px'
         }}>
-          {viewMode === 'broker' ? 'Broker Activity' : 'My Activity'}
+          {isBrokerWorkspace ? 'Broker Activity' : `${workspaceLabel} Activity`}
         </h1>
         <p style={{
           fontSize: isMobile ? '13px' : '14px',
           color: darkMode ? '#9ca3af' : '#6b7280'
         }}>
-          {viewMode === 'broker'
+          {isBrokerWorkspace
             ? 'Read-only view of referred users marketplace activity'
-            : `Track your ${currentRole === 'trucker' ? 'bids' : 'bookings'} and contracts`}
+            : `Track your ${workspaceRole === 'trucker' ? 'bids' : 'bookings'} and contracts`}
         </p>
+        <div style={{ marginTop: '12px' }}>
+          <WorkspaceSwitcher
+            value={workspaceRole}
+            options={workspaceOptions}
+            onChange={onWorkspaceChange}
+            compact={isMobile}
+            showLabel={false}
+          />
+        </div>
       </div>
 
-      {/* Broker Mode Switcher */}
-      {isBroker && (
-        <div style={{ marginBottom: '16px' }}>
-          <div className="flex gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-full p-1">
-            <button
-              onClick={() => setViewMode('my')}
-              style={{ fontSize: '14px', fontWeight: '600', flex: 1, padding: '10px 16px' }}
-              className={`rounded-full transition-all active:scale-95 ${
-                viewMode === 'my'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              My Activity
-            </button>
-            <button
-              onClick={() => setViewMode('broker')}
-              style={{ fontSize: '14px', fontWeight: '600', flex: 1, padding: '10px 16px' }}
-              className={`rounded-full transition-all active:scale-95 ${
-                viewMode === 'broker'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              Broker Activity
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      {viewMode === 'my' && (
+      {!isBrokerWorkspace && (
         <div style={{ marginBottom: '24px' }}>
           <div className="flex gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-full p-1">
             <button
@@ -112,7 +93,7 @@ export default function ActivityView({
               }`}
             >
               <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
-                <span>{currentRole === 'trucker' ? 'My Bids' : 'My Bookings'}</span>
+                <span>{workspaceRole === 'trucker' ? 'My Bids' : 'My Bookings'}</span>
                 {unreadBids > 0 && (
                   <span
                     className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[11px] font-bold rounded-full ${
@@ -169,22 +150,22 @@ export default function ActivityView({
         </div>
       )}
 
-      {/* Tab Content */}
       <div>
-        {viewMode === 'broker' ? (
+        {isBrokerWorkspace ? (
           <BrokerActivityView onToast={onToast} />
         ) : (
           <>
             {activeSubTab === 'bids' && (
               <BidsView
                 currentUser={currentUser}
-                currentRole={currentRole}
+                currentRole={workspaceRole || currentRole}
                 onOpenChat={onOpenChat}
                 onBrowseMarketplace={onBrowseMarketplace}
                 onCreateListing={onCreateListing}
                 onOpenMessages={onOpenMessages}
                 darkMode={darkMode}
                 embedded={true}
+                workspaceRole={workspaceRole}
               />
             )}
 
@@ -194,6 +175,7 @@ export default function ActivityView({
                 darkMode={darkMode}
                 onOpenContract={onOpenContract}
                 embedded={true}
+                workspaceRole={workspaceRole}
               />
             )}
 
@@ -209,3 +191,4 @@ export default function ActivityView({
     </main>
   );
 }
+

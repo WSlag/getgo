@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import api from '../services/api';
+import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 
 // Hook to get all contracts for the current user
 export function useContracts(userId) {
@@ -26,14 +27,17 @@ export function useContracts(userId) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-          signedAt: doc.data().signedAt?.toDate?.() || null,
-        }));
-        setContracts(data);
+        const data = snapshot.docs.map((docSnap) => {
+          const contractData = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...contractData,
+            createdAt: parseTimestampSafely(contractData.createdAt).date,
+            updatedAt: parseTimestampSafely(contractData.updatedAt).date,
+            signedAt: parseTimestampSafely(contractData.signedAt).date,
+          };
+        });
+        setContracts(sortEntitiesNewestFirst(data));
         setLoading(false);
         setError(null);
       },
@@ -72,9 +76,9 @@ export function useContract(contractId) {
           setContract({
             id: snapshot.id,
             ...data,
-            createdAt: data.createdAt?.toDate?.() || new Date(),
-            updatedAt: data.updatedAt?.toDate?.() || new Date(),
-            signedAt: data.signedAt?.toDate?.() || null,
+            createdAt: parseTimestampSafely(data.createdAt).date,
+            updatedAt: parseTimestampSafely(data.updatedAt).date,
+            signedAt: parseTimestampSafely(data.signedAt).date,
           });
         } else {
           setContract(null);
@@ -122,9 +126,9 @@ export function useContractByBid(bidId) {
           setContract({
             id: doc.id,
             ...data,
-            createdAt: data.createdAt?.toDate?.() || new Date(),
-            updatedAt: data.updatedAt?.toDate?.() || new Date(),
-            signedAt: data.signedAt?.toDate?.() || null,
+            createdAt: parseTimestampSafely(data.createdAt).date,
+            updatedAt: parseTimestampSafely(data.updatedAt).date,
+            signedAt: parseTimestampSafely(data.signedAt).date,
           });
         } else {
           setContract(null);

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { normalizeListingStatus, toTruckUiStatus } from '../utils/listingStatus';
+import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 
 export function useTruckListings(options = {}) {
   const {
@@ -47,7 +48,8 @@ export function useTruckListings(options = {}) {
       (snapshot) => {
         const data = snapshot.docs.map((doc) => {
           const docData = doc.data();
-          const createdAt = docData.createdAt?.toDate?.() || new Date();
+          const createdAt = parseTimestampSafely(docData.createdAt);
+          const updatedAt = parseTimestampSafely(docData.updatedAt);
 
           // Calculate distance if coordinates exist
           let distance = null;
@@ -75,7 +77,7 @@ export function useTruckListings(options = {}) {
             trucker: docData.userName || 'Unknown Trucker',
             truckerRating: docData.userRating || 0,
             truckerTransactions: docData.userTrips || 0,
-            postedAt: createdAt.getTime(),
+            postedAt: createdAt.timestamp,
             truckPhotos: docData.photos || [],
             capacity: docData.capacity ? `${docData.capacity} ${docData.capacityUnit || 'tons'}` : null,
             askingRate: docData.askingPrice,
@@ -83,14 +85,14 @@ export function useTruckListings(options = {}) {
             estimatedTime: estimatedTime,
             bidCount: docData.bidCount || 0,
             // Keep original fields
-            createdAt: createdAt,
-            updatedAt: docData.updatedAt?.toDate?.() || new Date(),
+            createdAt: createdAt.date,
+            updatedAt: updatedAt.date,
             availableDate: docData.availableDate,
             originCoords: { lat: docData.originLat, lng: docData.originLng },
             destCoords: { lat: docData.destLat, lng: docData.destLng },
           };
         });
-        setListings(data);
+        setListings(sortEntitiesNewestFirst(data, { fallbackKeys: ['postedAt'] }));
         setLoading(false);
         setError(null);
       },

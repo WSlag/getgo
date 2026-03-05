@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
+import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 
 /**
  * Hook to fetch all conversations for a user
@@ -20,17 +21,7 @@ export function useConversations(userId) {
       return;
     }
 
-    const toDate = (value) => {
-      if (!value) return new Date(0);
-      if (value?.toDate && typeof value.toDate === 'function') {
-        return value.toDate();
-      }
-      if (value?._seconds !== undefined) {
-        return new Date(value._seconds * 1000);
-      }
-      const asDate = new Date(value);
-      return Number.isNaN(asDate.getTime()) ? new Date(0) : asDate;
-    };
+    const toDate = (value) => parseTimestampSafely(value).date;
 
     const isMessageRead = (message) => message?.isRead === true || message?.read === true;
     const inferRecipient = (message, bid) => {
@@ -55,7 +46,7 @@ export function useConversations(userId) {
     const recompute = () => {
       if (disposed) return;
       const next = Array.from(bidMap.values()).map((bid) => {
-        const messages = [...(messagesByBid.get(bid.id) || [])].sort((a, b) => b.createdAt - a.createdAt);
+        const messages = sortEntitiesNewestFirst(messagesByBid.get(bid.id) || []);
         const lastMessage = messages[0] || null;
         const unreadCount = messages.filter((message) => {
           const recipientId = inferRecipient(message, bid);
@@ -72,12 +63,12 @@ export function useConversations(userId) {
           unreadCount,
           otherPartyId,
           otherPartyName: otherPartyName || 'Unknown',
-          lastActivityAt: lastMessage?.createdAt || bid.createdAt,
+          lastActivityAt: lastMessage?.createdAt || bid.updatedAt || bid.createdAt || null,
+          updatedAt: lastMessage?.createdAt || bid.updatedAt || bid.createdAt || null,
         };
       });
 
-      next.sort((a, b) => b.lastActivityAt - a.lastActivityAt);
-      setConversations(next);
+      setConversations(sortEntitiesNewestFirst(next, { fallbackKeys: ['lastActivityAt'] }));
       setLoading(false);
       setError(null);
     };
@@ -108,11 +99,14 @@ export function useConversations(userId) {
       const unsubscribe = onSnapshot(
         q,
         (snapshot) => {
-          const messages = snapshot.docs.map((docSnap) => ({
-            id: docSnap.id,
-            ...docSnap.data(),
-            createdAt: toDate(docSnap.data().createdAt),
-          }));
+          const messages = snapshot.docs.map((docSnap) => {
+            const messageData = docSnap.data();
+            return {
+              id: docSnap.id,
+              ...messageData,
+              createdAt: toDate(messageData.createdAt),
+            };
+          });
           messageRetryCounts.delete(bidId);
           messagesByBid.set(bidId, messages);
           recompute();

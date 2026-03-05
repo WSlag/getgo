@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 
 // Hook to get bids for a specific listing
 export function useBidsForListing(listingId, listingType, listingOwnerId = null) {
@@ -30,16 +31,17 @@ export function useBidsForListing(listingId, listingType, listingOwnerId = null)
       q,
       (snapshot) => {
         const data = snapshot.docs
-          .map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-          }))
+          .map((docSnap) => {
+            const bidData = docSnap.data();
+            return {
+              id: docSnap.id,
+              ...bidData,
+              createdAt: parseTimestampSafely(bidData.createdAt).date,
+              updatedAt: parseTimestampSafely(bidData.updatedAt).date,
+            };
+          })
           .filter((bid) => bid[fieldName] === listingId);
-        // Sort by createdAt descending (newest first)
-        data.sort((a, b) => b.createdAt - a.createdAt);
-        setBids(data);
+        setBids(sortEntitiesNewestFirst(data));
         setLoading(false);
         setError(null);
       },
@@ -79,12 +81,15 @@ export function useMyBids(userId) {
     const unsubscribe = onSnapshot(
       q,
       async (snapshot) => {
-        const bidsData = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-          createdAt: docSnap.data().createdAt?.toDate?.() || new Date(),
-          updatedAt: docSnap.data().updatedAt?.toDate?.() || new Date(),
-        }));
+        const bidsData = snapshot.docs.map((docSnap) => {
+          const bidData = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...bidData,
+            createdAt: parseTimestampSafely(bidData.createdAt).date,
+            updatedAt: parseTimestampSafely(bidData.updatedAt).date,
+          };
+        });
 
         // Fetch associated listing data to fill in missing fields
         const enrichedBids = await Promise.all(
@@ -146,9 +151,7 @@ export function useMyBids(userId) {
           })
         );
 
-        // Sort by createdAt descending (newest first)
-        enrichedBids.sort((a, b) => b.createdAt - a.createdAt);
-        setBids(enrichedBids);
+        setBids(sortEntitiesNewestFirst(enrichedBids));
         setLoading(false);
         setError(null);
       },
@@ -186,15 +189,16 @@ export function useBidsOnMyListings(userId) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-        }));
-        // Sort by createdAt descending (newest first)
-        data.sort((a, b) => b.createdAt - a.createdAt);
-        setBids(data);
+        const data = snapshot.docs.map((docSnap) => {
+          const bidData = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...bidData,
+            createdAt: parseTimestampSafely(bidData.createdAt).date,
+            updatedAt: parseTimestampSafely(bidData.updatedAt).date,
+          };
+        });
+        setBids(sortEntitiesNewestFirst(data));
         setLoading(false);
         setError(null);
       },

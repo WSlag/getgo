@@ -1,0 +1,279 @@
+import express from 'express';
+import cors from 'cors';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import dotenv from 'dotenv';
+import { verifyFirebaseToken } from './config/firebase-admin.js';
+
+// Load environment variables
+dotenv.config();
+
+// Import database and models
+import { sequelize } from './models/index.js';
+
+// Import routes
+import authRoutes from './routes/auth.js';
+import listingsRoutes from './routes/listings.js';
+import bidsRoutes from './routes/bids.js';
+import walletRoutes from './routes/wallet.js';
+import chatRoutes from './routes/chat.js';
+import notificationsRoutes from './routes/notifications.js';
+import contractsRoutes from './routes/contracts.js';
+import ratingsRoutes from './routes/ratings.js';
+import shipmentsRoutes from './routes/shipments.js';
+import adminRoutes from './routes/admin.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const app = express();
+const httpServer = createServer(app);
+
+// Socket.io setup
+const io = new Server(httpServer, {
+  cors: {
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  },
+});
+
+const extractSocketToken = (socket) => {
+  const authToken = socket.handshake?.auth?.token;
+  if (authToken) return authToken;
+
+  const authHeader = socket.handshake?.headers?.authorization;
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+
+  return null;
+};
+
+// Require Firebase auth token for all socket connections
+io.use(async (socket, next) => {
+  try {
+    const token = extractSocketToken(socket);
+    if (!token) {
+      return next(new Error('Unauthorized: missing token'));
+    }
+
+    const result = await verifyFirebaseToken(token);
+    if (!result.valid) {
+      return next(new Error('Unauthorized: invalid token'));
+    }
+
+    socket.user = {
+      uid: result.uid,
+      phone: result.phone,
+      email: result.email,
+    };
+    return next();
+  } catch (error) {
+    return next(new Error('Unauthorized'));
+  }
+});
+
+// Middleware
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'],
+  credentials: true,
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Make io accessible in routes
+app.set('io', io);
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/listings', listingsRoutes);
+app.use('/api/bids', bidsRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/contracts', contractsRoutes);
+app.use('/api/ratings', ratingsRoutes);
+app.use('/api/shipments', shipmentsRoutes);
+app.use('/api/admin', adminRoutes);
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'KARGA CONNECT API is running',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// API info
+app.get('/api', (req, res) => {
+  res.json({
+    name: 'KARGA CONNECT API',
+    version: '1.0.0',
+    description: 'Philippine Trucking Backload Marketplace',
+    endpoints: {
+      auth: '/api/auth',
+      listings: '/api/listings',
+      bids: '/api/bids',
+      wallet: '/api/wallet',
+      chat: '/api/chat',
+      notifications: '/api/notifications',
+      contracts: '/api/contracts',
+      ratings: '/api/ratings',
+      shipments: '/api/shipments',
+    },
+  });
+});
+
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  const userId = socket.user?.uid;
+  if (!userId) {
+    socket.disconnect(true);
+    return;
+  }
+
+  socket.join(`user:${userId}`);
+  console.log('Client connected:', socket.id, 'user:', userId);
+
+  // Backward-compatible no-op. Users are auto-joined to their own room from auth token.
+  socket.on('join', () => {});
+
+  // Join listing room for real-time bid updates
+  socket.on('join-listing', (listingId) => {
+    socket.join(`listing:${listingId}`);
+    console.log(`Socket joined listing room: ${listingId}`);
+  });
+
+  // Leave listing room
+  socket.on('leave-listing', (listingId) => {
+    socket.leave(`listing:${listingId}`);
+  });
+
+  // Handle new bid (broadcast to listing room and notify owner)
+  socket.on('new-bid', (data) => {
+    if (!data || data.bidderId !== userId || !data.listingId) {
+      return;
+    }
+
+    // Broadcast to anyone watching this listing
+    io.to(`listing:${data.listingId}`).emit('bid-received', data);
+
+    // Send direct notification to the listing owner
+    if (data.ownerId) {
+      io.to(`user:${data.ownerId}`).emit('bid-received', data);
+      io.to(`user:${data.ownerId}`).emit('notification', {
+        type: 'bid',
+        title: 'New Bid Received',
+        message: `${data.bidderName || 'Someone'} placed a bid of ₱${data.amount?.toLocaleString()}`,
+        data,
+        timestamp: Date.now(),
+      });
+    }
+    console.log(`Bid notification sent to owner: ${data.ownerId}`);
+  });
+
+  // Handle bid accepted notification
+  socket.on('bid-accepted', (data) => {
+    if (!data || data.ownerId !== userId) {
+      return;
+    }
+
+    // Notify the bidder that their bid was accepted
+    if (data.bidderId) {
+      io.to(`user:${data.bidderId}`).emit('bid-accepted', data);
+      io.to(`user:${data.bidderId}`).emit('notification', {
+        type: 'bid-accepted',
+        title: 'Bid Accepted!',
+        message: `Your bid on ${data.cargoDescription || 'cargo'} was accepted`,
+        data,
+        timestamp: Date.now(),
+      });
+    }
+    console.log(`Bid accepted notification sent to bidder: ${data.bidderId}`);
+  });
+
+  // Handle new chat message
+  socket.on('chat-message', (data) => {
+    if (!data || data.senderId !== userId || !data.recipientId) {
+      return;
+    }
+
+    io.to(`user:${data.recipientId}`).emit('new-message', data);
+  });
+
+  // Handle shipment update
+  socket.on('shipment-update', (data) => {
+    if (!data || data.truckerId !== userId || !data.shipperId) {
+      return;
+    }
+
+    io.to(`user:${data.shipperId}`).emit('tracking-update', data);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not found',
+    message: `Route ${req.method} ${req.path} not found`,
+  });
+});
+
+// Start server
+const PORT = process.env.PORT || 3001;
+
+async function startServer() {
+  try {
+    // Try to sync database, but don't fail if it errors (Socket.io will still work)
+    try {
+      await sequelize.sync({ alter: false }); // Changed to false to avoid migration issues
+      console.log('Database synchronized');
+    } catch (dbError) {
+      console.warn('Database sync skipped (may have migration issues):', dbError.message);
+      console.log('Socket.io server will still run without database sync');
+    }
+
+    httpServer.listen(PORT, () => {
+      console.log(`
+╔═══════════════════════════════════════════════════╗
+║                                                   ║
+║   KARGA CONNECT API Server                        ║
+║   Running on http://localhost:${PORT}              ║
+║                                                   ║
+║   Endpoints:                                      ║
+║   - Auth:          /api/auth                      ║
+║   - Listings:      /api/listings                  ║
+║   - Bids:          /api/bids                      ║
+║   - Wallet:        /api/wallet                    ║
+║   - Chat:          /api/chat                      ║
+║   - Notifications: /api/notifications             ║
+║   - Contracts:     /api/contracts                 ║
+║   - Ratings:       /api/ratings                   ║
+║                                                   ║
+╚═══════════════════════════════════════════════════╝
+      `);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
+
+export { app, io };
