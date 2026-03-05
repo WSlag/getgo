@@ -636,14 +636,19 @@ export default function GetGoApp() {
   const homeWorkspace = availableWorkspaces.includes(primaryWorkspace)
     ? primaryWorkspace
     : availableWorkspaces[0];
+  const activityPrimaryWorkspace = useMemo(() => {
+    if (availableWorkspaces.includes('trucker')) return 'trucker';
+    if (availableWorkspaces.includes(primaryWorkspace)) return primaryWorkspace;
+    return availableWorkspaces[0];
+  }, [availableWorkspaces, primaryWorkspace]);
   const activityWorkspaceOptions = useMemo(() => {
     const preferred = [
-      primaryWorkspace,
+      activityPrimaryWorkspace,
       ...(isBroker && availableWorkspaces.includes('broker') ? ['broker'] : []),
     ];
     const filtered = Array.from(new Set(preferred)).filter((role) => availableWorkspaces.includes(role));
     return filtered.length > 0 ? filtered : [availableWorkspaces[0]];
-  }, [primaryWorkspace, isBroker, availableWorkspaces]);
+  }, [activityPrimaryWorkspace, isBroker, availableWorkspaces]);
   const postingRole = activeWorkspace === 'broker' ? userRole : activeWorkspace;
   const interactionRole = activeWorkspace === 'broker' ? userRole : activeWorkspace;
 

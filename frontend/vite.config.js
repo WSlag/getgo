@@ -95,6 +95,9 @@ export default defineConfig({
         ]
       },
       workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Keep SPA navigations on the app shell. Using offline.html here causes
         // controlled hard-refresh navigations to render the offline page.
