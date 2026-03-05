@@ -382,7 +382,6 @@ export default function GetGoApp() {
   const [contracts, setContracts] = useState([]);
   const [, setContractsLoading] = useState(false);
   const [contractFilter, setContractFilter] = useState('all');
-  const [activityInitialMode, setActivityInitialMode] = useState('my');
 
   // Toast notifications via context
   const showToast = useToast();
@@ -637,6 +636,14 @@ export default function GetGoApp() {
   const homeWorkspace = availableWorkspaces.includes(primaryWorkspace)
     ? primaryWorkspace
     : availableWorkspaces[0];
+  const activityWorkspaceOptions = useMemo(() => {
+    const preferred = [
+      primaryWorkspace,
+      ...(isBroker && availableWorkspaces.includes('broker') ? ['broker'] : []),
+    ];
+    const filtered = Array.from(new Set(preferred)).filter((role) => availableWorkspaces.includes(role));
+    return filtered.length > 0 ? filtered : [availableWorkspaces[0]];
+  }, [primaryWorkspace, isBroker, availableWorkspaces]);
   const postingRole = activeWorkspace === 'broker' ? userRole : activeWorkspace;
   const interactionRole = activeWorkspace === 'broker' ? userRole : activeWorkspace;
 
@@ -653,12 +660,10 @@ export default function GetGoApp() {
   }, [activeTab, activeWorkspace, homeWorkspace, setWorkspaceRole]);
 
   useEffect(() => {
-    if (activeWorkspace === 'broker') {
-      setActivityInitialMode('broker');
-    } else if (activityInitialMode !== 'my') {
-      setActivityInitialMode('my');
+    if (activeTab === 'activity' && !activityWorkspaceOptions.includes(activeWorkspace)) {
+      setWorkspaceRole(activityWorkspaceOptions[0]);
     }
-  }, [activeWorkspace, activityInitialMode]);
+  }, [activeTab, activeWorkspace, activityWorkspaceOptions, setWorkspaceRole]);
 
   const isGuestUser = !authUser;
   const cargoListings = isGuestUser ? guestCargoListings : firebaseCargoListings;
@@ -839,6 +844,14 @@ export default function GetGoApp() {
       activeShipments.filter((shipment) => matchWorkspaceForShipment(shipment, activeWorkspace))
     ),
     [activeShipments, activeWorkspace, matchWorkspaceForShipment]
+  );
+  const activityBidsCount = useMemo(
+    () => (activeWorkspace === 'broker' ? 0 : workspaceMyBids.length),
+    [activeWorkspace, workspaceMyBids]
+  );
+  const activityContractsCount = useMemo(
+    () => (activeWorkspace === 'broker' ? 0 : workspaceContracts.length),
+    [activeWorkspace, workspaceContracts]
   );
 
   const workspaceDeliveredShipments = useMemo(
@@ -2089,7 +2102,7 @@ export default function GetGoApp() {
               currentUser={currentUser}
               currentRole={userRole}
               workspaceRole={activeWorkspace}
-              workspaceOptions={availableWorkspaces}
+              workspaceOptions={activityWorkspaceOptions}
               onWorkspaceChange={setWorkspaceRole}
               darkMode={darkMode}
               onOpenChat={(bid, listing) => {
@@ -2103,10 +2116,9 @@ export default function GetGoApp() {
               onCreateListing={handlePostClick}
               onOpenMessages={() => setActiveTab('messages')}
               onOpenListing={handleOpenListingFromReferral}
-              unreadBids={unreadBids}
-              pendingContractsCount={pendingContractsCount}
+              bidsCount={activityBidsCount}
+              contractsCount={activityContractsCount}
               isBroker={isBroker}
-              initialMode={activityInitialMode}
             />
           </ErrorBoundary>
         )}
@@ -2176,7 +2188,9 @@ export default function GetGoApp() {
               isBroker={isBroker}
               brokerProfile={brokerProfile}
               onOpenBrokerActivity={() => {
-                setActivityInitialMode('broker');
+                if (availableWorkspaces.includes('broker')) {
+                  setWorkspaceRole('broker');
+                }
                 setActiveTab('activity');
               }}
               onBrokerRegistered={() => {
