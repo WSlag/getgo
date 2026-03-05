@@ -5,15 +5,14 @@ import BrokerActivityView from './BrokerActivityView';
 import TruckerActivityView from './TruckerActivityView';
 import ReferredListingsView from './ReferredListingsView';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { WorkspaceSwitcher } from '@/components/shared/WorkspaceSwitcher';
 import { getWorkspaceLabel } from '@/utils/workspace';
 
 export default function ActivityView({
   currentUser,
   currentRole,
   workspaceRole = 'shipper',
-  workspaceOptions = ['shipper'],
-  onWorkspaceChange,
+  workspaceOptions: _workspaceOptions = ['shipper'],
+  onWorkspaceChange: _onWorkspaceChange,
   darkMode,
   onOpenChat,
   onOpenContract,
@@ -82,15 +81,6 @@ export default function ActivityView({
               ? 'Track your bids, bookings, contracts, and delivery activity'
             : `Track your ${workspaceRole === 'trucker' ? 'bids' : 'bookings'} and contracts`}
         </p>
-        <div style={{ marginTop: '12px' }}>
-          <WorkspaceSwitcher
-            value={workspaceRole}
-            options={workspaceOptions}
-            onChange={onWorkspaceChange}
-            compact={isMobile}
-            showLabel={false}
-          />
-        </div>
       </div>
 
       {!isBrokerWorkspace && !isTruckerWorkspace && (

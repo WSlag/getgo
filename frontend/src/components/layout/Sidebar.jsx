@@ -4,8 +4,6 @@ import { cn } from '@/lib/utils';
 export function Sidebar({
   currentRole = 'shipper',
   workspaceRole = 'shipper',
-  availableWorkspaces = ['shipper'],
-  onWorkspaceChange,
   activeMarket = 'cargo',
   onMarketChange,
   cargoCount = 0,
@@ -82,25 +80,6 @@ export function Sidebar({
             <p className="font-semibold">{config.label}</p>
           </div>
         </div>
-        {availableWorkspaces.length > 1 && (
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {availableWorkspaces.map((role) => (
-              <button
-                key={role}
-                type="button"
-                onClick={() => onWorkspaceChange?.(role)}
-                className={cn(
-                  'rounded-lg text-xs font-semibold px-2 py-2 transition-all active:scale-95',
-                  role === displayRole
-                    ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30'
-                    : 'bg-white/80 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                )}
-              >
-                {role === 'shipper' ? 'Shipper' : role === 'trucker' ? 'Trucker' : 'Broker'}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Browse Section */}

@@ -92,7 +92,6 @@ import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
 import {
   WORKSPACE_ROLES,
   normalizeWorkspaceRole,
-  getWorkspaceLabel,
   inferBidPerspectiveRole,
   inferConversationPerspectiveRole,
   inferContractPerspectiveRole,
@@ -1244,6 +1243,13 @@ export default function GetGoApp() {
     requireAuth(() => setActiveTab(tab), title);
   };
 
+  const handleTabChange = useCallback((nextTab) => {
+    if (nextTab === 'activity' && activeWorkspace === 'broker' && activityPrimaryWorkspace !== 'broker') {
+      setWorkspaceRole(activityPrimaryWorkspace);
+    }
+    setActiveTab(nextTab);
+  }, [activeWorkspace, activityPrimaryWorkspace, setWorkspaceRole, setActiveTab]);
+
   const handleProfileClick = () => {
     requireAuth(() => setActiveTab('profile'), 'Sign in to view profile');
   };
@@ -1974,7 +1980,7 @@ export default function GetGoApp() {
       <Header
         headerRef={headerRef}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
         unreadNotifications={unreadNotifications}
@@ -2002,20 +2008,6 @@ export default function GetGoApp() {
         }}
         mobileVisible={showMobileHeader}
       />
-
-      {availableWorkspaces.length > 1 && (
-        <div
-          className="lg:hidden fixed right-4 z-40 pointer-events-none"
-          style={{
-            top: `${showMobileHeader ? mobileHeaderHeight + 6 : 8}px`,
-            transition: 'top 300ms ease-out',
-          }}
-        >
-          <div className="inline-flex items-center rounded-full border border-orange-200 dark:border-orange-800 bg-white/90 dark:bg-gray-900/90 px-3 py-1.5 text-xs font-semibold text-orange-700 dark:text-orange-300 shadow-sm backdrop-blur">
-            {getWorkspaceLabel(activeWorkspace)} Workspace
-          </div>
-        </div>
-      )}
 
       <div className="flex flex-1 min-h-0">
         {/* Sidebar - Desktop only */}
@@ -2160,7 +2152,7 @@ export default function GetGoApp() {
               onOpenContract={handleOpenContract}
               onPayPlatformFee={handlePayPlatformFee}
               onBrowseMarketplace={() => setActiveTab('home')}
-              onOpenActivity={() => setActiveTab('activity')}
+              onOpenActivity={() => handleTabChange('activity')}
               darkMode={darkMode}
             />
           </ErrorBoundary>
@@ -2183,7 +2175,7 @@ export default function GetGoApp() {
           </main>
         )}
 
-        {activeTab === 'profile' && <ErrorBoundary><ProfilePage onNavigateToActivity={() => setActiveTab('activity')} /></ErrorBoundary>}
+        {activeTab === 'profile' && <ErrorBoundary><ProfilePage onNavigateToActivity={() => handleTabChange('activity')} /></ErrorBoundary>}
         {activeTab === 'help' && <ErrorBoundary><HelpSupportView onBack={() => setActiveTab('home')} onShowOnboardingGuide={() => setShowOnboardingGuide(true)} /></ErrorBoundary>}
 
         {activeTab === 'broker' && (
@@ -2305,7 +2297,7 @@ export default function GetGoApp() {
               workspaceRole={activeWorkspace}
               onOpenContract={handleOpenContract}
               onBrowseMarketplace={() => setActiveTab('home')}
-              onOpenActivity={() => setActiveTab('activity')}
+              onOpenActivity={() => handleTabChange('activity')}
               initialFilter={contractFilter}
             />
           </ErrorBoundary>
@@ -2336,7 +2328,7 @@ export default function GetGoApp() {
       {/* Mobile Navigation */}
       <MobileNav
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         onPostClick={handlePostClick}
         unreadMessages={unreadMessages}
         unreadNotifications={unreadNotifications}

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 
 const STORAGE_KEY = 'karga.marketplace.preferences.v1';
-const WORKSPACE_QUERY_KEY = 'workspace';
+const LEGACY_WORKSPACE_QUERY_KEY = 'workspace';
 
 const HASH_TABS = ['home', 'tracking', 'contracts', 'messages', 'notifications', 'profile', 'bids', 'broker', 'activity', 'help', 'admin'];
 
@@ -11,11 +11,14 @@ function getTabFromHash() {
   return HASH_TABS.includes(hash) ? hash : null;
 }
 
-function getWorkspaceFromUrl() {
+function clearLegacyWorkspaceFromUrl() {
   if (typeof window === 'undefined') return null;
   try {
     const currentUrl = new URL(window.location.href);
-    return currentUrl.searchParams.get(WORKSPACE_QUERY_KEY);
+    if (!currentUrl.searchParams.has(LEGACY_WORKSPACE_QUERY_KEY)) return null;
+    currentUrl.searchParams.delete(LEGACY_WORKSPACE_QUERY_KEY);
+    window.history.replaceState(null, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+    return true;
   } catch {
     return null;
   }
@@ -23,7 +26,6 @@ function getWorkspaceFromUrl() {
 
 function loadPreferences(initialTab, initialMarket, initialWorkspace) {
   const hashTab = getTabFromHash();
-  const queryWorkspace = getWorkspaceFromUrl();
 
   if (typeof window === 'undefined') {
     return {
@@ -42,7 +44,7 @@ function loadPreferences(initialTab, initialMarket, initialWorkspace) {
       return {
         activeTab: hashTab || initialTab,
         activeMarket: initialMarket,
-        workspaceRole: queryWorkspace || initialWorkspace,
+        workspaceRole: initialWorkspace,
         filterStatus: 'all',
         searchQuery: '',
         sortBy: 'newest',
@@ -53,7 +55,7 @@ function loadPreferences(initialTab, initialMarket, initialWorkspace) {
     return {
       activeTab: hashTab || parsed.activeTab || initialTab,
       activeMarket: parsed.activeMarket || initialMarket,
-      workspaceRole: queryWorkspace || parsed.workspaceRole || initialWorkspace,
+      workspaceRole: initialWorkspace,
       filterStatus: parsed.filterStatus || 'all',
       searchQuery: parsed.searchQuery || '',
       sortBy: parsed.sortBy || 'newest',
@@ -63,7 +65,7 @@ function loadPreferences(initialTab, initialMarket, initialWorkspace) {
     return {
       activeTab: hashTab || initialTab,
       activeMarket: initialMarket,
-      workspaceRole: queryWorkspace || initialWorkspace,
+      workspaceRole: initialWorkspace,
       filterStatus: 'all',
       searchQuery: '',
       sortBy: 'newest',
@@ -95,16 +97,10 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo', ini
     window.history.replaceState(null, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
   }, [activeTab]);
 
+  // Remove stale legacy workspace query params from old versions.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const currentUrl = new URL(window.location.href);
-    if (workspaceRole) {
-      currentUrl.searchParams.set(WORKSPACE_QUERY_KEY, workspaceRole);
-    } else {
-      currentUrl.searchParams.delete(WORKSPACE_QUERY_KEY);
-    }
-    window.history.replaceState(null, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
-  }, [workspaceRole]);
+    clearLegacyWorkspaceFromUrl();
+  }, []);
 
   // Listen for browser back/forward hash changes
   useEffect(() => {
@@ -129,7 +125,6 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo', ini
     const payload = {
       activeTab,
       activeMarket,
-      workspaceRole,
       filterStatus,
       searchQuery,
       sortBy,
@@ -140,7 +135,7 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo', ini
     } catch (error) {
       console.warn('Failed to persist marketplace preferences:', error);
     }
-  }, [activeTab, activeMarket, workspaceRole, filterStatus, searchQuery, sortBy]);
+  }, [activeTab, activeMarket, filterStatus, searchQuery, sortBy]);
 
   const navigateTo = useCallback((tab) => {
     setActiveTab(tab);
