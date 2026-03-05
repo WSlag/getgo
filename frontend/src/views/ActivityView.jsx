@@ -1,15 +1,13 @@
-import React, { useState } from 'react';
-import BidsView from './BidsView';
-import ContractsView from './ContractsView';
+import React from 'react';
 import BrokerActivityView from './BrokerActivityView';
 import TruckerActivityView from './TruckerActivityView';
-import ReferredListingsView from './ReferredListingsView';
+import ShipperActivityView from './ShipperActivityView';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { getWorkspaceLabel } from '@/utils/workspace';
 
 export default function ActivityView({
   currentUser,
-  currentRole,
+  currentRole: _currentRole,
   workspaceRole = 'shipper',
   workspaceOptions: _workspaceOptions = ['shipper'],
   onWorkspaceChange: _onWorkspaceChange,
@@ -21,22 +19,22 @@ export default function ActivityView({
   onOpenMessages,
   onOpenListing,
   onToast,
-  bidsCount = 0,
-  contractsCount = 0,
+  bidsCount: _bidsCount = 0,
+  contractsCount: _contractsCount = 0,
   isBroker = false,
 }) {
-  const [activeSubTab, setActiveSubTab] = useState('bids');
-  const [workspaceFilters, setWorkspaceFilters] = useState({
+  const [workspaceFilters, setWorkspaceFilters] = React.useState({
     broker: { typeFilter: 'all', statusFilter: 'all' },
     trucker: { typeFilter: 'all', statusFilter: 'all' },
+    shipper: { typeFilter: 'all', statusFilter: 'all' },
   });
   const isMobile = useMediaQuery('(max-width: 1023px)');
-  const hasReferredListings = Boolean(currentUser?.referredByBrokerId);
   const isBrokerWorkspace = workspaceRole === 'broker' && isBroker;
   const isTruckerWorkspace = workspaceRole === 'trucker';
   const workspaceLabel = getWorkspaceLabel(workspaceRole);
   const brokerFilters = workspaceFilters.broker || { typeFilter: 'all', statusFilter: 'all' };
   const truckerFilters = workspaceFilters.trucker || { typeFilter: 'all', statusFilter: 'all' };
+  const shipperFilters = workspaceFilters.shipper || { typeFilter: 'all', statusFilter: 'all' };
 
   const setWorkspaceFilter = React.useCallback((workspace, key, value) => {
     setWorkspaceFilters((prev) => ({
@@ -47,12 +45,6 @@ export default function ActivityView({
       },
     }));
   }, []);
-
-  React.useEffect(() => {
-    if (!hasReferredListings && activeSubTab === 'referred') {
-      setActiveSubTab('bids');
-    }
-  }, [hasReferredListings, activeSubTab]);
 
   return (
     <main
@@ -79,79 +71,9 @@ export default function ActivityView({
             ? 'Read-only view of referred users marketplace activity'
             : isTruckerWorkspace
               ? 'Track your bids, bookings, contracts, and delivery activity'
-            : `Track your ${workspaceRole === 'trucker' ? 'bids' : 'bookings'} and contracts`}
+              : 'Track your cargo, bids, contracts, and shipment activity'}
         </p>
       </div>
-
-      {!isBrokerWorkspace && !isTruckerWorkspace && (
-        <div style={{ marginBottom: '24px' }}>
-          <div className="flex gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-full p-1">
-            <button
-              onClick={() => setActiveSubTab('bids')}
-              style={{ fontSize: '14px', fontWeight: '600', flex: 1, padding: '10px 16px' }}
-              className={`rounded-full transition-all active:scale-95 relative ${
-                activeSubTab === 'bids'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-                <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
-                <span>{workspaceRole === 'trucker' ? 'My Bids' : 'My Bookings'}</span>
-                {bidsCount > 0 && (
-                  <span
-                    className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[11px] font-bold rounded-full ${
-                      activeSubTab === 'bids'
-                        ? 'bg-white text-orange-500'
-                        : 'bg-orange-500 text-white'
-                    }`}
-                  >
-                    {bidsCount}
-                  </span>
-                )}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveSubTab('contracts')}
-              style={{ fontSize: '14px', fontWeight: '600', flex: 1, padding: '10px 16px' }}
-              className={`rounded-full transition-all active:scale-95 relative ${
-                activeSubTab === 'contracts'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-                <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
-                <span>Contracts</span>
-                {contractsCount > 0 && (
-                  <span
-                    className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[11px] font-bold rounded-full ${
-                      activeSubTab === 'contracts'
-                        ? 'bg-white text-orange-500'
-                        : 'bg-yellow-500 text-white'
-                    }`}
-                  >
-                    {contractsCount}
-                  </span>
-                )}
-              </span>
-            </button>
-
-            {hasReferredListings && (
-              <button
-                onClick={() => setActiveSubTab('referred')}
-                style={{ fontSize: '14px', fontWeight: '600', flex: 1, padding: '10px 16px' }}
-                className={`rounded-full transition-all active:scale-95 relative ${
-                  activeSubTab === 'referred'
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                Referred Listings
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       <div>
         {isBrokerWorkspace ? (
@@ -176,38 +98,19 @@ export default function ActivityView({
             onStatusFilterChange={(value) => setWorkspaceFilter('trucker', 'statusFilter', value)}
           />
         ) : (
-          <>
-            {activeSubTab === 'bids' && (
-              <BidsView
-                currentUser={currentUser}
-                currentRole={workspaceRole || currentRole}
-                onOpenChat={onOpenChat}
-                onBrowseMarketplace={onBrowseMarketplace}
-                onCreateListing={onCreateListing}
-                onOpenMessages={onOpenMessages}
-                darkMode={darkMode}
-                embedded={true}
-                workspaceRole={workspaceRole}
-              />
-            )}
-
-            {activeSubTab === 'contracts' && (
-              <ContractsView
-                currentUser={currentUser}
-                darkMode={darkMode}
-                onOpenContract={onOpenContract}
-                embedded={true}
-                workspaceRole={workspaceRole}
-              />
-            )}
-
-            {activeSubTab === 'referred' && hasReferredListings && (
-              <ReferredListingsView
-                onOpenListing={onOpenListing}
-                onToast={onToast}
-              />
-            )}
-          </>
+          <ShipperActivityView
+            currentUser={currentUser}
+            onOpenChat={onOpenChat}
+            onOpenContract={onOpenContract}
+            onOpenListing={onOpenListing}
+            onBrowseMarketplace={onBrowseMarketplace}
+            onCreateListing={onCreateListing}
+            onOpenMessages={onOpenMessages}
+            typeFilter={shipperFilters.typeFilter}
+            statusFilter={shipperFilters.statusFilter}
+            onTypeFilterChange={(value) => setWorkspaceFilter('shipper', 'typeFilter', value)}
+            onStatusFilterChange={(value) => setWorkspaceFilter('shipper', 'statusFilter', value)}
+          />
         )}
       </div>
     </main>
