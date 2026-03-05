@@ -96,7 +96,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: '/offline.html',
+        // Keep SPA navigations on the app shell. Using offline.html here causes
+        // controlled hard-refresh navigations to render the offline page.
+        navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/, /^\/__\//],
         runtimeCaching: [
           {
