@@ -179,7 +179,7 @@ export function ReferredListingsView({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-foreground">
+                    <p className="text-[0.95rem] font-medium text-foreground">
                       {item.listingType === 'truck' ? 'Truck Listing' : 'Cargo Listing'}
                     </p>
                     <p className="text-xs font-normal text-muted-foreground">

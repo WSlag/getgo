@@ -212,7 +212,7 @@ export function BrokerActivityView({
             {typeIcon(item.activityType, item)}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">
+            <p className="truncate text-[0.95rem] font-medium text-foreground">
               {typeLabel(item.activityType, item)}
             </p>
             {(item.origin || item.destination) && (
@@ -308,9 +308,9 @@ export function BrokerActivityView({
                 <span className={`flex size-6 shrink-0 items-center justify-center rounded-lg ${bg}`}>
                   {icon}
                 </span>
-                <p className="text-sm font-normal text-muted-foreground">{label}</p>
+                <p className="text-sm font-medium leading-[1.4] text-muted-foreground">{label}</p>
               </div>
-              <p className="text-2xl font-semibold leading-none text-foreground">{value}</p>
+              <p className="text-[1.375rem] font-medium leading-[1.2] text-foreground">{value}</p>
             </div>
           ))}
         </div>

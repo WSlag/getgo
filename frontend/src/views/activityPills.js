@@ -16,7 +16,7 @@ export const activityPillBaseClass = [
   'lg:px-4',
   'text-sm',
   'font-medium',
-  'leading-none',
+  'leading-[1.3]',
   'transition-all',
   'duration-200',
   'focus-visible:outline-none',
