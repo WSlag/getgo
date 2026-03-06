@@ -76,7 +76,7 @@ export default function ActivityView({
               onClick={() => setActivityMode('activity')}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                 activityMode === 'activity'
-                  ? 'text-white shadow-sm'
+                  ? 'text-white shadow-sm border border-transparent'
                   : 'bg-card border border-border text-muted-foreground hover:bg-muted'
               }`}
               style={activityMode === 'activity' ? { background: 'linear-gradient(to right, #fb923c, #ea580c)' } : undefined}
@@ -87,7 +87,7 @@ export default function ActivityView({
               onClick={() => setActivityMode('referrals')}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                 activityMode === 'referrals'
-                  ? 'text-white shadow-sm'
+                  ? 'text-white shadow-sm border border-transparent'
                   : 'bg-card border border-border text-muted-foreground hover:bg-muted'
               }`}
               style={activityMode === 'referrals' ? { background: 'linear-gradient(to right, #fb923c, #ea580c)' } : undefined}
