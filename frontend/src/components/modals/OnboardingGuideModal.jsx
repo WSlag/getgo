@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Package, Truck, FileText, CreditCard, Search, MessageSquare, ArrowRight, ChevronLeft, ChevronRight, MapPin, Banknote, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 
 const SHIPPER_STEPS = [
   {
@@ -50,12 +49,12 @@ const SHIPPER_STEPS = [
     icon: CreditCard,
     iconGradient: 'from-green-400 to-emerald-600',
     iconShadow: 'shadow-green-500/30',
-    title: 'Contracts & GCash',
+    title: 'Contracts & Delivery',
     subtitle: 'Step 3 of 3',
-    description: 'Accept a bid to generate a contract. Pay securely via GCash and track your shipment in real-time.',
+    description: 'Accept a bid to generate a digital contract. Track your shipment in real-time and confirm delivery when done.',
     highlights: [
       { icon: FileText, label: 'Digital contract auto-generated', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-      { icon: CreditCard, label: 'Pay via GCash - fast & secure', color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20' },
+      { icon: CreditCard, label: 'Trucker pays platform fee via GCash', color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20' },
       { icon: Truck, label: 'Track shipment live on map', color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
     ],
     tip: 'You are protected - payment is only released when both parties confirm delivery.',
@@ -173,69 +172,77 @@ export function OnboardingGuideModal({
       <DialogContent
         style={{ padding: 0 }}
         aria-describedby="onboarding-guide-description"
-        className="bg-white dark:bg-gray-900 w-full max-w-[calc(100vw-32px)] sm:max-w-md lg:max-w-lg rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto border-0"
+        className="bg-white dark:bg-gray-900 w-full max-w-[calc(100vw-32px)] sm:max-w-md lg:max-w-lg rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto border-0 overflow-hidden"
       >
-        {/* Step Progress Dots */}
-        <div className="flex items-center justify-center gap-2 pt-6 pb-2">
-          {steps.map((_, i) => (
-            <button
-              type="button"
-              key={i}
-              onClick={() => setStep(i)}
-              aria-label={`Go to step ${i + 1} of ${steps.length}`}
-              aria-current={i === step ? 'step' : undefined}
-              className={cn(
-                'rounded-full transition-all duration-300',
-                i === step
-                  ? 'w-7 h-2.5 bg-orange-500'
-                  : 'size-2.5 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-              )}
-            />
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="px-7 pt-5 pb-7">
-          {/* Icon Header */}
-          <div className="flex flex-col items-center text-center mb-7">
-            <div
-              className={cn(
-                'size-20 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-5',
-                current.iconGradient,
-                current.iconShadow
-              )}
-            >
-              <StepIcon className="size-10 text-white" aria-hidden="true" />
-            </div>
-            {current.subtitle && (
-              <p className="text-xs font-semibold text-orange-500 uppercase tracking-widest mb-2">
-                {current.subtitle}
-              </p>
-            )}
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-              {step === 0 && userName ? `Welcome, ${userName}!` : current.title}
-            </h2>
-            <p id="onboarding-guide-description" className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed max-w-xs">
-              {current.description}
-            </p>
+        {/* Gradient Header Band */}
+        <div
+          className={cn('relative flex flex-col items-center pt-8 pb-6 px-6', `bg-gradient-to-br ${current.iconGradient}`)}
+          style={{ minHeight: 180 }}
+        >
+          {/* Decorative rings */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full border border-white/10" />
+            <div className="absolute -bottom-8 -left-8 w-40 h-40 rounded-full border border-white/10" />
           </div>
 
+          {/* Step dots — top of header */}
+          <div className="flex items-center gap-1.5 mb-5 z-10">
+            {steps.map((_, i) => (
+              <button
+                type="button"
+                key={i}
+                onClick={() => setStep(i)}
+                aria-label={`Go to step ${i + 1} of ${steps.length}`}
+                aria-current={i === step ? 'step' : undefined}
+                className={cn(
+                  'rounded-full transition-all duration-300',
+                  i === step
+                    ? 'w-6 h-2 bg-white'
+                    : 'w-2 h-2 bg-white/40 hover:bg-white/60'
+                )}
+              />
+            ))}
+          </div>
+
+          {/* Icon */}
+          <div className="size-16 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-lg mb-4 z-10">
+            <StepIcon className="size-8 text-white" aria-hidden="true" />
+          </div>
+
+          {/* Subtitle */}
+          {current.subtitle && (
+            <p className="text-xs font-bold text-white/70 uppercase tracking-widest mb-1 z-10">
+              {current.subtitle}
+            </p>
+          )}
+
+          {/* Title */}
+          <h2 className="text-xl font-black text-white text-center leading-tight z-10" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            {step === 0 && userName ? `Welcome, ${userName}!` : current.title}
+          </h2>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 pt-5 pb-6">
+          {/* Description */}
+          <p id="onboarding-guide-description" className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed text-center mb-5">
+            {current.description}
+          </p>
+
           {/* Feature Highlights */}
-          <div className="flex flex-col gap-3 mb-6">
+          <div className="flex flex-col gap-2.5 mb-5">
             {current.highlights.map((item, i) => {
               const ItemIcon = item.icon;
               return (
                 <div
                   key={i}
-                  className={cn(
-                    'flex items-center gap-4 px-4 py-3.5 rounded-xl border border-gray-100 dark:border-gray-700',
-                    item.bg
-                  )}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/60"
+                  style={{ borderLeftWidth: 3, borderLeftColor: 'currentColor' }}
                 >
-                  <div className="size-9 rounded-xl bg-white dark:bg-gray-800 shadow-sm flex items-center justify-center flex-shrink-0">
-                    <ItemIcon className={cn('size-5', item.color)} aria-hidden="true" />
+                  <div className={cn('size-8 rounded-lg flex items-center justify-center flex-shrink-0', item.bg)}>
+                    <ItemIcon className={cn('size-4', item.color)} aria-hidden="true" />
                   </div>
-                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                     {item.label}
                   </span>
                 </div>
@@ -245,9 +252,10 @@ export function OnboardingGuideModal({
 
           {/* Tip */}
           {current.tip && (
-            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/50 rounded-xl px-4 py-3.5 mb-6">
+            <div className="flex gap-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/50 rounded-xl px-4 py-3 mb-5">
+              <span className="text-orange-500 font-black text-sm flex-shrink-0">✦</span>
               <p className="text-xs text-orange-700 dark:text-orange-400 leading-relaxed">
-                <span className="font-semibold">Tip: </span>
+                <span className="font-bold">Tip: </span>
                 {current.tip}
               </p>
             </div>
@@ -255,53 +263,46 @@ export function OnboardingGuideModal({
 
           {/* Navigation */}
           <div className="flex items-center gap-3">
-            {/* Prev */}
             {!isFirst ? (
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="icon"
                 onClick={handlePrev}
                 aria-label="Previous step"
-                className="size-11 flex-shrink-0 border-gray-200 dark:border-gray-700"
+                className="size-11 flex-shrink-0 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-center transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 <ChevronLeft className="size-5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
-              </Button>
+              </button>
             ) : (
-              <Button
+              <button
                 type="button"
-                variant="outline"
                 onClick={() => emitClose('dismissed')}
                 aria-label="Skip onboarding guide"
-                className="h-11 flex-shrink-0 px-4 font-semibold border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                className="h-11 flex-shrink-0 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-sm font-semibold text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700"
               >
                 Skip
-              </Button>
+              </button>
             )}
 
-            {/* Next / Get Started */}
-            <Button
+            <button
               type="button"
-              variant="gradient"
               onClick={handleNext}
-              className="h-11 flex-1 gap-2 rounded-xl font-semibold"
+              className="h-11 flex-1 flex items-center justify-center gap-2 rounded-xl text-sm font-bold text-white transition-all active:scale-95 hover:opacity-90"
+              style={{
+                background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
+                boxShadow: '0 4px 14px rgba(249,115,22,0.35)',
+                fontFamily: 'Outfit, sans-serif',
+              }}
             >
               {isLast ? (
-                <>
-                  Get Started
-                  <ArrowRight className="size-4" aria-hidden="true" />
-                </>
+                <>Get Started <ArrowRight className="size-4" aria-hidden="true" /></>
               ) : (
-                <>
-                  Next
-                  <ChevronRight className="size-4" aria-hidden="true" />
-                </>
+                <>Next <ChevronRight className="size-4" aria-hidden="true" /></>
               )}
-            </Button>
+            </button>
           </div>
 
-          {/* Step counter text */}
-          <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-4">
+          {/* Step counter */}
+          <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-3">
             {step + 1} of {steps.length}
           </p>
         </div>
