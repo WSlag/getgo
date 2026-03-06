@@ -11,31 +11,43 @@ import { AppLogo } from './AppLogo';
 function InstallBanner({ onInstall, onDismiss }) {
   return (
     <div
-      className="fixed left-1/2 z-[9998] w-[min(92vw,420px)] -translate-x-1/2 rounded-xl bg-gray-800 text-white shadow-2xl"
+      className="fixed left-1/2 z-[9998] w-[min(92vw,420px)] -translate-x-1/2"
       style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
     >
-      <div className="flex items-center gap-4 px-4 py-4 sm:px-5">
-        <AppLogo size={40} className="shrink-0 drop-shadow-lg" />
-        <div className="min-w-0 flex-1">
-          <p className="mb-0.5 text-sm font-semibold">Install GetGo</p>
-          <p className="m-0 text-xs text-gray-400">
-            Fast access, works offline
-          </p>
+      {/* Outer glow ring */}
+      <div
+        className="rounded-2xl p-px"
+        style={{ background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)' }}
+      >
+        <div className="flex items-center gap-3 rounded-2xl bg-white dark:bg-gray-900 px-4 py-3 shadow-xl">
+          <AppLogo size={42} className="shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="mb-0 text-sm font-bold text-gray-900 dark:text-white leading-tight">
+              Install GetGo
+            </p>
+            <p className="m-0 text-xs text-gray-500 dark:text-gray-400">
+              Fast access, works offline
+            </p>
+          </div>
+          <button
+            onClick={onInstall}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold text-white border-none transition-all active:scale-95 hover:opacity-90"
+            style={{
+              background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
+              boxShadow: '0 4px 14px rgba(249,115,22,0.4)',
+            }}
+          >
+            <Download className="size-3.5" />
+            Install
+          </button>
+          <button
+            onClick={onDismiss}
+            className="shrink-0 bg-transparent border-none p-1.5 rounded-lg text-gray-400 transition-colors hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-200 cursor-pointer"
+            aria-label="Dismiss install prompt"
+          >
+            <X className="size-4" />
+          </button>
         </div>
-        <button
-          onClick={onInstall}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white border-none transition-colors hover:bg-orange-600"
-        >
-          <Download className="size-4" />
-          Install
-        </button>
-        <button
-          onClick={onDismiss}
-          className="shrink-0 bg-transparent border-none p-1 text-gray-400 transition-colors hover:text-gray-200 cursor-pointer"
-          aria-label="Dismiss install prompt"
-        >
-          <X className="size-5" />
-        </button>
       </div>
     </div>
   );
