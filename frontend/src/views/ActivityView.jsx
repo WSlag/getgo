@@ -3,7 +3,6 @@ import BrokerActivityView from './BrokerActivityView';
 import TruckerActivityView from './TruckerActivityView';
 import ShipperActivityView from './ShipperActivityView';
 import ReferredListingsView from './ReferredListingsView';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { getWorkspaceLabel } from '@/utils/workspace';
 
 export default function ActivityView({
@@ -12,7 +11,6 @@ export default function ActivityView({
   workspaceRole = 'shipper',
   workspaceOptions: _workspaceOptions = ['shipper'],
   onWorkspaceChange: _onWorkspaceChange,
-  darkMode,
   onOpenChat,
   onOpenContract,
   onBrowseMarketplace,
@@ -29,7 +27,6 @@ export default function ActivityView({
     trucker: { typeFilter: 'all', statusFilter: 'all' },
     shipper: { typeFilter: 'all', statusFilter: 'all' },
   });
-  const isMobile = useMediaQuery('(max-width: 1023px)');
   const isBrokerWorkspace = workspaceRole === 'broker' && isBroker;
   const isTruckerWorkspace = workspaceRole === 'trucker';
   const workspaceLabel = getWorkspaceLabel(workspaceRole);
@@ -56,26 +53,12 @@ export default function ActivityView({
   }, []);
 
   return (
-    <main
-      className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto"
-      style={{
-        padding: isMobile ? '16px' : '24px',
-        paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px'
-      }}
-    >
-      <div style={{ marginBottom: isMobile ? '20px' : '24px' }}>
-        <h1 style={{
-          fontWeight: 'bold',
-          fontSize: isMobile ? '24px' : '28px',
-          color: darkMode ? '#fff' : '#111827',
-          marginBottom: '8px'
-        }}>
+    <main className="flex-1 bg-secondary dark:bg-gray-950 overflow-y-auto px-4 lg:px-6 pb-[calc(100px+env(safe-area-inset-bottom,0px))] lg:pb-6">
+      <div className="mb-5 lg:mb-6 pt-4 lg:pt-6">
+        <h1 className="text-2xl lg:text-3xl font-bold text-foreground mb-1.5">
           {isBrokerWorkspace ? 'Broker Activity' : `${workspaceLabel} Activity`}
         </h1>
-        <p style={{
-          fontSize: isMobile ? '13px' : '14px',
-          color: darkMode ? '#9ca3af' : '#6b7280'
-        }}>
+        <p className="text-sm text-muted-foreground">
           {activityMode === 'referrals' && showReferredListings
             ? 'Listings directly referred to you by brokers'
             : isBrokerWorkspace
@@ -91,20 +74,20 @@ export default function ActivityView({
           <div className="flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => setActivityMode('activity')}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                 activityMode === 'activity'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300'
+                  ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30'
+                  : 'bg-card border border-border text-muted-foreground hover:bg-muted'
               }`}
             >
               My Activity
             </button>
             <button
               onClick={() => setActivityMode('referrals')}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                 activityMode === 'referrals'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300'
+                  ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30'
+                  : 'bg-card border border-border text-muted-foreground hover:bg-muted'
               }`}
             >
               Referred Listings
