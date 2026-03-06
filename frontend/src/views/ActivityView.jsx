@@ -4,6 +4,7 @@ import TruckerActivityView from './TruckerActivityView';
 import ShipperActivityView from './ShipperActivityView';
 import ReferredListingsView from './ReferredListingsView';
 import { getWorkspaceLabel } from '@/utils/workspace';
+import { cn } from '@/lib/utils';
 
 export default function ActivityView({
   currentUser,
@@ -35,6 +36,10 @@ export default function ActivityView({
   const truckerFilters = workspaceFilters.trucker || { typeFilter: 'all', statusFilter: 'all' };
   const shipperFilters = workspaceFilters.shipper || { typeFilter: 'all', statusFilter: 'all' };
   const showReferredListings = !isBrokerWorkspace;
+  const activityModeOptions = [
+    { id: 'activity', label: 'My Activity' },
+    { id: 'referrals', label: 'Referred Listings' },
+  ];
 
   React.useEffect(() => {
     if (isBrokerWorkspace && activityMode !== 'activity') {
@@ -53,12 +58,12 @@ export default function ActivityView({
   }, []);
 
   return (
-    <main className="flex-1 bg-secondary dark:bg-gray-950 overflow-y-auto px-4 lg:px-6 pb-[calc(100px+env(safe-area-inset-bottom,0px))] lg:pb-6">
-      <div className="mb-5 lg:mb-6 pt-4 lg:pt-6">
-        <h1 className="text-2xl lg:text-3xl font-bold text-foreground mb-1.5">
+    <main className="flex-1 overflow-y-auto bg-background px-4 lg:px-6 pb-[calc(104px+env(safe-area-inset-bottom,0px))] lg:pb-6">
+      <div className="mb-6 pt-4 lg:mb-8 lg:pt-6">
+        <h1 className="mb-2 text-[1.75rem] font-medium leading-tight tracking-tight text-foreground lg:text-3xl">
           {isBrokerWorkspace ? 'Broker Activity' : `${workspaceLabel} Activity`}
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm font-normal text-muted-foreground">
           {activityMode === 'referrals' && showReferredListings
             ? 'Listings directly referred to you by brokers'
             : isBrokerWorkspace
@@ -71,29 +76,24 @@ export default function ActivityView({
 
       <div>
         {showReferredListings && (
-          <div className="flex flex-wrap gap-2.5 mb-5">
-            <button
-              onClick={() => setActivityMode('activity')}
-              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 outline-none ${
-                activityMode === 'activity'
-                  ? 'text-white'
-                  : 'bg-muted text-muted-foreground hover:bg-accent'
-              }`}
-              style={activityMode === 'activity' ? { background: 'linear-gradient(to right, #fb923c, #ea580c)' } : undefined}
-            >
-              My Activity
-            </button>
-            <button
-              onClick={() => setActivityMode('referrals')}
-              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 outline-none ${
-                activityMode === 'referrals'
-                  ? 'text-white'
-                  : 'bg-muted text-muted-foreground hover:bg-accent'
-              }`}
-              style={activityMode === 'referrals' ? { background: 'linear-gradient(to right, #fb923c, #ea580c)' } : undefined}
-            >
-              Referred Listings
-            </button>
+          <div className="mb-5 rounded-2xl border border-border bg-card p-2 shadow-sm lg:mb-6">
+            <div className="flex flex-wrap gap-2">
+              {activityModeOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setActivityMode(option.id)}
+                  className={cn(
+                    'inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    activityMode === option.id
+                      ? 'gradient-primary text-primary-foreground shadow-glow-orange'
+                      : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

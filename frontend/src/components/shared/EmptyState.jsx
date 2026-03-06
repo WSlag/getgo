@@ -10,24 +10,24 @@ export function EmptyState({
   className,
 }) {
   return (
-    <div className={cn("flex flex-col items-center justify-center py-20 text-center", className)}>
+    <div className={cn('flex flex-col items-center justify-center px-4 py-16 text-center', className)}>
       {Icon && (
-        <div className="size-16 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center mb-4 shadow-lg">
-          <Icon className="size-8 text-gray-400" />
+        <div className="mb-4 flex size-16 items-center justify-center rounded-xl border border-border bg-gradient-to-br from-muted to-secondary shadow-sm">
+          <Icon className="size-8 text-muted-foreground" />
         </div>
       )}
       {title && (
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">
+        <h3 className="text-base font-semibold text-foreground">
           {title}
         </h3>
       )}
       {description && (
-        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
+        <p className="mt-1 max-w-sm text-sm font-normal text-muted-foreground">
           {description}
         </p>
       )}
       {actionLabel && onAction && (
-        <Button variant="outline" className="mt-4" onClick={onAction}>
+        <Button variant="gradient" className="mt-5" onClick={onAction}>
           {actionLabel}
         </Button>
       )}

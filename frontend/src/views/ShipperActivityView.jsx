@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Loader2, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { useBidsOnMyListings } from '@/hooks/useBids';
 import { useContracts } from '@/hooks/useContracts';
 import { useCargoListings } from '@/hooks/useCargoListings';
@@ -36,8 +37,8 @@ function formatAmount(value) {
 function statusBadgeVariant(status) {
   const normalized = String(status || '').toLowerCase();
   if (normalized === 'pending') return 'warning';
-  if (normalized === 'accepted') return 'info';
-  if (normalized === 'completed') return 'success';
+  if (normalized === 'accepted') return 'success';
+  if (normalized === 'completed') return 'gradient-blue';
   return 'destructive';
 }
 
@@ -298,37 +299,34 @@ export function ShipperActivityView({
     };
   }, [normalizedItems, activeTypeFilter, activeStatusFilter]);
 
-  const chipBase = 'inline-flex items-center justify-center rounded-full text-[13px] font-semibold leading-none transition-all duration-200 active:scale-95 px-3.5 py-2';
-  const chipActiveClass = 'text-white shadow-sm';
-  const chipInactive = 'bg-muted text-muted-foreground hover:bg-accent';
-  const chipActiveStyle = { background: 'linear-gradient(to right, #fb923c, #ea580c)' };
+  const chipBase = 'inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+  const chipActiveClass = 'gradient-primary text-primary-foreground shadow-glow-orange';
+  const chipInactive = 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground';
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {/* Filters */}
-      <div className="rounded-xl bg-card border border-border p-4">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm lg:p-6">
         <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {typeFilters.map((filter) => (
               <button
                 key={filter.id}
                 type="button"
                 onClick={() => setTypeFilter(filter.id)}
-                className={`${chipBase} ${activeTypeFilter === filter.id ? chipActiveClass : chipInactive}`}
-                style={activeTypeFilter === filter.id ? chipActiveStyle : undefined}
+                className={cn(chipBase, activeTypeFilter === filter.id ? chipActiveClass : chipInactive)}
               >
                 {filter.label}
               </button>
             ))}
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {statusFilters.map((filter) => (
               <button
                 key={filter.id}
                 type="button"
                 onClick={() => setStatusFilter(filter.id)}
-                className={`${chipBase} ${activeStatusFilter === filter.id ? chipActiveClass : chipInactive}`}
-                style={activeStatusFilter === filter.id ? chipActiveStyle : undefined}
+                className={cn(chipBase, activeStatusFilter === filter.id ? chipActiveClass : chipInactive)}
               >
                 {filter.label}
               </button>
@@ -338,7 +336,7 @@ export function ShipperActivityView({
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         {[
           { label: 'Total', value: summary.total, icon: <TrendingUp className="size-3.5 text-orange-500" />, bg: 'bg-orange-50 dark:bg-orange-950/30' },
           { label: 'Cargo', value: summary.cargo, icon: <Package className="size-3.5 text-blue-500" />, bg: 'bg-blue-50 dark:bg-blue-950/30' },
@@ -347,51 +345,51 @@ export function ShipperActivityView({
           { label: 'Contracts', value: summary.contracts, icon: <FileText className="size-3.5 text-indigo-500" />, bg: 'bg-indigo-50 dark:bg-indigo-950/30' },
           { label: 'Completed', value: summary.completed, icon: <TrendingUp className="size-3.5 text-green-500" />, bg: 'bg-green-50 dark:bg-green-950/30' },
         ].map(({ label, value, icon, bg }) => (
-          <div key={label} className="rounded-xl border border-border bg-card p-3">
+          <div key={label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
               <span className={`size-6 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
                 {icon}
               </span>
-              <p className="text-xs text-muted-foreground">{label}</p>
+              <p className="text-sm font-normal text-muted-foreground">{label}</p>
             </div>
-            <p className="text-lg font-bold text-foreground leading-none">{value}</p>
+            <p className="text-2xl font-semibold leading-none text-foreground">{value}</p>
           </div>
         ))}
       </div>
 
       {/* Activity list */}
-      <div className="rounded-xl bg-card border border-border p-4">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm lg:p-6">
         {loading ? (
-          <div className="py-12 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
             <Loader2 className="size-5 animate-spin text-primary" />
-            <p className="text-sm">Loading shipper activity...</p>
+            <p className="text-sm font-normal">Loading shipper activity...</p>
           </div>
         ) : error ? (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/10 text-destructive p-4 text-sm">
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="py-12 flex flex-col items-center justify-center gap-3 text-center">
-            <div className="size-12 rounded-2xl bg-muted flex items-center justify-center">
-              <TrendingUp className="size-5 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+            <div className="flex size-16 items-center justify-center rounded-xl bg-gradient-to-br from-muted to-secondary shadow-sm">
+              <TrendingUp className="size-8 text-muted-foreground" />
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm font-normal text-muted-foreground">
               No shipper activity for the selected filters.
             </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={onBrowseMarketplace}>
+            <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row">
+              <Button type="button" variant="outline" className="w-full lg:w-auto" onClick={onBrowseMarketplace}>
                 Browse Trucks
               </Button>
-              <Button type="button" variant="gradient" size="sm" onClick={onCreateListing}>
+              <Button type="button" variant="gradient" className="w-full lg:w-auto" onClick={onCreateListing}>
                 Post Cargo
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={onOpenMessages}>
+              <Button type="button" variant="outline" className="w-full lg:w-auto" onClick={onOpenMessages}>
                 Open Messages
               </Button>
             </div>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {filteredItems.map((item) => (
               <button
                 key={item.id}
@@ -417,32 +415,32 @@ export function ShipperActivityView({
                     onOpenListing?.(item.rawEntity);
                   }
                 }}
-                className="w-full text-left rounded-xl border border-border bg-secondary hover:bg-muted transition-all duration-200 p-3.5"
+                className="w-full rounded-2xl border border-border bg-secondary/60 p-4 text-left transition-all duration-200 hover:bg-muted"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="shrink-0 size-7 rounded-lg bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center text-primary">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-muted text-primary">
                       {typeIcon(item)}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {typeLabel(item)}
                       </p>
                       {(item.origin || item.destination) && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                          <span className="truncate max-w-[80px]">{item.origin || '-'}</span>
+                        <div className="mt-0.5 flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                          <span className="max-w-[88px] truncate">{item.origin || '-'}</span>
                           <ArrowRight className="size-3 shrink-0" />
-                          <span className="truncate max-w-[80px]">{item.destination || '-'}</span>
+                          <span className="max-w-[88px] truncate">{item.destination || '-'}</span>
                         </div>
                       )}
                     </div>
                   </div>
-                  <Badge variant={statusBadgeVariant(item.status)} size="sm" className="shrink-0 capitalize">
+                  <Badge variant={statusBadgeVariant(item.status)} className="shrink-0 capitalize">
                     {item.status}
                   </Badge>
                 </div>
 
-                <div className="mt-2.5 pt-2.5 border-t border-border flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-3 text-xs font-normal text-muted-foreground">
                   {item.counterpartyName && (
                     <span>
                       Counterparty: <span className="text-foreground font-medium">{item.counterpartyName}</span>
