@@ -76,9 +76,10 @@ export default function ActivityView({
               onClick={() => setActivityMode('activity')}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                 activityMode === 'activity'
-                  ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30'
+                  ? 'text-white shadow-sm'
                   : 'bg-card border border-border text-muted-foreground hover:bg-muted'
               }`}
+              style={activityMode === 'activity' ? { background: 'linear-gradient(to right, #fb923c, #ea580c)' } : undefined}
             >
               My Activity
             </button>
@@ -86,9 +87,10 @@ export default function ActivityView({
               onClick={() => setActivityMode('referrals')}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                 activityMode === 'referrals'
-                  ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30'
+                  ? 'text-white shadow-sm'
                   : 'bg-card border border-border text-muted-foreground hover:bg-muted'
               }`}
+              style={activityMode === 'referrals' ? { background: 'linear-gradient(to right, #fb923c, #ea580c)' } : undefined}
             >
               Referred Listings
             </button>
