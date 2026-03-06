@@ -14,6 +14,37 @@ const CHUNK_RELOAD_KEY = 'karga_chunk_reload_ts';
 const BUILD_ID_STORAGE_KEY = 'getgo_build_id';
 const BUILD_REFRESH_GUARD_KEY = 'getgo_build_refresh_guard';
 
+function isLeafletTarget(target) {
+  return target instanceof Element && Boolean(target.closest('.leaflet-container'));
+}
+
+function installMobileZoomGuard() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  const isNarrowViewport = window.matchMedia('(max-width: 1023px)').matches;
+  const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+  if (!isNarrowViewport && !isCoarsePointer) return;
+
+  const handleZoomGesture = (event) => {
+    if (!event.cancelable) return;
+    if (isLeafletTarget(event.target)) return;
+
+    if (event.type === 'gesturestart' || event.type === 'gesturechange') {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.type === 'touchmove' && event.touches?.length > 1) {
+      event.preventDefault();
+    }
+  };
+
+  // iOS/WebView fallback when viewport locking is not consistently enforced.
+  document.addEventListener('gesturestart', handleZoomGesture, { capture: true, passive: false });
+  document.addEventListener('gesturechange', handleZoomGesture, { capture: true, passive: false });
+  document.addEventListener('touchmove', handleZoomGesture, { capture: true, passive: false });
+}
+
 function isDynamicImportFailure(reason) {
   const message = String(reason?.message || reason || '');
   return (
@@ -72,6 +103,7 @@ function syncBuildVersionAndRefreshCaches() {
 
 if (typeof window !== 'undefined') {
   syncBuildVersionAndRefreshCaches();
+  installMobileZoomGuard();
 
   window.addEventListener('vite:preloadError', (event) => {
     event.preventDefault();

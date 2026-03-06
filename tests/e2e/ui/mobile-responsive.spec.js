@@ -59,6 +59,109 @@ test.describe('Mobile Responsiveness', () => {
     expect(bodyWidth).toBeLessThanOrEqual(viewportWidth + 20); // 20px tolerance
   });
 
+  test('should enforce locked viewport settings for app shell on mobile', async ({ page }) => {
+    const viewportContent = await page.locator('meta[name="viewport"]').getAttribute('content');
+    expect(viewportContent).toBeTruthy();
+    expect(viewportContent).toContain('width=device-width');
+    expect(viewportContent).toContain('maximum-scale=1.0');
+    expect(viewportContent).toContain('user-scalable=no');
+    expect(viewportContent).toContain('viewport-fit=cover');
+  });
+
+  test('should block synthetic pinch gestures on app shell without layout shrink artifacts', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const measure = () => ({
+        bodyWidth: document.body.scrollWidth,
+        rootWidth: document.documentElement.clientWidth,
+        visualScale: window.visualViewport?.scale ?? 1,
+      });
+
+      const createSyntheticTouchMove = (target) => {
+        let event;
+        try {
+          event = new TouchEvent('touchmove', {
+            bubbles: true,
+            cancelable: true,
+          });
+        } catch {
+          event = new Event('touchmove', { bubbles: true, cancelable: true });
+        }
+        Object.defineProperty(event, 'touches', {
+          value: [{ identifier: 1 }, { identifier: 2 }],
+          configurable: true,
+        });
+        target.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+
+      const before = measure();
+      const gestureEvent = new Event('gesturestart', { bubbles: true, cancelable: true });
+      document.body.dispatchEvent(gestureEvent);
+      const bodyGestureBlocked = gestureEvent.defaultPrevented;
+      const bodyTouchBlocked = createSyntheticTouchMove(document.body);
+      const after = measure();
+
+      return {
+        before,
+        after,
+        bodyGestureBlocked,
+        bodyTouchBlocked,
+      };
+    });
+
+    expect(result.bodyGestureBlocked || result.bodyTouchBlocked).toBeTruthy();
+    expect(result.after.bodyWidth).toBeLessThanOrEqual(result.before.bodyWidth + 1);
+    expect(result.after.rootWidth).toBeLessThanOrEqual(result.before.rootWidth + 1);
+    expect(result.after.visualScale).toBeLessThanOrEqual(1.01);
+  });
+
+  test('should exempt Leaflet map containers from global pinch blocking', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const createSyntheticTouchMove = (target) => {
+        let event;
+        try {
+          event = new TouchEvent('touchmove', {
+            bubbles: true,
+            cancelable: true,
+          });
+        } catch {
+          event = new Event('touchmove', { bubbles: true, cancelable: true });
+        }
+        Object.defineProperty(event, 'touches', {
+          value: [{ identifier: 1 }, { identifier: 2 }],
+          configurable: true,
+        });
+        target.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+
+      const mapContainer = document.createElement('div');
+      mapContainer.className = 'leaflet-container';
+      document.body.appendChild(mapContainer);
+
+      const mapGestureEvent = new Event('gesturestart', { bubbles: true, cancelable: true });
+      mapContainer.dispatchEvent(mapGestureEvent);
+      const bodyGestureEvent = new Event('gesturestart', { bubbles: true, cancelable: true });
+      document.body.dispatchEvent(bodyGestureEvent);
+
+      const mapTouchBlocked = createSyntheticTouchMove(mapContainer);
+      const bodyTouchBlocked = createSyntheticTouchMove(document.body);
+
+      mapContainer.remove();
+
+      return {
+        mapGestureBlocked: mapGestureEvent.defaultPrevented,
+        bodyGestureBlocked: bodyGestureEvent.defaultPrevented,
+        mapTouchBlocked,
+        bodyTouchBlocked,
+      };
+    });
+
+    expect(result.bodyGestureBlocked || result.bodyTouchBlocked).toBeTruthy();
+    expect(result.mapGestureBlocked).toBe(false);
+    expect(result.mapTouchBlocked).toBe(false);
+  });
+
   test('should display listing cards on mobile', async ({ page }) => {
     // Listings should be visible on mobile too
     await page.waitForTimeout(1500);
