@@ -2,13 +2,15 @@ import { cn } from '@/lib/utils';
 
 export const activityPillBaseClass = [
   'inline-flex',
-  'h-[34px]',
+  'h-11',
+  'lg:h-[34px]',
   'shrink-0',
   'whitespace-nowrap',
   'items-center',
   'justify-center',
   'rounded-xl',
-  'px-6',
+  'px-5',
+  'lg:px-6',
   'text-sm',
   'font-medium',
   'leading-none',
