@@ -74,7 +74,7 @@ export default function ActivityView({
           <div className="flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => setActivityMode('activity')}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
                 activityMode === 'activity'
                   ? 'text-white shadow-sm border border-transparent'
                   : 'bg-card border border-border text-muted-foreground hover:bg-muted'
@@ -85,7 +85,7 @@ export default function ActivityView({
             </button>
             <button
               onClick={() => setActivityMode('referrals')}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
                 activityMode === 'referrals'
                   ? 'text-white shadow-sm border border-transparent'
                   : 'bg-card border border-border text-muted-foreground hover:bg-muted'
