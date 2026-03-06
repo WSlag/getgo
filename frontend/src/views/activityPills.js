@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 
 export const activityPillBaseClass = [
   'inline-flex',
-  'min-h-11',
+  'min-h-10',
   'lg:min-h-8',
   'min-w-[3.25rem]',
   'lg:min-w-[3rem]',
@@ -12,7 +12,7 @@ export const activityPillBaseClass = [
   'justify-center',
   'rounded-xl',
   'px-7',
-  'py-0.5',
+  'py-0',
   'lg:px-4',
   'text-sm',
   'font-medium',
@@ -27,7 +27,7 @@ export const activityPillBaseClass = [
 
 export const activityPillActiveClass = 'bg-primary text-primary-foreground shadow-sm shadow-primary/25';
 export const activityPillInactiveClass = 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground';
-export const activityPillRowClass = 'flex flex-wrap gap-x-3 gap-y-2.5 lg:gap-x-3.5';
+export const activityPillRowClass = 'flex flex-wrap gap-x-3 gap-y-2 lg:gap-x-3.5';
 
 export function activityPillClass(isActive, className) {
   return cn(
