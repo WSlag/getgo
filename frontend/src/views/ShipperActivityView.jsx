@@ -299,8 +299,9 @@ export function ShipperActivityView({
   }, [normalizedItems, activeTypeFilter, activeStatusFilter]);
 
   const chipBase = 'inline-flex items-center justify-center rounded-full text-[13px] font-semibold leading-none transition-all duration-200 active:scale-95 px-3.5 py-2';
-  const chipActive = 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30';
+  const chipActiveClass = 'text-white shadow-sm';
   const chipInactive = 'bg-muted text-muted-foreground hover:bg-accent';
+  const chipActiveStyle = { background: 'linear-gradient(to right, #fb923c, #ea580c)' };
 
   return (
     <div className="flex flex-col gap-4">
@@ -313,7 +314,8 @@ export function ShipperActivityView({
                 key={filter.id}
                 type="button"
                 onClick={() => setTypeFilter(filter.id)}
-                className={`${chipBase} ${activeTypeFilter === filter.id ? chipActive : chipInactive}`}
+                className={`${chipBase} ${activeTypeFilter === filter.id ? chipActiveClass : chipInactive}`}
+                style={activeTypeFilter === filter.id ? chipActiveStyle : undefined}
               >
                 {filter.label}
               </button>
@@ -325,7 +327,8 @@ export function ShipperActivityView({
                 key={filter.id}
                 type="button"
                 onClick={() => setStatusFilter(filter.id)}
-                className={`${chipBase} ${activeStatusFilter === filter.id ? chipActive : chipInactive}`}
+                className={`${chipBase} ${activeStatusFilter === filter.id ? chipActiveClass : chipInactive}`}
+                style={activeStatusFilter === filter.id ? chipActiveStyle : undefined}
               >
                 {filter.label}
               </button>
