@@ -19,9 +19,9 @@ export const activityPillBaseClass = [
   'transition-all',
   'duration-200',
   'focus-visible:outline-none',
-  'focus-visible:ring-2',
-  'focus-visible:ring-ring',
-  'focus-visible:ring-offset-2',
+  'focus-visible:ring-1',
+  'focus-visible:ring-foreground/30',
+  'focus-visible:ring-offset-0',
 ].join(' ');
 
 export const activityPillActiveClass = 'bg-primary text-primary-foreground shadow-sm shadow-primary/25';
