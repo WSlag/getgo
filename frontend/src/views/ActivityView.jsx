@@ -56,10 +56,12 @@ export default function ActivityView({
     >
       <div style={{ marginBottom: isMobile ? '20px' : '24px' }}>
         <h1 style={{
-          fontWeight: 'bold',
+          fontWeight: 900,
           fontSize: isMobile ? '24px' : '28px',
           color: darkMode ? '#fff' : '#111827',
-          marginBottom: '8px'
+          marginBottom: '4px',
+          fontFamily: 'Outfit, sans-serif',
+          letterSpacing: '-0.01em',
         }}>
           {isBrokerWorkspace ? 'Broker Activity' : `${workspaceLabel} Activity`}
         </h1>

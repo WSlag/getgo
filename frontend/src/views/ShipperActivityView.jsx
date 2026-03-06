@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Loader2, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { useBidsOnMyListings } from '@/hooks/useBids';
 import { useContracts } from '@/hooks/useContracts';
 import { useCargoListings } from '@/hooks/useCargoListings';
@@ -297,164 +296,183 @@ export function ShipperActivityView({
     };
   }, [normalizedItems, activeTypeFilter, activeStatusFilter]);
 
-  const filterChipBaseClass = 'inline-flex items-center justify-center rounded-full text-[13px] font-semibold leading-none transition-all duration-200 active:scale-95';
-  const activeFilterChipClass = 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-sm shadow-orange-500/30';
-  const inactiveFilterChipClass = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600';
-  const filterChipStyle = { padding: '8px 14px', minHeight: '34px', lineHeight: 1.1 };
+  const filterChipBase = 'inline-flex items-center justify-center rounded-full text-[13px] font-semibold leading-none transition-all duration-200 active:scale-95';
+  const filterChipActive = 'text-white shadow-sm';
+  const filterChipInactive = 'bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:text-orange-600 dark:hover:text-orange-400';
+  const filterChipStyle = { padding: '7px 14px', minHeight: '32px', lineHeight: 1.1 };
+  const filterChipActiveStyle = { background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' };
+
+  const statCards = [
+    { label: 'Total', value: summary.total, iconEl: <TrendingUp className="size-3.5 text-orange-500" />, iconBg: 'bg-orange-100 dark:bg-orange-950/40' },
+    { label: 'Cargo', value: summary.cargo, iconEl: <Package className="size-3.5 text-blue-500" />, iconBg: 'bg-blue-100 dark:bg-blue-950/40' },
+    { label: 'Bids', value: summary.bids, iconEl: <Truck className="size-3.5 text-purple-500" />, iconBg: 'bg-purple-100 dark:bg-purple-950/40' },
+    { label: 'Shipment', value: summary.shipment, iconEl: <Truck className="size-3.5 text-cyan-500" />, iconBg: 'bg-cyan-100 dark:bg-cyan-950/40' },
+    { label: 'Contracts', value: summary.contracts, iconEl: <FileText className="size-3.5 text-indigo-500" />, iconBg: 'bg-indigo-100 dark:bg-indigo-950/40' },
+    { label: 'Completed', value: summary.completed, iconEl: <TrendingUp className="size-3.5 text-green-500" />, iconBg: 'bg-green-100 dark:bg-green-950/40' },
+  ];
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
+      {/* Filter panel */}
+      <div className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 p-4"
+        style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+        <div className="flex flex-col gap-2.5">
           <div className="flex flex-wrap gap-1.5">
-            {typeFilters.map((filter) => (
+            {typeFilters.map((f) => (
               <button
-                key={filter.id}
+                key={f.id}
                 type="button"
-                onClick={() => setTypeFilter(filter.id)}
-                style={filterChipStyle}
-                className={`${filterChipBaseClass} ${activeTypeFilter === filter.id ? activeFilterChipClass : inactiveFilterChipClass}`}
+                onClick={() => setTypeFilter(f.id)}
+                style={{ ...filterChipStyle, ...(activeTypeFilter === f.id ? filterChipActiveStyle : {}) }}
+                className={`${filterChipBase} ${activeTypeFilter === f.id ? filterChipActive : filterChipInactive}`}
               >
-                {filter.label}
+                {f.label}
               </button>
             ))}
           </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            {statusFilters.map((filter) => (
+          <div className="h-px bg-gray-100 dark:bg-gray-700/60" />
+          <div className="flex flex-wrap gap-1.5">
+            {statusFilters.map((f) => (
               <button
-                key={filter.id}
+                key={f.id}
                 type="button"
-                onClick={() => setStatusFilter(filter.id)}
-                style={filterChipStyle}
-                className={`${filterChipBaseClass} ${activeStatusFilter === filter.id ? activeFilterChipClass : inactiveFilterChipClass}`}
+                onClick={() => setStatusFilter(f.id)}
+                style={{ ...filterChipStyle, ...(activeStatusFilter === f.id ? filterChipActiveStyle : {}) }}
+                className={`${filterChipBase} ${activeStatusFilter === f.id ? filterChipActive : filterChipInactive}`}
               >
-                {filter.label}
+                {f.label}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {[
-          { label: 'Total', value: summary.total, icon: <TrendingUp className="size-3.5 text-orange-500" />, bg: 'bg-orange-50 dark:bg-orange-950/30' },
-          { label: 'Cargo', value: summary.cargo, icon: <Package className="size-3.5 text-blue-500" />, bg: 'bg-blue-50 dark:bg-blue-950/30' },
-          { label: 'Bids', value: summary.bids, icon: <Truck className="size-3.5 text-purple-500" />, bg: 'bg-purple-50 dark:bg-purple-950/30' },
-          { label: 'Shipment', value: summary.shipment, icon: <Truck className="size-3.5 text-cyan-500" />, bg: 'bg-cyan-50 dark:bg-cyan-950/30' },
-          { label: 'Contracts', value: summary.contracts, icon: <FileText className="size-3.5 text-indigo-500" />, bg: 'bg-indigo-50 dark:bg-indigo-950/30' },
-          { label: 'Completed', value: summary.completed, icon: <TrendingUp className="size-3.5 text-green-500" />, bg: 'bg-green-50 dark:bg-green-950/30' },
-        ].map(({ label, value, icon, bg }) => (
+      {/* Stats grid */}
+      <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        {statCards.map(({ label, value, iconEl, iconBg }) => (
           <div
             key={label}
-            className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3"
+            className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 p-3"
+            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`size-6 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
-                {icon}
-              </span>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+            <div className={`size-7 rounded-xl ${iconBg} flex items-center justify-center mb-2`}>
+              {iconEl}
             </div>
-            <p className="text-lg font-bold text-gray-900 dark:text-white leading-none">{value}</p>
+            <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-0.5 leading-none">{label}</p>
+            <p className="text-xl font-black text-gray-900 dark:text-white leading-none" style={{ fontFamily: 'Outfit, sans-serif' }}>{value}</p>
           </div>
         ))}
       </div>
 
-      <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+      {/* Activity list */}
+      <div className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 overflow-hidden"
+        style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
         {loading ? (
-          <div className="py-12 flex flex-col items-center justify-center gap-2 text-gray-500">
+          <div className="py-14 flex flex-col items-center justify-center gap-2 text-gray-400">
             <Loader2 className="size-5 animate-spin text-orange-500" />
-            <p className="text-sm">Loading shipper activity...</p>
+            <p className="text-sm">Loading activity...</p>
           </div>
         ) : error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300 p-4 text-sm">
+          <div className="m-4 rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 text-red-700 dark:text-red-300 p-4 text-sm">
             {error}
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="py-12 flex flex-col items-center justify-center gap-3 text-center">
-            <div className="size-12 rounded-2xl bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-              <TrendingUp className="size-5 text-gray-400" />
+          <div className="py-14 flex flex-col items-center justify-center gap-4 text-center px-6">
+            <div
+              className="size-14 rounded-2xl flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa' }}
+            >
+              <TrendingUp className="size-6 text-orange-400" />
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              No shipper activity for the selected filters.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={onBrowseMarketplace}>
+            <div>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">No activity yet</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">No shipper activity for the selected filters.</p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={onBrowseMarketplace}
+                className="h-9 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
                 Browse Trucks
-              </Button>
-              <Button type="button" size="sm" onClick={onCreateListing}>
+              </button>
+              <button
+                type="button"
+                onClick={onCreateListing}
+                className="h-9 px-4 rounded-xl text-sm font-bold text-white transition-all active:scale-95 hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)', boxShadow: '0 4px 12px rgba(249,115,22,0.35)' }}
+              >
                 Post Cargo
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={onOpenMessages}>
+              </button>
+              <button
+                type="button"
+                onClick={onOpenMessages}
+                className="h-9 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
                 Open Messages
-              </Button>
+              </button>
             </div>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {filteredItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => {
-                  if (item.contractId) {
-                    onOpenContract?.(item.contractId);
-                    return;
-                  }
+                  if (item.contractId) { onOpenContract?.(item.contractId); return; }
                   if (item.bidId) {
-                    const listingData = {
+                    onOpenChat?.(item.rawEntity, {
                       id: item.listingId,
                       listingType: item.listingType,
                       origin: item.origin,
                       destination: item.destination,
                       userId: item.listingOwnerId,
                       userName: item.listingOwnerName,
-                    };
-                    onOpenChat?.(item.rawEntity, listingData);
+                    });
                     return;
                   }
-                  if (item.source === 'cargo') {
-                    onOpenListing?.(item.rawEntity);
-                  }
+                  if (item.source === 'cargo') { onOpenListing?.(item.rawEntity); }
                 }}
-                className="w-full text-left rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3.5"
+                className="w-full text-left px-4 py-3.5 transition-colors hover:bg-orange-50/60 dark:hover:bg-orange-950/20 active:bg-orange-50 dark:active:bg-orange-950/30"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="shrink-0 size-7 rounded-lg bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center text-orange-500">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className="shrink-0 size-9 rounded-xl flex items-center justify-center text-orange-500"
+                      style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa' }}
+                    >
                       {typeIcon(item)}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                      <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
                         {typeLabel(item)}
                       </p>
                       {(item.origin || item.destination) && (
-                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                          <span className="truncate max-w-[80px]">{item.origin || '-'}</span>
-                          <ArrowRight className="size-3 shrink-0" />
-                          <span className="truncate max-w-[80px]">{item.destination || '-'}</span>
+                        <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                          <span className="truncate max-w-[90px]">{item.origin || '-'}</span>
+                          <ArrowRight className="size-3 shrink-0 text-orange-300" />
+                          <span className="truncate max-w-[90px]">{item.destination || '-'}</span>
                         </div>
                       )}
                     </div>
                   </div>
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusClass(item.status)}`}>
+                  <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold capitalize ${statusClass(item.status)}`}>
                     {item.status}
                   </span>
                 </div>
 
-                <div className="mt-2.5 pt-2.5 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
                   {item.counterpartyName && (
                     <span>
-                      Counterparty: <span className="text-gray-700 dark:text-gray-300 font-medium">{item.counterpartyName}</span>
+                      With: <span className="text-gray-600 dark:text-gray-300 font-semibold">{item.counterpartyName}</span>
                     </span>
                   )}
                   {formatAmount(item.amount) && (
-                    <span>
-                      Amount: <span className="text-gray-700 dark:text-gray-300 font-medium">{formatAmount(item.amount)}</span>
-                    </span>
+                    <span className="font-semibold text-gray-600 dark:text-gray-300">{formatAmount(item.amount)}</span>
                   )}
                   {item.activityAt && (
-                    <span className="flex items-center gap-1 ml-auto">
+                    <span className="flex items-center gap-1 ml-auto text-gray-400 dark:text-gray-500">
                       <Calendar className="size-3" />
                       {formatDate(item.activityAt)}
                     </span>
