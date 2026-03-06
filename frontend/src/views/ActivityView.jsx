@@ -74,10 +74,10 @@ export default function ActivityView({
           <div className="flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => setActivityMode('activity')}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border-none outline-none ${
                 activityMode === 'activity'
-                  ? 'text-white shadow-sm border border-transparent'
-                  : 'bg-card border border-border text-muted-foreground hover:bg-muted'
+                  ? 'text-white'
+                  : 'bg-card ring-1 ring-border text-muted-foreground hover:bg-muted'
               }`}
               style={activityMode === 'activity' ? { background: 'linear-gradient(to right, #fb923c, #ea580c)' } : undefined}
             >
@@ -85,10 +85,10 @@ export default function ActivityView({
             </button>
             <button
               onClick={() => setActivityMode('referrals')}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border-none outline-none ${
                 activityMode === 'referrals'
-                  ? 'text-white shadow-sm border border-transparent'
-                  : 'bg-card border border-border text-muted-foreground hover:bg-muted'
+                  ? 'text-white'
+                  : 'bg-card ring-1 ring-border text-muted-foreground hover:bg-muted'
               }`}
               style={activityMode === 'referrals' ? { background: 'linear-gradient(to right, #fb923c, #ea580c)' } : undefined}
             >
