@@ -4,7 +4,7 @@ import TruckerActivityView from './TruckerActivityView';
 import ShipperActivityView from './ShipperActivityView';
 import ReferredListingsView from './ReferredListingsView';
 import { getWorkspaceLabel } from '@/utils/workspace';
-import { cn } from '@/lib/utils';
+import { activityPillClass, activityPillRowClass } from './activityPills';
 
 export default function ActivityView({
   currentUser,
@@ -77,18 +77,13 @@ export default function ActivityView({
       <div>
         {showReferredListings && (
           <div className="mb-5 rounded-2xl border border-border bg-card p-2 shadow-sm lg:mb-6">
-            <div className="flex flex-wrap gap-2">
+            <div className={activityPillRowClass}>
               {activityModeOptions.map((option) => (
                 <button
                   key={option.id}
                   type="button"
                   onClick={() => setActivityMode(option.id)}
-                  className={cn(
-                    'inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                    activityMode === option.id
-                      ? 'gradient-primary text-primary-foreground shadow-glow-orange'
-                      : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  )}
+                  className={activityPillClass(activityMode === option.id)}
                 >
                   {option.label}
                 </button>

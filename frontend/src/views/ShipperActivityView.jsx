@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react';
 import { Loader2, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
 import { useBidsOnMyListings } from '@/hooks/useBids';
 import { useContracts } from '@/hooks/useContracts';
 import { useCargoListings } from '@/hooks/useCargoListings';
 import { inferBidPerspectiveRole, inferContractPerspectiveRole } from '@/utils/workspace';
 import { getCanonicalTimestamp, sortEntitiesNewestFirst } from '@/utils/activitySorting';
+import { activityPillClass, activityPillRowClass } from './activityPills';
 
 function toDate(value) {
   if (!value) return null;
@@ -299,34 +299,30 @@ export function ShipperActivityView({
     };
   }, [normalizedItems, activeTypeFilter, activeStatusFilter]);
 
-  const chipBase = 'inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-  const chipActiveClass = 'gradient-primary text-primary-foreground shadow-glow-orange';
-  const chipInactive = 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground';
-
   return (
     <div className="flex flex-col gap-5">
       {/* Filters */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-sm lg:p-6">
         <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
+          <div className={activityPillRowClass}>
             {typeFilters.map((filter) => (
               <button
                 key={filter.id}
                 type="button"
                 onClick={() => setTypeFilter(filter.id)}
-                className={cn(chipBase, activeTypeFilter === filter.id ? chipActiveClass : chipInactive)}
+                className={activityPillClass(activeTypeFilter === filter.id)}
               >
                 {filter.label}
               </button>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className={activityPillRowClass}>
             {statusFilters.map((filter) => (
               <button
                 key={filter.id}
                 type="button"
                 onClick={() => setStatusFilter(filter.id)}
-                className={cn(chipBase, activeStatusFilter === filter.id ? chipActiveClass : chipInactive)}
+                className={activityPillClass(activeStatusFilter === filter.id)}
               >
                 {filter.label}
               </button>

@@ -4,8 +4,8 @@ import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { cn } from '@/lib/utils';
 import { dedupeAndSortNewest } from '@/utils/activitySorting';
+import { activityPillClass, activityPillRowClass } from './activityPills';
 
 function toDate(value) {
   if (!value) return null;
@@ -52,10 +52,6 @@ export function ReferredListingsView({
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
-
-  const filterChipBase = 'inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-  const filterChipActive = 'gradient-primary text-primary-foreground shadow-glow-orange';
-  const filterChipInactive = 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground';
 
   const loadReferrals = async ({ append = false, cursorValue = null } = {}) => {
     setLoading(true);
@@ -135,16 +131,13 @@ export function ReferredListingsView({
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-border bg-card p-4 shadow-sm lg:p-6">
-        <div className="flex flex-wrap gap-2">
+        <div className={activityPillRowClass}>
           {filters.map((filter) => (
             <button
               key={filter.id}
               type="button"
               onClick={() => setStatusFilter(filter.id)}
-              className={cn(
-                filterChipBase,
-                statusFilter === filter.id ? filterChipActive : filterChipInactive
-              )}
+              className={activityPillClass(statusFilter === filter.id)}
             >
               {filter.label}
             </button>
