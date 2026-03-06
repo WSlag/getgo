@@ -348,9 +348,9 @@ export function ShipperActivityView({
               <span className={`size-6 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
                 {icon}
               </span>
-              <p className="text-sm font-normal text-muted-foreground">{label}</p>
+              <p className="text-sm font-medium leading-[1.4] text-muted-foreground">{label}</p>
             </div>
-            <p className="text-2xl font-semibold leading-none text-foreground">{value}</p>
+            <p className="text-[1.375rem] font-medium leading-[1.2] text-foreground">{value}</p>
           </div>
         ))}
       </div>
@@ -421,7 +421,7 @@ export function ShipperActivityView({
                       {typeIcon(item)}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">
+                      <p className="truncate text-[0.95rem] font-medium text-foreground">
                         {typeLabel(item)}
                       </p>
                       {(item.origin || item.destination) && (
