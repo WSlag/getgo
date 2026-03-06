@@ -104,7 +104,11 @@ export function NotificationsView({
             const hasBid = !!notification.data?.bidId;
             const hasContract = !!notification.data?.contractId;
             const hasListing = !!notification.data?.listingId;
-            const isPaymentType = normalizedType.includes('PLATFORM_FEE') || normalizedType === 'ACCOUNT_SUSPENDED';
+            const actionRequired = String(notification.data?.actionRequired || '').toUpperCase();
+            const isPaymentType = (
+              actionRequired === 'PAY_PLATFORM_FEE'
+              || normalizedType.includes('PLATFORM_FEE')
+            );
             const isChatRequest = normalizedType === 'CHAT_REQUEST';
             const isBrokerListingReferral = normalizedType === 'BROKER_LISTING_REFERRAL';
             const canOpenListing = hasListing && (isChatRequest || isBrokerListingReferral);

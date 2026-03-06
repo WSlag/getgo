@@ -10,7 +10,7 @@
 
 KARGA Connect is currently a **Firebase-first** marketplace platform:
 - Frontend: React + Vite SPA (PWA-capable)
-- Backend runtime: Firebase Cloud Functions (Node 22), no active local `backend/` folder in this workspace
+- Backend runtime: Firebase Cloud Functions (Node 22)
 - Data: Firestore, Firebase Auth, Firebase Storage
 - Real-time updates: Firestore listeners (`onSnapshot`)
 
@@ -80,7 +80,7 @@ Karga/
   firebase.json             Hosting/functions/emulator config
 ```
 
-Note: There is no `backend/` directory in the current local tree.
+Note: Legacy Express backend artifacts were removed; active runtime is Firebase Functions only.
 
 ---
 
@@ -217,10 +217,10 @@ Note: There is no `backend/` directory in the current local tree.
 
 ## 9. Known Context Risks / Follow-ups
 
-- Some legacy docs still reference a `backend/` service and Socket.io runtime; treat those as historical unless explicitly revived.
+- Legacy Express backend references were cleaned from active setup/runtime docs.
 - `frontend/src/GetGoApp.jsx` still uses socket-oriented naming in some comments/variables, but implementation is Firestore-based.
 - `frontend/src/firebase.js` still includes fallback Firebase config values; environment-based config remains recommended for all deployments.
-- E2E docs may still include legacy backend startup references and should be aligned with current Firebase-first architecture.
+- E2E docs are aligned with the current Firebase-first architecture.
 
 ---
 

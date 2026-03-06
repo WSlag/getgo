@@ -51,7 +51,7 @@ export function NotificationsModal({
 
     const filterMap = {
       'Bids': ['bid', 'bid_accepted', 'bid_rejected', 'new_bid'],
-      'Contracts': ['contract', 'contract_ready', 'contract_created', 'contract_signed'],
+      'Contracts': ['contract', 'contract_ready', 'contract_created', 'contract_signed', 'platform_fee', 'account_restricted'],
       'Messages': ['message', 'chat', 'new_message'],
       'Shipments': ['shipment', 'delivery', 'tracking', 'pickup', 'delivered'],
     };
@@ -65,6 +65,13 @@ export function NotificationsModal({
   }, [notifications]);
 
   const handleNotificationClick = (notification) => {
+    const normalizedType = String(notification?.type || '').toUpperCase();
+    const actionRequired = String(notification?.data?.actionRequired || '').toUpperCase();
+    const canPayPlatformFee = (
+      actionRequired === 'PAY_PLATFORM_FEE'
+      || normalizedType.includes('PLATFORM_FEE')
+    );
+
     // Mark as read
     if (!isRead(notification) && onMarkAsRead) {
       onMarkAsRead(currentUserId, notification.id);
@@ -72,9 +79,7 @@ export function NotificationsModal({
 
     // Handle platform fee payment notifications (priority - show payment modal)
     if (
-      (notification.type === 'PLATFORM_FEE_OUTSTANDING' ||
-       notification.type === 'PLATFORM_FEE_REMINDER' ||
-       notification.type === 'ACCOUNT_SUSPENDED') &&
+      canPayPlatformFee &&
       notification.data?.contractId &&
       onPayPlatformFee
     ) {

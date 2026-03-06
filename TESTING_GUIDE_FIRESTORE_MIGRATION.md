@@ -9,7 +9,7 @@
 Run these tests to verify the migration is working correctly:
 
 ### Prerequisites
-1. Backend server running: `cd backend && npm start`
+1. Firebase emulators running: `npm run emulators:start`
 2. Firebase credentials configured
 3. Test user credentials available
 4. Postman/curl/Thunder Client ready
@@ -196,18 +196,17 @@ curl -X PUT http://localhost:5000/api/chat/abc123/read \
 ## 3️⃣ ESM/CommonJS Mixing Tests
 
 ### Test 3.1: Server Startup
-**Expected:** Server starts without module errors
+**Expected:** Functions/emulators start without module errors
 
 ```bash
-cd backend
-npm start
+npm run emulators:start
 ```
 
 **✅ Success Criteria:**
-- Server starts successfully
+- Emulators start successfully
 - No `require() of ES Module` errors
 - No `Cannot use import statement` errors
-- Logs show: "Server is running on port 5000"
+- Functions emulator reports callable endpoints loaded
 
 **❌ Failure Indicators:**
 ```
@@ -462,14 +461,14 @@ curl -X PUT http://localhost:5000/api/notifications/NOTIF_ID/read \
 ### Test 7.2: No Sequelize References
 ```bash
 # Search for any remaining Sequelize imports
-grep -r "require('sequelize')" backend/src/routes
+rg -n "require\\('sequelize'\\)" functions/src
 # Should return: no matches
 
-grep -r "from 'sequelize'" backend/src/routes
+rg -n "from 'sequelize'" functions/src
 # Should return: no matches
 
 # Search for old user ID pattern
-grep -r "req.user.id[^.]" backend/src/routes
+rg -n "req\\.user\\.id[^.]" functions/src
 # Should return: no matches (only req.user.uid)
 ```
 

@@ -252,40 +252,37 @@ if (userId !== listingOwnerId && userId !== bidderId) {
 
 ## 🏗️ Infrastructure Changes
 
-### New Files Created
-1. **backend/src/config/firestore.js** - Firestore connection helpers
-   ```javascript
-   export const db = admin.firestore();
-   export const getUserDoc = async (uid) => { /* ... */ };
-   export const queryCollection = async (collectionName, filters) => { /* ... */ };
-   export const getDoc = async (collectionName, docId) => { /* ... */ };
-   ```
+### Current Runtime Reference
+1. **Functions-first architecture** (no local backend service)
+   - API/business logic: `functions/src/api/*.js`
+   - Scheduler/automation: `functions/src/scheduled/*.js`
+   - Triggers: `functions/src/triggers/*.js`
+   - Data access: Firebase Admin SDK + Firestore security rules
 
-### Files Modified
-1. ✅ backend/src/routes/auth.js (4 endpoints)
-2. ✅ backend/src/routes/chat.js (4 endpoints + security)
-3. ✅ backend/src/routes/listings.js (7 endpoints)
-4. ✅ backend/src/routes/shipments.js (4 endpoints)
-5. ✅ backend/src/routes/bids.js (9 endpoints)
-6. ✅ backend/src/routes/ratings.js (9 endpoints)
-7. ✅ backend/src/routes/notifications.js (7 endpoints)
-8. ✅ backend/src/routes/admin.js (11 locations)
+### Active Files Modified
+1. ✅ functions/src/api/auth.js
+2. ✅ functions/src/api/listings.js
+3. ✅ functions/src/api/shipments.js
+4. ✅ functions/src/api/bids.js
+5. ✅ functions/src/api/ratings.js
+6. ✅ functions/src/api/admin.js
+7. ✅ functions/src/api/contracts.js
+8. ✅ functions/src/api/wallet.js
 
-### Files NOT Modified (Already Correct)
-- ✅ backend/src/middleware/auth.js - Already sets `req.user.uid` correctly
-- ✅ backend/src/routes/contracts.js - Already uses Firestore with `req.user.uid`
-- ✅ backend/src/routes/wallet.js - Active GCash routes already use Firestore
+### Notes
+- Chat/notifications are primarily driven by Firestore collections/listeners and trigger flows.
+- Callable/API auth is based on `context.auth.uid` and Admin SDK checks.
 
 ---
 
 ## 🧪 Verification Checklist
 
 ### Auth Identity Mismatch
-- [x] All routes use `req.user.uid` instead of `req.user.id`
+- [x] Callable/API flows use Firebase auth context (`context.auth.uid`)
 - [x] Profile endpoint returns Firestore data
-- [x] Listing creation stores `userId: req.user.uid`
-- [x] Listing ownership checks use `req.user.uid`
-- [x] Shipment authorization uses `req.user.uid`
+- [x] Listing creation stores Firebase UID
+- [x] Listing ownership checks use Firebase UID
+- [x] Shipment authorization uses Firebase UID
 - [x] No database records with `userId: undefined`
 
 ### ESM/CommonJS Mixing
@@ -293,10 +290,10 @@ if (userId !== listingOwnerId && userId !== bidderId) {
 - [x] All imports use ESM `import` syntax
 - [x] Backend can start without module errors
 
-### Frontend/Backend API Mismatch
+### Frontend/Functions API Alignment
 - [x] Unused endpoints documented
 - [x] Frontend continues using Firestore directly
-- [x] All active backend endpoints migrated to Firestore
+- [x] Active callable/API endpoints use Firestore as source of truth
 
 ### Chat Security Vulnerability
 - [x] `GET /chat/:bidId` has authorization check
@@ -306,11 +303,10 @@ if (userId !== listingOwnerId && userId !== bidderId) {
 - [x] Authorized users can access their own chats
 
 ### Migration Complete
-- [x] Firestore helper created
-- [x] All Sequelize queries replaced with Firestore
-- [x] No Sequelize imports remain in route files
-- [x] All authorization patterns use `req.user.uid`
-- [x] Firebase Cloud Functions still work (no changes needed)
+- [x] Firestore is the single data source
+- [x] No Sequelize dependency in active runtime path
+- [x] Authorization patterns use Firebase UID in callable context
+- [x] Firebase Cloud Functions are the active backend runtime
 
 ---
 
@@ -318,8 +314,8 @@ if (userId !== listingOwnerId && userId !== bidderId) {
 
 | Metric | Count |
 |--------|-------|
-| **Files Created** | 1 (firestore.js) |
-| **Files Modified** | 9 route files |
+| **Files Created** | N/A (legacy backend removed) |
+| **Files Modified** | Functions/API + frontend integration files |
 | **Total Fixes** | 65+ locations |
 | **Security Vulnerabilities Patched** | 3 critical endpoints |
 | **ESM/CommonJS Fixes** | 6 locations |
@@ -331,11 +327,11 @@ if (userId !== listingOwnerId && userId !== bidderId) {
 ## 🎯 Architecture Benefits
 
 ### Before Migration
-- ❌ Dual database (SQLite + Firestore) causing inconsistencies
-- ❌ Auth identity mismatch (`req.user.id` undefined)
-- ❌ ESM/CommonJS mixing (runtime crash risk)
-- ❌ Critical security vulnerabilities (unauthorized data access)
-- ❌ Frontend/backend data source conflicts
+- ❌ Legacy Express backend drift and duplicated logic risk
+- ❌ Mixed/legacy auth identity patterns
+- ❌ Legacy runtime path complexity
+- ❌ Security and consistency gaps from split architecture
+- ❌ Frontend/runtime source divergence risk
 
 ### After Migration
 - ✅ Single database (Firestore only)
@@ -351,24 +347,8 @@ if (userId !== listingOwnerId && userId !== bidderId) {
 
 ## 🔄 Optional Next Steps
 
-### Phase 1: Remove Sequelize Dependencies (Optional)
-If you want to fully remove Sequelize from the project:
-
-1. **Remove from package.json:**
-   ```bash
-   npm uninstall sequelize sequelize-cli sqlite3
-   ```
-
-2. **Delete files:**
-   ```bash
-   # Backup first!
-   rm backend/src/models/index.js
-   rm backend/database.sqlite
-   ```
-
-3. **Remove deprecated code:**
-   - backend/src/routes/wallet.js (lines 52-289) - already commented
-   - backend/src/middleware/auth.js (lines 64-81) - legacy JWT functions
+### Phase 1: Legacy Cleanup Status
+Legacy Express backend and related files have been removed from the active workspace/runtime path.
 
 ### Phase 2: Testing (Recommended)
 Run comprehensive tests to verify all endpoints:

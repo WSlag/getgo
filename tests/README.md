@@ -16,11 +16,6 @@ This directory contains end-to-end (E2E) tests for the Karga trucking marketplac
    npm install
    cd ..
 
-   # Install backend dependencies
-   cd backend
-   npm install
-   cd ..
-
    # Install Firebase CLI globally (if not already installed)
    npm install -g firebase-tools
    ```
@@ -32,19 +27,14 @@ This directory contains end-to-end (E2E) tests for the Karga trucking marketplac
 
 ### Running Tests
 
-**Run default tests (excludes backend-health):**
+**Run default tests:**
 ```bash
 npm run test:e2e
 ```
 
-**Run full suite (includes backend-health):**
+**Run full suite:**
 ```bash
 npm run test:e2e:all
-```
-
-**Run backend-health only:**
-```bash
-npm run test:e2e:backend-health
 ```
 
 **Visual test runner (recommended for debugging):**
@@ -84,12 +74,8 @@ All tests run against **Firebase Emulators** (not production):
 - **Emulator UI:** Port 4000 (http://127.0.0.1:4000)
 
 Playwright automatically starts these required servers:
-- Backend API: Port 3001
 - Frontend (Vite): Port 5173
 - Firebase Emulators: Various ports
-
-Backend-health remains separated from the default suite by script selection, but uses the same auto-started backend server.
-If backend is unavailable for any reason, backend-health tests still have a skip guard with a clear reason.
 
 ### Test Phone Numbers
 
@@ -247,7 +233,7 @@ If tests timeout:
 
 2. **Check server logs:**
    - Playwright pipes server output during test runs
-   - Check for errors in frontend/backend/emulator logs
+   - Check for errors in frontend/emulator logs
 
 ### Frontend Not Connecting to Emulators
 
@@ -342,7 +328,6 @@ To run tests in CI (GitHub Actions, etc.):
   run: |
     npm install
     cd frontend && npm install && cd ..
-    cd backend && npm install && cd ..
     npm install -g firebase-tools
 
 - name: Install Playwright browsers

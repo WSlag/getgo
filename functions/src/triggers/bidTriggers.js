@@ -349,7 +349,7 @@ exports.onBidAccepted = onDocumentUpdated(
           .set({
             type: 'PLATFORM_FEE_OUTSTANDING',
             title: 'Contract Created - Platform Fee Required',
-            message: `Contract #${contract.contractNumber} is ready. Platform fee of PHP ${contract.platformFee.toLocaleString()} will be due after delivery completion.`,
+            message: `Contract #${contract.contractNumber} is ready. Platform fee of PHP ${contract.platformFee.toLocaleString()} will be due within 3 days after delivery confirmation.`,
             data: {
               contractId: contract.id,
               bidId,

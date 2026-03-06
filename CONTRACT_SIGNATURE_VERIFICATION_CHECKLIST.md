@@ -93,7 +93,7 @@
 ## Additional Verification
 
 ### Check Backend Consistency
-The backend logic in `backend/src/routes/contracts.js:345-353` uses:
+The Cloud Functions logic in `functions/src/api/contracts.js` uses:
 ```javascript
 if (isCargo) {
   isShipper = listingOwnerId === userId;

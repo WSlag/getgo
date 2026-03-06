@@ -34,18 +34,12 @@ This opens Playwright's visual interface where you can:
 npm run test:e2e
 ```
 
-Runs the default suite in the background (excludes backend-health).
+Runs the default suite in the background.
 
-### Full Suite (Includes Backend-Health)
+### Full Suite
 
 ```bash
 npm run test:e2e:all
-```
-
-### Backend-Health Only
-
-```bash
-npm run test:e2e:backend-health
 ```
 
 ### Watch Tests Execute (Headed Mode)
@@ -83,14 +77,10 @@ The E2E tests cover:
 
 When you run tests, Playwright automatically:
 
-1. **Starts Backend API** (Node server on port 3001)
-2. **Starts Firebase Emulators** (Auth, Firestore, Functions, Storage)
-3. **Starts Frontend** (Vite dev server on port 5173)
-4. **Runs tests** against the emulated environment
-5. **Cleans up** all servers when done
-
-Backend-health tests still target `http://127.0.0.1:3001` and are run separately by script.
-If backend is unavailable, backend-health tests are skipped by a short-term guard.
+1. **Starts Firebase Emulators** (Auth, Firestore, Functions, Storage)
+2. **Starts Frontend** (Vite dev server on port 5173)
+3. **Runs tests** against the emulated environment
+4. **Cleans up** all servers when done
 
 **Important:** All tests run against emulators, not production! Zero risk to real data.
 
@@ -127,7 +117,6 @@ The report includes:
 ```bash
 # Windows
 netstat -ano | findstr :5173
-netstat -ano | findstr :3001
 netstat -ano | findstr :9099
 taskkill /PID <PID> /F
 ```
@@ -141,8 +130,7 @@ firebase emulators:stop
 
 This usually means a server failed to start. Check:
 1. Frontend dependencies installed: `cd frontend && npm install`
-2. Backend dependencies installed: `cd backend && npm install`
-3. No other processes using ports 5173, 3001, or emulator ports
+2. No other processes using port 5173 or emulator ports
 
 ### Tests Fail Randomly
 
@@ -185,7 +173,6 @@ test.describe('My Feature', () => {
 Before committing changes, verify:
 
 - [ ] All tests pass: `npm run test:e2e`
-- [ ] Backend health (when backend is available): `npm run test:e2e:backend-health`
 - [ ] Setup is valid: `npm run test:verify`
 - [ ] Tests are independent (each test clears emulator data)
 - [ ] No production credentials in tests

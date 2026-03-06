@@ -13,6 +13,7 @@
     "test:referrals": "node scripts/referral-metrics-test.cjs",
     "test:referrals:integration": "firebase emulators:exec --only auth,firestore,functions \"node scripts/referral-listings-integration.cjs\"",
     "test:referrals:lifecycle": "firebase emulators:exec --only auth,firestore,functions \"node scripts/referral-lifecycle-integration.cjs\"",
+    "test:platform-fee-reminders": "firebase emulators:exec --only auth,firestore,functions \"node scripts/platform-fee-reminders-smoke.cjs\"",
     "test": "npm run lint && node scripts/smoke-test.cjs && npm run test:settings",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",

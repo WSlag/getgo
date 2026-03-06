@@ -780,8 +780,8 @@ export default function GetGoApp() {
   const handleSuspendedAction = () => {
     showToast({
       type: 'error',
-      title: 'Account Suspended',
-      message: 'Pay your outstanding platform fees to resume bidding and booking.',
+      title: 'Account Restricted',
+      message: 'Your account currently has restrictions. Settle due fees or contact support to continue.',
     });
     setContractFilter('unpaid_fees');
     setActiveTab('contracts');
@@ -1486,7 +1486,7 @@ export default function GetGoApp() {
       showToast({
         type: 'success',
         title: 'Contract Created',
-        message: 'Contract created successfully. Please review and sign. Platform fee will be due 3 days after pickup.',
+        message: 'Contract created successfully. Please review and sign. Platform fee will be due 3 days after delivery confirmation.',
       });
 
       // Close the details modal and navigate to contracts view

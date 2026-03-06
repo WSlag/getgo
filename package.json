@@ -5,9 +5,8 @@
   "type": "module",
   "description": "E2E testing infrastructure for Karga trucking marketplace",
   "scripts": {
-    "test:e2e": "playwright test --grep-invert \"Backend API Health\"",
+    "test:e2e": "playwright test",
     "test:e2e:all": "playwright test",
-    "test:e2e:backend-health": "playwright test tests/e2e/api/backend-health.spec.js",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
@@ -15,6 +14,7 @@
     "test:verify": "node tests/verify-setup.js",
     "test:smoke:gcash": "firebase emulators:exec --only auth,firestore,functions \"node functions/scripts/gcash-payment-smoke.cjs\"",
     "test:smoke:gcash:storage": "firebase emulators:exec --only auth,firestore,functions,storage \"node functions/scripts/gcash-payment-smoke.cjs --storage\"",
+    "test:smoke:platform-fee-reminders": "firebase emulators:exec --only auth,firestore,functions \"node functions/scripts/platform-fee-reminders-smoke.cjs\"",
     "test:smoke:hosting:appcheck": "node scripts/smoke-hosting-appcheck.cjs",
     "emulators:start": "firebase emulators:start --import=./emulator-data --export-on-exit",
     "validate:appcheck:prod": "node scripts/validate-frontend-appcheck.cjs frontend/.env.production",
