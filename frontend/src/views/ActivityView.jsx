@@ -60,10 +60,10 @@ export default function ActivityView({
   return (
     <main className="flex-1 overflow-y-auto bg-background px-4 lg:px-6 pb-[calc(104px+env(safe-area-inset-bottom,0px))] lg:pb-6">
       <div className="mb-6 pt-4 lg:mb-8 lg:pt-6">
-        <h1 className="mb-1.5 text-[1.875rem] font-medium leading-[1.3] text-foreground">
+        <h1 className="mb-2 text-[20px] font-bold leading-[1.2] text-foreground lg:text-[24px]">
           {isBrokerWorkspace ? 'Broker Activity' : `${workspaceLabel} Activity`}
         </h1>
-        <p className="text-sm font-normal leading-[1.5] text-muted-foreground">
+        <p className="text-sm font-normal leading-[1.5] text-muted-foreground lg:text-base">
           {activityMode === 'referrals' && showReferredListings
             ? 'Listings directly referred to you by brokers'
             : isBrokerWorkspace
