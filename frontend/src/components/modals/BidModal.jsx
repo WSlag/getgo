@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { MessageSquare, MapPin, Package, Truck, Star } from 'lucide-react';
+import { MapPin, Package, Truck, Star, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Dialog,
   DialogBottomSheet,
@@ -29,15 +28,11 @@ export function BidModal({
   const [cargoType, setCargoType] = useState('');
   const [cargoWeight, setCargoWeight] = useState('');
   const [errors, setErrors] = useState({});
-  const isMobile = useMediaQuery('(max-width: 1023px)');
 
   const isCargo = listing?.type === 'cargo' || !listing?.trucker;
   const isShipper = currentRole === 'shipper';
   const normalizedOutstandingFees = Number(outstandingFees || 0);
-  const showOutstandingReminder =
-    currentRole === 'trucker' &&
-    !isSuspended &&
-    normalizedOutstandingFees > 0;
+  const showOutstandingReminder = currentRole === 'trucker' && !isSuspended && normalizedOutstandingFees > 0;
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -47,7 +42,7 @@ export function BidModal({
   const handleSubmit = () => {
     const newErrors = {};
     if (!bidAmount) newErrors.bidAmount = 'Bid amount is required';
-    if (isShipper && isCargo === false) {
+    if (isShipper && !isCargo) {
       if (!cargoType) newErrors.cargoType = 'Cargo type is required';
       if (!cargoWeight) newErrors.cargoWeight = 'Cargo weight is required';
     }
@@ -76,42 +71,33 @@ export function BidModal({
 
   if (!listing) return null;
 
-  // Prevent bidding on non-open listings and suspended accounts
   const listingAllowsBid = listing.status === 'open' || listing.status === 'waiting' || listing.status === 'available';
   const canPlaceBid = listingAllowsBid && !isSuspended;
+  const anchorAmount = listing.askingPrice || listing.askingRate;
+
+  const quickAmounts = [
+    anchorAmount,
+    Math.round((anchorAmount || 0) * 0.95),
+    Math.round((anchorAmount || 0) * 0.9),
+  ].filter(Boolean);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogBottomSheet className="max-w-md backdrop-blur-sm">
-        <div style={{ padding: isMobile ? '16px' : '24px', paddingBottom: 0 }}>
+      <DialogBottomSheet className="max-w-md">
+        <div className="space-y-5 p-4 lg:p-6">
           <DialogHeader>
-            <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>
-              <div style={{
-                width: isMobile ? '40px' : '48px',
-                height: isMobile ? '40px' : '48px',
-                borderRadius: '12px',
-                background: isCargo
-                  ? 'linear-gradient(to bottom right, #4ade80, #16a34a)'
-                  : 'linear-gradient(to bottom right, #60a5fa, #2563eb)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: isCargo
-                  ? '0 10px 15px -3px rgba(22, 163, 74, 0.3)'
-                  : '0 10px 15px -3px rgba(37, 99, 235, 0.3)',
-                flexShrink: 0
-              }}>
-                {isCargo ? (
-                  <Package style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px', color: '#fff' }} />
-                ) : (
-                  <Truck style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px', color: '#fff' }} />
+            <div className="flex items-start gap-3">
+              <div
+                className={cn(
+                  'flex size-12 shrink-0 items-center justify-center rounded-xl shadow-sm',
+                  isCargo ? 'bg-success/10 text-success' : 'bg-info/10 text-info'
                 )}
+              >
+                {isCargo ? <Package className="size-6" /> : <Truck className="size-6" />}
               </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <DialogTitle style={{ fontSize: isMobile ? '16px' : '20px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {isCargo ? 'Place Your Bid' : 'Book This Truck'}
-                </DialogTitle>
-                <DialogDescription style={{ fontSize: isMobile ? '12px' : '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div className="min-w-0">
+                <DialogTitle className="truncate">{isCargo ? 'Place Your Bid' : 'Book This Truck'}</DialogTitle>
+                <DialogDescription className="truncate">
                   {isCargo
                     ? `Bidding on ${listing.shipper}'s cargo`
                     : `Booking ${listing.trucker}'s truck`}
@@ -120,220 +106,171 @@ export function BidModal({
             </div>
           </DialogHeader>
 
-          {/* Warning Banner for Non-Open Listings */}
           {!listingAllowsBid && (
-            <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px', marginTop: isMobile ? '12px' : '16px' }}>
-              <div className="rounded-lg bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-2 border-red-200 dark:border-red-800" style={{ padding: isMobile ? '12px' : '16px' }}>
-                <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#b91c1c' }} className="dark:text-red-400">
-                  Warning: This listing is no longer accepting bids
-                </p>
-                <p style={{ fontSize: isMobile ? '11px' : '12px', marginTop: '4px', color: '#dc2626' }} className="dark:text-red-500">
-                  Status: {listing.status?.toUpperCase()}
-                </p>
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <div>
+                  <p className="font-medium">This listing is no longer accepting bids.</p>
+                  <p className="text-xs">Status: {String(listing.status || '').toUpperCase()}</p>
+                </div>
               </div>
             </div>
           )}
 
           {isSuspended && (
-            <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
-              <div className="rounded-lg bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-2 border-red-200 dark:border-red-800" style={{ padding: isMobile ? '12px' : '16px' }}>
-                <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#b91c1c' }} className="dark:text-red-400">
-                  Account suspended. Pay outstanding fees to resume bidding.
-                </p>
-              </div>
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              Account suspended. Pay outstanding fees to resume bidding.
             </div>
           )}
 
           {showOutstandingReminder && (
-            <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
-              <div className="rounded-lg bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 border-2 border-amber-200 dark:border-amber-800" style={{ padding: isMobile ? '12px' : '16px' }}>
-                <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#b45309' }} className="dark:text-amber-300">
-                  Reminder: You have outstanding platform fees of {formatPrice(normalizedOutstandingFees)}.
-                </p>
-                <p style={{ fontSize: isMobile ? '11px' : '12px', marginTop: '4px', color: '#c2410c' }} className="dark:text-amber-200">
-                  Settle unpaid fees now. Accounts with unpaid platform fees are automatically suspended once fees are overdue after the 3-day payment window.
-                </p>
-              </div>
+            <div className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
+              <p className="font-medium text-warning">Reminder: Outstanding platform fees {formatPrice(normalizedOutstandingFees)}.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Settle unpaid fees now. Overdue unpaid fees after the 3-day window automatically suspend bidding.
+              </p>
             </div>
           )}
 
-          {/* Listing Summary */}
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
-            <div className="rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850" style={{ padding: isMobile ? '12px' : '16px' }}>
-              <div className="flex items-center justify-between" style={{ marginBottom: isMobile ? '8px' : '12px' }}>
-                <div>
-                  <p style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: '600' }} className="text-gray-900 dark:text-white">
-                    {isCargo ? listing.shipper : listing.trucker}
-                  </p>
+          <section className="space-y-3 border-t border-border pt-4 lg:pt-5">
+            <div className="rounded-xl border border-border bg-muted/50 p-3">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-base font-medium text-foreground">{isCargo ? listing.shipper : listing.trucker}</p>
                   {!isCargo && listing.truckerRating > 0 && (
-                    <div className="flex items-center text-gray-600 dark:text-gray-400" style={{ gap: '4px', fontSize: isMobile ? '12px' : '14px', marginTop: '2px' }}>
-                      <Star style={{ width: isMobile ? '12px' : '14px', height: isMobile ? '12px' : '14px', color: '#eab308', fill: '#eab308' }} />
-                      <span>{listing.truckerRating}</span>
+                    <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                      <Star className="size-3.5 fill-warning text-warning" />
+                      {listing.truckerRating}
                     </div>
                   )}
                 </div>
-                <Badge variant="gradient-orange" style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', padding: isMobile ? '6px 12px' : '8px 16px' }}>
-                  {formatPrice(listing.askingPrice || listing.askingRate)}
-                </Badge>
+                <div className="shrink-0 rounded-xl bg-primary px-4 py-2 text-lg font-bold text-primary-foreground shadow-sm shadow-primary/25">
+                  {formatPrice(anchorAmount)}
+                </div>
               </div>
 
-              <div style={{ fontSize: isMobile ? '12px' : '14px' }} className="text-gray-600 dark:text-gray-400">
-                <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px', marginBottom: '4px' }}>
-                  <MapPin style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#10b981' }} />
-                  <span style={{ fontWeight: '500' }}>{listing.origin}</span>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex items-center gap-2">
+                  <MapPin className="size-4 text-success" />
+                  <span className="font-medium text-foreground">{listing.origin}</span>
                 </div>
-                {listing.originStreetAddress && (
-                  <p style={{ fontSize: isMobile ? '11px' : '12px', marginLeft: isMobile ? '20px' : '24px', marginBottom: isMobile ? '6px' : '8px', color: '#9ca3af' }}>
-                    {listing.originStreetAddress}
-                  </p>
-                )}
+                {listing.originStreetAddress ? (
+                  <p className="pl-6 text-xs text-muted-foreground">{listing.originStreetAddress}</p>
+                ) : null}
 
-                <div className="flex items-center justify-center" style={{ gap: '4px', margin: isMobile ? '4px 0' : '8px 0' }}>
-                  <span className="text-gray-300 dark:text-gray-600">{'->'}</span>
-                </div>
+                <p className="pl-6 text-xs text-muted-foreground">{'->'}</p>
 
-                <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px', marginBottom: '4px' }}>
-                  <MapPin style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#ef4444' }} />
-                  <span style={{ fontWeight: '500' }}>{listing.destination}</span>
+                <div className="flex items-center gap-2">
+                  <MapPin className="size-4 text-destructive" />
+                  <span className="font-medium text-foreground">{listing.destination}</span>
                 </div>
-                {listing.destinationStreetAddress && (
-                  <p style={{ fontSize: isMobile ? '11px' : '12px', marginLeft: isMobile ? '20px' : '24px', color: '#9ca3af' }}>
-                    {listing.destinationStreetAddress}
-                  </p>
-                )}
+                {listing.destinationStreetAddress ? (
+                  <p className="pl-6 text-xs text-muted-foreground">{listing.destinationStreetAddress}</p>
+                ) : null}
               </div>
 
               {isCargo && (
-                <div style={{ marginTop: isMobile ? '6px' : '8px', fontSize: isMobile ? '12px' : '14px' }} className="text-gray-600 dark:text-gray-400">
-                  <span style={{ fontWeight: '500' }}>{listing.weight} {listing.unit}</span>
-                  {listing.cargoType && <span> - {listing.cargoType}</span>}
-                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{listing.weight} {listing.unit}</span>
+                  {listing.cargoType ? ` - ${listing.cargoType}` : ''}
+                </p>
               )}
             </div>
-          </div>
+          </section>
 
-          {/* Bid Form */}
-          <div style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
-              {/* Bid Amount */}
-              <div>
-                <label style={{ fontSize: isMobile ? '11px' : '12px', fontWeight: '500', marginBottom: '6px', display: 'block' }} className="text-gray-700 dark:text-gray-300">
-                  Your {isCargo ? 'Bid' : 'Offer'} Amount
-                </label>
-                <div className="relative">
+          <section className="space-y-3 border-t border-border pt-4 lg:pt-5">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">
+                Your {isCargo ? 'Bid' : 'Offer'} Amount
+              </label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  placeholder={anchorAmount || '0'}
+                  value={bidAmount}
+                  onChange={(e) => {
+                    setBidAmount(e.target.value);
+                    if (errors.bidAmount) setErrors((prev) => ({ ...prev, bidAmount: null }));
+                  }}
+                  className={cn('pr-14 text-lg font-semibold', errors.bidAmount && 'border-destructive')}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">PHP</span>
+              </div>
+              {errors.bidAmount && <p className="mt-1 text-xs text-destructive">{errors.bidAmount}</p>}
+
+              <div className="mt-2 flex gap-2">
+                {quickAmounts.map((amount) => (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => setBidAmount(String(amount))}
+                    className={cn(
+                      'min-h-11 flex-1 rounded-xl px-3 py-1 text-xs font-medium transition-colors',
+                      bidAmount === String(amount)
+                        ? 'bg-primary/10 text-primary ring-1 ring-primary/30'
+                        : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                    )}
+                  >
+                    {formatPrice(amount)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {isShipper && !isCargo && (
+              <div className="grid gap-3 lg:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">Your Cargo Type</label>
+                  <Input
+                    placeholder="e.g., Electronics"
+                    value={cargoType}
+                    onChange={(e) => {
+                      setCargoType(e.target.value);
+                      if (errors.cargoType) setErrors((prev) => ({ ...prev, cargoType: null }));
+                    }}
+                    className={cn(errors.cargoType && 'border-destructive')}
+                  />
+                  {errors.cargoType && <p className="mt-1 text-xs text-destructive">{errors.cargoType}</p>}
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">Weight (tons)</label>
                   <Input
                     type="number"
-                    placeholder={listing.askingPrice || listing.askingRate || '0'}
-                    value={bidAmount}
+                    placeholder="0"
+                    value={cargoWeight}
                     onChange={(e) => {
-                      setBidAmount(e.target.value);
-                      if (errors.bidAmount) setErrors(prev => ({ ...prev, bidAmount: null }));
+                      setCargoWeight(e.target.value);
+                      if (errors.cargoWeight) setErrors((prev) => ({ ...prev, cargoWeight: null }));
                     }}
-                    className={cn("text-lg font-semibold", errors.bidAmount && "border-red-500")}
-                    style={{ fontSize: isMobile ? '16px' : '18px' }}
+                    className={cn(errors.cargoWeight && 'border-destructive')}
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                    PHP
-                  </span>
-                </div>
-                {errors.bidAmount && <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#ef4444', marginTop: '4px' }}>{errors.bidAmount}</p>}
-
-                {/* Quick bid buttons */}
-                <div className="flex" style={{ gap: isMobile ? '6px' : '8px', marginTop: isMobile ? '6px' : '8px' }}>
-                  {[
-                    listing.askingPrice || listing.askingRate,
-                    Math.round((listing.askingPrice || listing.askingRate) * 0.95),
-                    Math.round((listing.askingPrice || listing.askingRate) * 0.9),
-                  ].filter(Boolean).map((amount, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setBidAmount(String(amount))}
-                      className={cn(
-                        "flex-1 rounded-lg font-medium transition-all duration-300 hover:scale-105 active:scale-95",
-                        bidAmount === String(amount)
-                          ? "bg-gradient-to-br from-orange-100 to-orange-200 text-orange-700 dark:from-orange-900/30 dark:to-orange-800/30 dark:text-orange-400 shadow-sm"
-                          : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                      )}
-                      style={{ padding: isMobile ? '6px 8px' : '8px 10px', fontSize: isMobile ? '11px' : '12px' }}
-                    >
-                      {formatPrice(amount)}
-                    </button>
-                  ))}
+                  {errors.cargoWeight && <p className="mt-1 text-xs text-destructive">{errors.cargoWeight}</p>}
                 </div>
               </div>
+            )}
 
-              {/* Cargo Details - For shipper booking truck */}
-              {isShipper && !isCargo && (
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '10px' : '12px' }}>
-                  <div>
-                    <label style={{ fontSize: isMobile ? '11px' : '12px', fontWeight: '500', marginBottom: '6px', display: 'block' }} className="text-gray-700 dark:text-gray-300">
-                      Your Cargo Type
-                    </label>
-                    <Input
-                      placeholder="e.g., Electronics"
-                      value={cargoType}
-                      onChange={(e) => {
-                        setCargoType(e.target.value);
-                        if (errors.cargoType) setErrors(prev => ({ ...prev, cargoType: null }));
-                      }}
-                      className={errors.cargoType && "border-red-500"}
-                      style={{ fontSize: isMobile ? '13px' : '14px' }}
-                    />
-                    {errors.cargoType && <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#ef4444', marginTop: '4px' }}>{errors.cargoType}</p>}
-                  </div>
-                  <div>
-                    <label style={{ fontSize: isMobile ? '11px' : '12px', fontWeight: '500', marginBottom: '6px', display: 'block' }} className="text-gray-700 dark:text-gray-300">
-                      Weight (tons)
-                    </label>
-                    <Input
-                      type="number"
-                      placeholder="0"
-                      value={cargoWeight}
-                      onChange={(e) => {
-                        setCargoWeight(e.target.value);
-                        if (errors.cargoWeight) setErrors(prev => ({ ...prev, cargoWeight: null }));
-                      }}
-                      className={errors.cargoWeight && "border-red-500"}
-                      style={{ fontSize: isMobile ? '13px' : '14px' }}
-                    />
-                    {errors.cargoWeight && <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#ef4444', marginTop: '4px' }}>{errors.cargoWeight}</p>}
-                  </div>
-                </div>
-              )}
-
-              {/* Message */}
-              <div>
-                <label style={{ fontSize: isMobile ? '11px' : '12px', fontWeight: '500', marginBottom: '6px', display: 'block' }} className="text-gray-700 dark:text-gray-300">
-                  Message (Optional)
-                </label>
-                <Textarea
-                  placeholder="Add a note to your bid..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  className="min-h-[60px]"
-                  style={{ fontSize: isMobile ? '13px' : '14px' }}
-                />
-              </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Message (Optional)</label>
+              <Textarea
+                placeholder="Add a note to your bid..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="min-h-[80px]"
+              />
             </div>
-          </div>
+          </section>
         </div>
 
-        {/* Fixed Action Buttons - Outside scrollable area */}
-        <div className="dialog-fixed-footer flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-background flex gap-3" style={{ padding: isMobile ? '16px' : '20px' }}>
-          <Button
-            variant="ghost"
-            size={isMobile ? "default" : "lg"}
-            onClick={handleClose}
-            className="flex-1"
-          >
+        <div className="dialog-fixed-footer flex gap-2 border-t border-border bg-background p-4 lg:p-5">
+          <Button variant="ghost" onClick={handleClose} className="min-h-11 flex-1">
             Cancel
           </Button>
           <Button
             variant="gradient"
-            size={isMobile ? "default" : "lg"}
             onClick={handleSubmit}
             disabled={loading || !canPlaceBid}
-            className="flex-1"
+            className="min-h-11 flex-1"
           >
             {loading ? 'Submitting...' : isSuspended ? 'Account Suspended' : !listingAllowsBid ? 'Bidding Closed' : `Submit ${isCargo ? 'Bid' : 'Offer'}`}
           </Button>

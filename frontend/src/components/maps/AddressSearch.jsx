@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MapPin, Loader2, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { autocomplete, isGeocodingAvailable } from '../../services/geocodingService';
 import { philippineCities, getCoordinates } from '../../utils/cityCoordinates';
 
 /**
- * AddressSearch - Location search with autocomplete
- * Falls back to city dropdown when API is not available
+ * AddressSearch - location search with autocomplete.
+ * Falls back to city list when geocoding API is unavailable.
  */
 export default function AddressSearch({
   value,
@@ -13,7 +15,6 @@ export default function AddressSearch({
   onSelect,
   placeholder = 'Search location...',
   label,
-  darkMode = false,
   className = '',
   error,
   required = false,
@@ -22,27 +23,19 @@ export default function AddressSearch({
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [useDropdown, setUseDropdown] = useState(!isGeocodingAvailable());
+  const [useDropdown] = useState(!isGeocodingAvailable());
   const inputRef = useRef(null);
   const containerRef = useRef(null);
-
-  // Debounce timer
   const debounceRef = useRef(null);
 
-  // Update query when value prop changes
   useEffect(() => {
-    if (value !== query) {
-      setQuery(value || '');
-    }
-  }, [value]);
+    if (value !== query) setQuery(value || '');
+  }, [value, query]);
 
-  // Fetch suggestions with debounce
   useEffect(() => {
     if (useDropdown) return;
 
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
     if (!query || query.length < 2) {
       setSuggestions([]);
@@ -54,8 +47,7 @@ export default function AddressSearch({
       try {
         const results = await autocomplete(query, { limit: 6 });
         setSuggestions(results);
-      } catch (error) {
-        console.error('Autocomplete error:', error);
+      } catch {
         setSuggestions([]);
       } finally {
         setLoading(false);
@@ -63,13 +55,10 @@ export default function AddressSearch({
     }, 300);
 
     return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [query, useDropdown]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
@@ -82,9 +71,9 @@ export default function AddressSearch({
   }, []);
 
   const handleInputChange = (e) => {
-    const newValue = e.target.value;
-    setQuery(newValue);
-    onChange?.(newValue);
+    const nextValue = e.target.value;
+    setQuery(nextValue);
+    onChange?.(nextValue);
     setIsOpen(true);
   };
 
@@ -122,139 +111,77 @@ export default function AddressSearch({
     inputRef.current?.focus();
   };
 
-  const theme = {
-    bg: darkMode ? 'bg-gray-800' : 'bg-white',
-    bgHover: darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50',
-    border: darkMode ? 'border-gray-600' : 'border-gray-300',
-    text: darkMode ? 'text-white' : 'text-gray-900',
-    textSecondary: darkMode ? 'text-gray-400' : 'text-gray-500',
-    input: darkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-white text-gray-900 placeholder-gray-400',
-  };
+  const filteredCities = query
+    ? philippineCities.filter((city) => city.toLowerCase().includes(query.toLowerCase()))
+    : philippineCities;
 
-  // City dropdown mode (fallback when no API key)
-  if (useDropdown) {
-    const filteredCities = query
-      ? philippineCities.filter(city =>
-          city.toLowerCase().includes(query.toLowerCase())
-        )
-      : philippineCities;
+  const listItems = useDropdown ? filteredCities.slice(0, 10) : suggestions;
+  const showNoResult = !useDropdown && isOpen && query.length >= 2 && suggestions.length === 0 && !loading;
 
-    return (
-      <div ref={containerRef} className={`relative ${className}`}>
-        {label && (
-          <label className={`block text-sm font-medium mb-1.5 ${theme.text}`}>
-            {label}
-            {required && <span className="text-red-500 ml-1">*</span>}
-          </label>
-        )}
-
-        <div className="relative">
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={handleInputChange}
-            onFocus={() => setIsOpen(true)}
-            placeholder={placeholder}
-            className={`w-full h-10 px-4 pr-10 py-2 rounded-xl border ${theme.border} ${theme.input} focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200`}
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className={`absolute right-3 top-1/2 -translate-y-1/2 ${theme.textSecondary} hover:text-gray-700`}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {error && (
-          <p className="text-red-500 text-xs mt-1">{error}</p>
-        )}
-
-        {isOpen && filteredCities.length > 0 && (
-          <div className={`absolute z-50 w-full mt-1 ${theme.bg} border ${theme.border} rounded-lg shadow-lg max-h-60 overflow-y-auto`}>
-            {filteredCities.slice(0, 10).map((city) => (
-              <button
-                key={city}
-                type="button"
-                onClick={() => handleCitySelect(city)}
-                className={`w-full px-4 py-2.5 text-left flex items-center gap-3 ${theme.bgHover} transition`}
-              >
-                <MapPin className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                <span className={theme.text}>{city}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Autocomplete mode (when API key is available)
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
+    <div ref={containerRef} className={cn('relative', className)}>
       {label && (
-        <label className={`block text-sm font-medium mb-1.5 ${theme.text}`}>
+        <label className="mb-1.5 block text-sm font-medium text-foreground">
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="ml-1 text-destructive">*</span>}
         </label>
       )}
 
       <div className="relative">
-        <input
+        <Input
           ref={inputRef}
           type="text"
           value={query}
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
-          className={`w-full h-10 px-4 pr-10 py-2 rounded-xl border ${theme.border} ${theme.input} focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200`}
+          className="pr-10"
         />
         {loading ? (
-          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500 animate-spin" />
+          <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-primary" />
         ) : query ? (
           <button
             type="button"
             onClick={handleClear}
-            className={`absolute right-3 top-1/2 -translate-y-1/2 ${theme.textSecondary} hover:text-gray-700`}
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Clear location"
           >
-            <X className="w-4 h-4" />
+            <X className="size-4" />
           </button>
         ) : null}
       </div>
 
       {error && (
-        <p className="text-red-500 text-xs mt-1">{error}</p>
+        <p className="mt-1 text-xs text-destructive">{error}</p>
       )}
 
-      {isOpen && suggestions.length > 0 && (
-        <div className={`absolute z-50 w-full mt-1 ${theme.bg} border ${theme.border} rounded-lg shadow-lg max-h-60 overflow-y-auto`}>
-          {suggestions.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleSelect(item)}
-              className={`w-full px-4 py-2.5 text-left flex items-start gap-3 ${theme.bgHover} transition`}
-            >
-              <MapPin className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <div className={`font-medium ${theme.text}`}>{item.name}</div>
-                {item.region && (
-                  <div className={`text-xs ${theme.textSecondary}`}>
-                    {item.region}
-                  </div>
-                )}
-              </div>
-            </button>
-          ))}
+      {isOpen && listItems.length > 0 && (
+        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-lg">
+          {listItems.map((item) => {
+            const key = useDropdown ? item : item.id;
+            const labelValue = useDropdown ? item : item.name;
+            const subLabel = useDropdown ? '' : item.region;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => (useDropdown ? handleCitySelect(item) : handleSelect(item))}
+                className="flex min-h-11 w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent"
+              >
+                <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{labelValue}</p>
+                  {subLabel ? <p className="truncate text-xs text-muted-foreground">{subLabel}</p> : null}
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {isOpen && query.length >= 2 && suggestions.length === 0 && !loading && (
-        <div className={`absolute z-50 w-full mt-1 ${theme.bg} border ${theme.border} rounded-lg shadow-lg p-4 text-center`}>
-          <p className={theme.textSecondary}>No locations found</p>
+      {showNoResult && (
+        <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-popover p-4 text-center shadow-lg">
+          <p className="text-sm text-muted-foreground">No locations found</p>
         </div>
       )}
     </div>
