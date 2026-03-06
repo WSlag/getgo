@@ -15,24 +15,16 @@ const {
   maskDisplayName,
   upsertBrokerMarketplaceActivity,
 } = require('./brokerListingReferralService');
-const UNVERIFIED_OUTSTANDING_CAP = 7000;
-const NEW_ACCOUNT_OUTSTANDING_CAP = 10000;
-const STANDARD_OUTSTANDING_CAP = 20000;
-const NEW_ACCOUNT_DAYS = 30;
+const STANDARD_OUTSTANDING_CAP = Number(process.env.PLATFORM_FEE_DEBT_CAP || 15000);
 
 function resolveOutstandingCap(userData = {}) {
-  const createdAt = userData.createdAt?.toDate ? userData.createdAt.toDate() : null;
-  const accountAgeDays = createdAt
-    ? Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
-    : 0;
-  const isNewAccount = accountAgeDays < NEW_ACCOUNT_DAYS;
   const isVerified = userData.isVerified === true;
-
-  let cap = STANDARD_OUTSTANDING_CAP;
-  if (!isVerified) cap = Math.min(cap, UNVERIFIED_OUTSTANDING_CAP);
-  if (isNewAccount) cap = Math.min(cap, NEW_ACCOUNT_OUTSTANDING_CAP);
-
-  return { cap, isVerified, isNewAccount, accountAgeDays };
+  return {
+    cap: STANDARD_OUTSTANDING_CAP,
+    isVerified,
+    isNewAccount: false,
+    accountAgeDays: null,
+  };
 }
 
 // Helper: Generate unique contract number
@@ -143,10 +135,10 @@ The Trucker agrees to transport cargo from ${listing.origin} to ${listing.destin
 
 3. PAYMENT TERMS
 - Freight Rate: PHP ${Number(bid.price).toLocaleString()}
-- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${feePercent.toFixed(2).replace(/\.00$/, '')}%) - Payable by Trucker within 3 days of shipment pickup
+- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${feePercent.toFixed(2).replace(/\.00$/, '')}%) - Payable by Trucker within 3 days of confirmed delivery
 - Payment Method: Direct payment from Shipper to Trucker
 - Payment Schedule: As agreed between parties (COD, advance, or partial)
-- Late Payment: Failure to pay platform fee within 3 days will result in account suspension until payment is received
+- Late Payment: If total unpaid platform fees reach PHP 15,000, new job creation and contract signing are restricted until payment is settled
 
 4. OBLIGATIONS
 Shipper: Accurate cargo info, proper packaging, timely payment to Trucker

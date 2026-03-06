@@ -23,10 +23,10 @@ Philippine Trucking Backload Marketplace - A two-way marketplace connecting ship
 - Lucide Icons
 
 ### Backend
-- Node.js + Express.js
-- SQLite + Sequelize ORM
-- Socket.io (real-time)
-- JWT Authentication
+- Firebase Cloud Functions (Node.js)
+- Firestore
+- Firebase Auth
+- Firebase Storage
 
 ## Project Structure
 
@@ -41,15 +41,8 @@ Karga/
 │   ├── package.json
 │   └── vite.config.js
 │
-├── backend/               # Express backend
-│   ├── src/
-│   │   ├── app.js         # Main server
-│   │   ├── models/        # Database models
-│   │   ├── routes/        # API routes
-│   │   └── middleware/    # Auth middleware
-│   ├── package.json
-│   └── .env
-│
+├── functions/             # Firebase Cloud Functions backend
+├── frontend/              # React frontend
 └── README.md
 ```
 
@@ -66,50 +59,36 @@ Karga/
 cd C:\Users\Administrator\Karga
 ```
 
-2. **Install Backend Dependencies**
+2. **Install Frontend Dependencies**
 ```bash
-cd backend
-npm install
-```
-
-3. **Install Frontend Dependencies**
-```bash
-cd ../frontend
+cd frontend
 npm install
 ```
 
 ### Running the Application
 
-**Option 1: Run Both (Recommended)**
+**Option 1: Run Frontend + Emulators (Recommended)**
 
 Open two terminal windows:
 
-**Terminal 1 - Backend:**
+**Terminal 1 - Firebase Emulators:**
 ```bash
-cd C:\Users\Administrator\Karga\backend
-npm run dev
+cd C:\Users\Administrator\Karga
+npm run emulators:start
 ```
-Server runs on http://localhost:3001
 
-**Terminal 2 - Frontend:**
+**Terminal 2 - Frontend (Vite):**
 ```bash
 cd C:\Users\Administrator\Karga\frontend
 npm run dev
 ```
 App runs on http://localhost:5173
 
-**Option 2: Seed Sample Data (Optional)**
+**Option 2: Run smoke tests (optional)**
 ```bash
-cd C:\Users\Administrator\Karga\backend
-npm run seed
+cd C:\Users\Administrator\Karga
+npm run test:smoke:gcash
 ```
-
-This creates sample data:
-- 3 Shippers
-- 4 Truckers
-- Cargo/Truck listings
-- Sample bids
-- Test accounts
 
 ### Test Accounts
 
@@ -118,39 +97,9 @@ This creates sample data:
 | Shipper | 09171234567 | password123 |
 | Trucker | 09271234567 | password123 |
 
-## API Endpoints
+## API Surface
 
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Get current user
-- `PUT /api/auth/me` - Update profile
-- `POST /api/auth/switch-role` - Switch shipper/trucker
-
-### Listings
-- `GET /api/listings/cargo` - Get cargo listings
-- `POST /api/listings/cargo` - Create cargo listing
-- `GET /api/listings/trucks` - Get truck listings
-- `POST /api/listings/trucks` - Create truck listing
-
-### Bids
-- `GET /api/bids/listing/:type/:id` - Get bids for listing
-- `POST /api/bids` - Place a bid
-- `PUT /api/bids/:id/accept` - Accept bid
-- `PUT /api/bids/:id/reject` - Reject bid
-
-### Wallet
-- `GET /api/wallet` - Get wallet balance
-- `POST /api/wallet/topup` - Top up wallet
-- `POST /api/wallet/payout` - Request payout
-
-### Chat
-- `GET /api/chat/:bidId` - Get chat messages
-- `POST /api/chat/:bidId` - Send message
-
-### Notifications
-- `GET /api/notifications` - Get notifications
-- `PUT /api/notifications/:id/read` - Mark as read
+Backend operations are handled by Firebase Cloud Functions callable endpoints in `functions/src/api/*`.
 
 ## Testing
 
@@ -183,16 +132,7 @@ All tests run against Firebase Emulators (zero production impact).
 
 ## Environment Variables
 
-Create `.env` in backend folder:
-
-```env
-PORT=3001
-JWT_SECRET=your-secret-key-here
-NODE_ENV=development
-DB_PATH=./database.sqlite
-PLATFORM_FEE_RATE=0.03
-MINIMUM_WALLET_BALANCE=500
-```
+Environment settings are managed via Firebase function env files (`functions/.env*`) and frontend env files (`frontend/.env*`).
 
 ## Platform Fee Structure
 

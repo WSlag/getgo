@@ -29,7 +29,7 @@ const isBidder = currentUser?.id === contract.bidderId;
 const isShipper = isCargo ? isListingOwner : isBidder;
 ```
 
-This matches the backend logic in `backend/src/routes/contracts.js:345-353` and the modal logic in `frontend/src/components/modals/ContractModal.jsx:60-66`.
+This matches the Cloud Functions logic in `functions/src/api/contracts.js` and the modal logic in `frontend/src/components/modals/ContractModal.jsx`.
 
 ### Bug #2: Invalid Date Formatting
 

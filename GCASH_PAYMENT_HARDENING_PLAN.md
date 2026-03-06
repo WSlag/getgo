@@ -185,3 +185,106 @@ If false positives spike:
 2. Implement Phase 2 + tests.
 3. Re-validate baseline smoke + hardening tests.
 4. Continue with Phase 3 and beyond after review.
+
+## Add-On Plan: Debt-Cap-Only Enforcement Policy (No Suspension)
+Goal: keep enforcement user-friendly while protecting revenue through debt caps and action gating, without account suspension.
+
+### Final Policy Decisions
+1. No automatic suspension for unpaid platform fees.
+2. Single debt cap for truckers: `PHP 15,000`.
+3. Due date anchor: based on delivery date.
+- `platformFeeDueDate = deliveredAt + graceDays` (default grace: 3 days).
+4. Stale no-service contracts:
+- If shipment never reached `picked_up` and contract is stale past SLA, auto-cancel and waive fee.
+- Track repeated stale auto-cancellations per trucker to prevent abuse.
+5. Enforcement at cap:
+- If trucker outstanding debt reaches `PHP 15,000`, block new contract signing and new job creation until due payment is settled.
+
+### Source-of-Truth
+1. Payment completion truth: `platformFees` where `status == completed`.
+2. Outstanding debt truth: sum of payable unpaid contracts per trucker (`outstandingPlatformFees`).
+3. Contract payable state excludes: `cancelled`, `waived`, and no-service auto-cancelled contracts.
+
+### Enforcement Rules
+1. Reminder flow (no suspension).
+- Send due and overdue reminders with `PAY_PLATFORM_FEE` action.
+- Continue reminders while unpaid, but do not suspend account.
+2. Action gating flow.
+- When `outstandingPlatformFees >= 15000`, deny:
+  - contract signing for new transactions
+  - contract creation / new job creation that increases unpaid debt
+- Allow payment actions at all times so trucker can clear debt.
+3. Unblock rule.
+- Remove action gates immediately once outstanding debt drops below `15000` after settlement reconciliation.
+
+### Anti-Abuse for No-Service Waivers
+1. Track per-trucker counters:
+- `noServiceAutoCancellationCount30d`
+- `noServiceAutoCancellationLastAt`
+2. Define abuse thresholds (configurable):
+- Warning threshold: 2 auto-cancellations in 30 days.
+- Restriction threshold: 3+ auto-cancellations in 30 days.
+3. Apply safeguards after threshold:
+- require manual review for next waiver
+- temporarily disallow new contract creation until review or settlement
+
+### Implementation Phases
+1. Phase A: Policy baseline migration.
+- Remove unpaid-fee suspension path from scheduler enforcement.
+- Introduce global debt cap constant `15000` and use it across backend + rules + frontend prechecks.
+2. Phase B: Delivery-anchored due date.
+- Set `platformFeeDueDate` from `deliveredAt` event.
+- Backfill existing completed contracts with deterministic due-date migration.
+3. Phase C: Cap-based action gating.
+- Add backend guards for contract signing and new job creation when debt is at cap.
+- Return explicit error code for UI (`platform-fee-cap-reached`).
+4. Phase D: No-service auto-cancel + abuse tracking.
+- Add scheduled stale-contract scanner.
+- Auto-cancel/waive when eligible and increment abuse counters.
+5. Phase E: UX and notifications.
+- Keep “Pay Now” always available.
+- Update all banners/notifications to “restricted actions” wording (not suspension).
+
+### Feature Flags
+1. `platformFeeNoSuspensionModeEnabled`
+2. `platformFeeDebtCap15kEnabled`
+3. `platformFeeDueAnchoredOnDeliveryEnabled`
+4. `platformFeeNoServiceAutoWaiveEnabled`
+5. `platformFeeNoServiceAbuseGuardEnabled`
+
+### KPI Targets
+1. Fee collection within 72h of due date: `>= 90%`.
+2. Share of truckers hitting 15k cap: stable or decreasing.
+3. Time-to-unblock after valid payment: `< 5 minutes`.
+4. False auto-waiver abuse signals (manual reversals): `<= 2%`.
+5. Support tickets tagged `payment-restriction`: decreasing trend.
+
+### Rollout Strategy
+1. Stage rollout with flags:
+- 10% for 48 hours
+- 25% for 72 hours
+- 50% for 7 days
+- 100% after KPI validation
+2. Monitor during rollout:
+- collection rate
+- cap-hit rate
+- unblock latency
+- stale auto-cancel counts and abuse threshold hits
+3. Rollback triggers:
+- collection drop > 5%
+- abnormal spike in blocked-signing errors
+- abuse counter anomalies
+
+### Test Plan
+1. Unit tests:
+- debt-cap gate decisions (`14999`, `15000`, `15001`)
+- due-date derivation from `deliveredAt`
+- no-service waiver eligibility and abuse counters
+2. Integration tests:
+- trucker at/above cap cannot sign/create new jobs
+- settlement reduces debt and restores ability to sign/create
+- stale no-pickup contracts auto-cancel and waive fee
+3. Emulator smoke tests:
+- overdue reminder flow with no suspension
+- concurrent scheduler retries (no duplicate stage writes)
+- repeated no-service auto-cancel behavior across 30-day window

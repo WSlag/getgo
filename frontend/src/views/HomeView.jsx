@@ -146,7 +146,7 @@ export function HomeView({
       }}
       onScroll={handleHomeScroll}
     >
-      {/* Suspension Banner */}
+      {/* Restriction Banner */}
       {isAccountSuspended && (
         <div
           className="fixed left-0 right-0 z-[60] bg-red-600 text-white"
@@ -156,7 +156,7 @@ export function HomeView({
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <AlertCircle className="size-5 flex-shrink-0" />
               <div className="min-w-0">
-                <p className="font-semibold text-sm">Account Suspended</p>
+                <p className="font-semibold text-sm">Account Restricted</p>
                 <p className="text-xs opacity-90">
                   Outstanding fees: ₱{(currentUser.outstandingPlatformFees || currentUser.outstandingFees || 0).toLocaleString()}
                 </p>

@@ -51,10 +51,10 @@ Karga Connect employs a multi-layered monetization strategy designed to grow sus
 | Platform Fee | 3% of agreed price | `PLATFORM_FEE_RATE=0.03` in `.env` |
 | Referral/Broker System | Tiered commission structure | `BrokerProfile`, `Referral`, `CommissionTransaction` models |
 | Minimum Wallet Balance | ₱500 for truckers | `MINIMUM_WALLET_BALANCE=500` |
-| Wallet System | Top-up, payout, fee deduction | `backend/src/routes/wallet.js` |
+| Wallet System | Top-up, payout, fee deduction | `functions/src/api/wallet.js` |
 | Payment Methods | 6 methods (4 free, 2 with fees) | GCash, Maya, GrabPay, Bank, 7-Eleven, Cebuana |
-| Membership Tiers | NEW → DIAMOND (shippers) | `backend/src/models/index.js` |
-| Badge Levels | STARTER → ELITE (truckers) | `backend/src/models/index.js` |
+| Membership Tiers | NEW → DIAMOND (shippers) | Firestore user/profile documents + admin settings |
+| Badge Levels | STARTER → ELITE (truckers) | Firestore user/profile documents + contract/rating aggregates |
 | Broker Commissions | Referral tracking | `CommissionTransaction` model |
 
 ### 🚧 Not Yet Implemented

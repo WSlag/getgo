@@ -76,7 +76,7 @@ export function BidModal({
 
   if (!listing) return null;
 
-  // Prevent bidding on non-open listings and suspended accounts
+  // Prevent bidding on non-open listings and restricted accounts
   const listingAllowsBid = listing.status === 'open' || listing.status === 'waiting' || listing.status === 'available';
   const canPlaceBid = listingAllowsBid && !isSuspended;
 
@@ -138,7 +138,7 @@ export function BidModal({
             <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
               <div className="rounded-lg bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-2 border-red-200 dark:border-red-800" style={{ padding: isMobile ? '12px' : '16px' }}>
                 <p style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#b91c1c' }} className="dark:text-red-400">
-                  Account suspended. Pay outstanding fees to resume bidding.
+                  Action restricted. Settle due platform fees to resume bidding.
                 </p>
               </div>
             </div>
@@ -151,7 +151,7 @@ export function BidModal({
                   Reminder: You have outstanding platform fees of {formatPrice(normalizedOutstandingFees)}.
                 </p>
                 <p style={{ fontSize: isMobile ? '11px' : '12px', marginTop: '4px', color: '#c2410c' }} className="dark:text-amber-200">
-                  Settle unpaid fees now. Accounts with unpaid platform fees are automatically suspended once fees are overdue after the 3-day payment window.
+                  Settle unpaid fees now. New job creation and contract signing are restricted once unpaid debt reaches PHP 15,000.
                 </p>
               </div>
             </div>
@@ -335,7 +335,7 @@ export function BidModal({
             disabled={loading || !canPlaceBid}
             className="flex-1"
           >
-            {loading ? 'Submitting...' : isSuspended ? 'Account Suspended' : !listingAllowsBid ? 'Bidding Closed' : `Submit ${isCargo ? 'Bid' : 'Offer'}`}
+            {loading ? 'Submitting...' : isSuspended ? 'Action Restricted' : !listingAllowsBid ? 'Bidding Closed' : `Submit ${isCargo ? 'Bid' : 'Offer'}`}
           </Button>
         </div>
       </DialogBottomSheet>

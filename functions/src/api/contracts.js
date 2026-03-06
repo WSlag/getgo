@@ -18,6 +18,7 @@ const {
   upsertBrokerMarketplaceActivity,
 } = require('../services/brokerListingReferralService');
 const { enforceUserRateLimit } = require('../utils/callableRateLimit');
+const PLATFORM_FEE_DEBT_CAP = Number(process.env.PLATFORM_FEE_DEBT_CAP || 15000);
 
 // Helper: Generate unique contract number
 function generateContractNumber() {
@@ -253,6 +254,24 @@ exports.createContract = functions.region('asia-southeast1').https.onCall(async 
   // Determine who is the trucker (platform fee payer)
   const platformFeePayerId = isCargo ? bid.bidderId : listingOwnerId;
 
+  if (platformFeePayerId) {
+    const payerDoc = await db.collection('users').doc(platformFeePayerId).get();
+    const payerData = payerDoc.exists ? (payerDoc.data() || {}) : {};
+    const outstanding = Number(payerData.outstandingPlatformFees || 0);
+    if (outstanding >= PLATFORM_FEE_DEBT_CAP) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Platform fee debt cap reached. Settle due platform fees before creating or signing new jobs.',
+        {
+          reason: 'platform-fee-cap-reached',
+          outstanding,
+          debtCap: PLATFORM_FEE_DEBT_CAP,
+          feePayerId: platformFeePayerId,
+        }
+      );
+    }
+  }
+
   // Build default terms
   const defaultTerms = `
 KARGA FREIGHT TRANSPORTATION CONTRACT
@@ -271,10 +290,10 @@ The Trucker agrees to transport cargo from:
 
 3. PAYMENT TERMS
 - Freight Rate: PHP ${Number(bid.price).toLocaleString()}
-- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${feePercent.toFixed(2).replace(/\.00$/, '')}%) - Payable by Trucker within 3 days of shipment pickup
+- Platform Service Fee: PHP ${platformFee.toLocaleString()} (${feePercent.toFixed(2).replace(/\.00$/, '')}%) - Payable by Trucker within 3 days of confirmed delivery
 - Payment Method: Direct payment from Shipper to Trucker
 - Payment Schedule: As agreed between parties (COD, advance, or partial)
-- Late Payment: Failure to pay platform fee within 3 days will result in account suspension until payment is received
+- Late Payment: If total unpaid platform fees reach PHP 15,000, new job creation and contract signing are restricted until payment is settled
 
 4. OBLIGATIONS
 Shipper: Accurate cargo info, proper packaging, timely payment to Trucker
@@ -364,7 +383,7 @@ By signing, both parties agree to these terms.
   await db.collection(`users/${bid.bidderId}/notifications`).doc().set({
     type: 'CONTRACT_READY',
     title: 'Contract Ready for Review',
-    message: `Contract #${contractNumber} is ready for your review. Please sign to activate. Platform fee of ₱${platformFee.toLocaleString()} will be due 3 days after pickup.`,
+    message: `Contract #${contractNumber} is ready for your review. Please sign to activate. Platform fee of PHP ${platformFee.toLocaleString()} will be due 3 days after delivery confirmation.`,
     data: { contractId: contractRef.id, bidId },
     isRead: false,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -436,6 +455,26 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
   const isCargo = contract.listingType === 'cargo';
   const shipperId = isCargo ? listingOwnerId : bidderId;
   const truckerId = isCargo ? bidderId : listingOwnerId;
+  const feePayerId = contract.platformFeePayerId || truckerId;
+
+  if (!contract.platformFeePaid && feePayerId) {
+    const payerDoc = await db.collection('users').doc(feePayerId).get();
+    const payerData = payerDoc.exists ? (payerDoc.data() || {}) : {};
+    const outstanding = Number(payerData.outstandingPlatformFees || 0);
+    if (outstanding >= PLATFORM_FEE_DEBT_CAP) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Platform fee debt cap reached. Settle due platform fees before creating or signing new jobs.',
+        {
+          reason: 'platform-fee-cap-reached',
+          outstanding,
+          debtCap: PLATFORM_FEE_DEBT_CAP,
+          feePayerId,
+          contractId,
+        }
+      );
+    }
+  }
 
   // Determine if user is shipper or trucker
   let isShipper, isTrucker;
@@ -526,42 +565,15 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Platform fee grace period starts at signing for all contracts
-    if (contract.platformFee > 0) {
-      const pickupTime = new Date();
-      const dueDate = new Date(pickupTime);
-      dueDate.setDate(dueDate.getDate() + 3);
-
-      const billingUpdates = {
-        platformFeeStatus: contract.platformFeePaid ? 'paid' : 'outstanding',
-        platformFeeDueDate: admin.firestore.Timestamp.fromDate(dueDate),
-        platformFeeBillingStartedAt: admin.firestore.Timestamp.fromDate(pickupTime),
+    // Platform fee due window starts at delivery confirmation, not at signing.
+    if (contract.platformFee > 0 && !contract.platformFeePaid) {
+      await db.collection('contracts').doc(contractId).update({
+        platformFeeStatus: 'outstanding',
+        platformFeeDueDate: null,
+        platformFeeBillingStartedAt: null,
         platformFeeReminders: [],
-      };
-
-      await db.collection('contracts').doc(contractId).update(billingUpdates);
-
-      // Only notify if fee is NOT already paid
-      if (!contract.platformFeePaid) {
-        const feePayerId = contract.platformFeePayerId
-          || (isCargo ? contract.bidderId : contract.listingOwnerId);
-
-        if (feePayerId) {
-          await db.collection(`users/${feePayerId}/notifications`).doc().set({
-            type: 'PLATFORM_FEE_DUE',
-            title: 'Platform Fee Payment Due',
-            message: `Contract #${contract.contractNumber} is now active. Platform fee of ₱${contract.platformFee.toLocaleString()} is due by ${dueDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}.`,
-            data: {
-              contractId,
-              platformFee: contract.platformFee,
-              dueDate: dueDate.toISOString(),
-              actionRequired: 'PAY_PLATFORM_FEE',
-            },
-            isRead: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-        }
-      }
+        overdueAt: null,
+      });
     }
 
     // Update listing status
@@ -668,18 +680,46 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
     );
   }
 
-  // Update contract status.
-  // For deferred platform fees, start reminder/suspension window only after completion.
+  // Update contract status and start fee due window from confirmed delivery date.
+  let deliveryDueDate = null;
+  const completionTime = new Date();
   const completionUpdates = {
     status: 'completed',
     completedAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
 
-  // Platform fee billing dates are now set at contract signing, not completion
-  // No need to set them again here
+  if (contract.platformFee > 0 && !contract.platformFeePaid) {
+    deliveryDueDate = new Date(completionTime);
+    deliveryDueDate.setDate(deliveryDueDate.getDate() + 3);
+    completionUpdates.platformFeeStatus = 'outstanding';
+    completionUpdates.platformFeeDueDate = admin.firestore.Timestamp.fromDate(deliveryDueDate);
+    completionUpdates.platformFeeBillingStartedAt = admin.firestore.Timestamp.fromDate(completionTime);
+    completionUpdates.platformFeeReminders = ['due_initial'];
+    completionUpdates.overdueAt = null;
+  }
 
   await db.collection('contracts').doc(contractId).update(completionUpdates);
+
+  if (deliveryDueDate && !contract.platformFeePaid) {
+    const feePayerId = contract.platformFeePayerId || truckerId;
+    if (feePayerId) {
+      await db.collection(`users/${feePayerId}/notifications`).doc(`platform_fee_${contractId}_due_initial`).set({
+        type: 'PLATFORM_FEE_DUE',
+        title: 'Platform Fee Payment Due',
+        message: `Contract #${contract.contractNumber} has an unpaid platform fee of PHP ${Number(contract.platformFee || 0).toLocaleString('en-PH')}. Please pay on or before ${deliveryDueDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })} to avoid job restrictions when debt reaches PHP 15,000.`,
+        data: {
+          contractId,
+          platformFee: contract.platformFee,
+          dueDate: deliveryDueDate.toISOString(),
+          actionRequired: 'PAY_PLATFORM_FEE',
+          reminderStage: 'due_initial',
+        },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+  }
 
   // Update shipment
   await shipmentDoc.ref.update({
@@ -997,3 +1037,4 @@ exports.getContractByBid = functions.region('asia-southeast1').https.onCall(asyn
 
   return { contract };
 });
+

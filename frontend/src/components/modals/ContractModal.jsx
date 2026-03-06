@@ -478,7 +478,7 @@ export function ContractModal({
                       marginTop: '4px',
                       fontWeight: '500'
                     }}>
-                      Warning: Your account may be suspended. Pay immediately to avoid restrictions.
+                      Warning: New job creation and contract signing may be restricted if unpaid debt reaches PHP 15,000.
                     </p>
                   )}
                   <Button
@@ -676,4 +676,3 @@ export function ContractModal({
 }
 
 export default ContractModal;
-

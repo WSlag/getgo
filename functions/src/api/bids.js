@@ -7,21 +7,15 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { enforceUserRateLimit } = require('../utils/callableRateLimit');
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const PLATFORM_FEE_DEBT_CAP = Number(process.env.PLATFORM_FEE_DEBT_CAP || 15000);
 
 function toFiniteNumber(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function resolveOutstandingCap(userData = {}, nowMs) {
-  const createdAtMs = typeof userData.createdAt?.toMillis === 'function'
-    ? userData.createdAt.toMillis()
-    : nowMs;
-  const isNewAccount = nowMs < createdAtMs + THIRTY_DAYS_MS;
-  const isVerified = userData.isVerified === true;
-  if (!isVerified) return 7000;
-  return isNewAccount ? 10000 : 20000;
+function resolveOutstandingCap() {
+  return PLATFORM_FEE_DEBT_CAP;
 }
 
 function resolveListingRef(db, bidData = {}) {

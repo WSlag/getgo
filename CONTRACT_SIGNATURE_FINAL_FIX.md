@@ -208,7 +208,7 @@ After shipper signs:
 
 ## Backend Reference
 
-The backend signing logic in `backend/src/routes/contracts.js:341-399`:
+The signing logic in `functions/src/api/contracts.js`:
 
 ```javascript
 const listingOwnerId = contract.listingOwnerId;

@@ -388,13 +388,13 @@ paymentSubmissions/{submissionId}
 ### Issue: "Failed to create payment order"
 
 **Causes:**
-- Backend server not running
+- Firebase Functions emulator not running
 - Database connection error
 - Bid already has a contract
 
 **Solutions:**
-1. Verify backend is running: `cd backend && npm start`
-2. Check backend logs for errors
+1. Verify emulators are running: `npm run emulators:start`
+2. Check functions emulator logs for errors
 3. Verify bid status is "accepted" not "contracted"
 
 ---
@@ -406,7 +406,7 @@ paymentSubmissions/{submissionId}
 - Firebase Storage URL invalid or expired
 
 **Solutions:**
-1. Check `backend/.env` has:
+1. Check `functions/.env` has:
    ```
    GCASH_QR_URL=https://firebasestorage.googleapis.com/...
    ```
@@ -569,7 +569,7 @@ If payment goes to manual review, admins can verify via:
 - `frontend/src/components/modals/GCashPaymentModal.jsx` - Payment UI
 - `frontend/src/services/firestoreService.js` - Upload functions
 - `frontend/src/hooks/usePaymentSubmission.js` - Real-time status
-- `backend/src/routes/wallet.js` - Order creation endpoint
+- `functions/src/api/wallet.js` - Order creation endpoint
 - `functions/index.js` - OCR verification Cloud Function
 - `firestore.rules` - Security rules for payments
 

@@ -1,173 +1,215 @@
 /**
  * Platform Fee Reminder System
  * Runs daily at 9 AM Manila time (UTC+8)
- * Sends reminders on Day 1, 2 and suspends accounts on Day 3
+ * Sends due/overdue reminders and action-restriction alerts for unpaid fees.
  */
 
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
 
+const MS_PER_HOUR = 60 * 60 * 1000;
+const MS_PER_DAY = 24 * MS_PER_HOUR;
+const PLATFORM_FEE_DEBT_CAP = Number(process.env.PLATFORM_FEE_DEBT_CAP || 15000);
+
+const REMINDER_STAGES = Object.freeze({
+  DUE_24H: 'due_24h',
+  OVERDUE_DAY_1: 'overdue_day_1',
+  OVERDUE_DAY_2: 'overdue_day_2',
+  OVERDUE_DAY_3: 'overdue_day_3',
+  CAP_RESTRICTION_NOTICE: 'cap_restriction_notice',
+});
+
+function toDate(value) {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function formatCurrency(amount) {
+  return `PHP ${Number(amount || 0).toLocaleString('en-PH')}`;
+}
+
+function formatDueDate(date) {
+  if (!(date instanceof Date)) return '---';
+  return date.toLocaleDateString('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function getReminderStages(contract) {
+  if (!Array.isArray(contract?.platformFeeReminders)) return new Set();
+  return new Set(contract.platformFeeReminders.map((value) => String(value || '').trim()).filter(Boolean));
+}
+
+function notificationId(contractId, stage) {
+  return `platform_fee_${contractId}_${stage}`;
+}
+
 exports.sendPlatformFeeReminders = onSchedule(
   {
     region: 'asia-southeast1',
-    schedule: '0 9 * * *', // Every day at 9 AM
+    schedule: '0 9 * * *',
     timeZone: 'Asia/Manila',
   },
   async () => {
     const db = admin.firestore();
     const now = new Date();
 
-    // Query contracts with unpaid platform fees
+    const settingsDoc = await db.collection('settings').doc('platform').get();
+    const remindersEnabled = settingsDoc.data()?.features?.platformFeeReminderNotificationsEnabled;
+    if (remindersEnabled === false) {
+      console.log('Platform fee reminder notifications disabled by settings flag.');
+      return null;
+    }
+
     const unpaidContracts = await db.collection('contracts')
       .where('platformFeePaid', '==', false)
       .get();
 
-    const batch = db.batch();
-    const notifications = [];
-    const suspensions = [];
-
     for (const doc of unpaidContracts.docs) {
-      const contract = { id: doc.id, ...doc.data() };
-
-      // Skip contracts that do not carry payable fees.
-      if (
-        contract.status === 'cancelled' ||
-        contract.status === 'draft' ||
-        contract.platformFeeStatus === 'waived'
-      ) {
-        continue;
-      }
-
-      // Only process contracts where billing has started
-      if (!contract.platformFeeBillingStartedAt) {
-        continue;
-      }
-
-      const billingStartedAt = contract.platformFeeBillingStartedAt.toDate();
-      const dueDate = contract.platformFeeDueDate?.toDate() || (() => {
-        const d = new Date(billingStartedAt);
-        d.setDate(d.getDate() + 3);
-        return d;
-      })();
-
-      const daysSinceBillingStart = Math.floor(
-        (now - billingStartedAt) / (1000 * 60 * 60 * 24)
-      );
-      const daysUntilDue = Math.floor((dueDate - now) / (1000 * 60 * 60 * 24));
-
-      // Day 1: Initial reminder
-      if (daysSinceBillingStart === 1 && !contract.platformFeeReminders?.includes('day_1')) {
-        notifications.push({
-          userId: contract.platformFeePayerId,
-          notification: {
-            type: 'PLATFORM_FEE_REMINDER',
-            title: 'Reminder: Platform Fee Payment',
-            message: `Pay ₱${contract.platformFee.toLocaleString()} for Contract #${contract.contractNumber}. Due in ${daysUntilDue} days.`,
-            data: {
-              contractId: contract.id,
-              platformFee: contract.platformFee,
-              daysUntilDue,
-            },
-            isRead: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-        });
-        batch.update(doc.ref, {
-          platformFeeReminders: admin.firestore.FieldValue.arrayUnion('day_1'),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      }
-      // Day 2: Final warning
-      else if (daysSinceBillingStart === 2 && !contract.platformFeeReminders?.includes('day_2')) {
-        notifications.push({
-          userId: contract.platformFeePayerId,
-          notification: {
-            type: 'PLATFORM_FEE_REMINDER',
-            title: 'FINAL REMINDER: Platform Fee',
-            message: `Pay ₱${contract.platformFee.toLocaleString()} by ${dueDate.toLocaleDateString()} or account will be suspended tomorrow.`,
-            data: {
-              contractId: contract.id,
-              platformFee: contract.platformFee,
-              dueDate: dueDate.toISOString(),
-            },
-            isRead: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-        });
-        batch.update(doc.ref, {
-          platformFeeReminders: admin.firestore.FieldValue.arrayUnion('day_2'),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      }
-      // Day 3+: Suspend
-      else if (daysUntilDue <= 0 && contract.platformFeeStatus !== 'overdue') {
-        batch.update(doc.ref, {
-          platformFeeStatus: 'overdue',
-          overdueAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        suspensions.push({
-          userId: contract.platformFeePayerId,
-          contractId: contract.id,
-          platformFee: contract.platformFee,
-          contractNumber: contract.contractNumber,
-        });
-      }
-    }
-
-    // Commit contract updates
-    await batch.commit();
-
-    // Send notifications
-    for (const { userId, notification } of notifications) {
-      await db.collection(`users/${userId}/notifications`).doc().set(notification);
-    }
-
-    // Process suspensions
-    for (const { userId, contractId, platformFee, contractNumber } of suspensions) {
       try {
-        const userDoc = await db.collection('users').doc(userId).get();
-        const userData = userDoc.exists ? userDoc.data() : {};
-        const totalOutstanding = userData.outstandingPlatformFees || 0;
+        const contract = { id: doc.id, ...doc.data() };
+        const payerId = contract.platformFeePayerId;
 
-        // Update user account status
-        await db.collection('users').doc(userId).update({
-          accountStatus: 'suspended',
-          suspensionReason: 'unpaid_platform_fees',
-          suspendedAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        if (
+          !payerId ||
+          contract.status === 'cancelled' ||
+          contract.status === 'draft' ||
+          contract.platformFeeStatus === 'waived'
+        ) {
+          continue;
+        }
 
-        // Send suspension notification
-        await db.collection(`users/${userId}/notifications`).doc().set({
-          type: 'ACCOUNT_SUSPENDED',
-          title: 'Account Suspended - Payment Required',
-          message: `Account suspended due to unpaid platform fees. Total outstanding: ₱${totalOutstanding.toLocaleString()}. Pay all outstanding fees to reactivate.`,
-          data: {
-            contractId,
-            platformFee,
-            contractNumber,
-            totalOutstanding,
-            suspendedAt: new Date().toISOString(),
-          },
-          isRead: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        const billingStartedAt = toDate(contract.platformFeeBillingStartedAt);
+        if (!billingStartedAt) {
+          continue;
+        }
 
-        // Create admin log
-        await db.collection('adminLogs').add({
-          action: 'AUTO_SUSPEND_UNPAID_FEES',
-          targetUserId: userId,
-          contractId,
-          amount: platformFee,
-          totalOutstanding,
-          performedBy: 'SYSTEM',
-          performedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        const dueDate = toDate(contract.platformFeeDueDate) || (() => {
+          const derivedDueDate = new Date(billingStartedAt);
+          derivedDueDate.setDate(derivedDueDate.getDate() + 3);
+          return derivedDueDate;
+        })();
+
+        const reminderStages = getReminderStages(contract);
+        const stagesToPersist = [];
+        const contractUpdates = {};
+
+        const msUntilDue = dueDate.getTime() - now.getTime();
+        const hoursUntilDue = msUntilDue / MS_PER_HOUR;
+        const isOverdue = msUntilDue <= 0;
+        const overdueDays = isOverdue
+          ? Math.floor(Math.abs(msUntilDue) / MS_PER_DAY) + 1
+          : 0;
+
+        if (
+          !isOverdue &&
+          hoursUntilDue <= 24 &&
+          !reminderStages.has(REMINDER_STAGES.DUE_24H)
+        ) {
+          await db.collection(`users/${payerId}/notifications`)
+            .doc(notificationId(contract.id, REMINDER_STAGES.DUE_24H))
+            .set({
+              type: 'PLATFORM_FEE_DUE',
+              title: 'Platform Fee Payment Due',
+              message: `Contract #${contract.contractNumber} has an unpaid platform fee of ${formatCurrency(contract.platformFee)}. Please pay on or before ${formatDueDate(dueDate)} to avoid action restrictions when debt reaches PHP 15,000.`,
+              data: {
+                contractId: contract.id,
+                platformFee: contract.platformFee,
+                dueDate: dueDate.toISOString(),
+                actionRequired: 'PAY_PLATFORM_FEE',
+                reminderStage: REMINDER_STAGES.DUE_24H,
+              },
+              isRead: false,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+          stagesToPersist.push(REMINDER_STAGES.DUE_24H);
+        }
+
+        if (isOverdue) {
+          if (contract.platformFeeStatus !== 'overdue') {
+            contractUpdates.platformFeeStatus = 'overdue';
+            contractUpdates.overdueAt = admin.firestore.FieldValue.serverTimestamp();
+          }
+
+          const overdueStage = overdueDays >= 3
+            ? REMINDER_STAGES.OVERDUE_DAY_3
+            : overdueDays === 2
+              ? REMINDER_STAGES.OVERDUE_DAY_2
+              : REMINDER_STAGES.OVERDUE_DAY_1;
+
+          if (!reminderStages.has(overdueStage)) {
+            const isFinalWarning = overdueStage === REMINDER_STAGES.OVERDUE_DAY_3;
+            await db.collection(`users/${payerId}/notifications`)
+              .doc(notificationId(contract.id, overdueStage))
+              .set({
+                type: 'PLATFORM_FEE_OVERDUE',
+                title: isFinalWarning ? 'Final Reminder: Action Restriction Risk' : 'Platform Fee Overdue',
+                message: isFinalWarning
+                  ? `Contract #${contract.contractNumber} platform fee remains unpaid after 3 days. Pay ${formatCurrency(contract.platformFee)} immediately to avoid new-job restrictions once debt reaches PHP 15,000.`
+                  : `Your platform fee for Contract #${contract.contractNumber} is overdue by ${overdueDays} day(s). Pay ${formatCurrency(contract.platformFee)} now to keep your account active.`,
+                data: {
+                  contractId: contract.id,
+                  platformFee: contract.platformFee,
+                  dueDate: dueDate.toISOString(),
+                  overdueDays,
+                  actionRequired: 'PAY_PLATFORM_FEE',
+                  reminderStage: overdueStage,
+                },
+                isRead: false,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, { merge: true });
+            stagesToPersist.push(overdueStage);
+          }
+
+          const userDoc = await db.collection('users').doc(payerId).get();
+          const userData = userDoc.exists ? (userDoc.data() || {}) : {};
+          const outstandingTotal = Number(userData.outstandingPlatformFees || contract.platformFee || 0);
+
+          if (
+            outstandingTotal >= PLATFORM_FEE_DEBT_CAP &&
+            !reminderStages.has(REMINDER_STAGES.CAP_RESTRICTION_NOTICE)
+          ) {
+            await db.collection(`users/${payerId}/notifications`)
+              .doc(notificationId(contract.id, REMINDER_STAGES.CAP_RESTRICTION_NOTICE))
+              .set({
+                type: 'PLATFORM_FEE_ACTION_RESTRICTED',
+                title: 'Action Restricted: Debt Cap Reached',
+                message: `Your unpaid platform fees have reached ${formatCurrency(outstandingTotal)}. New contract signing and job creation are restricted until due payments are settled.`,
+                data: {
+                  contractId: contract.id,
+                  contractNumber: contract.contractNumber,
+                  platformFee: contract.platformFee,
+                  totalOutstanding: outstandingTotal,
+                  debtCap: PLATFORM_FEE_DEBT_CAP,
+                  actionRequired: 'PAY_PLATFORM_FEE',
+                  reminderStage: REMINDER_STAGES.CAP_RESTRICTION_NOTICE,
+                },
+                isRead: false,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, { merge: true });
+            stagesToPersist.push(REMINDER_STAGES.CAP_RESTRICTION_NOTICE);
+          }
+        }
+
+        if (stagesToPersist.length > 0) {
+          contractUpdates.platformFeeReminders = admin.firestore.FieldValue.arrayUnion(...stagesToPersist);
+        }
+
+        if (Object.keys(contractUpdates).length > 0) {
+          contractUpdates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+          await doc.ref.update(contractUpdates);
+        }
       } catch (error) {
-        console.error(`Error suspending user ${userId}:`, error);
+        console.error(`Failed processing platform fee reminder for contract ${doc.id}:`, error);
       }
     }
+
     return null;
   }
 );

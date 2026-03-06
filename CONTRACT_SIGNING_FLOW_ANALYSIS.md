@@ -140,7 +140,7 @@ Payment Approved → Contract Created → Notifications Sent → Users Sign → 
 
 ### 6. Contract Signing Backend
 
-**Endpoint:** `PUT /api/contracts/:id/sign` ([backend/src/routes/contracts.js:323-462](backend/src/routes/contracts.js#L323-L462))
+**Endpoint:** `signContract` callable (`functions/src/api/contracts.js`)
 
 **Process:**
 1. Validates contract is in `'draft'` status
@@ -344,7 +344,7 @@ const handleNotificationClick = (notification) => {
 | File | Purpose | Status |
 |------|---------|--------|
 | [functions/src/services/contractCreation.js](functions/src/services/contractCreation.js) | Contract creation logic | ✅ Working |
-| [backend/src/routes/contracts.js](backend/src/routes/contracts.js) | Contract API endpoints | ✅ Working |
+| [functions/src/api/contracts.js](functions/src/api/contracts.js) | Contract API endpoints | ✅ Working |
 | [frontend/src/components/modals/ContractModal.jsx](frontend/src/components/modals/ContractModal.jsx) | Contract signing UI | ✅ Working |
 | [frontend/src/components/modals/NotificationsModal.jsx](frontend/src/components/modals/NotificationsModal.jsx) | Notification display | ❌ Missing navigation |
 | [frontend/src/GetGoApp.jsx](frontend/src/GetGoApp.jsx) | Main app orchestration | ⚠️ Needs contract modal handler |

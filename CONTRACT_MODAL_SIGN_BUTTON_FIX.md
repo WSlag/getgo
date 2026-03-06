@@ -147,7 +147,7 @@ All three components now use consistent role detection logic matching the backen
 
 The backend correctly uses contract fields:
 
-**File**: `backend/src/routes/contracts.js:341-353`
+**File**: `functions/src/api/contracts.js`
 ```javascript
 const listingOwnerId = contract.listingOwnerId;
 const bidderId = contract.bidderId;

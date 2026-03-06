@@ -308,12 +308,7 @@ export const acceptBid = async (bidId, bid, listing, listingType) => {
         throw error;
       }
 
-      const createdAtMillis = typeof feePayerData.createdAt?.toMillis === 'function'
-        ? feePayerData.createdAt.toMillis()
-        : Date.now();
-      const isNewAccount = Date.now() < createdAtMillis + (30 * 24 * 60 * 60 * 1000);
-      const isVerified = feePayerData.isVerified === true;
-      const outstandingCap = !isVerified ? 7000 : (isNewAccount ? 10000 : 20000);
+      const outstandingCap = 15000;
       const outstanding = Number(feePayerData.outstandingPlatformFees || 0);
       const bidPrice = Number(bid?.price || 0);
       const projectedOutstanding = outstanding + (bidPrice * 0.05);
