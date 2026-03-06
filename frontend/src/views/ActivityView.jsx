@@ -3,8 +3,8 @@ import BrokerActivityView from './BrokerActivityView';
 import TruckerActivityView from './TruckerActivityView';
 import ShipperActivityView from './ShipperActivityView';
 import ReferredListingsView from './ReferredListingsView';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { getWorkspaceLabel } from '@/utils/workspace';
-import { activityPillClass, activityPillRowClass } from './activityPills';
 
 export default function ActivityView({
   currentUser,
@@ -12,6 +12,7 @@ export default function ActivityView({
   workspaceRole = 'shipper',
   workspaceOptions: _workspaceOptions = ['shipper'],
   onWorkspaceChange: _onWorkspaceChange,
+  darkMode,
   onOpenChat,
   onOpenContract,
   onBrowseMarketplace,
@@ -28,6 +29,7 @@ export default function ActivityView({
     trucker: { typeFilter: 'all', statusFilter: 'all' },
     shipper: { typeFilter: 'all', statusFilter: 'all' },
   });
+  const isMobile = useMediaQuery('(max-width: 1023px)');
   const isBrokerWorkspace = workspaceRole === 'broker' && isBroker;
   const isTruckerWorkspace = workspaceRole === 'trucker';
   const workspaceLabel = getWorkspaceLabel(workspaceRole);
@@ -36,10 +38,6 @@ export default function ActivityView({
   const truckerFilters = workspaceFilters.trucker || { typeFilter: 'all', statusFilter: 'all' };
   const shipperFilters = workspaceFilters.shipper || { typeFilter: 'all', statusFilter: 'all' };
   const showReferredListings = !isBrokerWorkspace;
-  const activityModeOptions = [
-    { id: 'activity', label: 'My Activity' },
-    { id: 'referrals', label: 'Referred Listings' },
-  ];
 
   React.useEffect(() => {
     if (isBrokerWorkspace && activityMode !== 'activity') {
@@ -58,12 +56,26 @@ export default function ActivityView({
   }, []);
 
   return (
-    <main className="flex-1 overflow-y-auto bg-background px-4 lg:px-6 pb-[calc(104px+env(safe-area-inset-bottom,0px))] lg:pb-6">
-      <div className="mb-6 pt-4 lg:mb-8 lg:pt-6">
-        <h1 className="mb-2 text-[20px] font-bold leading-[1.2] text-foreground lg:text-[24px]">
+    <main
+      className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto"
+      style={{
+        padding: isMobile ? '16px' : '24px',
+        paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px'
+      }}
+    >
+      <div style={{ marginBottom: isMobile ? '20px' : '24px' }}>
+        <h1 style={{
+          fontWeight: 'bold',
+          fontSize: isMobile ? '24px' : '28px',
+          color: darkMode ? '#fff' : '#111827',
+          marginBottom: '8px'
+        }}>
           {isBrokerWorkspace ? 'Broker Activity' : `${workspaceLabel} Activity`}
         </h1>
-        <p className="text-sm font-normal leading-[1.5] text-muted-foreground lg:text-base">
+        <p style={{
+          fontSize: isMobile ? '13px' : '14px',
+          color: darkMode ? '#9ca3af' : '#6b7280'
+        }}>
           {activityMode === 'referrals' && showReferredListings
             ? 'Listings directly referred to you by brokers'
             : isBrokerWorkspace
@@ -76,20 +88,27 @@ export default function ActivityView({
 
       <div>
         {showReferredListings && (
-          <div className="mb-5 rounded-2xl border border-border bg-card p-2 shadow-sm lg:mb-6">
-            <div className={activityPillRowClass}>
-              {activityModeOptions.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setActivityMode(option.id)}
-                  aria-pressed={activityMode === option.id}
-                  className={activityPillClass(activityMode === option.id)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setActivityMode('activity')}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                activityMode === 'activity'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              My Activity
+            </button>
+            <button
+              onClick={() => setActivityMode('referrals')}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                activityMode === 'referrals'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              Referred Listings
+            </button>
           </div>
         )}
 

@@ -11,8 +11,8 @@ initSentry();
 const APP_BUILD_ID = typeof __APP_BUILD_ID__ === 'string' ? __APP_BUILD_ID__ : 'dev';
 const CHUNK_RELOAD_WINDOW_MS = 30000;
 const CHUNK_RELOAD_KEY = 'karga_chunk_reload_ts';
-const TAB_BUILD_ID_KEY = 'getgo_tab_build_id';
-const TAB_BUILD_REFRESH_GUARD_KEY = 'getgo_tab_build_refresh_guard';
+const BUILD_ID_STORAGE_KEY = 'getgo_build_id';
+const BUILD_REFRESH_GUARD_KEY = 'getgo_build_refresh_guard';
 
 function isDynamicImportFailure(reason) {
   const message = String(reason?.message || reason || '');
@@ -39,30 +39,24 @@ function recoverFromChunkLoadFailure(reason) {
 function syncBuildVersionAndRefreshCaches() {
   if (typeof window === 'undefined') return;
 
-  const url = new URL(window.location.href);
-  if (url.searchParams.has('build')) {
-    url.searchParams.delete('build');
-    window.history.replaceState({}, '', url.toString());
-  }
-
-  const previousBuildId = window.sessionStorage.getItem(TAB_BUILD_ID_KEY);
+  const previousBuildId = window.localStorage.getItem(BUILD_ID_STORAGE_KEY);
   if (!previousBuildId) {
-    window.sessionStorage.setItem(TAB_BUILD_ID_KEY, APP_BUILD_ID);
+    window.localStorage.setItem(BUILD_ID_STORAGE_KEY, APP_BUILD_ID);
     return;
   }
 
   if (previousBuildId === APP_BUILD_ID) {
-    window.sessionStorage.removeItem(TAB_BUILD_REFRESH_GUARD_KEY);
+    window.sessionStorage.removeItem(BUILD_REFRESH_GUARD_KEY);
     return;
   }
 
-  window.sessionStorage.setItem(TAB_BUILD_ID_KEY, APP_BUILD_ID);
+  window.localStorage.setItem(BUILD_ID_STORAGE_KEY, APP_BUILD_ID);
 
-  // Prevent reload loops if refresh fails for any reason.
-  if (window.sessionStorage.getItem(TAB_BUILD_REFRESH_GUARD_KEY) === APP_BUILD_ID) {
+  // Prevent reload loops if cache clearing fails for any reason.
+  if (window.sessionStorage.getItem(BUILD_REFRESH_GUARD_KEY) === APP_BUILD_ID) {
     return;
   }
-  window.sessionStorage.setItem(TAB_BUILD_REFRESH_GUARD_KEY, APP_BUILD_ID);
+  window.sessionStorage.setItem(BUILD_REFRESH_GUARD_KEY, APP_BUILD_ID);
 
   // In-app browsers can briefly report offline during navigation.
   // Avoid aggressive cache clears; do a single soft refresh when online.
@@ -71,7 +65,9 @@ function syncBuildVersionAndRefreshCaches() {
     return;
   }
 
-  window.location.reload();
+  const refreshedUrl = new URL(window.location.href);
+  refreshedUrl.searchParams.set('build', APP_BUILD_ID.slice(0, 19));
+  window.location.replace(refreshedUrl.toString());
 }
 
 if (typeof window !== 'undefined') {
@@ -100,10 +96,6 @@ const updateSW = registerSW({
   onOfflineReady() {},
   onRegistered() {},
   onRegisterError(error) {
-    if (error?.name === 'AbortError') {
-      // Browser aborted registration during a navigation/refresh.
-      return;
-    }
     console.error('Service worker registration failed:', error);
   }
 });

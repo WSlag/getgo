@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Clock3, ExternalLink, Loader2, X, FileText } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { dedupeAndSortNewest } from '@/utils/activitySorting';
-import { activityPillClass, activityPillRowClass } from './activityPills';
 
 function toDate(value) {
   if (!value) return null;
@@ -18,27 +16,21 @@ function toDate(value) {
 function formatDate(value) {
   const dateValue = toDate(value);
   if (!dateValue) return '-';
-  return dateValue.toLocaleString('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return dateValue.toLocaleString();
 }
 
 function statusLabel(status) {
   const normalized = String(status || '').toLowerCase();
   if (normalized === 'closed_listing') return 'Closed';
-  if (!normalized) return 'Pending';
-  return normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+  return normalized ? normalized.replace(/_/g, ' ') : 'pending';
 }
 
-function statusBadgeVariant(status) {
+function statusClass(status) {
   const normalized = String(status || '').toLowerCase();
-  if (normalized === 'pending' || normalized === 'opened') return 'warning';
-  if (normalized === 'acted') return 'success';
-  if (normalized === 'dismissed' || normalized === 'closed_listing') return 'secondary';
-  return 'destructive';
+  if (normalized === 'pending' || normalized === 'opened') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+  if (normalized === 'acted') return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+  if (normalized === 'dismissed' || normalized === 'closed_listing') return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+  return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
 }
 
 export function ReferredListingsView({
@@ -129,42 +121,38 @@ export function ReferredListingsView({
   };
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm lg:p-6">
-        <div className={activityPillRowClass}>
-          {filters.map((filter) => (
-            <button
-              key={filter.id}
-              type="button"
-              onClick={() => setStatusFilter(filter.id)}
-              aria-pressed={statusFilter === filter.id}
-              className={activityPillClass(statusFilter === filter.id)}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
+    <div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {filters.map((filter) => (
+          <button
+            key={filter.id}
+            onClick={() => setStatusFilter(filter.id)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              statusFilter === filter.id
+                ? 'bg-orange-500 text-white'
+                : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300'
+            }`}
+          >
+            {filter.label}
+          </button>
+        ))}
       </div>
 
       {loading && items.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-card p-10 shadow-sm">
-          <div className="flex items-center justify-center gap-2 text-sm font-normal text-muted-foreground">
-            <Loader2 className="size-4 animate-spin text-primary" />
-            Loading referred listings...
-          </div>
+        <div className="py-10 flex items-center justify-center text-gray-500">
+          <Loader2 className="size-4 animate-spin mr-2" />
+          Loading referred listings...
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300 p-3 text-sm">
           {error}
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm lg:p-6">
-          <EmptyState
-            icon={FileText}
-            title="No referred listings"
-            description="Listings you refer will appear here. Share cargo or truck listings to earn referral commissions."
-          />
-        </div>
+        <EmptyState
+          icon={FileText}
+          title="No referred listings"
+          description="Listings you refer will appear here. Share cargo or truck listings to earn referral commissions."
+        />
       ) : (
         <div className="space-y-3">
           {items.map((item) => {
@@ -175,26 +163,26 @@ export function ReferredListingsView({
             return (
               <div
                 key={item.id}
-                className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+                className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[0.95rem] font-medium text-foreground">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
                       {item.listingType === 'truck' ? 'Truck Listing' : 'Cargo Listing'}
                     </p>
-                    <p className="text-xs font-normal text-muted-foreground">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       {(item.route?.origin || 'Origin')} {' -> '} {(item.route?.destination || 'Destination')}
                     </p>
-                    <p className="mt-1 text-xs font-normal text-muted-foreground">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       Broker: {item.brokerMasked || 'Broker'}
                     </p>
                   </div>
-                  <Badge variant={statusBadgeVariant(item.status)}>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusClass(item.status)}`}>
                     {statusLabel(item.status)}
-                  </Badge>
+                  </span>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-4 border-t border-border pt-3 text-xs font-normal text-muted-foreground">
+                <div className="mt-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                   <span className="flex items-center gap-1">
                     <Clock3 className="size-3.5" />
                     Sent: {formatDate(item.createdAt)}
@@ -207,10 +195,10 @@ export function ReferredListingsView({
                   ) : null}
                 </div>
 
-                <div className="mt-3 flex flex-col gap-2 lg:flex-row">
+                <div className="mt-3 flex gap-2">
                   <Button
-                    variant="gradient"
-                    className="w-full gap-2 lg:flex-1"
+                    variant="outline"
+                    className="flex-1 gap-2"
                     onClick={() => handleOpenListing(item)}
                     disabled={updatingId === item.id}
                   >
@@ -219,8 +207,8 @@ export function ReferredListingsView({
                   </Button>
                   {(item.status === 'pending' || item.status === 'opened') && (
                     <Button
-                      variant="outline"
-                      className="w-full gap-2 lg:w-auto"
+                      variant="ghost"
+                      className="gap-2"
                       onClick={() => handleDismiss(item)}
                       disabled={updatingId === item.id}
                     >
