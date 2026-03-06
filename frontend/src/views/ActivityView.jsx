@@ -2,7 +2,6 @@ import React from 'react';
 import BrokerActivityView from './BrokerActivityView';
 import TruckerActivityView from './TruckerActivityView';
 import ShipperActivityView from './ShipperActivityView';
-import ReferredListingsView from './ReferredListingsView';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { getWorkspaceLabel } from '@/utils/workspace';
 
@@ -33,17 +32,9 @@ export default function ActivityView({
   const isBrokerWorkspace = workspaceRole === 'broker' && isBroker;
   const isTruckerWorkspace = workspaceRole === 'trucker';
   const workspaceLabel = getWorkspaceLabel(workspaceRole);
-  const [activityMode, setActivityMode] = React.useState('activity');
   const brokerFilters = workspaceFilters.broker || { typeFilter: 'all', statusFilter: 'all' };
   const truckerFilters = workspaceFilters.trucker || { typeFilter: 'all', statusFilter: 'all' };
   const shipperFilters = workspaceFilters.shipper || { typeFilter: 'all', statusFilter: 'all' };
-  const showReferredListings = !isBrokerWorkspace;
-
-  React.useEffect(() => {
-    if (isBrokerWorkspace && activityMode !== 'activity') {
-      setActivityMode('activity');
-    }
-  }, [isBrokerWorkspace, activityMode]);
 
   const setWorkspaceFilter = React.useCallback((workspace, key, value) => {
     setWorkspaceFilters((prev) => ({
@@ -76,9 +67,7 @@ export default function ActivityView({
           fontSize: isMobile ? '13px' : '14px',
           color: darkMode ? '#9ca3af' : '#6b7280'
         }}>
-          {activityMode === 'referrals' && showReferredListings
-            ? 'Listings directly referred to you by brokers'
-            : isBrokerWorkspace
+          {isBrokerWorkspace
             ? 'Read-only view of referred users marketplace activity'
             : isTruckerWorkspace
               ? 'Track your bids, bookings, contracts, and delivery activity'
@@ -87,37 +76,7 @@ export default function ActivityView({
       </div>
 
       <div>
-        {showReferredListings && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            <button
-              onClick={() => setActivityMode('activity')}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                activityMode === 'activity'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300'
-              }`}
-            >
-              My Activity
-            </button>
-            <button
-              onClick={() => setActivityMode('referrals')}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                activityMode === 'referrals'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300'
-              }`}
-            >
-              Referred Listings
-            </button>
-          </div>
-        )}
-
-        {activityMode === 'referrals' && showReferredListings ? (
-          <ReferredListingsView
-            onOpenListing={onOpenListing}
-            onToast={onToast}
-          />
-        ) : isBrokerWorkspace ? (
+        {isBrokerWorkspace ? (
           <BrokerActivityView
             onToast={onToast}
             onOpenListing={onOpenListing}
