@@ -140,6 +140,7 @@ async function main() {
   console.log('Seeding listings...');
   const listingDismissId = 'cargo-lifecycle-dismiss';
   const listingActId = 'cargo-lifecycle-act';
+  const listingDeleteId = 'cargo-lifecycle-delete';
   await db.collection('cargoListings').doc(listingDismissId).set({
     userId: ownerUid,
     origin: 'Davao',
@@ -154,6 +155,15 @@ async function main() {
     origin: 'Iloilo',
     destination: 'Manila',
     askingPrice: 33000,
+    status: 'open',
+    createdAt: now,
+    updatedAt: now,
+  });
+  await db.collection('cargoListings').doc(listingDeleteId).set({
+    userId: ownerUid,
+    origin: 'General Santos',
+    destination: 'Davao',
+    askingPrice: 29000,
     status: 'open',
     createdAt: now,
     updatedAt: now,
@@ -270,6 +280,35 @@ async function main() {
     'Acted referral must not appear in active filter'
   );
 
+  console.log('Creating referral #3 (closed_listing via listing delete trigger)...');
+  const sendDelete = await callFunction('brokerReferListing', brokerToken, {
+    listingId: listingDeleteId,
+    listingType: 'cargo',
+    referredUserIds: [referredUid],
+    note: 'Delete lifecycle test',
+  });
+  assert(sendDelete?.success === true, 'Expected brokerReferListing success for delete flow');
+
+  const deleteReferralId = buildListingReferralId({
+    brokerId: brokerUid,
+    listingType: 'cargo',
+    listingId: listingDeleteId,
+    referredUserId: referredUid,
+  });
+
+  await db.collection('cargoListings').doc(listingDeleteId).delete();
+  const closedReferral = await waitForReferralStatus(db, deleteReferralId, 'closed_listing');
+  assert(String(closedReferral?.status || '') === 'closed_listing', 'Expected closed_listing status after listing delete');
+
+  const closedFilterAfterDelete = await callFunction('referredGetListingReferrals', referredToken, {
+    statusFilter: 'closed',
+    limit: 20,
+  });
+  assert(
+    Array.isArray(closedFilterAfterDelete?.items) && closedFilterAfterDelete.items.some((item) => item.id === deleteReferralId),
+    'Expected deleted-listing referral in closed filter'
+  );
+
   console.log('Referral lifecycle integration validation passed.');
 }
 
@@ -279,4 +318,3 @@ main()
     console.error(error.message);
     process.exit(1);
   });
-

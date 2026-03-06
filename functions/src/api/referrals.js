@@ -36,7 +36,6 @@ const {
   matchesReferredStatusFilter,
   buildBrokerActivitySummary,
   upsertBrokerMarketplaceActivity,
-  upsertBrokerListingReferral,
   logReferralAudit,
 } = require('../services/brokerListingReferralService');
 const {
@@ -45,6 +44,11 @@ const {
   getDailyUsageForDate,
   buildListingReferralSummary,
 } = require('../services/brokerReferralMetrics');
+const {
+  normalizeRole,
+  requiredRecipientRoleForListingType,
+  evaluateRecipientEligibilityForListingType,
+} = require('../utils/roleResolution');
 
 const REGION = 'asia-southeast1';
 const MIN_PAYOUT_AMOUNT = 500;
@@ -592,6 +596,11 @@ exports.brokerGetReferredUsers = functions.region(REGION).https.onCall(async (da
 
   const limit = Math.min(Math.max(Number(data?.limit || 20), 1), 50);
   const rawQuery = String(data?.query || '').trim().toLowerCase();
+  const listingType = data?.listingType ? normalizeListingType(data.listingType) : null;
+  if (data?.listingType && !listingType) {
+    throw new functions.https.HttpsError('invalid-argument', 'listingType must be cargo or truck');
+  }
+  const requiredRole = requiredRecipientRoleForListingType(listingType);
   const cursor = decodeCursor(data?.cursor);
   if (data?.cursor && !cursor) {
     throw new functions.https.HttpsError('invalid-argument', 'Invalid cursor');
@@ -614,12 +623,19 @@ exports.brokerGetReferredUsers = functions.region(REGION).https.onCall(async (da
   let items = docs.map((doc) => {
     const referral = doc.data() || {};
     const user = usersMap[doc.id] || {};
+    const compatibility = listingType
+      ? evaluateRecipientEligibilityForListingType(listingType, { role: user.role || null })
+      : { isEligible: true, ineligibleReason: null, currentRole: normalizeRole(user.role) || null, requiredRole: null };
     return {
       referredUserId: doc.id,
-      referredRole: referral.referredRole || user.role || null,
+      referredRole: user.role || referral.referredRole || null,
       maskedDisplay: user.masked || 'User',
       createdAt: referral.createdAt || null,
       referralStatus: referral.status || 'attributed',
+      isEligible: compatibility.isEligible,
+      ineligibleReason: compatibility.ineligibleReason,
+      currentRole: compatibility.currentRole,
+      requiredRole: compatibility.requiredRole || requiredRole || null,
     };
   });
 
@@ -668,9 +684,6 @@ exports.brokerReferListing = functions.region(REGION).https.onCall(async (data, 
     );
   }
 
-  const brokerDoc = await db.collection('brokers').doc(brokerId).get();
-  const broker = brokerDoc.data() || {};
-
   const listingCollection = listingType === 'cargo' ? 'cargoListings' : 'truckListings';
   const listingDoc = await db.collection(listingCollection).doc(listingId).get();
   if (!listingDoc.exists) {
@@ -686,6 +699,10 @@ exports.brokerReferListing = functions.region(REGION).https.onCall(async (data, 
   }
   if (!isListingReferable(listingType, listing.status)) {
     throw new functions.https.HttpsError('failed-precondition', 'Listing is not eligible for referral');
+  }
+  const requiredRole = requiredRecipientRoleForListingType(listingType);
+  if (!requiredRole) {
+    throw new functions.https.HttpsError('invalid-argument', 'listingType must be cargo or truck');
   }
 
   const referralDocs = await db.getAll(
@@ -703,31 +720,31 @@ exports.brokerReferListing = functions.region(REGION).https.onCall(async (data, 
   const usersMap = await getMaskedUserMap(db, [...requestedUsers, brokerId, listingOwnerId]);
   const now = Date.now();
   const expiresAt = Timestamp.fromMillis(now + REFERRAL_TTL_MS);
+  const dailyReferralDate = getDateKeyInTimeZone(new Date(now), DAILY_REFERRAL_TIME_ZONE);
+  const brokerRef = db.collection('brokers').doc(brokerId);
   const createdErrors = [];
   let createdCount = 0;
   let resentCount = 0;
   let skippedCount = 0;
-  const dailyReferralDate = getDateKeyInTimeZone(new Date(now), DAILY_REFERRAL_TIME_ZONE);
-  const brokerDailyUsage = getDailyUsageForDate(broker, dailyReferralDate);
-  const dailyAvailableSlots = Math.max(0, MAX_DAILY_LISTING_REFERRALS - brokerDailyUsage);
-  if (dailyAvailableSlots <= 0) {
-    throw new functions.https.HttpsError('resource-exhausted', 'Daily referral limit reached');
-  }
 
   for (const referredUserId of requestedUsers) {
-    if ((createdCount + resentCount) >= dailyAvailableSlots) {
-      skippedCount += 1;
-      createdErrors.push({
-        referredUserId,
-        code: 'daily-limit',
-        message: 'Daily referral limit reached',
-      });
-      continue;
-    }
-
     if (!attributedUserIds.has(referredUserId)) {
       skippedCount += 1;
       createdErrors.push({ referredUserId, code: 'not-attributed', message: 'User is not attributed to this broker' });
+      continue;
+    }
+    const eligibility = evaluateRecipientEligibilityForListingType(listingType, {
+      role: usersMap[referredUserId]?.role || null,
+    });
+    if (!eligibility.isEligible) {
+      skippedCount += 1;
+      createdErrors.push({
+        referredUserId,
+        code: eligibility.ineligibleReason || 'role-mismatch',
+        message: `Recipient role must be ${requiredRole} for ${listingType} referrals`,
+        requiredRole: eligibility.requiredRole || requiredRole,
+        currentRole: eligibility.currentRole || null,
+      });
       continue;
     }
 
@@ -738,49 +755,130 @@ exports.brokerReferListing = functions.region(REGION).https.onCall(async (data, 
       referredUserId,
     });
     const referralRef = db.collection(LISTING_REFERRAL_COLLECTION).doc(referralId);
-    const existing = await referralRef.get();
-    const existingData = existing.exists ? (existing.data() || {}) : null;
+    let txOutcome = null;
+    await db.runTransaction(async (tx) => {
+      const [brokerDoc, referralDoc, referredUserDoc] = await Promise.all([
+        tx.get(brokerRef),
+        tx.get(referralRef),
+        tx.get(db.collection('users').doc(referredUserId)),
+      ]);
 
-    if (existingData && existingData.status === LISTING_REFERRAL_STATUSES.ACTED) {
+      if (!brokerDoc.exists) {
+        throw new functions.https.HttpsError('permission-denied', 'Broker profile not found');
+      }
+      if (!referredUserDoc.exists) {
+        txOutcome = {
+          shouldSkip: true,
+          skipCode: 'user-not-found',
+          skipMessage: 'Referred user profile not found',
+        };
+        return;
+      }
+
+      const latestRoleEligibility = evaluateRecipientEligibilityForListingType(listingType, {
+        role: referredUserDoc.data()?.role || null,
+      });
+      if (!latestRoleEligibility.isEligible) {
+        txOutcome = {
+          shouldSkip: true,
+          skipCode: latestRoleEligibility.ineligibleReason || 'role-mismatch',
+          skipMessage: `Recipient role must be ${requiredRole} for ${listingType} referrals`,
+          requiredRole: latestRoleEligibility.requiredRole || requiredRole,
+          currentRole: latestRoleEligibility.currentRole || null,
+        };
+        return;
+      }
+
+      const brokerData = brokerDoc.data() || {};
+      const brokerDailyUsage = getDailyUsageForDate(brokerData, dailyReferralDate);
+      if (brokerDailyUsage >= MAX_DAILY_LISTING_REFERRALS) {
+        txOutcome = {
+          shouldSkip: true,
+          skipCode: 'daily-limit',
+          skipMessage: 'Daily referral limit reached',
+        };
+        return;
+      }
+
+      const existingData = referralDoc.exists ? (referralDoc.data() || {}) : null;
+      if (existingData && existingData.status === LISTING_REFERRAL_STATUSES.ACTED) {
+        txOutcome = {
+          shouldSkip: true,
+          skipCode: 'already-acted',
+          skipMessage: 'Referral already acted on this listing',
+        };
+        return;
+      }
+
+      const nowTs = FieldValue.serverTimestamp();
+      const basePayload = {
+        brokerId,
+        brokerMasked: usersMap[brokerId]?.masked || maskDisplayName(null, null),
+        referredUserId,
+        referredUserMasked: usersMap[referredUserId]?.masked || 'User',
+        listingId,
+        listingType,
+        listingOwnerId,
+        listingStatusAtSend: normalizeListingStatus(listing.status),
+        route: {
+          origin: listing.origin || null,
+          destination: listing.destination || null,
+        },
+        askingPrice: Number(listing.askingPrice || listing.askingRate || 0) || null,
+        note: note || null,
+        status: LISTING_REFERRAL_STATUSES.PENDING,
+        expiresAt,
+        openedAt: null,
+        actedAt: existingData?.actedAt || null,
+        actedBidId: existingData?.actedBidId || null,
+        resendCount: Number(existingData?.resendCount || 0) + (existingData ? 1 : 0),
+        lastNotifiedAt: nowTs,
+        source: 'broker_manual',
+        updatedAt: nowTs,
+      };
+      if (referralDoc.exists) {
+        tx.set(referralRef, basePayload, { merge: true });
+      } else {
+        tx.set(referralRef, {
+          ...basePayload,
+          createdAt: nowTs,
+        });
+      }
+
+      tx.set(db.collection('brokerListingReferralAudit').doc(), {
+        eventType: referralDoc.exists ? 'resend' : 'create',
+        actorId: brokerId,
+        referralDocId: referralId,
+        metadata: { listingId, listingType },
+        timestamp: nowTs,
+      });
+      tx.set(brokerRef, {
+        dailyListingReferralDate: dailyReferralDate,
+        dailyListingReferralCount: brokerDailyUsage + 1,
+        lastListingReferralAt: nowTs,
+        updatedAt: nowTs,
+      }, { merge: true });
+      txOutcome = {
+        shouldSkip: false,
+        created: !referralDoc.exists,
+        resent: referralDoc.exists,
+      };
+    });
+
+    if (txOutcome?.shouldSkip) {
       skippedCount += 1;
-      createdErrors.push({ referredUserId, code: 'already-acted', message: 'Referral already acted on this listing' });
+      createdErrors.push({
+        referredUserId,
+        code: txOutcome.skipCode,
+        message: txOutcome.skipMessage,
+        requiredRole: txOutcome.requiredRole,
+        currentRole: txOutcome.currentRole,
+      });
       continue;
     }
 
-    const basePayload = {
-      brokerId,
-      brokerMasked: usersMap[brokerId]?.masked || maskDisplayName(null, null),
-      referredUserId,
-      referredUserMasked: usersMap[referredUserId]?.masked || 'User',
-      listingId,
-      listingType,
-      listingOwnerId,
-      listingStatusAtSend: normalizeListingStatus(listing.status),
-      route: {
-        origin: listing.origin || null,
-        destination: listing.destination || null,
-      },
-      askingPrice: Number(listing.askingPrice || listing.askingRate || 0) || null,
-      note: note || null,
-      status: LISTING_REFERRAL_STATUSES.PENDING,
-      expiresAt,
-      openedAt: null,
-      actedAt: existingData?.actedAt || null,
-      actedBidId: existingData?.actedBidId || null,
-      resendCount: Number(existingData?.resendCount || 0) + (existingData ? 1 : 0),
-      lastNotifiedAt: FieldValue.serverTimestamp(),
-      source: 'broker_manual',
-      updatedAt: FieldValue.serverTimestamp(),
-    };
-
-    const upsertResult = await upsertBrokerListingReferral(referralId, basePayload, db);
-    if (upsertResult.created) {
-      createdCount += 1;
-      await logReferralAudit(db, 'create', brokerId, referralId, { listingId, listingType });
-    } else {
-      resentCount += 1;
-      await logReferralAudit(db, 'resend', brokerId, referralId, { listingId, listingType });
-    }
+    if (txOutcome?.created) createdCount += 1;
+    if (txOutcome?.resent) resentCount += 1;
 
     await db.collection(`users/${referredUserId}/notifications`).doc().set({
       type: 'BROKER_LISTING_REFERRAL',
@@ -797,15 +895,9 @@ exports.brokerReferListing = functions.region(REGION).https.onCall(async (data, 
     });
   }
 
-  const totalSent = createdCount + resentCount;
-  if (totalSent > 0) {
-    await db.collection('brokers').doc(brokerId).set({
-      dailyListingReferralDate: dailyReferralDate,
-      dailyListingReferralCount: brokerDailyUsage + totalSent,
-      lastListingReferralAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-  }
+  const latestBrokerDoc = await brokerRef.get();
+  const latestBroker = latestBrokerDoc.data() || {};
+  const dailyUsage = getDailyUsageForDate(latestBroker, dailyReferralDate);
 
   return {
     success: true,
@@ -814,8 +906,8 @@ exports.brokerReferListing = functions.region(REGION).https.onCall(async (data, 
     skippedCount,
     errors: createdErrors,
     dailyLimit: MAX_DAILY_LISTING_REFERRALS,
-    dailyUsage: brokerDailyUsage + totalSent,
-    dailyRemaining: Math.max(0, MAX_DAILY_LISTING_REFERRALS - (brokerDailyUsage + totalSent)),
+    dailyUsage,
+    dailyRemaining: Math.max(0, MAX_DAILY_LISTING_REFERRALS - dailyUsage),
   };
 });
 
@@ -918,11 +1010,20 @@ exports.referredGetListingReferrals = functions.region(REGION).https.onCall(asyn
     .filter((item) => matchesReferredStatusFilter(item, statusFilter));
   const items = filtered.slice(0, limit);
   const lastItem = items[items.length - 1] || null;
+  const hasMore = filtered.length > limit || snap.size === scanLimit;
+  const fallbackCursorDoc = snap.docs[snap.docs.length - 1] || null;
+  const nextCursor = lastItem
+    ? encodeCursor({ activityAt: lastItem.updatedAt, id: lastItem.id })
+    : (
+      hasMore && fallbackCursorDoc
+        ? encodeCursor({ activityAt: fallbackCursorDoc.data()?.updatedAt, id: fallbackCursorDoc.id })
+        : null
+    );
 
   return {
     items,
-    hasMore: filtered.length > limit || snap.size === scanLimit,
-    nextCursor: lastItem ? encodeCursor({ activityAt: lastItem.updatedAt, id: lastItem.id }) : null,
+    hasMore,
+    nextCursor,
   };
 });
 
@@ -1025,6 +1126,15 @@ exports.brokerGetMarketplaceActivity = functions.region(REGION).https.onCall(asy
 
   const items = filtered.slice(0, limit);
   const lastItem = items[items.length - 1] || null;
+  const hasMore = filtered.length > limit || snap.size === scanLimit;
+  const fallbackCursorDoc = snap.docs[snap.docs.length - 1] || null;
+  const nextCursor = lastItem
+    ? encodeCursor({ activityAt: lastItem.activityAt, id: lastItem.id })
+    : (
+      hasMore && fallbackCursorDoc
+        ? encodeCursor({ activityAt: fallbackCursorDoc.data()?.activityAt, id: fallbackCursorDoc.id })
+        : null
+    );
   const summary = await buildAccurateBrokerActivitySummary(db, {
     brokerId,
     typeFilter,
@@ -1044,8 +1154,8 @@ exports.brokerGetMarketplaceActivity = functions.region(REGION).https.onCall(asy
 
   return {
     items,
-    hasMore: filtered.length > limit || snap.size === scanLimit,
-    nextCursor: lastItem ? encodeCursor({ activityAt: lastItem.activityAt, id: lastItem.id }) : null,
+    hasMore,
+    nextCursor,
     summary,
     summaryMeta: {
       isAccurate: true,

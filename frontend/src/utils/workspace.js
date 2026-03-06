@@ -16,6 +16,20 @@ export function normalizeWorkspaceRole(role, fallback = 'shipper') {
   return WORKSPACE_ROLES.includes(normalized) ? normalized : fallback;
 }
 
+export function resolveEffectivePostingRole(userProfile = {}, fallbackRole = null) {
+  const primaryRole = String(userProfile?.role || fallbackRole || '').trim().toLowerCase();
+  if (primaryRole === 'shipper' || primaryRole === 'trucker') return primaryRole;
+
+  if (primaryRole === 'broker') {
+    const brokerSourceRole = String(userProfile?.brokerSourceRole || '').trim().toLowerCase();
+    if (brokerSourceRole === 'shipper' || brokerSourceRole === 'trucker') {
+      return brokerSourceRole;
+    }
+  }
+
+  return null;
+}
+
 export function inferContractPerspectiveRole(contract, userId) {
   if (!contract || !userId) return null;
   if (!Array.isArray(contract.participantIds) || !contract.participantIds.includes(userId)) return null;

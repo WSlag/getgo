@@ -1477,6 +1477,8 @@ exports.onPlatformFeeCompleted = referralTriggers.onPlatformFeeCompleted;
 const listingReferralTriggers = require('./src/triggers/listingReferralTriggers');
 exports.onCargoListingUpdatedForReferrals = listingReferralTriggers.onCargoListingUpdatedForReferrals;
 exports.onTruckListingUpdatedForReferrals = listingReferralTriggers.onTruckListingUpdatedForReferrals;
+exports.onCargoListingDeletedForReferrals = listingReferralTriggers.onCargoListingDeletedForReferrals;
+exports.onTruckListingDeletedForReferrals = listingReferralTriggers.onTruckListingDeletedForReferrals;
 
 const chatTriggers = require('./src/triggers/chatTriggers');
 exports.onChatMessageCreated = chatTriggers.onChatMessageCreated;

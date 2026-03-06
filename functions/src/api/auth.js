@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const { assertAppCheckGen1 } = require('../utils/appCheck');
 
 const REGION = 'asia-southeast1';
-const ALLOWED_ROLES = ['shipper', 'trucker', 'broker'];
+const ALLOWED_ROLES = ['shipper', 'trucker'];
 const GENERIC_MAGIC_LINK_MESSAGE = 'If an eligible account exists, a sign-in link will be sent.';
 const EMAIL_LINK_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const EMAIL_LINK_RATE_LIMIT_MAX_ATTEMPTS = 5;

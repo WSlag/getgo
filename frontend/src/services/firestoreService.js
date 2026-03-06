@@ -18,6 +18,7 @@ import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth, functions } from '../firebase';
 import { getCoordinates } from '../utils/cityCoordinates';
+import { resolveEffectivePostingRole } from '@/utils/workspace';
 
 
 // ============================================================
@@ -77,6 +78,11 @@ export const updateUserProfile = async (uid, data) => {
 // ============================================================
 
 export const createCargoListing = async (userId, userProfile, data) => {
+  const effectivePostingRole = resolveEffectivePostingRole(userProfile, userProfile?.role);
+  if (effectivePostingRole !== 'shipper') {
+    throw new Error('Only shipper accounts can create cargo listings');
+  }
+
   const originCoords = getCoordinates(data.origin);
   const destCoords = getCoordinates(data.destination);
 
@@ -128,6 +134,11 @@ export const deleteCargoListing = async (listingId) => {
 // ============================================================
 
 export const createTruckListing = async (userId, userProfile, truckerProfile, data) => {
+  const effectivePostingRole = resolveEffectivePostingRole(userProfile, userProfile?.role);
+  if (effectivePostingRole !== 'trucker') {
+    throw new Error('Only trucker accounts can create truck listings');
+  }
+
   const originCoords = getCoordinates(data.origin);
   const destCoords = getCoordinates(data.destination);
 
