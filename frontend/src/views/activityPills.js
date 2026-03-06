@@ -2,15 +2,16 @@ import { cn } from '@/lib/utils';
 
 export const activityPillBaseClass = [
   'inline-flex',
-  'h-11',
-  'lg:h-[34px]',
+  'min-h-11',
+  'lg:min-h-9',
   'shrink-0',
   'whitespace-nowrap',
   'items-center',
   'justify-center',
   'rounded-xl',
-  'px-5',
-  'lg:px-6',
+  'px-6',
+  'py-1',
+  'lg:px-4',
   'text-sm',
   'font-medium',
   'leading-none',
@@ -22,9 +23,9 @@ export const activityPillBaseClass = [
   'focus-visible:ring-offset-2',
 ].join(' ');
 
-export const activityPillActiveClass = 'bg-primary text-primary-foreground shadow-sm shadow-primary/30';
+export const activityPillActiveClass = 'bg-primary text-primary-foreground shadow-sm shadow-primary/25';
 export const activityPillInactiveClass = 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground';
-export const activityPillRowClass = 'flex flex-wrap gap-x-3 gap-y-2';
+export const activityPillRowClass = 'flex flex-wrap gap-x-2.5 gap-y-2 lg:gap-x-3';
 
 export function activityPillClass(isActive, className) {
   return cn(

@@ -259,6 +259,7 @@ export function BrokerActivityView({
                 key={filter.id}
                 type="button"
                 onClick={() => setTypeFilter(filter.id)}
+                aria-pressed={activeTypeFilter === filter.id}
                 className={activityPillClass(activeTypeFilter === filter.id)}
               >
                 {filter.label}
@@ -266,21 +267,24 @@ export function BrokerActivityView({
             ))}
           </div>
 
-          <div className={`${activityPillRowClass} items-center`}>
+          <div className={activityPillRowClass}>
             {statusFilters.map((filter) => (
               <button
                 key={filter.id}
                 type="button"
                 onClick={() => setStatusFilter(filter.id)}
+                aria-pressed={activeStatusFilter === filter.id}
                 className={activityPillClass(activeStatusFilter === filter.id)}
               >
                 {filter.label}
               </button>
             ))}
+          </div>
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-end">
             <Button
               type="button"
               variant="outline"
-              className="ml-auto min-h-10 rounded-xl px-4 py-2 text-sm font-medium"
+              className="min-h-11 w-full rounded-xl px-4 py-2 text-sm font-medium lg:min-h-10 lg:w-auto"
               onClick={handleBackfill}
               disabled={backfilling}
             >

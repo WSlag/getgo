@@ -137,6 +137,7 @@ export function ReferredListingsView({
               key={filter.id}
               type="button"
               onClick={() => setStatusFilter(filter.id)}
+              aria-pressed={statusFilter === filter.id}
               className={activityPillClass(statusFilter === filter.id)}
             >
               {filter.label}

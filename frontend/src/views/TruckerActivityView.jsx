@@ -305,6 +305,7 @@ export function TruckerActivityView({
                 key={filter.id}
                 type="button"
                 onClick={() => setTypeFilter(filter.id)}
+                aria-pressed={activeTypeFilter === filter.id}
                 className={activityPillClass(activeTypeFilter === filter.id)}
               >
                 {filter.label}
@@ -317,6 +318,7 @@ export function TruckerActivityView({
                 key={filter.id}
                 type="button"
                 onClick={() => setStatusFilter(filter.id)}
+                aria-pressed={activeStatusFilter === filter.id}
                 className={activityPillClass(activeStatusFilter === filter.id)}
               >
                 {filter.label}

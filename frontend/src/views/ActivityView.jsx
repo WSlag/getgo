@@ -83,6 +83,7 @@ export default function ActivityView({
                   key={option.id}
                   type="button"
                   onClick={() => setActivityMode(option.id)}
+                  aria-pressed={activityMode === option.id}
                   className={activityPillClass(activityMode === option.id)}
                 >
                   {option.label}
