@@ -119,7 +119,20 @@ export function ReferListingModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogBottomSheet className="max-w-xl backdrop-blur-sm" hideCloseButton>
+      <DialogBottomSheet
+        className={cn(
+          "max-w-xl backdrop-blur-sm",
+          // Mobile override: center this modal instead of using bottom-sheet positioning.
+          "inset-x-auto left-1/2 top-1/2 bottom-auto w-[calc(100%-1.5rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border max-h-[85vh]",
+          // Mobile override: center-oriented motion.
+          "data-[state=open]:!slide-in-from-top-[48%] data-[state=closed]:!slide-out-to-top-[48%]",
+          "data-[state=open]:!slide-in-from-left-1/2 data-[state=closed]:!slide-out-to-left-1/2",
+          "data-[state=open]:!zoom-in-95 data-[state=closed]:!zoom-out-95",
+          // Hide drag handle because this modal no longer behaves like a sheet on mobile.
+          "[&>div:first-child]:hidden"
+        )}
+        hideCloseButton
+      >
         <div style={{ padding: isMobile ? '16px' : '24px', paddingBottom: 0 }}>
           <DialogHeader>
             <div className="flex items-start gap-3">
