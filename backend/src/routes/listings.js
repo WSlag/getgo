@@ -2,6 +2,7 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import { db } from '../config/firestore.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
+import { canCreateListingForType, resolveEffectivePostingRole } from '../utils/roleResolution.js';
 
 const router = Router();
 
@@ -233,6 +234,12 @@ router.post('/cargo', authenticateToken, async (req, res) => {
     const userId = req.user.uid;
     const userDoc = await db.collection('users').doc(userId).get();
     const userData = userDoc.exists ? userDoc.data() : {};
+    if (!canCreateListingForType(userData, 'cargo')) {
+      return res.status(403).json({
+        error: 'Only shipper accounts can create cargo listings',
+        effectivePostingRole: resolveEffectivePostingRole(userData),
+      });
+    }
     const o = getCoordinates(origin);
     const d = getCoordinates(destination);
 
@@ -384,6 +391,12 @@ router.post('/trucks', authenticateToken, async (req, res) => {
     const userId = req.user.uid;
     const userDoc = await db.collection('users').doc(userId).get();
     const userData = userDoc.exists ? userDoc.data() : {};
+    if (!canCreateListingForType(userData, 'truck')) {
+      return res.status(403).json({
+        error: 'Only trucker accounts can create truck listings',
+        effectivePostingRole: resolveEffectivePostingRole(userData),
+      });
+    }
     const o = getCoordinates(origin);
     const d = getCoordinates(destination);
 

@@ -1,4 +1,4 @@
-const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onDocumentDeleted, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 const {
   normalizeListingStatus,
@@ -22,6 +22,15 @@ async function closeReferralsIfListingIneligible(event, listingType) {
   return null;
 }
 
+async function closeReferralsOnListingDelete(event, listingType) {
+  const snap = event.data;
+  if (!snap) return null;
+
+  const db = admin.firestore();
+  await closeListingReferralsByListing(db, event.params.listingId, listingType);
+  return null;
+}
+
 exports.onCargoListingUpdatedForReferrals = onDocumentUpdated(
   {
     region: 'asia-southeast1',
@@ -36,4 +45,20 @@ exports.onTruckListingUpdatedForReferrals = onDocumentUpdated(
     document: 'truckListings/{listingId}',
   },
   async (event) => closeReferralsIfListingIneligible(event, 'truck')
+);
+
+exports.onCargoListingDeletedForReferrals = onDocumentDeleted(
+  {
+    region: 'asia-southeast1',
+    document: 'cargoListings/{listingId}',
+  },
+  async (event) => closeReferralsOnListingDelete(event, 'cargo')
+);
+
+exports.onTruckListingDeletedForReferrals = onDocumentDeleted(
+  {
+    region: 'asia-southeast1',
+    document: 'truckListings/{listingId}',
+  },
+  async (event) => closeReferralsOnListingDelete(event, 'truck')
 );

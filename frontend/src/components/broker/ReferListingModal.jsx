@@ -47,8 +47,18 @@ export function ReferListingModal({
       const response = await api.broker.getReferredUsers({
         limit: 50,
         query,
+        listingType,
       });
-      setUsers(response?.items || []);
+      const items = response?.items || [];
+      setUsers(items);
+      setSelectedIds((prev) => {
+        const eligibleIds = new Set(
+          items
+            .filter((item) => item?.isEligible !== false)
+            .map((item) => item.referredUserId)
+        );
+        return prev.filter((id) => eligibleIds.has(id));
+      });
     } catch (loadError) {
       setError(loadError.message || 'Failed to load referred users');
       setUsers([]);
@@ -77,9 +87,10 @@ export function ReferListingModal({
     }, 250);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+  }, [query, listingType]);
 
-  const toggleSelect = (referredUserId) => {
+  const toggleSelect = (referredUserId, isEligible = true) => {
+    if (!isEligible) return;
     setSelectedIds((prev) => (
       prev.includes(referredUserId)
         ? prev.filter((id) => id !== referredUserId)
@@ -178,14 +189,21 @@ export function ReferListingModal({
               ) : (
                 users.map((user) => {
                   const checked = selectedIds.includes(user.referredUserId);
+                  const isEligible = user.isEligible !== false;
+                  const roleHint = user.requiredRole
+                    ? `Requires ${user.requiredRole} role`
+                    : 'Role not eligible';
                   return (
                     <button
                       key={user.referredUserId}
                       type="button"
-                      onClick={() => toggleSelect(user.referredUserId)}
+                      onClick={() => toggleSelect(user.referredUserId, isEligible)}
+                      disabled={!isEligible}
                       className={cn(
                         'w-full px-4 py-3 text-left border-b border-border last:border-b-0 transition-colors',
-                        checked
+                        !isEligible
+                          ? 'opacity-60 cursor-not-allowed bg-muted/20'
+                          : checked
                           ? 'bg-orange-50 dark:bg-orange-900/20'
                           : 'hover:bg-muted/50'
                       )}
@@ -194,11 +212,16 @@ export function ReferListingModal({
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{user.maskedDisplay}</p>
                           <p className="text-xs text-muted-foreground">{user.referredRole || 'user'}</p>
+                          {!isEligible && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                              {roleHint}
+                            </p>
+                          )}
                         </div>
                         <span
                           className={cn(
                             'size-5 rounded-md border flex items-center justify-center transition-colors flex-shrink-0',
-                            checked
+                            checked && isEligible
                               ? 'bg-orange-500 border-orange-500 text-white'
                               : 'border-border text-transparent'
                           )}

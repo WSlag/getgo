@@ -29,6 +29,19 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'active') != 'suspended';
     }
 
+    function effectivePostingRole(userId) {
+      let userData = get(/databases/$(database)/documents/users/$(userId)).data;
+      let role = userData.get('role', null);
+      let brokerSourceRole = userData.get('brokerSourceRole', null);
+      return role in ['shipper', 'trucker']
+        ? role
+        : (
+          role == 'broker' && brokerSourceRole in ['shipper', 'trucker']
+            ? brokerSourceRole
+            : null
+        );
+    }
+
     // Helper: verify an order belongs to the caller
     function isOwnOrder(orderId) {
       return isAuth()
@@ -196,7 +209,7 @@ service cloud.firestore {
       // Users can create their own document but cannot set admin privileges
       allow create: if isOwner(uid)
         && request.resource.data.get('isAdmin', false) == false
-        && request.resource.data.get('role', 'shipper') in ['shipper', 'trucker', 'broker']
+        && request.resource.data.get('role', 'shipper') in ['shipper', 'trucker']
         && request.resource.data.phone is string
         && request.resource.data.phone.size() > 0
         && request.resource.data.get('emailAuthEnabled', false) == false
@@ -312,7 +325,9 @@ service cloud.firestore {
     // Cargo Listings
     match /cargoListings/{listingId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid
+        && effectivePostingRole(request.auth.uid) == 'shipper';
       allow update: if isAuth() && resource.data.userId == request.auth.uid;
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
@@ -320,7 +335,9 @@ service cloud.firestore {
     // Truck Listings
     match /truckListings/{listingId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid
+        && effectivePostingRole(request.auth.uid) == 'trucker';
       allow update: if isAuth() && resource.data.userId == request.auth.uid;
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }

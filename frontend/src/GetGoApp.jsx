@@ -92,6 +92,7 @@ import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
 import {
   WORKSPACE_ROLES,
   normalizeWorkspaceRole,
+  resolveEffectivePostingRole,
   inferBidPerspectiveRole,
   inferConversationPerspectiveRole,
   inferContractPerspectiveRole,
@@ -648,7 +649,10 @@ export default function GetGoApp() {
     const filtered = Array.from(new Set(preferred)).filter((role) => availableWorkspaces.includes(role));
     return filtered.length > 0 ? filtered : [availableWorkspaces[0]];
   }, [activityPrimaryWorkspace, isBroker, availableWorkspaces]);
-  const postingRole = activeWorkspace === 'broker' ? userRole : activeWorkspace;
+  const effectivePostingRole = resolveEffectivePostingRole(userProfile, userRole);
+  const postingRole = activeWorkspace === 'broker'
+    ? effectivePostingRole
+    : (activeWorkspace === 'shipper' || activeWorkspace === 'trucker' ? activeWorkspace : null);
   const interactionRole = activeWorkspace === 'broker' ? userRole : activeWorkspace;
 
   useEffect(() => {
@@ -1046,6 +1050,14 @@ export default function GetGoApp() {
 
   // Handlers
   const handlePostClick = () => {
+    if (authUser && !postingRole) {
+      showToast({
+        type: 'error',
+        title: 'Posting unavailable',
+        message: 'Set your account role to shipper or trucker to post listings.',
+      });
+      return;
+    }
     requireAuth(() => openModal('post'), 'Sign in to post a listing');
   };
 
@@ -1919,6 +1931,7 @@ export default function GetGoApp() {
   const handleOpenListingFromNotification = async (notification) => {
     const listingId = notification?.data?.listingId;
     const listingType = notification?.data?.listingType;
+    const referralId = notification?.data?.referralId;
     const inferredWorkspace = inferNotificationWorkspaceRole(notification);
     if (inferredWorkspace && availableWorkspaces.includes(inferredWorkspace)) {
       setWorkspaceRole(inferredWorkspace);
@@ -1929,6 +1942,12 @@ export default function GetGoApp() {
     }
 
     try {
+      if (referralId) {
+        api.referrals.updateMyListingReferralState({
+          referralId: String(referralId),
+          action: 'opened',
+        }).catch(() => {});
+      }
       await openListingByType(listingId, listingType);
       setActiveTab('home');
     } catch (error) {
@@ -2321,7 +2340,7 @@ export default function GetGoApp() {
       <PostModal
         open={modals.post}
         onClose={() => closeModal('post')}
-        currentRole={postingRole}
+        currentRole={postingRole || 'shipper'}
         loading={postLoading}
         onSubmit={async (data) => {
           if (!authUser?.uid || !userProfile) {
@@ -2331,6 +2350,9 @@ export default function GetGoApp() {
 
           setPostLoading(true);
           try {
+            if (!postingRole) {
+              throw new Error('Only shipper or trucker accounts can post listings');
+            }
             if (postingRole === 'shipper') {
               // Upload photos first (if any)
               const photoUrls = await uploadListingPhotos(authUser.uid, data.photos || [], 'cargo');
