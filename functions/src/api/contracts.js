@@ -63,13 +63,42 @@ function resolveTruckerDocumentFieldName(docType) {
   return null;
 }
 
+function resolveAllowedDocPathPrefixes(userId, requiredDocType) {
+  const base = `trucker-docs/${userId}/`;
+  if (requiredDocType === 'driver') {
+    return [
+      `${base}driver_license/`,
+      `${base}driver/`,
+      `${base}driver-license/`,
+      `${base}driverLicense/`,
+      `${base}drivers_license/`,
+      `${base}driver_license_copy/`,
+      `${base}license/`,
+    ];
+  }
+  if (requiredDocType === 'lto') {
+    return [
+      `${base}lto_registration/`,
+      `${base}lto/`,
+      `${base}lto-registration/`,
+      `${base}ltoRegistration/`,
+      `${base}lto_registration_copy/`,
+      `${base}truck_registration/`,
+      `${base}truck_registration_copy/`,
+      `${base}certificate_of_registration/`,
+    ];
+  }
+  return [base];
+}
+
 function validateTruckerDocumentMetadata(doc, userId, requiredDocType) {
-  if (!doc || typeof doc !== 'object') {
+  if (!doc) {
     return { valid: false, reason: `${requiredDocType}_missing` };
   }
 
-  const url = typeof doc.url === 'string' ? doc.url.trim() : '';
-  const path = typeof doc.path === 'string' ? doc.path.trim() : '';
+  const url = typeof doc === 'string'
+    ? doc.trim()
+    : (typeof doc.url === 'string' ? doc.url.trim() : (typeof doc.downloadURL === 'string' ? doc.downloadURL.trim() : ''));
 
   if (!url) {
     return { valid: false, reason: `${requiredDocType}_missing_path_or_url` };
@@ -80,23 +109,14 @@ function validateTruckerDocumentMetadata(doc, userId, requiredDocType) {
     return { valid: false, reason: `${requiredDocType}_${parsedStorage.reason}` };
   }
 
-  // Backward-compatible path handling:
-  // older docs may have URL only, so derive canonical object path from the trusted URL.
-  const resolvedPath = path || parsedStorage.objectPath;
+  const resolvedPath = parsedStorage.objectPath;
   if (!resolvedPath) {
     return { valid: false, reason: `${requiredDocType}_missing_path_or_url` };
   }
 
-  const expectedPrefix = requiredDocType === 'driver'
-    ? `trucker-docs/${userId}/driver_license/`
-    : (requiredDocType === 'lto' ? `trucker-docs/${userId}/lto_registration/` : `trucker-docs/${userId}/`);
-
-  if (!resolvedPath.startsWith(expectedPrefix)) {
+  const allowedPrefixes = resolveAllowedDocPathPrefixes(userId, requiredDocType);
+  if (!allowedPrefixes.some((prefix) => resolvedPath.startsWith(prefix))) {
     return { valid: false, reason: `${requiredDocType}_owner_mismatch` };
-  }
-
-  if (path && parsedStorage.objectPath !== path) {
-    return { valid: false, reason: `${requiredDocType}_path_mismatch` };
   }
 
   return { valid: true, reason: null };
@@ -616,8 +636,10 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
   const updates = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
   if (isTrucker) {
-    const complianceRef = getTruckerComplianceRef(db, truckerId);
-    const truckerProfileRef = db.collection('users').doc(truckerId).collection('truckerProfile').doc('profile');
+    // Use authenticated trucker UID for compliance/doc checks to avoid stale contract.truckerId issues.
+    const complianceTruckerId = userId;
+    const complianceRef = getTruckerComplianceRef(db, complianceTruckerId);
+    const truckerProfileRef = db.collection('users').doc(complianceTruckerId).collection('truckerProfile').doc('profile');
     const [complianceDoc, truckerProfileDoc] = await Promise.all([
       complianceRef.get(),
       truckerProfileRef.get(),
@@ -650,7 +672,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
 
       await db.collection('adminLogs').add({
         action: 'SYSTEM_TRUCKER_CANCELLATION_BLOCK_CLEARED',
-        targetUserId: truckerId,
+        targetUserId: complianceTruckerId,
         performedBy: 'system',
         performedAt: admin.firestore.FieldValue.serverTimestamp(),
         previousBlockUntil: blockUntilDate.toISOString(),
@@ -660,8 +682,8 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
     const docsRequiredOnSigning = complianceData.docsRequiredOnSigning !== false;
     if (docsRequiredOnSigning) {
       const missingDocs = [];
-      const driverValidation = validateTruckerDocumentMetadata(truckerProfile.driverLicenseCopy, truckerId, 'driver');
-      const ltoValidation = validateTruckerDocumentMetadata(truckerProfile.ltoRegistrationCopy, truckerId, 'lto');
+      const driverValidation = validateTruckerDocumentMetadata(truckerProfile.driverLicenseCopy, complianceTruckerId, 'driver');
+      const ltoValidation = validateTruckerDocumentMetadata(truckerProfile.ltoRegistrationCopy, complianceTruckerId, 'lto');
 
       if (!driverValidation.valid) {
         missingDocs.push({ field: resolveTruckerDocumentFieldName('driver'), reason: driverValidation.reason });
@@ -671,6 +693,11 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       }
 
       if (missingDocs.length > 0) {
+        console.warn('signContract: trucker document validation failed', {
+          contractId,
+          truckerId: complianceTruckerId,
+          missingDocs,
+        });
         throw new functions.https.HttpsError(
           'failed-precondition',
           'Required trucker documents are missing or invalid.',
@@ -688,7 +715,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       ? resetAt
       : windowStart;
     const cancellationCountSnap = await db.collection('contracts')
-      .where('truckerId', '==', truckerId)
+      .where('truckerId', '==', complianceTruckerId)
       .where('cancelledByRole', '==', 'trucker')
       .where('cancelledAt', '>=', admin.firestore.Timestamp.fromDate(baselineDate))
       .count()
@@ -709,7 +736,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
-      await db.collection(`users/${truckerId}/notifications`).doc().set({
+      await db.collection(`users/${complianceTruckerId}/notifications`).doc().set({
         type: 'ACCOUNT_RESTRICTED',
         title: 'Contract Signing Temporarily Blocked',
         message: `You reached ${cancellationCount} trucker cancellations in ${TRUCKER_CANCELLATION_WINDOW_DAYS} days. You can sign new contracts again on ${blockUntil.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}.`,
@@ -728,9 +755,9 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       await Promise.all(adminIds.map((adminId) => db.collection(`users/${adminId}/notifications`).doc().set({
         type: 'TRUCKER_CANCELLATION_THRESHOLD_HIT',
         title: 'Trucker Cancellation Threshold Hit',
-        message: `Trucker ${truckerId} hit ${cancellationCount} cancellations in ${TRUCKER_CANCELLATION_WINDOW_DAYS} days.`,
+        message: `Trucker ${complianceTruckerId} hit ${cancellationCount} cancellations in ${TRUCKER_CANCELLATION_WINDOW_DAYS} days.`,
         data: {
-          truckerId,
+          truckerId: complianceTruckerId,
           reason: 'trucker-cancellation-limit-reached',
           blockUntil: blockUntil.toISOString(),
           count: cancellationCount,
@@ -742,7 +769,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
 
       await db.collection('adminLogs').add({
         action: 'TRUCKER_CANCELLATION_THRESHOLD_BLOCKED',
-        targetUserId: truckerId,
+        targetUserId: complianceTruckerId,
         performedBy: 'system',
         performedAt: admin.firestore.FieldValue.serverTimestamp(),
         count: cancellationCount,
