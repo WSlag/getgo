@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Loader2, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
-import { useBidsOnMyListings } from '@/hooks/useBids';
+import { useBidsOnMyListings, useMyBids } from '@/hooks/useBids';
 import { useContracts } from '@/hooks/useContracts';
 import { useCargoListings } from '@/hooks/useCargoListings';
 import { inferBidPerspectiveRole, inferContractPerspectiveRole } from '@/utils/workspace';
@@ -99,12 +99,13 @@ function dedupeByStableKey(items = []) {
 function typeLabel(item) {
   if (item.source === 'cargo') return 'Cargo';
   if (item.source === 'bid') return 'Bid';
+  if (item.source === 'truck_booking') return 'Truck Booking';
   return item.typeBuckets.includes('shipment') ? 'Shipment' : 'Contract';
 }
 
 function typeIcon(item) {
   if (item.source === 'cargo') return <Package className="size-3.5" />;
-  if (item.source === 'bid') return <Truck className="size-3.5" />;
+  if (item.source === 'bid' || item.source === 'truck_booking') return <Truck className="size-3.5" />;
   if (item.typeBuckets.includes('shipment')) return <Truck className="size-3.5" />;
   return <FileText className="size-3.5" />;
 }
@@ -147,6 +148,7 @@ export function ShipperActivityView({
     loading: loadingBids,
     error: bidsError,
   } = useBidsOnMyListings(userId);
+  const { bids: myBids, loading: loadingMyBids } = useMyBids(userId);
   const {
     contracts,
     loading: loadingContracts,
@@ -161,13 +163,14 @@ export function ShipperActivityView({
     maxResults: 200,
   });
 
-  const loading = loadingBids || loadingContracts || loadingCargo;
+  const loading = loadingBids || loadingContracts || loadingCargo || loadingMyBids;
   const error = bidsError || contractsError || cargoError || '';
 
   const typeFilters = useMemo(() => ([
     { id: 'all', label: 'All' },
     { id: 'cargo', label: 'Cargo' },
     { id: 'bids', label: 'Bids' },
+    { id: 'truck_bookings', label: 'Truck Bookings' },
     { id: 'shipment', label: 'Shipment' },
     { id: 'contracts', label: 'Contracts' },
   ]), []);
@@ -193,6 +196,11 @@ export function ShipperActivityView({
       cargo?.userId === userId || cargo?.shipperId === userId
     )),
     [cargoListings, userId]
+  );
+
+  const shipperTruckBookings = useMemo(
+    () => (myBids || []).filter((bid) => String(bid.listingType || '').toLowerCase() === 'truck'),
+    [myBids]
   );
 
   const shipperContracts = useMemo(
@@ -271,9 +279,32 @@ export function ShipperActivityView({
       };
     });
 
-    const deduped = dedupeByStableKey([...cargoItems, ...bidItems, ...contractItems]);
+    const truckBookingItems = shipperTruckBookings.map((bid) => {
+      const activityAt = getActivityTimestamp(bid, ['createdAt']);
+      return {
+        id: `truck_booking:${bid.id}`,
+        stableKey: `truck_booking:${bid.id}`,
+        source: 'truck_booking',
+        typeBuckets: ['truck_bookings'],
+        status: normalizeBidStatus(bid.status),
+        rawStatus: String(bid.status || '').toLowerCase(),
+        activityAt,
+        origin: bid.origin || null,
+        destination: bid.destination || null,
+        amount: Number(bid.price || 0),
+        counterpartyName: bid.listingOwnerName || 'Trucker',
+        bidId: bid.id,
+        listingId: bid.truckListingId || bid.listingId || null,
+        listingType: 'truck',
+        listingOwnerId: bid.listingOwnerId || null,
+        listingOwnerName: bid.listingOwnerName || null,
+        rawEntity: bid,
+      };
+    });
+
+    const deduped = dedupeByStableKey([...cargoItems, ...bidItems, ...contractItems, ...truckBookingItems]);
     return sortEntitiesNewestFirst(deduped, { fallbackKeys: ['activityAt'] });
-  }, [shipperCargoPosts, shipperIncomingCargoBids, shipperContracts, userId]);
+  }, [shipperCargoPosts, shipperIncomingCargoBids, shipperContracts, shipperTruckBookings, userId]);
 
   const filteredItems = useMemo(
     () => normalizedItems.filter(
@@ -290,6 +321,7 @@ export function ShipperActivityView({
       total: scoped.length,
       cargo: scoped.filter((item) => item.typeBuckets.includes('cargo')).length,
       bids: scoped.filter((item) => item.typeBuckets.includes('bids')).length,
+      truck_bookings: scoped.filter((item) => item.typeBuckets.includes('truck_bookings')).length,
       shipment: scoped.filter((item) => item.typeBuckets.includes('shipment')).length,
       contracts: scoped.filter((item) => item.typeBuckets.includes('contracts')).length,
       completed: scoped.filter((item) => item.status === 'completed').length,
@@ -306,6 +338,7 @@ export function ShipperActivityView({
     { label: 'Total', value: summary.total, iconEl: <TrendingUp className="size-3.5 text-orange-500" />, iconBg: 'bg-orange-100 dark:bg-orange-950/40' },
     { label: 'Cargo', value: summary.cargo, iconEl: <Package className="size-3.5 text-blue-500" />, iconBg: 'bg-blue-100 dark:bg-blue-950/40' },
     { label: 'Bids', value: summary.bids, iconEl: <Truck className="size-3.5 text-purple-500" />, iconBg: 'bg-purple-100 dark:bg-purple-950/40' },
+    { label: 'Truck Bookings', value: summary.truck_bookings, iconEl: <Truck className="size-3.5 text-green-500" />, iconBg: 'bg-green-100 dark:bg-green-950/40' },
     { label: 'Shipment', value: summary.shipment, iconEl: <Truck className="size-3.5 text-cyan-500" />, iconBg: 'bg-cyan-100 dark:bg-cyan-950/40' },
     { label: 'Contracts', value: summary.contracts, iconEl: <FileText className="size-3.5 text-indigo-500" />, iconBg: 'bg-indigo-100 dark:bg-indigo-950/40' },
     { label: 'Completed', value: summary.completed, iconEl: <TrendingUp className="size-3.5 text-green-500" />, iconBg: 'bg-green-100 dark:bg-green-950/40' },
@@ -348,7 +381,7 @@ export function ShipperActivityView({
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
         {statCards.map(({ label, value, iconEl, iconBg }) => (
           <div
             key={label}
