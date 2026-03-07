@@ -1419,11 +1419,20 @@ exports.getContract = functions.region('asia-southeast1').https.onCall(async (da
     throw new functions.https.HttpsError('permission-denied', 'Not authorized to view this contract');
   }
 
+  // Derive shipperId/truckerId from listing type when not directly stored (older contracts)
+  const isCargo = contract.listingType === 'cargo';
+  const resolvedShipperId = contract.shipperId
+    || (isCargo ? contract.listingOwnerId : contract.bidderId)
+    || null;
+  const resolvedTruckerId = contract.truckerId
+    || (isCargo ? contract.bidderId : contract.listingOwnerId)
+    || null;
+
   // Fetch associated shipment + both party profiles in parallel
   const [shipmentSnap, shipperDoc, truckerDoc] = await Promise.all([
     db.collection('shipments').where('contractId', '==', contractId).limit(1).get(),
-    contract.shipperId ? db.collection('users').doc(contract.shipperId).get() : Promise.resolve(null),
-    contract.truckerId ? db.collection('users').doc(contract.truckerId).get() : Promise.resolve(null),
+    resolvedShipperId ? db.collection('users').doc(resolvedShipperId).get() : Promise.resolve(null),
+    resolvedTruckerId ? db.collection('users').doc(resolvedTruckerId).get() : Promise.resolve(null),
   ]);
 
   if (!shipmentSnap.empty) {
