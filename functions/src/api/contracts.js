@@ -63,6 +63,51 @@ function resolveTruckerDocumentFieldName(docType) {
   return null;
 }
 
+function isFirestoreMissingIndexError(error) {
+  if (!error) return false;
+  const code = Number(error.code);
+  const message = String(error.message || '').toLowerCase();
+  const details = String(error.details || '').toLowerCase();
+  return code === 9 || message.includes('requires an index') || details.includes('requires an index');
+}
+
+async function countTruckerCancellationsInWindow(db, truckerId, baselineDate) {
+  const baselineTs = admin.firestore.Timestamp.fromDate(baselineDate);
+  try {
+    const cancellationCountSnap = await db.collection('contracts')
+      .where('truckerId', '==', truckerId)
+      .where('cancelledByRole', '==', 'trucker')
+      .where('cancelledAt', '>=', baselineTs)
+      .count()
+      .get();
+    return Number(cancellationCountSnap?.data()?.count || 0);
+  } catch (error) {
+    if (!isFirestoreMissingIndexError(error)) {
+      throw error;
+    }
+
+    // Reliability fallback while index builds: scan trucker contracts and filter in memory.
+    console.warn('countTruckerCancellationsInWindow: missing index, using fallback scan', {
+      truckerId,
+      baselineDate: baselineDate.toISOString(),
+    });
+    const contractsSnap = await db.collection('contracts')
+      .where('truckerId', '==', truckerId)
+      .get();
+    let count = 0;
+    contractsSnap.forEach((docSnap) => {
+      const data = docSnap.data() || {};
+      if (data.cancelledByRole !== 'trucker') return;
+      const cancelledAt = toDateValue(data.cancelledAt);
+      if (!cancelledAt) return;
+      if (cancelledAt.getTime() >= baselineDate.getTime()) {
+        count += 1;
+      }
+    });
+    return count;
+  }
+}
+
 function resolveAllowedDocPathPrefixes(userId, requiredDocType) {
   const base = `trucker-docs/${userId}/`;
   if (requiredDocType === 'driver') {
@@ -714,13 +759,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
     const baselineDate = resetAt && resetAt.getTime() > windowStart.getTime()
       ? resetAt
       : windowStart;
-    const cancellationCountSnap = await db.collection('contracts')
-      .where('truckerId', '==', complianceTruckerId)
-      .where('cancelledByRole', '==', 'trucker')
-      .where('cancelledAt', '>=', admin.firestore.Timestamp.fromDate(baselineDate))
-      .count()
-      .get();
-    const cancellationCount = Number(cancellationCountSnap?.data()?.count || 0);
+    const cancellationCount = await countTruckerCancellationsInWindow(db, complianceTruckerId, baselineDate);
 
     if (cancellationCount >= TRUCKER_CANCELLATION_THRESHOLD) {
       const blockUntil = new Date(now);
