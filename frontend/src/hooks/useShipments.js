@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getCoordinates } from '../utils/cityCoordinates';
 import { formatTimeAgo } from '../utils/dateFormatting';
@@ -70,7 +70,30 @@ export function useShipments(userId) {
               : (createdAt.hasTimestamp ? formatTimeAgo(createdAt.date) : ''),
           };
         });
-        setShipments(sortEntitiesNewestFirst(data, { fallbackKeys: ['deliveredAt'] }));
+        // Backfill missing contract fields for older shipments
+        const enriched = await Promise.all(
+          data.map(async (shipment) => {
+            if (shipment.shipperName || !shipment.contractId) return shipment;
+            try {
+              const contractDoc = await getDoc(doc(db, 'contracts', shipment.contractId));
+              if (!contractDoc.exists()) return shipment;
+              const c = contractDoc.data();
+              const isCargo = (shipment.listingType || c.listingType) === 'cargo';
+              return {
+                ...shipment,
+                shipperName: isCargo ? (c.listingOwnerName || '') : (c.bidderName || ''),
+                truckerName: isCargo ? (c.bidderName || '') : (c.listingOwnerName || ''),
+                pickupDate: shipment.pickupDate || c.pickupDate || null,
+                expectedDeliveryDate: shipment.expectedDeliveryDate || c.expectedDeliveryDate || null,
+                vehiclePlateNumber: shipment.vehiclePlateNumber || c.vehiclePlateNumber || '',
+                agreedPrice: shipment.agreedPrice || c.agreedPrice || 0,
+              };
+            } catch {
+              return shipment;
+            }
+          })
+        );
+        setShipments(sortEntitiesNewestFirst(enriched, { fallbackKeys: ['deliveredAt'] }));
         setLoading(false);
         setError(null);
       },
