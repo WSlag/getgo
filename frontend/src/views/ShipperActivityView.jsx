@@ -398,7 +398,7 @@ export function ShipperActivityView({
       </div>
 
       {/* Activity list */}
-      <div className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 overflow-hidden"
+      <div className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 overflow-hidden px-3"
         style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
         {loading ? (
           <div className="py-14 flex flex-col items-center justify-center gap-2 text-gray-400">
