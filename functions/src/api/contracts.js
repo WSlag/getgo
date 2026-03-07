@@ -1419,14 +1419,27 @@ exports.getContract = functions.region('asia-southeast1').https.onCall(async (da
     throw new functions.https.HttpsError('permission-denied', 'Not authorized to view this contract');
   }
 
-  // Fetch associated shipment
-  const shipmentSnap = await db.collection('shipments')
-    .where('contractId', '==', contractId)
-    .limit(1)
-    .get();
+  // Fetch associated shipment + both party profiles in parallel
+  const [shipmentSnap, shipperDoc, truckerDoc] = await Promise.all([
+    db.collection('shipments').where('contractId', '==', contractId).limit(1).get(),
+    contract.shipperId ? db.collection('users').doc(contract.shipperId).get() : Promise.resolve(null),
+    contract.truckerId ? db.collection('users').doc(contract.truckerId).get() : Promise.resolve(null),
+  ]);
 
   if (!shipmentSnap.empty) {
     contract.shipment = { id: shipmentSnap.docs[0].id, ...shipmentSnap.docs[0].data() };
+  }
+
+  // Attach name + phone for both parties so the frontend can always display them
+  if (shipperDoc?.exists) {
+    const d = shipperDoc.data();
+    contract.shipperName = d.name || contract.listingOwnerName || '';
+    contract.shipperPhone = d.phone || '';
+  }
+  if (truckerDoc?.exists) {
+    const d = truckerDoc.data();
+    contract.truckerName = d.name || contract.bidderName || '';
+    contract.truckerPhone = d.phone || '';
   }
 
   return { contract };
