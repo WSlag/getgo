@@ -110,6 +110,17 @@ function typeIcon(item) {
   return <FileText className="size-3.5" />;
 }
 
+function iconStyle(item) {
+  if (item.source === 'contract' || item.typeBuckets?.includes('contracts'))
+    return { background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)', border: '1px solid #c7d2fe', color: '#6366f1' };
+  if (item.source === 'truck_booking' || item.typeBuckets?.includes('shipment') || item.typeBuckets?.includes('delivery'))
+    return { background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', border: '1px solid #bbf7d0', color: '#22c55e' };
+  if (item.source === 'bid' || item.typeBuckets?.includes('bids'))
+    return { background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '1px solid #bfdbfe', color: '#3b82f6' };
+  // cargo default — orange
+  return { background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa', color: '#f97316' };
+}
+
 function matchesTypeFilter(item, activeTypeFilter) {
   if (activeTypeFilter === 'all') return true;
   return item.typeBuckets.includes(activeTypeFilter);
@@ -347,9 +358,12 @@ export function ShipperActivityView({
   return (
     <div className="flex flex-col gap-3">
       {/* Filter panel */}
-      <div className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 p-4"
-        style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
-        <div className="flex flex-col gap-2.5">
+      <div
+        className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 p-4 relative overflow-hidden"
+        style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+      >
+        <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: 'linear-gradient(180deg, #FF9A56 0%, #FF6B35 100%)' }} />
+        <div className="pl-2 flex flex-col gap-2.5">
           <div className="flex flex-wrap gap-1.5">
             {typeFilters.map((f) => (
               <button
@@ -382,31 +396,36 @@ export function ShipperActivityView({
 
       {/* Stats grid */}
       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-        {statCards.map(({ label, value, iconEl, iconBg }) => (
+        {statCards.map(({ label, value, iconEl, iconBg }, idx) => (
           <div
             key={label}
-            className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 p-3"
+            className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 p-3 relative overflow-hidden"
             style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
           >
+            {idx === 0 && (
+              <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: 'linear-gradient(180deg, #FF9A56, #FF6B35)' }} />
+            )}
             <div className={`size-7 rounded-xl ${iconBg} flex items-center justify-center mb-2`}>
               {iconEl}
             </div>
-            <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-0.5 leading-none">{label}</p>
+            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 mb-0.5 leading-none truncate">{label}</p>
             <p className="text-xl font-black text-gray-900 dark:text-white leading-none" style={{ fontFamily: 'Outfit, sans-serif' }}>{value}</p>
           </div>
         ))}
       </div>
 
       {/* Activity list */}
-      <div className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 overflow-hidden px-3"
-        style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+      <div
+        className="rounded-2xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700/60 p-3"
+        style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+      >
         {loading ? (
           <div className="py-14 flex flex-col items-center justify-center gap-2 text-gray-400">
             <Loader2 className="size-5 animate-spin text-orange-500" />
             <p className="text-sm">Loading activity...</p>
           </div>
         ) : error ? (
-          <div className="m-4 rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 text-red-700 dark:text-red-300 p-4 text-sm">
+          <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 text-red-700 dark:text-red-300 p-4 text-sm">
             {error}
           </div>
         ) : filteredItems.length === 0 ? (
@@ -422,32 +441,23 @@ export function ShipperActivityView({
               <p className="text-xs text-gray-400 dark:text-gray-500">No shipper activity for the selected filters.</p>
             </div>
             <div className="flex flex-wrap justify-center gap-2">
-              <button
-                type="button"
-                onClick={onBrowseMarketplace}
-                className="h-9 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
+              <button type="button" onClick={onBrowseMarketplace}
+                className="h-9 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700">
                 Browse Trucks
               </button>
-              <button
-                type="button"
-                onClick={onCreateListing}
+              <button type="button" onClick={onCreateListing}
                 className="h-9 px-4 rounded-xl text-sm font-bold text-white transition-all active:scale-95 hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)', boxShadow: '0 4px 12px rgba(249,115,22,0.35)' }}
-              >
+                style={{ background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)', boxShadow: '0 4px 12px rgba(249,115,22,0.35)' }}>
                 Post Cargo
               </button>
-              <button
-                type="button"
-                onClick={onOpenMessages}
-                className="h-9 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
+              <button type="button" onClick={onOpenMessages}
+                className="h-9 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700">
                 Open Messages
               </button>
             </div>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
+          <div className="flex flex-col gap-2">
             {filteredItems.map((item) => (
               <button
                 key={item.id}
@@ -467,13 +477,14 @@ export function ShipperActivityView({
                   }
                   if (item.source === 'cargo') { onOpenListing?.(item.rawEntity); }
                 }}
-                className="w-full text-left px-5 py-4 transition-colors hover:bg-orange-50/60 dark:hover:bg-orange-950/20 active:bg-orange-50 dark:active:bg-orange-950/30"
+                className="w-full text-left p-4 rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 transition-all duration-150 hover:border-orange-200 dark:hover:border-orange-800/60 hover:shadow-md active:scale-[0.99]"
+                style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}
               >
                 {/* Row 1: icon + label + status badge */}
                 <div className="flex items-center gap-3">
                   <div
-                    className="shrink-0 size-9 rounded-xl flex items-center justify-center text-orange-500"
-                    style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa' }}
+                    className="shrink-0 size-9 rounded-xl flex items-center justify-center"
+                    style={iconStyle(item)}
                   >
                     {typeIcon(item)}
                   </div>
@@ -483,9 +494,9 @@ export function ShipperActivityView({
                     </p>
                     {(item.origin || item.destination) && (
                       <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                        <span className="truncate max-w-[100px] sm:max-w-[160px]">{item.origin || '-'}</span>
+                        <span className="truncate max-w-[100px] sm:max-w-[180px]">{item.origin || '-'}</span>
                         <ArrowRight className="size-3 shrink-0 text-orange-300" />
-                        <span className="truncate max-w-[100px] sm:max-w-[160px]">{item.destination || '-'}</span>
+                        <span className="truncate max-w-[100px] sm:max-w-[180px]">{item.destination || '-'}</span>
                       </div>
                     )}
                   </div>
@@ -495,17 +506,15 @@ export function ShipperActivityView({
                 </div>
 
                 {/* Row 2: meta info */}
-                <div className="mt-2 ml-12 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
+                <div className="mt-2.5 ml-12 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
                   {item.counterpartyName && (
-                    <span>
-                      With: <span className="text-gray-600 dark:text-gray-300 font-semibold">{item.counterpartyName}</span>
-                    </span>
+                    <span>With: <span className="text-gray-600 dark:text-gray-300 font-semibold">{item.counterpartyName}</span></span>
                   )}
                   {formatAmount(item.amount) && (
-                    <span className="font-bold text-gray-700 dark:text-gray-200">{formatAmount(item.amount)}</span>
+                    <span className="font-bold" style={{ color: '#FF6B35' }}>{formatAmount(item.amount)}</span>
                   )}
                   {item.activityAt && (
-                    <span className="flex items-center gap-1 ml-auto text-gray-400 dark:text-gray-500">
+                    <span className="flex items-center gap-1 ml-auto">
                       <Calendar className="size-3 shrink-0" />
                       {formatDate(item.activityAt)}
                     </span>
