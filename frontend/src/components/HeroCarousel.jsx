@@ -40,7 +40,7 @@ const SLIDES = [
     iconViewBox: '0 0 20 21',
     headline: 'Nationwide Coverage',
     sub: 'From Luzon to Mindanao, trusted carriers across the Philippines.',
-    pills: ['24/7 Support', 'Secure Payments', 'Insurance Options'],
+    pills: ['Verified Carriers', 'Secure Payments', 'Rated Drivers'],
   },
 ];
 
