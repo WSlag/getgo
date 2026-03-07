@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { canBidCargoStatus, canBookTruckStatus } from '@/utils/listingStatus';
 import BrokerHomeCard from '@/components/broker/BrokerHomeCard';
 import { getWorkspaceLabel } from '@/utils/workspace';
+import { HeroCarousel } from '@/components/HeroCarousel';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -264,6 +265,8 @@ export function HomeView({
 
       {/* Scrollable Content */}
       <div data-testid="home-scroll-content" style={{ padding: isMobile ? '8px 16px 0' : '0' }}>
+      {/* Hero Carousel */}
+      <HeroCarousel isMobile={isMobile} onEarnAsBrokerClick={onActivateBroker} />
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900" style={{ padding: isMobile ? '12px' : '16px', marginBottom: isMobile ? '12px' : '16px' }}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
