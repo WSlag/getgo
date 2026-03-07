@@ -84,7 +84,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
     delta < 0 ? next() : prev();
   };
 
-  const height = isMobile ? 200 : 240;
+  const height = isMobile ? 210 : 240;
   // On mobile, arrows sit outside the card; on desktop they sit inside
   const arrowOffset = isMobile ? '-16px' : '14px';
 
@@ -190,8 +190,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
 
 function Slide({ slide, total, isMobile }) {
   const { bg, orbColor, orbColor2, iconBg, iconBorder, iconPath, iconViewBox, headline, sub, pills } = slide;
-  // Show max 2 pills on mobile to avoid overflow
-  const visiblePills = isMobile ? pills.slice(0, 2) : pills;
+  const visiblePills = pills;
 
   return (
     <div
@@ -258,8 +257,8 @@ function Slide({ slide, total, isMobile }) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          // Enough horizontal padding — no arrows inside on mobile
-          padding: isMobile ? '18px 16px 32px 16px' : '28px 80px 40px 32px',
+          // No arrows inside on mobile (they're outside the card)
+          padding: isMobile ? '16px 12px 28px 14px' : '28px 80px 40px 32px',
           maxWidth: isMobile ? '100%' : '70%',
           boxSizing: 'border-box',
         }}
@@ -327,7 +326,7 @@ function Slide({ slide, total, isMobile }) {
 
         {/* Pill badges */}
         {visiblePills.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '6px', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '5px' : '8px' }}>
             {visiblePills.map((p) => (
               <span
                 key={p}
@@ -338,12 +337,11 @@ function Slide({ slide, total, isMobile }) {
                   background: 'rgba(255,255,255,0.2)',
                   border: '1px solid rgba(255,255,255,0.35)',
                   borderRadius: '999px',
-                  padding: isMobile ? '3px 10px' : '5px 14px',
+                  padding: isMobile ? '3px 9px' : '5px 14px',
                   backdropFilter: 'blur(4px)',
                   whiteSpace: 'nowrap',
                   fontFamily: 'Outfit, sans-serif',
                   letterSpacing: '0.01em',
-                  flexShrink: 0,
                 }}
               >
                 {p}
