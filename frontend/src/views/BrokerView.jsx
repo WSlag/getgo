@@ -17,7 +17,7 @@ import api from '@/services/api';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { Button } from '@/components/ui/button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import BrokerOnboardingModal from '@/components/broker/BrokerOnboardingModal';
+import { BrokerOnboardingGuideModal } from '@/components/broker/BrokerOnboardingGuideModal';
 
 const MIN_PAYOUT = 500;
 
@@ -855,11 +855,15 @@ export function BrokerView({
       </div>
     </main>
 
-    <BrokerOnboardingModal
+    <BrokerOnboardingGuideModal
       open={showOnboarding}
       onClose={() => setShowOnboarding(false)}
-      onActivate={() => { setShowOnboarding(false); onBrokerRegistered?.(); }}
+      onDismiss={() => setShowOnboarding(false)}
+      onComplete={() => setShowOnboarding(false)}
+      onActivated={() => { onBrokerRegistered?.(); }}
       userRole={brokerProfile?.sourceRole || 'shipper'}
+      userName={authUser?.displayName || ''}
+      isBroker={isBroker}
     />
     </>
   );
