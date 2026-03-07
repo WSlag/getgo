@@ -426,46 +426,46 @@ export function TruckerActivityView({
                     userName: item.listingOwnerName,
                   });
                 }}
-                className="w-full text-left px-4 py-3.5 transition-colors hover:bg-orange-50/60 dark:hover:bg-orange-950/20 active:bg-orange-50 dark:active:bg-orange-950/30"
+                className="w-full text-left px-4 py-4 transition-colors hover:bg-orange-50/60 dark:hover:bg-orange-950/20 active:bg-orange-50 dark:active:bg-orange-950/30"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className="shrink-0 size-9 rounded-xl flex items-center justify-center text-orange-500"
-                      style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa' }}
-                    >
-                      {typeIcon(item)}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
-                        {typeLabel(item)}
-                      </p>
-                      {(item.origin || item.destination) && (
-                        <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                          <span className="truncate max-w-[90px]">{item.origin || '-'}</span>
-                          <ArrowRight className="size-3 shrink-0 text-orange-300" />
-                          <span className="truncate max-w-[90px]">{item.destination || '-'}</span>
-                        </div>
-                      )}
-                    </div>
+                {/* Row 1: icon + label + status badge */}
+                <div className="flex items-center gap-3">
+                  <div
+                    className="shrink-0 size-9 rounded-xl flex items-center justify-center text-orange-500"
+                    style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa' }}
+                  >
+                    {typeIcon(item)}
                   </div>
-                  <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold capitalize ${statusClass(item.status)}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+                      {typeLabel(item)}
+                    </p>
+                    {(item.origin || item.destination) && (
+                      <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                        <span className="truncate max-w-[100px] sm:max-w-[160px]">{item.origin || '-'}</span>
+                        <ArrowRight className="size-3 shrink-0 text-orange-300" />
+                        <span className="truncate max-w-[100px] sm:max-w-[160px]">{item.destination || '-'}</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-bold capitalize leading-none ${statusClass(item.status)}`}>
                     {item.status}
                   </span>
                 </div>
 
-                <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
+                {/* Row 2: meta info */}
+                <div className="mt-2 ml-12 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
                   {item.counterpartyName && (
                     <span>
                       With: <span className="text-gray-600 dark:text-gray-300 font-semibold">{item.counterpartyName}</span>
                     </span>
                   )}
                   {formatAmount(item.amount) && (
-                    <span className="font-semibold text-gray-600 dark:text-gray-300">{formatAmount(item.amount)}</span>
+                    <span className="font-bold text-gray-700 dark:text-gray-200">{formatAmount(item.amount)}</span>
                   )}
                   {item.activityAt && (
                     <span className="flex items-center gap-1 ml-auto text-gray-400 dark:text-gray-500">
-                      <Calendar className="size-3" />
+                      <Calendar className="size-3 shrink-0" />
                       {formatDate(item.activityAt)}
                     </span>
                   )}
