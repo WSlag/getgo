@@ -877,6 +877,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
 
     // Create shipment
     const shipmentRef = db.collection('shipments').doc();
+    const isCargo2 = contract.listingType === 'cargo';
     await shipmentRef.set({
       contractId,
       trackingNumber,
@@ -886,8 +887,16 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       participantIds: contract.participantIds,
       shipperId,
       truckerId,
+      shipperName: isCargo2 ? (contract.listingOwnerName || '') : (contract.bidderName || ''),
+      truckerName: isCargo2 ? (contract.bidderName || '') : (contract.listingOwnerName || ''),
       origin: contract.pickupAddress,
       destination: contract.deliveryAddress,
+      pickupDate: contract.pickupDate || null,
+      expectedDeliveryDate: contract.expectedDeliveryDate || null,
+      vehiclePlateNumber: contract.vehiclePlateNumber || '',
+      agreedPrice: contract.agreedPrice || 0,
+      cargoDescription: contract.cargoType || contract.cargoDescription || '',
+      listingType: contract.listingType || 'cargo',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });

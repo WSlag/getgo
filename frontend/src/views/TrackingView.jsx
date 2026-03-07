@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { MapPin, Package, Truck, Navigation, Radio, MapPinned, CheckCircle2 } from 'lucide-react';
+import { MapPin, Package, Truck, Navigation, Radio, MapPinned, CheckCircle2, Calendar, User, PhoneCall } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import TrackingMap from '@/components/maps/TrackingMap';
@@ -211,6 +211,13 @@ export function TrackingView({
     }
   };
 
+  const formatDate = (date) => {
+    if (!date) return null;
+    const d = date instanceof Date ? date : new Date(date?.seconds ? date.seconds * 1000 : date);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   const ShipmentCard = ({ shipment }) => {
     const status = statusConfig[shipment.status] || statusConfig.in_transit;
     const canPickUpShipment = canPickUp(shipment);
@@ -344,6 +351,67 @@ export function TrackingView({
               </select>
             </div>
           )}
+
+          {/* Contract Details */}
+          <div style={{
+            marginBottom: isMobile ? '16px' : '20px',
+            padding: isMobile ? '12px' : '14px',
+            background: darkMode ? 'rgba(255,255,255,0.04)' : '#f9fafb',
+            borderRadius: '12px',
+            border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
+          }}>
+            {/* Parties */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+              <div>
+                <p style={{ fontSize: '10px', color: '#9ca3af', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <User style={{ width: '10px', height: '10px' }} /> Shipper
+                </p>
+                <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '600', color: darkMode ? '#f3f4f6' : '#111827' }}>
+                  {shipment.shipperName || '—'}
+                </p>
+              </div>
+              <div>
+                <p style={{ fontSize: '10px', color: '#9ca3af', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <Truck style={{ width: '10px', height: '10px' }} /> Trucker
+                </p>
+                <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '600', color: darkMode ? '#f3f4f6' : '#111827' }}>
+                  {shipment.truckerName || '—'}
+                </p>
+              </div>
+            </div>
+
+            {/* Dates + Plate */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+              {formatDate(shipment.pickupDate) && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 8px', borderRadius: '999px', background: darkMode ? '#1f2937' : '#fff', border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`, color: darkMode ? '#d1d5db' : '#374151' }}>
+                  <Calendar style={{ width: '10px', height: '10px', color: '#f97316' }} />
+                  Pickup: {formatDate(shipment.pickupDate)}
+                </span>
+              )}
+              {formatDate(shipment.expectedDeliveryDate) && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 8px', borderRadius: '999px', background: darkMode ? '#1f2937' : '#fff', border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`, color: darkMode ? '#d1d5db' : '#374151' }}>
+                  <Calendar style={{ width: '10px', height: '10px', color: '#10b981' }} />
+                  Est. Delivery: {formatDate(shipment.expectedDeliveryDate)}
+                </span>
+              )}
+              {shipment.vehiclePlateNumber && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 8px', borderRadius: '999px', background: darkMode ? '#1f2937' : '#fff', border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`, color: darkMode ? '#d1d5db' : '#374151' }}>
+                  <Truck style={{ width: '10px', height: '10px', color: '#6b7280' }} />
+                  {shipment.vehiclePlateNumber}
+                </span>
+              )}
+            </div>
+
+            {/* Agreed price */}
+            {shipment.agreedPrice > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <p style={{ fontSize: '11px', color: '#9ca3af' }}>Contract Value</p>
+                <p style={{ fontSize: isMobile ? '14px' : '15px', fontWeight: '700', color: '#f97316', fontFamily: 'Outfit, sans-serif' }}>
+                  PHP {Number(shipment.agreedPrice).toLocaleString()}
+                </p>
+              </div>
+            )}
+          </div>
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {canPickUpShipment && (
