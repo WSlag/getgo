@@ -393,7 +393,7 @@ export function ContractModal({
             <div className="flex-1" style={{ minWidth: 0 }}>
               <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Shipper (First Party)</p>
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shipperInfo?.name}</p>
-              {fullyExecuted && shipperInfo?.phone && (
+              {shipperInfo?.phone && (
                 <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: '4px' }} className="flex items-center gap-1">
                   <Phone style={{ width: '12px', height: '12px' }} /> {shipperInfo.phone}
                 </p>
@@ -434,7 +434,7 @@ export function ContractModal({
             <div className="flex-1" style={{ minWidth: 0 }}>
               <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Trucker (Second Party)</p>
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{truckerInfo?.name}</p>
-              {fullyExecuted && truckerInfo?.phone && (
+              {truckerInfo?.phone && (
                 <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: '4px' }} className="flex items-center gap-1">
                   <Phone style={{ width: '12px', height: '12px' }} /> {truckerInfo.phone}
                 </p>
@@ -696,25 +696,40 @@ export function ContractModal({
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div className="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
-                <div>
-                  <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>Driver License Copy</p>
-                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: hasDriverCopy ? '#16a34a' : '#6b7280' }}>
-                    {hasDriverCopy ? 'Uploaded' : 'Not uploaded'}
-                  </p>
+              {/* Driver License */}
+              <div className="flex items-center justify-between rounded-xl border border-gray-100 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px 12px' : '12px 14px' }}>
+                <div className="flex items-center" style={{ gap: '10px', minWidth: 0 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '10px', flexShrink: 0,
+                    background: hasDriverCopy ? 'linear-gradient(135deg, #bbf7d0, #86efac)' : 'linear-gradient(135deg, #fed7aa, #fdba74)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Upload style={{ width: 16, height: 16, color: hasDriverCopy ? '#16a34a' : '#ea580c' }} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '600', color: darkMode ? '#fff' : '#111827' }}>Driver License Copy</p>
+                    <p style={{ fontSize: isMobile ? '11px' : '12px', color: hasDriverCopy ? '#16a34a' : '#9ca3af', marginTop: '1px' }}>
+                      {hasDriverCopy ? '✓ Uploaded' : 'Not yet uploaded'}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center" style={{ gap: '8px' }}>
+                <div className="flex items-center" style={{ gap: '8px', flexShrink: 0 }}>
                   {hasDriverCopy && (
                     <a
                       href={truckerProfile?.driverLicenseCopy?.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-600 underline"
+                      style={{
+                        fontSize: '12px', fontWeight: '600', color: '#f97316',
+                        textDecoration: 'none', padding: '5px 10px',
+                        borderRadius: '8px', border: '1.5px solid #fed7aa',
+                        background: '#fff7ed',
+                      }}
                     >
                       View
                     </a>
                   )}
-                  <label className="cursor-pointer">
+                  <label className="cursor-pointer" style={{ opacity: uploadingDocType === 'driver_license' ? 0.7 : 1 }}>
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
@@ -722,33 +737,60 @@ export function ContractModal({
                       onChange={(event) => handleUploadDoc('driver_license', event)}
                       disabled={loading || uploadingDocType === 'driver_license'}
                     />
-                    <span className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs text-white">
-                      <Upload className="size-3" />
+                    <span
+                      className="inline-flex items-center"
+                      style={{
+                        gap: '5px', padding: '6px 12px', borderRadius: '9px',
+                        fontSize: '12px', fontWeight: '700', color: '#fff',
+                        background: uploadingDocType === 'driver_license'
+                          ? '#fdba74'
+                          : 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
+                        boxShadow: uploadingDocType === 'driver_license' ? 'none' : '0 2px 8px rgba(249,115,22,0.35)',
+                        fontFamily: 'Outfit, sans-serif',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Upload style={{ width: 12, height: 12 }} />
                       {uploadingDocType === 'driver_license' ? 'Uploading...' : (hasDriverCopy ? 'Replace' : 'Upload')}
                     </span>
                   </label>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
-                <div>
-                  <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>LTO Certificate of Registration Copy</p>
-                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: hasLtoCopy ? '#16a34a' : '#6b7280' }}>
-                    {hasLtoCopy ? 'Uploaded' : 'Not uploaded'}
-                  </p>
+              {/* LTO Registration */}
+              <div className="flex items-center justify-between rounded-xl border border-gray-100 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px 12px' : '12px 14px' }}>
+                <div className="flex items-center" style={{ gap: '10px', minWidth: 0 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '10px', flexShrink: 0,
+                    background: hasLtoCopy ? 'linear-gradient(135deg, #bbf7d0, #86efac)' : 'linear-gradient(135deg, #fed7aa, #fdba74)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Upload style={{ width: 16, height: 16, color: hasLtoCopy ? '#16a34a' : '#ea580c' }} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '600', color: darkMode ? '#fff' : '#111827' }}>LTO Registration Copy</p>
+                    <p style={{ fontSize: isMobile ? '11px' : '12px', color: hasLtoCopy ? '#16a34a' : '#9ca3af', marginTop: '1px' }}>
+                      {hasLtoCopy ? '✓ Uploaded' : 'Not yet uploaded'}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center" style={{ gap: '8px' }}>
+                <div className="flex items-center" style={{ gap: '8px', flexShrink: 0 }}>
                   {hasLtoCopy && (
                     <a
                       href={truckerProfile?.ltoRegistrationCopy?.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-600 underline"
+                      style={{
+                        fontSize: '12px', fontWeight: '600', color: '#f97316',
+                        textDecoration: 'none', padding: '5px 10px',
+                        borderRadius: '8px', border: '1.5px solid #fed7aa',
+                        background: '#fff7ed',
+                      }}
                     >
                       View
                     </a>
                   )}
-                  <label className="cursor-pointer">
+                  <label className="cursor-pointer" style={{ opacity: uploadingDocType === 'lto_registration' ? 0.7 : 1 }}>
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
@@ -756,8 +798,20 @@ export function ContractModal({
                       onChange={(event) => handleUploadDoc('lto_registration', event)}
                       disabled={loading || uploadingDocType === 'lto_registration'}
                     />
-                    <span className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs text-white">
-                      <Upload className="size-3" />
+                    <span
+                      className="inline-flex items-center"
+                      style={{
+                        gap: '5px', padding: '6px 12px', borderRadius: '9px',
+                        fontSize: '12px', fontWeight: '700', color: '#fff',
+                        background: uploadingDocType === 'lto_registration'
+                          ? '#fdba74'
+                          : 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
+                        boxShadow: uploadingDocType === 'lto_registration' ? 'none' : '0 2px 8px rgba(249,115,22,0.35)',
+                        fontFamily: 'Outfit, sans-serif',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Upload style={{ width: 12, height: 12 }} />
                       {uploadingDocType === 'lto_registration' ? 'Uploading...' : (hasLtoCopy ? 'Replace' : 'Upload')}
                     </span>
                   </label>
