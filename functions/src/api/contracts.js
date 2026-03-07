@@ -71,16 +71,8 @@ function validateTruckerDocumentMetadata(doc, userId, requiredDocType) {
   const url = typeof doc.url === 'string' ? doc.url.trim() : '';
   const path = typeof doc.path === 'string' ? doc.path.trim() : '';
 
-  if (!url || !path) {
+  if (!url) {
     return { valid: false, reason: `${requiredDocType}_missing_path_or_url` };
-  }
-
-  const expectedPrefix = requiredDocType === 'driver'
-    ? `trucker-docs/${userId}/driver_license/`
-    : (requiredDocType === 'lto' ? `trucker-docs/${userId}/lto_registration/` : `trucker-docs/${userId}/`);
-
-  if (!path.startsWith(expectedPrefix)) {
-    return { valid: false, reason: `${requiredDocType}_owner_mismatch` };
   }
 
   const parsedStorage = parseTrustedStorageUrl(url);
@@ -88,7 +80,22 @@ function validateTruckerDocumentMetadata(doc, userId, requiredDocType) {
     return { valid: false, reason: `${requiredDocType}_${parsedStorage.reason}` };
   }
 
-  if (parsedStorage.objectPath !== path) {
+  // Backward-compatible path handling:
+  // older docs may have URL only, so derive canonical object path from the trusted URL.
+  const resolvedPath = path || parsedStorage.objectPath;
+  if (!resolvedPath) {
+    return { valid: false, reason: `${requiredDocType}_missing_path_or_url` };
+  }
+
+  const expectedPrefix = requiredDocType === 'driver'
+    ? `trucker-docs/${userId}/driver_license/`
+    : (requiredDocType === 'lto' ? `trucker-docs/${userId}/lto_registration/` : `trucker-docs/${userId}/`);
+
+  if (!resolvedPath.startsWith(expectedPrefix)) {
+    return { valid: false, reason: `${requiredDocType}_owner_mismatch` };
+  }
+
+  if (path && parsedStorage.objectPath !== path) {
     return { valid: false, reason: `${requiredDocType}_path_mismatch` };
   }
 

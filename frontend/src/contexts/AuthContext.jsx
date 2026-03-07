@@ -60,6 +60,12 @@ function hashTelemetryValue(value) {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
+function isSelfReferralError(error) {
+  const reason = String(error?.details?.reason || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+  return reason === 'self-referral-not-allowed' || message.includes('self-referral');
+}
+
 function resolveEmailLinkCallbackUrl() {
   if (typeof window === 'undefined') {
     throw new Error('Email link sign-in requires a browser environment.');
@@ -567,6 +573,7 @@ export function AuthProvider({ children }) {
         });
       } catch (retryError) {
         if (cancelled) return;
+        const terminalSelfReferral = isSelfReferralError(retryError);
         const eventPayload = {
           phase: 'post_login_retry',
           status: 'failed',
@@ -577,15 +584,22 @@ export function AuthProvider({ children }) {
           errorMessage: retryError?.message || 'referral_apply_failed',
         };
         console.warn('[referral-attribution]', eventPayload);
-        window.localStorage.setItem(REFERRAL_ERROR_STORAGE_KEY, JSON.stringify({
-          ...eventPayload,
-          capturedAtMs: Date.now(),
-        }));
+        if (terminalSelfReferral) {
+          window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY);
+          window.localStorage.removeItem(REFERRAL_ERROR_STORAGE_KEY);
+        } else {
+          window.localStorage.setItem(REFERRAL_ERROR_STORAGE_KEY, JSON.stringify({
+            ...eventPayload,
+            capturedAtMs: Date.now(),
+          }));
+        }
         setReferralAttributionEvent({
           id: `${Date.now()}-${Math.random()}`,
           status: 'failed',
           phase: 'post_login_retry',
-          message: 'Referral code could not be linked yet. We will keep trying automatically.',
+          message: terminalSelfReferral
+            ? 'Referral code cannot be applied because self-referral is not allowed.'
+            : 'Referral code could not be linked yet. We will keep trying automatically.',
           telemetry: eventPayload,
         });
       }
@@ -1074,10 +1088,13 @@ export function AuthProvider({ children }) {
             referralCodeRedacted: redactReferralCode(normalizedReferralCode),
           });
         } catch (referralError) {
+          const terminalSelfReferral = isSelfReferralError(referralError);
           // Do not block account creation if referral attribution fails.
           referralAttribution = {
             status: 'failed',
-            message: 'Profile created, but referral code could not be linked yet.',
+            message: terminalSelfReferral
+              ? 'Profile created, but self-referral is not allowed. Please use another broker referral code.'
+              : 'Profile created, but referral code could not be linked yet.',
             telemetry: {
               uid: authUser.uid,
               errorCode: referralError?.code || null,
@@ -1087,11 +1104,16 @@ export function AuthProvider({ children }) {
             },
           };
           if (typeof window !== 'undefined') {
-            window.localStorage.setItem(REFERRAL_ERROR_STORAGE_KEY, JSON.stringify({
-              ...referralAttribution.telemetry,
-              phase: 'registration',
-              capturedAtMs: Date.now(),
-            }));
+            if (terminalSelfReferral) {
+              window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY);
+              window.localStorage.removeItem(REFERRAL_ERROR_STORAGE_KEY);
+            } else {
+              window.localStorage.setItem(REFERRAL_ERROR_STORAGE_KEY, JSON.stringify({
+                ...referralAttribution.telemetry,
+                phase: 'registration',
+                capturedAtMs: Date.now(),
+              }));
+            }
           }
           console.warn('[referral-attribution]', {
             phase: 'registration',

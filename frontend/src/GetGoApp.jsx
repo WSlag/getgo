@@ -406,6 +406,32 @@ export default function GetGoApp() {
     const message = String(error?.message || '').toLowerCase();
     const reason = String(error?.details?.reason || '').toLowerCase();
 
+    if (reason === 'missing-required-trucker-documents') {
+      const missingDocs = Array.isArray(error?.details?.missingDocs)
+        ? error.details.missingDocs
+        : [];
+      const labelByField = {
+        driverLicenseCopy: 'Driver License Copy',
+        ltoRegistrationCopy: 'LTO Certificate of Registration Copy',
+      };
+      const labels = missingDocs
+        .map((item) => labelByField[item?.field] || item?.field)
+        .filter(Boolean);
+      if (labels.length > 0) {
+        return `Required before signing: ${labels.join(', ')}.`;
+      }
+      return 'Driver License Copy and LTO Certificate of Registration Copy are required before signing this contract.';
+    }
+    if (reason === 'trucker-cancellation-limit-reached') {
+      const blockUntil = error?.details?.blockUntil ? new Date(error.details.blockUntil) : null;
+      if (blockUntil && !Number.isNaN(blockUntil.getTime())) {
+        return `Contract signing is temporarily blocked due to frequent cancellations. Try again after ${blockUntil.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}.`;
+      }
+      return 'Contract signing is temporarily blocked due to frequent cancellations.';
+    }
+    if (reason === 'self-referral-not-allowed' || message.includes('self-referral')) {
+      return 'You cannot use your own referral code. Use a referral code from a different broker.';
+    }
     if (code.includes('platform-fee-cap-exceeded') || code.includes('resource-exhausted') || message.includes('exceed allowed cap')) {
       return 'Cannot accept this bid yet because the projected outstanding platform fees exceed the allowed cap.';
     }
@@ -429,16 +455,6 @@ export default function GetGoApp() {
     }
     if (code.includes('already-exists') || message.includes('already exists')) {
       return 'This action was already completed.';
-    }
-    if (reason === 'missing-required-trucker-documents') {
-      return 'Driver License Copy and LTO Certificate of Registration Copy are required before signing this contract.';
-    }
-    if (reason === 'trucker-cancellation-limit-reached') {
-      const blockUntil = error?.details?.blockUntil ? new Date(error.details.blockUntil) : null;
-      if (blockUntil && !Number.isNaN(blockUntil.getTime())) {
-        return `Contract signing is temporarily blocked due to frequent cancellations. Try again after ${blockUntil.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}.`;
-      }
-      return 'Contract signing is temporarily blocked due to frequent cancellations.';
     }
     return fallback;
   };
