@@ -487,7 +487,9 @@ exports.brokerApplyReferralCode = functions.region(REGION).https.onCall(async (d
     throw new functions.https.HttpsError('failed-precondition', 'Broker referral code is not active');
   }
   if (brokerId === referredUserId) {
-    throw new functions.https.HttpsError('failed-precondition', 'Self-referral is not allowed');
+    throw new functions.https.HttpsError('failed-precondition', 'Self-referral is not allowed', {
+      reason: 'self-referral-not-allowed',
+    });
   }
 
   const brokerRef = db.collection('brokers').doc(brokerId);
