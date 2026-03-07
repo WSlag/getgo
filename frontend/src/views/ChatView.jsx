@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, MapPin, Package, Truck, Loader2, Clock } from 'lucide-react';
+import { MessageSquare, MapPin, Package, Truck, Loader2, Clock, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +53,21 @@ export function ChatView({
   const formatPrice = (price) => {
     if (!price) return '---';
     return `PHP ${Number(price).toLocaleString()}`;
+  };
+
+  const formatDate = (date) => {
+    if (!date) return null;
+    const d = date instanceof Date ? date : new Date(date?.seconds ? date.seconds * 1000 : date);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const statusConfig = {
+    pending:    { label: 'Pending',    bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
+    accepted:   { label: 'Accepted',   bg: '#dcfce7', color: '#166534', border: '#bbf7d0' },
+    contracted: { label: 'Contracted', bg: '#fff7ed', color: '#9a3412', border: '#fed7aa' },
+    rejected:   { label: 'Rejected',   bg: '#fee2e2', color: '#991b1b', border: '#fecaca' },
+    withdrawn:  { label: 'Withdrawn',  bg: '#f3f4f6', color: '#6b7280', border: '#e5e7eb' },
   };
 
   const handleConversationClick = (conversation) => {
@@ -184,10 +199,26 @@ export function ChatView({
                       <p style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: hasUnread ? '700' : '600', color: darkMode ? '#fff' : '#111827' }}>
                         {conversation.otherPartyName}
                       </p>
-                      <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>
-                        <Clock style={{ width: '12px', height: '12px', display: 'inline', marginRight: '4px' }} />
-                        {formatTimeAgo(conversation.lastActivityAt)}
-                      </p>
+                      <div className="flex items-center flex-wrap" style={{ gap: '6px', marginTop: '2px' }}>
+                        <span style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <Clock style={{ width: '12px', height: '12px' }} />
+                          {formatTimeAgo(conversation.lastActivityAt)}
+                        </span>
+                        {conversation.status && statusConfig[conversation.status] && (
+                          <span style={{
+                            fontSize: '10px',
+                            fontWeight: '600',
+                            padding: '1px 7px',
+                            borderRadius: '999px',
+                            background: statusConfig[conversation.status].bg,
+                            color: statusConfig[conversation.status].color,
+                            border: `1px solid ${statusConfig[conversation.status].border}`,
+                            letterSpacing: '0.02em',
+                          }}>
+                            {statusConfig[conversation.status].label}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {hasUnread && (
@@ -251,26 +282,55 @@ export function ChatView({
                   ) : null}
 
                   {/* Details and Price */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-end justify-between" style={{ gap: '12px' }}>
+                    {/* Left: type, weight/capacity, date */}
                     <div>
                       <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151' }}>
                         {isCargo ? conversation.cargoType || 'Cargo' : conversation.vehicleType || 'Truck'}
                       </p>
-                      {conversation.cargoWeight && (
-                        <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>
-                          {conversation.cargoWeight} {conversation.cargoWeightUnit || 'tons'}
+                      {isCargo
+                        ? conversation.cargoWeight && (
+                          <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>
+                            {conversation.cargoWeight} {conversation.cargoWeightUnit || 'tons'}
+                          </p>
+                        )
+                        : conversation.capacity && (
+                          <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>
+                            {conversation.capacity} {conversation.capacityUnit || 'tons'}
+                          </p>
+                        )
+                      }
+                      {formatDate(isCargo ? conversation.pickupDate : conversation.availableDate) && (
+                        <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <Calendar style={{ width: '11px', height: '11px', flexShrink: 0 }} />
+                          {formatDate(isCargo ? conversation.pickupDate : conversation.availableDate)}
                         </p>
                       )}
                     </div>
-                    <div style={{
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(to right, #fb923c, #ea580c)',
-                      color: 'white',
-                      fontWeight: '700',
-                      fontSize: isMobile ? '13px' : '14px'
-                    }}>
-                      {formatPrice(conversation.price)}
+
+                    {/* Right: stacked prices */}
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      {conversation.listingPrice && (
+                        <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#9ca3af', marginBottom: '3px', whiteSpace: 'nowrap' }}>
+                          Asking: {formatPrice(conversation.listingPrice)}
+                        </p>
+                      )}
+                      {conversation.price && (
+                        <div style={{
+                          display: 'inline-block',
+                          padding: isMobile ? '5px 10px' : '6px 12px',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
+                          boxShadow: '0 2px 6px rgba(249,115,22,0.3)',
+                          color: 'white',
+                          fontWeight: '700',
+                          fontSize: isMobile ? '12px' : '13px',
+                          fontFamily: 'Outfit, sans-serif',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {conversation.listingPrice ? 'Agreed: ' : ''}{formatPrice(conversation.price)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
