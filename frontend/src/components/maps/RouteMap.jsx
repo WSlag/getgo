@@ -99,7 +99,7 @@ export default function RouteMap({
 
   // Tile layer URLs
   const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-  const darkTiles = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png';
+  const darkTiles = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
   return (
     <div
