@@ -523,9 +523,23 @@ export function BrokerView({
               <h3 className="font-semibold text-gray-900 dark:text-white">Listing Referral Activity</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">Broker-referred cargo and truck posts summary</p>
             </div>
-            <Button variant="gradient" size="sm" className="rounded-full px-3.5" onClick={() => onOpenBrokerActivity?.()}>
-              Open Broker Activity
-            </Button>
+            <button
+              type="button"
+              onClick={() => onOpenBrokerActivity?.()}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl text-xs font-bold text-white transition-all active:scale-95 hover:opacity-90"
+              style={{
+                padding: '7px 13px',
+                background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
+                boxShadow: '0 3px 10px rgba(249,115,22,0.35)',
+                fontFamily: 'Outfit, sans-serif',
+                letterSpacing: '0.01em',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>
+              </svg>
+              Broker Activity
+            </button>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-5" style={{ gap: isMobile ? '8px' : '12px', marginBottom: isMobile ? '12px' : '14px' }}>
