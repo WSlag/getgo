@@ -49,6 +49,9 @@ const {
   requiredRecipientRoleForListingType,
   evaluateRecipientEligibilityForListingType,
 } = require('../utils/roleResolution');
+const {
+  accrueBrokerCommissionForPlatformFee,
+} = require('../services/brokerCommissionService');
 
 const REGION = 'asia-southeast1';
 const MIN_PAYOUT_AMOUNT = 500;
@@ -77,6 +80,24 @@ function buildBrokerCodePrefix(role) {
 function roundToCents(value) {
   const n = Number(value || 0);
   return Math.round(n * 100) / 100;
+}
+
+function encodeReconcileCursor(docId) {
+  if (!docId) return null;
+  const payload = JSON.stringify({ id: String(docId) });
+  return Buffer.from(payload, 'utf8').toString('base64');
+}
+
+function decodeReconcileCursor(rawCursor) {
+  if (!rawCursor) return null;
+  try {
+    const decoded = Buffer.from(String(rawCursor), 'base64').toString('utf8');
+    const parsed = JSON.parse(decoded);
+    const id = String(parsed?.id || '').trim();
+    return id ? { id } : null;
+  } catch (error) {
+    return null;
+  }
 }
 
 function toDate(value) {
@@ -537,6 +558,13 @@ exports.brokerApplyReferralCode = functions.region(REGION).https.onCall(async (d
     },
     isRead: false,
     createdAt: FieldValue.serverTimestamp(),
+  });
+
+  console.info('[broker-referral-attribution]', {
+    status: 'success',
+    brokerId,
+    referredUserId,
+    referralCode,
   });
 
   return { success: true, brokerId, referralCode };
@@ -1700,6 +1728,75 @@ exports.adminReviewBrokerPayout = functions.region(REGION).https.onCall(async (d
   }
 
   return { success: true };
+});
+
+/**
+ * Admin: reconcile missing broker commissions for completed platform fees.
+ * Safe to re-run due deterministic commission document id (platformFeeId).
+ */
+exports.adminReconcileBrokerCommissions = functions.region(REGION).https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const db = admin.firestore();
+  const limit = Math.min(Math.max(Number(data?.limit || 100), 1), 200);
+  const decodedCursor = decodeReconcileCursor(data?.startAfter);
+  if (data?.startAfter && !decodedCursor) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid startAfter cursor');
+  }
+
+  const runtimeSettings = await loadPlatformSettings(db);
+  let query = db.collection('platformFees')
+    .where('status', '==', 'completed')
+    .orderBy(FieldPath.documentId());
+
+  if (decodedCursor) {
+    query = query.startAfter(decodedCursor.id);
+  }
+
+  const snap = await query.limit(limit + 1).get();
+  const docs = snap.docs.slice(0, limit);
+  const hasMore = snap.size > limit;
+  const lastDoc = docs[docs.length - 1] || null;
+
+  let created = 0;
+  const skippedByReason = {};
+
+  for (const doc of docs) {
+    const outcome = await accrueBrokerCommissionForPlatformFee({
+      db,
+      feeId: doc.id,
+      fee: doc.data() || {},
+      settings: runtimeSettings,
+      source: 'admin_reconcile',
+      createNotification: true,
+    });
+
+    if (outcome.status === 'created') {
+      created += 1;
+    } else {
+      const reason = outcome.reason || 'unknown';
+      skippedByReason[reason] = Number(skippedByReason[reason] || 0) + 1;
+    }
+  }
+
+  const response = {
+    success: true,
+    scanned: docs.length,
+    created,
+    skippedByReason,
+    nextCursor: hasMore && lastDoc ? encodeReconcileCursor(lastDoc.id) : null,
+  };
+
+  console.info('[broker-commission-reconcile]', {
+    actorId: context.auth?.uid || null,
+    scanned: response.scanned,
+    created: response.created,
+    skippedByReason: response.skippedByReason,
+    nextCursor: response.nextCursor,
+    referralProgramEnabled: runtimeSettings?.features?.referralProgramEnabled !== false,
+  });
+
+  return response;
 });
 
 /**

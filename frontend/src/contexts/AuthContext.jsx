@@ -26,6 +26,8 @@ const EMAIL_MAGIC_LINK_FEATURE_ENABLED =
   import.meta.env.VITE_ENABLE_EMAIL_MAGIC_LINK === 'true'
   || Boolean(import.meta.env.DEV);
 const EMAIL_LINK_STORAGE_KEY = 'karga_email_link_state_v1';
+const REFERRAL_CODE_STORAGE_KEY = 'karga_referral_code';
+const REFERRAL_ERROR_STORAGE_KEY = 'karga_referral_attribution_last_error';
 const EMAIL_LINK_GENERIC_MESSAGE = 'If an eligible account exists, a sign-in link will be sent.';
 
 let authRecaptchaSiteKeyPromise = null;
@@ -35,6 +37,27 @@ function normalizeEmail(value) {
   const email = String(value || '').trim().toLowerCase();
   if (!email || !email.includes('@')) return null;
   return email;
+}
+
+function normalizeReferralCodeForStorage(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function redactReferralCode(value) {
+  const code = normalizeReferralCodeForStorage(value);
+  if (!code) return '';
+  if (code.length <= 4) return '*'.repeat(code.length);
+  return `${code.slice(0, 2)}${'*'.repeat(Math.max(1, code.length - 4))}${code.slice(-2)}`;
+}
+
+function hashTelemetryValue(value) {
+  const raw = String(value || '');
+  let hash = 2166136261;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash ^= raw.charCodeAt(i);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
 function resolveEmailLinkCallbackUrl() {
@@ -385,7 +408,9 @@ export function AuthProvider({ children }) {
   const [isNewUser, setIsNewUser] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [authError, setAuthError] = useState(null);
+  const [referralAttributionEvent, setReferralAttributionEvent] = useState(null);
   const recaptchaVerifierRef = useRef(null);
+  const referralRetryAttemptedRef = useRef(new Set());
 
   const clearRecaptchaVerifier = useCallback(() => {
     if (recaptchaVerifierRef.current) {
@@ -447,6 +472,7 @@ export function AuthProvider({ children }) {
         setBrokerProfile(null);
         setWallet(null);
         setIsNewUser(false);
+        setReferralAttributionEvent(null);
         setLoading(false);
       } else {
         // Keep app in loading state until profile listener resolves new/existing user.
@@ -500,6 +526,74 @@ export function AuthProvider({ children }) {
 
     return unsubShipper;
   }, [authUser, userProfile]);
+
+  // Best-effort retry path: if a referral code is still stored after login/profile creation
+  // and the account has no broker attribution yet, attempt exactly once per uid+code.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!authUser?.uid || !userProfile || isNewUser) return;
+    if (userProfile.referredByBrokerId) return;
+
+    const storedCode = normalizeReferralCodeForStorage(window.localStorage.getItem(REFERRAL_CODE_STORAGE_KEY));
+    if (!storedCode) return;
+
+    const retryKey = `${authUser.uid}:${storedCode}`;
+    if (referralRetryAttemptedRef.current.has(retryKey)) return;
+    referralRetryAttemptedRef.current.add(retryKey);
+
+    let cancelled = false;
+
+    const attemptRetry = async () => {
+      try {
+        await api.broker.applyReferralCode(storedCode);
+        if (cancelled) return;
+        window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY);
+        window.localStorage.removeItem(REFERRAL_ERROR_STORAGE_KEY);
+        console.info('[referral-attribution]', {
+          phase: 'post_login_retry',
+          status: 'success',
+          uid: authUser.uid,
+          referralCodeHash: hashTelemetryValue(storedCode),
+          referralCodeRedacted: redactReferralCode(storedCode),
+        });
+        setReferralAttributionEvent({
+          id: `${Date.now()}-${Math.random()}`,
+          status: 'success',
+          phase: 'post_login_retry',
+          message: 'Referral code linked successfully.',
+        });
+      } catch (retryError) {
+        if (cancelled) return;
+        const eventPayload = {
+          phase: 'post_login_retry',
+          status: 'failed',
+          uid: authUser.uid,
+          referralCodeHash: hashTelemetryValue(storedCode),
+          referralCodeRedacted: redactReferralCode(storedCode),
+          errorCode: retryError?.code || null,
+          errorMessage: retryError?.message || 'referral_apply_failed',
+        };
+        console.warn('[referral-attribution]', eventPayload);
+        window.localStorage.setItem(REFERRAL_ERROR_STORAGE_KEY, JSON.stringify({
+          ...eventPayload,
+          capturedAtMs: Date.now(),
+        }));
+        setReferralAttributionEvent({
+          id: `${Date.now()}-${Math.random()}`,
+          status: 'failed',
+          phase: 'post_login_retry',
+          message: 'Referral code could not be linked yet. We will keep trying automatically.',
+          telemetry: eventPayload,
+        });
+      }
+    };
+
+    void attemptRetry();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser?.uid, isNewUser, userProfile]);
 
   // Listen to trucker profile
   useEffect(() => {
@@ -941,25 +1035,65 @@ export function AuthProvider({ children }) {
       });
 
       // Optional one-time referral attribution (broker code).
+      let referralAttribution = null;
       if (profileData.referralCode && profileData.referralCode.trim()) {
+        const normalizedReferralCode = normalizeReferralCodeForStorage(profileData.referralCode);
         try {
-          await api.broker.applyReferralCode(profileData.referralCode.trim().toUpperCase());
+          await api.broker.applyReferralCode(normalizedReferralCode);
           if (typeof window !== 'undefined') {
-            window.localStorage.removeItem('karga_referral_code');
+            window.localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY);
+            window.localStorage.removeItem(REFERRAL_ERROR_STORAGE_KEY);
           }
+          referralAttribution = {
+            status: 'success',
+            message: 'Referral code linked successfully.',
+          };
+          console.info('[referral-attribution]', {
+            phase: 'registration',
+            status: 'success',
+            uid: authUser.uid,
+            referralCodeHash: hashTelemetryValue(normalizedReferralCode),
+            referralCodeRedacted: redactReferralCode(normalizedReferralCode),
+          });
         } catch (referralError) {
           // Do not block account creation if referral attribution fails.
-          console.warn('Referral attribution skipped:', referralError?.message || referralError);
+          referralAttribution = {
+            status: 'failed',
+            message: 'Profile created, but referral code could not be linked yet.',
+            telemetry: {
+              uid: authUser.uid,
+              errorCode: referralError?.code || null,
+              errorMessage: referralError?.message || 'referral_apply_failed',
+              referralCodeHash: hashTelemetryValue(normalizedReferralCode),
+              referralCodeRedacted: redactReferralCode(normalizedReferralCode),
+            },
+          };
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(REFERRAL_ERROR_STORAGE_KEY, JSON.stringify({
+              ...referralAttribution.telemetry,
+              phase: 'registration',
+              capturedAtMs: Date.now(),
+            }));
+          }
+          console.warn('[referral-attribution]', {
+            phase: 'registration',
+            status: 'failed',
+            ...referralAttribution.telemetry,
+          });
         }
       }
 
       setIsNewUser(false);
-      return { success: true };
+      return { success: true, referralAttribution };
     } catch (error) {
       console.error('Create profile error:', error);
       return { success: false, error: error.message };
     }
   };
+
+  const clearReferralAttributionEvent = useCallback(() => {
+    setReferralAttributionEvent(null);
+  }, []);
 
   // Switch user role (server-authoritative via Cloud Function)
   const switchRole = async (newRole) => {
@@ -1070,6 +1204,8 @@ export function AuthProvider({ children }) {
     getIdToken,
     getRecoveryStatus,
     generateRecoveryCodes,
+    referralAttributionEvent,
+    clearReferralAttributionEvent,
     // Computed values
     isAuthenticated: !!authUser && !!userProfile,
     currentRole: userProfile?.role || 'shipper',

@@ -123,6 +123,8 @@ export default function GetGoApp() {
     isBroker,
     logout,
     isAdmin,
+    referralAttributionEvent,
+    clearReferralAttributionEvent,
   } = useAuth();
 
   // Firebase Data Hooks - fetch ALL listings, filter in view layer
@@ -443,6 +445,26 @@ export default function GetGoApp() {
       clearNotification(latestNotification.id);
     }
   }, [socketNotifications, clearNotification]);
+
+  useEffect(() => {
+    if (!referralAttributionEvent) return;
+
+    if (referralAttributionEvent.status === 'success') {
+      showToast({
+        type: 'bid-accepted',
+        title: 'Referral Linked',
+        message: referralAttributionEvent.message || 'Referral code linked successfully.',
+      });
+    } else if (referralAttributionEvent.status === 'failed') {
+      showToast({
+        type: 'error',
+        title: 'Referral Pending',
+        message: referralAttributionEvent.message || 'Could not link referral code yet.',
+      });
+    }
+
+    clearReferralAttributionEvent?.();
+  }, [clearReferralAttributionEvent, referralAttributionEvent, showToast]);
 
   // Load saved marketplace artifacts by user scope
   useEffect(() => {

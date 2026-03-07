@@ -237,6 +237,7 @@ const api = {
     getBrokers: (params) => callFunction('adminGetBrokers', params || {}),
     updateBrokerTier: (brokerId, tier) => callFunction('adminUpdateBrokerTier', { brokerId, tier }),
     getBrokerReferralReport: (params) => callFunction('adminGetBrokerReferralReport', params || {}),
+    reconcileBrokerCommissions: (params) => callFunction('adminReconcileBrokerCommissions', params || {}),
     getBrokerPayoutRequests: (params) => callFunction('adminGetBrokerPayoutRequests', params || {}),
     reviewBrokerPayout: (requestId, decision, data = {}) =>
       callFunction('adminReviewBrokerPayout', { requestId, decision, ...data }),

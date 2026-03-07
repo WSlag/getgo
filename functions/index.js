@@ -1443,6 +1443,7 @@ exports.adminGetBrokers = referralFunctions.adminGetBrokers;
 exports.adminUpdateBrokerTier = referralFunctions.adminUpdateBrokerTier;
 exports.adminGetBrokerPayoutRequests = referralFunctions.adminGetBrokerPayoutRequests;
 exports.adminReviewBrokerPayout = referralFunctions.adminReviewBrokerPayout;
+exports.adminReconcileBrokerCommissions = referralFunctions.adminReconcileBrokerCommissions;
 exports.adminGetBrokerReferralReport = referralFunctions.adminGetBrokerReferralReport;
 
 // =============================================================================

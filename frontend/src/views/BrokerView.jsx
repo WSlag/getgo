@@ -11,6 +11,7 @@ import {
   Loader2,
   Percent,
   ShieldCheck,
+  Share2,
 } from 'lucide-react';
 import api from '@/services/api';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
@@ -155,18 +156,101 @@ export function BrokerView({
     if (!referralLink) return;
     try {
       await navigator.clipboard.writeText(referralLink);
+      console.info('[broker-share]', {
+        event: 'copy_link_success',
+        brokerId: authUser?.uid || null,
+      });
       onToast?.({
         type: 'success',
         title: 'Copied',
         message: 'Referral link copied to clipboard.',
       });
     } catch (copyError) {
+      console.warn('[broker-share]', {
+        event: 'copy_link_failed',
+        brokerId: authUser?.uid || null,
+        error: copyError?.message || 'clipboard_write_failed',
+      });
       onToast?.({
         type: 'error',
         title: 'Copy Failed',
         message: 'Could not copy referral link.',
       });
     }
+  };
+
+  const openExternalUrl = (url) => {
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleShare = async () => {
+    if (!referralLink) return;
+
+    console.info('[broker-share]', {
+      event: 'share_attempt',
+      brokerId: authUser?.uid || null,
+      hasNativeShare: typeof navigator !== 'undefined' && typeof navigator.share === 'function',
+    });
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: 'Join GetGo',
+          text: `Use my referral code ${referralCode} on GetGo.`,
+          url: referralLink,
+        });
+        console.info('[broker-share]', {
+          event: 'native_share_success',
+          brokerId: authUser?.uid || null,
+        });
+        onToast?.({
+          type: 'success',
+          title: 'Shared',
+          message: 'Referral link shared.',
+        });
+        return;
+      } catch (shareError) {
+        console.warn('[broker-share]', {
+          event: 'native_share_fallback_to_clipboard',
+          brokerId: authUser?.uid || null,
+          error: shareError?.name || shareError?.message || 'share_failed',
+        });
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      console.info('[broker-share]', {
+        event: 'share_fallback_copy_success',
+        brokerId: authUser?.uid || null,
+      });
+      onToast?.({
+        type: 'success',
+        title: 'Copied',
+        message: 'Referral link copied. You can now paste it anywhere.',
+      });
+    } catch (copyError) {
+      console.warn('[broker-share]', {
+        event: 'share_fallback_copy_failed',
+        brokerId: authUser?.uid || null,
+        error: copyError?.message || 'clipboard_write_failed',
+      });
+      onToast?.({
+        type: 'error',
+        title: 'Share Unavailable',
+        message: 'Could not open share sheet or copy link.',
+      });
+    }
+  };
+
+  const handleShareFacebook = () => {
+    if (!referralLink) return;
+    console.info('[broker-share]', {
+      event: 'share_facebook_click',
+      brokerId: authUser?.uid || null,
+    });
+    openExternalUrl(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`);
   };
 
   const handleRequestPayout = async () => {
@@ -525,21 +609,38 @@ export function BrokerView({
             </div>
             <div className="rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-2 break-all">
               <p className="text-xs text-gray-500 dark:text-gray-400">Share Link</p>
-              <p className="text-sm text-gray-900 dark:text-white">{referralLink || '-'}</p>
+              <p className="text-sm text-gray-900 dark:text-white" data-testid="broker-share-link">{referralLink || '-'}</p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" className="w-full" onClick={handleCopyLink} disabled={!referralLink}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleCopyLink}
+                disabled={!referralLink}
+                data-testid="broker-copy-link-btn"
+              >
                 <Copy className="size-4 mr-2" />
                 Copy Link
               </Button>
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => referralLink && window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`, '_blank')}
+                onClick={handleShare}
                 disabled={!referralLink}
+                data-testid="broker-share-btn"
+              >
+                <Share2 className="size-4 mr-2" />
+                Share
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleShareFacebook}
+                disabled={!referralLink}
+                data-testid="broker-share-facebook-btn"
               >
                 <ArrowUpRight className="size-4 mr-2" />
-                Share
+                Share to Facebook
               </Button>
             </div>
           </div>
