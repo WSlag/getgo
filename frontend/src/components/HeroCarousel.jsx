@@ -14,7 +14,7 @@ const SLIDES = [
     iconViewBox: '0 0 20 18',
     headline: 'Welcome to GetGo PH',
     sub: "The Philippines' cargo marketplace. Connect shippers and truckers instantly.",
-    pills: ['Cargo Listings', 'Truck Bookings', 'Real-time Tracking'],
+    pills: ['Cargo Listings', 'Truck Bookings', 'Price Bidding'],
   },
   {
     id: 'ship',
