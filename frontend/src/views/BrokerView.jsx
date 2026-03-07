@@ -17,6 +17,7 @@ import api from '@/services/api';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { Button } from '@/components/ui/button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import BrokerOnboardingModal from '@/components/broker/BrokerOnboardingModal';
 
 const MIN_PAYOUT = 500;
 
@@ -53,6 +54,7 @@ export function BrokerView({
   onToast,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [submittingPayout, setSubmittingPayout] = useState(false);
@@ -463,6 +465,7 @@ export function BrokerView({
   }
 
   return (
+    <>
     <main
       className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto"
       style={{ padding: isMobile ? '16px' : '24px', paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px' }}
@@ -523,23 +526,40 @@ export function BrokerView({
               <h3 className="font-semibold text-gray-900 dark:text-white">Listing Referral Activity</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">Broker-referred cargo and truck posts summary</p>
             </div>
-            <button
-              type="button"
-              onClick={() => onOpenBrokerActivity?.()}
-              className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl text-xs font-bold text-white transition-all active:scale-95 hover:opacity-90"
-              style={{
-                padding: '7px 13px',
-                background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
-                boxShadow: '0 3px 10px rgba(249,115,22,0.35)',
-                fontFamily: 'Outfit, sans-serif',
-                letterSpacing: '0.01em',
-              }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>
-              </svg>
-              Open Broker Activity
-            </button>
+            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowOnboarding(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl text-xs font-bold text-white transition-all active:scale-95 hover:opacity-90"
+                style={{
+                  padding: '7px 13px',
+                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                  boxShadow: '0 3px 10px rgba(34,197,94,0.35)',
+                  fontFamily: 'Outfit, sans-serif',
+                  letterSpacing: '0.01em',
+                }}
+              >
+                <TrendingUp width="13" height="13" />
+                Earn as Broker
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenBrokerActivity?.()}
+                className="inline-flex items-center gap-1.5 rounded-xl text-xs font-bold text-white transition-all active:scale-95 hover:opacity-90"
+                style={{
+                  padding: '7px 13px',
+                  background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
+                  boxShadow: '0 3px 10px rgba(249,115,22,0.35)',
+                  fontFamily: 'Outfit, sans-serif',
+                  letterSpacing: '0.01em',
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>
+                </svg>
+                Open Broker Activity
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-5" style={{ gap: isMobile ? '8px' : '12px', marginBottom: isMobile ? '12px' : '14px' }}>
@@ -834,6 +854,14 @@ export function BrokerView({
         </div>
       </div>
     </main>
+
+    <BrokerOnboardingModal
+      open={showOnboarding}
+      onClose={() => setShowOnboarding(false)}
+      onActivate={() => { setShowOnboarding(false); onBrokerRegistered?.(); }}
+      userRole={brokerProfile?.sourceRole || 'shipper'}
+    />
+    </>
   );
 }
 
