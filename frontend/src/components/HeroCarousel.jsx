@@ -85,15 +85,12 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
   };
 
   const height = isMobile ? 210 : 240;
-  // On mobile, arrows sit outside the card; on desktop they sit inside
-  const arrowOffset = isMobile ? '-16px' : '14px';
 
   return (
     <div
       style={{
         position: 'relative',
-        // Extra horizontal space on mobile so the outside arrows are visible
-        margin: isMobile ? `0 20px ${12}px` : `0 0 ${16}px`,
+        margin: isMobile ? '0 0 12px' : '0 0 16px',
         userSelect: 'none',
         flexShrink: 0,
       }}
@@ -166,22 +163,10 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
           ))}
         </div>
 
-        {/* Arrows inside card on desktop */}
-        {!isMobile && (
-          <>
-            <NavArrow direction="left" onClick={prev} isMobile={false} inside />
-            <NavArrow direction="right" onClick={next} isMobile={false} inside />
-          </>
-        )}
+        {/* Nav arrows — always inside card */}
+        <NavArrow direction="left" onClick={prev} isMobile={isMobile} />
+        <NavArrow direction="right" onClick={next} isMobile={isMobile} />
       </div>
-
-      {/* Arrows outside card on mobile — positioned relative to wrapper */}
-      {isMobile && (
-        <>
-          <NavArrow direction="left" onClick={prev} isMobile={true} offset={arrowOffset} cardHeight={height} />
-          <NavArrow direction="right" onClick={next} isMobile={true} offset={arrowOffset} cardHeight={height} />
-        </>
-      )}
     </div>
   );
 }
@@ -257,8 +242,7 @@ function Slide({ slide, total, isMobile }) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          // No arrows inside on mobile (they're outside the card)
-          padding: isMobile ? '16px 12px 28px 14px' : '28px 80px 40px 32px',
+          padding: isMobile ? '16px 50px 28px 48px' : '28px 80px 40px 32px',
           maxWidth: isMobile ? '100%' : '70%',
           boxSizing: 'border-box',
         }}
@@ -356,24 +340,9 @@ function Slide({ slide, total, isMobile }) {
 
 // ─── Nav Arrow Button ───────────────────────────────────────────────────────
 
-function NavArrow({ direction, onClick, isMobile, inside = false, offset, cardHeight }) {
+function NavArrow({ direction, onClick, isMobile }) {
   const isLeft = direction === 'left';
   const size = isMobile ? '28px' : '36px';
-
-  const positionStyle = inside
-    ? {
-        position: 'absolute',
-        top: '50%',
-        transform: 'translateY(-50%)',
-        [isLeft ? 'left' : 'right']: '14px',
-        marginTop: '-12px',
-      }
-    : {
-        // Outside the card: position relative to wrapper
-        position: 'absolute',
-        top: `${(cardHeight / 2) - 14 - 12}px`, // vertically center minus dot offset
-        [isLeft ? 'left' : 'right']: offset,
-      };
 
   return (
     <button
@@ -381,11 +350,15 @@ function NavArrow({ direction, onClick, isMobile, inside = false, offset, cardHe
       aria-label={isLeft ? 'Previous slide' : 'Next slide'}
       onClick={onClick}
       style={{
-        ...positionStyle,
+        position: 'absolute',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        marginTop: '-12px',
+        [isLeft ? 'left' : 'right']: isMobile ? '10px' : '14px',
         width: size,
         height: size,
         borderRadius: '50%',
-        background: isMobile ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.2)',
+        background: 'rgba(255,255,255,0.2)',
         border: '1px solid rgba(255,255,255,0.35)',
         backdropFilter: 'blur(6px)',
         display: 'flex',
@@ -396,8 +369,8 @@ function NavArrow({ direction, onClick, isMobile, inside = false, offset, cardHe
         transition: 'background 200ms ease',
         padding: 0,
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = isMobile ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.32)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = isMobile ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.2)'; }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.32)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
     >
       <svg
         width="12"
