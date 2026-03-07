@@ -449,7 +449,7 @@ export function ContractModal({
                 </p>
               )}
               {contract.vehiclePlateNumber && (
-                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Plate: {contract.vehiclePlateNumber}</p>
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Plate Number: {contract.vehiclePlateNumber}</p>
               )}
             </div>
             <div className="text-right" style={{ flexShrink: 0 }}>
