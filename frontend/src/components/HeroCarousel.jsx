@@ -5,47 +5,41 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 const SLIDES = [
   {
     id: 'welcome',
-    // Orange → amber gradient matching Figma slide 1
     bg: 'linear-gradient(135deg, #F97316 0%, #FB923C 40%, #FBBF24 100%)',
     orbColor: 'rgba(251,191,36,0.45)',
     orbColor2: 'rgba(253,230,138,0.3)',
     iconBg: 'rgba(255,255,255,0.18)',
     iconBorder: 'rgba(255,255,255,0.3)',
-    // Truck icon SVG path
     iconPath: 'M1 3h11v9H1zM12 6h4l3 3v3h-7V6zM5.5 15.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM16.5 15.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
     iconViewBox: '0 0 20 18',
     headline: 'Welcome to GetGo PH',
-    sub: "The Philippines' cargo marketplace. Connect shippers and truckers instantly — anytime, anywhere.",
+    sub: "The Philippines' cargo marketplace. Connect shippers and truckers instantly.",
     pills: ['Cargo Listings', 'Truck Bookings', 'Real-time Tracking'],
   },
   {
     id: 'ship',
-    // Purple → pink gradient matching Figma slide 2
     bg: 'linear-gradient(135deg, #9333EA 0%, #C026D3 50%, #EC4899 100%)',
     orbColor: 'rgba(236,72,153,0.4)',
     orbColor2: 'rgba(192,38,211,0.3)',
     iconBg: 'rgba(255,255,255,0.18)',
     iconBorder: 'rgba(255,255,255,0.3)',
-    // Box/package icon
     iconPath: 'M10 1L20 6v10L10 21 0 16V6L10 1zM10 1v10M0 6l10 5M20 6l-10 5M5 3.5l10 5',
     iconViewBox: '0 0 20 22',
     headline: 'Ship Smarter, Faster',
-    sub: 'Streamline your logistics with real-time tracking and instant booking confirmations.',
+    sub: 'Real-time tracking and instant booking confirmations for your cargo.',
     pills: ['Instant Quotes', 'Live GPS', 'Verified Drivers'],
   },
   {
     id: 'coverage',
-    // Blue → teal gradient matching Figma slide 3
     bg: 'linear-gradient(135deg, #2563EB 0%, #0EA5E9 50%, #06B6D4 100%)',
     orbColor: 'rgba(6,182,212,0.4)',
     orbColor2: 'rgba(14,165,233,0.3)',
     iconBg: 'rgba(255,255,255,0.18)',
     iconBorder: 'rgba(255,255,255,0.3)',
-    // Map pin icon
     iconPath: 'M10 1C6.686 1 4 3.686 4 7c0 5 6 12 6 12s6-7 6-12c0-3.314-2.686-6-6-6zm0 8a2 2 0 110-4 2 2 0 010 4z',
     iconViewBox: '0 0 20 21',
     headline: 'Nationwide Coverage',
-    sub: 'From Luzon to Mindanao, connect with trusted carriers across the Philippines.',
+    sub: 'From Luzon to Mindanao, trusted carriers across the Philippines.',
     pills: ['24/7 Support', 'Secure Payments', 'Insurance Options'],
   },
 ];
@@ -73,7 +67,6 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
   const prev = useCallback(() => goTo(current - 1), [current, goTo]);
   const next = useCallback(() => goTo(current + 1), [current, goTo]);
 
-  // Auto-advance
   useEffect(() => {
     if (isPaused) return;
     const id = setInterval(() => setCurrent((c) => (c + 1) % total), 5000);
@@ -82,7 +75,6 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
 
   useEffect(() => () => clearTimeout(pauseTimer.current), []);
 
-  // Swipe support
   const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchEnd = (e) => {
     if (touchStartX.current === null) return;
@@ -92,85 +84,104 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
     delta < 0 ? next() : prev();
   };
 
-  const height = isMobile ? 180 : 240;
+  const height = isMobile ? 200 : 240;
+  // On mobile, arrows sit outside the card; on desktop they sit inside
+  const arrowOffset = isMobile ? '-16px' : '14px';
 
   return (
     <div
       style={{
         position: 'relative',
-        width: '100%',
-        borderRadius: isMobile ? '16px' : '20px',
-        overflow: 'hidden',
-        marginBottom: isMobile ? '12px' : '16px',
-        height: `${height}px`,
+        // Extra horizontal space on mobile so the outside arrows are visible
+        margin: isMobile ? `0 20px ${12}px` : `0 0 ${16}px`,
         userSelect: 'none',
         flexShrink: 0,
-        // Outer shadow like the Figma design
-        boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
       }}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
     >
-      {/* Slides track */}
+      {/* Card */}
       <div
         style={{
-          display: 'flex',
-          width: `${total * 100}%`,
-          height: '100%',
-          transform: `translateX(-${(current * 100) / total}%)`,
-          transition: 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)',
-          willChange: 'transform',
+          position: 'relative',
+          width: '100%',
+          borderRadius: isMobile ? '16px' : '20px',
+          overflow: 'hidden',
+          height: `${height}px`,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
         }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
-        {SLIDES.map((slide) => (
-          <Slide
-            key={slide.id}
-            slide={slide}
-            total={total}
-            isMobile={isMobile}
-            onCTAClick={slide.id === 'broker' ? onEarnAsBrokerClick : undefined}
-          />
-        ))}
+        {/* Slides track */}
+        <div
+          style={{
+            display: 'flex',
+            width: `${total * 100}%`,
+            height: '100%',
+            transform: `translateX(-${(current * 100) / total}%)`,
+            transition: 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)',
+            willChange: 'transform',
+          }}
+        >
+          {SLIDES.map((slide) => (
+            <Slide
+              key={slide.id}
+              slide={slide}
+              total={total}
+              isMobile={isMobile}
+            />
+          ))}
+        </div>
+
+        {/* Dot indicators */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '12px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            zIndex: 10,
+          }}
+        >
+          {SLIDES.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              aria-label={`Slide ${i + 1}`}
+              onClick={() => goTo(i)}
+              style={{
+                width: i === current ? '22px' : '8px',
+                height: '8px',
+                borderRadius: '999px',
+                background: i === current ? 'white' : 'rgba(255,255,255,0.5)',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                transition: 'width 300ms ease, background 300ms ease',
+                flexShrink: 0,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Arrows inside card on desktop */}
+        {!isMobile && (
+          <>
+            <NavArrow direction="left" onClick={prev} isMobile={false} inside />
+            <NavArrow direction="right" onClick={next} isMobile={false} inside />
+          </>
+        )}
       </div>
 
-      {/* Left arrow */}
-      <NavArrow direction="left" onClick={prev} isMobile={isMobile} />
-      {/* Right arrow */}
-      <NavArrow direction="right" onClick={next} isMobile={isMobile} />
-
-      {/* Dot indicators */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '14px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          zIndex: 10,
-        }}
-      >
-        {SLIDES.map((s, i) => (
-          <button
-            key={s.id}
-            type="button"
-            aria-label={`Slide ${i + 1}`}
-            onClick={() => goTo(i)}
-            style={{
-              width: i === current ? '22px' : '8px',
-              height: '8px',
-              borderRadius: '999px',
-              background: i === current ? 'white' : 'rgba(255,255,255,0.5)',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              transition: 'width 300ms ease, background 300ms ease',
-              flexShrink: 0,
-            }}
-          />
-        ))}
-      </div>
+      {/* Arrows outside card on mobile — positioned relative to wrapper */}
+      {isMobile && (
+        <>
+          <NavArrow direction="left" onClick={prev} isMobile={true} offset={arrowOffset} cardHeight={height} />
+          <NavArrow direction="right" onClick={next} isMobile={true} offset={arrowOffset} cardHeight={height} />
+        </>
+      )}
     </div>
   );
 }
@@ -179,6 +190,8 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
 
 function Slide({ slide, total, isMobile }) {
   const { bg, orbColor, orbColor2, iconBg, iconBorder, iconPath, iconViewBox, headline, sub, pills } = slide;
+  // Show max 2 pills on mobile to avoid overflow
+  const visiblePills = isMobile ? pills.slice(0, 2) : pills;
 
   return (
     <div
@@ -191,7 +204,7 @@ function Slide({ slide, total, isMobile }) {
         flexShrink: 0,
       }}
     >
-      {/* Large decorative orb — top right (matches Figma's rounded rectangle) */}
+      {/* Large decorative orb — top right */}
       <div
         style={{
           position: 'absolute',
@@ -245,30 +258,31 @@ function Slide({ slide, total, isMobile }) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          padding: isMobile ? '20px 20px 36px' : '28px 32px 40px',
-          maxWidth: isMobile ? '100%' : '65%',
+          // Enough horizontal padding — no arrows inside on mobile
+          padding: isMobile ? '18px 16px 32px 16px' : '28px 80px 40px 32px',
+          maxWidth: isMobile ? '100%' : '70%',
           boxSizing: 'border-box',
         }}
       >
-        {/* Icon tile — frosted glass square, top of content */}
+        {/* Icon tile */}
         <div
           style={{
-            width: isMobile ? '44px' : '52px',
-            height: isMobile ? '44px' : '52px',
-            borderRadius: '14px',
+            width: isMobile ? '38px' : '52px',
+            height: isMobile ? '38px' : '52px',
+            borderRadius: '12px',
             background: iconBg,
             border: `1px solid ${iconBorder}`,
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: isMobile ? '12px' : '14px',
+            marginBottom: isMobile ? '8px' : '14px',
             flexShrink: 0,
           }}
         >
           <svg
-            width={isMobile ? '22' : '26'}
-            height={isMobile ? '22' : '26'}
+            width={isMobile ? '19' : '26'}
+            height={isMobile ? '19' : '26'}
             viewBox={iconViewBox}
             fill="none"
             stroke="white"
@@ -287,10 +301,10 @@ function Slide({ slide, total, isMobile }) {
             margin: 0,
             fontFamily: 'Outfit, sans-serif',
             fontWeight: 800,
-            fontSize: isMobile ? '22px' : '30px',
+            fontSize: isMobile ? '19px' : '30px',
             color: 'white',
             lineHeight: 1.15,
-            marginBottom: isMobile ? '6px' : '8px',
+            marginBottom: isMobile ? '5px' : '8px',
             letterSpacing: '-0.02em',
           }}
         >
@@ -301,34 +315,35 @@ function Slide({ slide, total, isMobile }) {
         <p
           style={{
             margin: 0,
-            fontSize: isMobile ? '12px' : '14px',
+            fontSize: isMobile ? '11px' : '14px',
             color: 'rgba(255,255,255,0.85)',
-            lineHeight: 1.5,
-            marginBottom: pills?.length ? (isMobile ? '12px' : '16px') : 0,
-            maxWidth: isMobile ? '260px' : '380px',
+            lineHeight: 1.4,
+            marginBottom: visiblePills.length ? (isMobile ? '10px' : '16px') : 0,
+            maxWidth: isMobile ? '240px' : '380px',
           }}
         >
           {sub}
         </p>
 
         {/* Pill badges */}
-        {pills?.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {pills.map((p) => (
+        {visiblePills.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '6px', overflow: 'hidden' }}>
+            {visiblePills.map((p) => (
               <span
                 key={p}
                 style={{
-                  fontSize: isMobile ? '11px' : '12px',
+                  fontSize: isMobile ? '10px' : '12px',
                   fontWeight: 600,
                   color: 'white',
                   background: 'rgba(255,255,255,0.2)',
                   border: '1px solid rgba(255,255,255,0.35)',
                   borderRadius: '999px',
-                  padding: isMobile ? '4px 12px' : '5px 14px',
+                  padding: isMobile ? '3px 10px' : '5px 14px',
                   backdropFilter: 'blur(4px)',
                   whiteSpace: 'nowrap',
                   fontFamily: 'Outfit, sans-serif',
                   letterSpacing: '0.01em',
+                  flexShrink: 0,
                 }}
               >
                 {p}
@@ -343,9 +358,24 @@ function Slide({ slide, total, isMobile }) {
 
 // ─── Nav Arrow Button ───────────────────────────────────────────────────────
 
-function NavArrow({ direction, onClick, isMobile }) {
+function NavArrow({ direction, onClick, isMobile, inside = false, offset, cardHeight }) {
   const isLeft = direction === 'left';
-  const size = isMobile ? '30px' : '36px';
+  const size = isMobile ? '28px' : '36px';
+
+  const positionStyle = inside
+    ? {
+        position: 'absolute',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        [isLeft ? 'left' : 'right']: '14px',
+        marginTop: '-12px',
+      }
+    : {
+        // Outside the card: position relative to wrapper
+        position: 'absolute',
+        top: `${(cardHeight / 2) - 14 - 12}px`, // vertically center minus dot offset
+        [isLeft ? 'left' : 'right']: offset,
+      };
 
   return (
     <button
@@ -353,14 +383,11 @@ function NavArrow({ direction, onClick, isMobile }) {
       aria-label={isLeft ? 'Previous slide' : 'Next slide'}
       onClick={onClick}
       style={{
-        position: 'absolute',
-        top: '50%',
-        transform: 'translateY(-50%)',
-        [isLeft ? 'left' : 'right']: isMobile ? '10px' : '14px',
+        ...positionStyle,
         width: size,
         height: size,
         borderRadius: '50%',
-        background: 'rgba(255,255,255,0.2)',
+        background: isMobile ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.2)',
         border: '1px solid rgba(255,255,255,0.35)',
         backdropFilter: 'blur(6px)',
         display: 'flex',
@@ -370,18 +397,17 @@ function NavArrow({ direction, onClick, isMobile }) {
         zIndex: 10,
         transition: 'background 200ms ease',
         padding: 0,
-        marginTop: '-12px', // offset from dot row height
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.32)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = isMobile ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.32)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = isMobile ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.2)'; }}
     >
       <svg
-        width="14"
-        height="14"
+        width="12"
+        height="12"
         viewBox="0 0 14 14"
         fill="none"
         stroke="white"
-        strokeWidth="2"
+        strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
         aria-hidden="true"
