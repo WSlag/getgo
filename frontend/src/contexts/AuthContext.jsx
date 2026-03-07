@@ -402,6 +402,7 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null);
   const [shipperProfile, setShipperProfile] = useState(null);
   const [truckerProfile, setTruckerProfile] = useState(null);
+  const [truckerCompliance, setTruckerCompliance] = useState(null);
   const [brokerProfile, setBrokerProfile] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -469,6 +470,7 @@ export function AuthProvider({ children }) {
         setUserProfile(null);
         setShipperProfile(null);
         setTruckerProfile(null);
+        setTruckerCompliance(null);
         setBrokerProfile(null);
         setWallet(null);
         setIsNewUser(false);
@@ -481,6 +483,7 @@ export function AuthProvider({ children }) {
         setUserProfile(null);
         setShipperProfile(null);
         setTruckerProfile(null);
+        setTruckerCompliance(null);
         setBrokerProfile(null);
         setWallet(null);
         setIsNewUser(false);
@@ -608,6 +611,21 @@ export function AuthProvider({ children }) {
     });
 
     return unsubTrucker;
+  }, [authUser, userProfile]);
+
+  // Listen to trucker compliance (server-managed)
+  useEffect(() => {
+    if (!authUser || !userProfile) return;
+
+    const complianceRef = doc(db, 'users', authUser.uid, 'truckerCompliance', 'profile');
+    const unsubCompliance = onSnapshot(complianceRef, (snap) => {
+      setTruckerCompliance(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+    }, (error) => {
+      console.error('Error listening to trucker compliance:', error);
+      setTruckerCompliance(null);
+    });
+
+    return unsubCompliance;
   }, [authUser, userProfile]);
 
   // Listen to broker profile
@@ -1185,6 +1203,7 @@ export function AuthProvider({ children }) {
     userProfile,
     shipperProfile,
     truckerProfile,
+    truckerCompliance,
     brokerProfile,
     wallet,
     loading,

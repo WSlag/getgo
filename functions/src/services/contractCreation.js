@@ -188,6 +188,8 @@ By signing, both parties agree to these terms.
 
   // Create contract in Firestore
   const contractRef = db.collection('contracts').doc();
+  const shipperId = isCargo ? listingOwnerId : bid.bidderId;
+  const truckerId = isCargo ? bid.bidderId : listingOwnerId;
   const contractData = {
     bidId,
     contractNumber,
@@ -228,6 +230,8 @@ By signing, both parties agree to these terms.
     bidderId: bid.bidderId,
     bidderName: bid.bidderName || '',
     listingOwnerName: listing.userName || bid.listingOwnerName || '',
+    shipperId,
+    truckerId,
     participantIds,
     shipperSignature: null,
     truckerSignature: null,

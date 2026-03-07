@@ -12,6 +12,9 @@ const {
   mergePlatformSettings,
   validatePlatformSettingsPatch,
 } = require('../config/platformSettings');
+const TRUCKER_CANCELLATION_THRESHOLD = 5;
+const TRUCKER_CANCELLATION_WINDOW_DAYS = 30;
+const TRUCKER_CANCELLATION_BLOCK_DAYS = 7;
 
 function safeErrorMessage(error) {
   if (!error) return 'Unknown error';
@@ -35,6 +38,22 @@ function parseLimit(value, fallbackLimit) {
   const parsed = parseInt(value, 10);
   const base = Number.isFinite(parsed) ? parsed : fallbackLimit;
   return Math.min(Math.max(base, 1), 500);
+}
+
+function toDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+  if (typeof value._seconds === 'number') return new Date(value._seconds * 1000);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function startOfRollingWindow(referenceDate, days) {
+  const result = new Date(referenceDate);
+  result.setDate(result.getDate() - days);
+  return result;
 }
 
 function isPayableOutstandingContract(contract = {}) {
@@ -453,6 +472,128 @@ exports.adminActivateUser = functions.region('asia-southeast1').https.onCall(asy
   });
 
   return { message: 'User activated successfully' };
+});
+
+/**
+ * Clear trucker cancellation signing block and reset abuse baseline timestamp.
+ */
+exports.adminUnblockTruckerCancellationBlock = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const userId = typeof data?.userId === 'string' ? data.userId.trim() : '';
+  const reason = typeof data?.reason === 'string' ? data.reason.trim() : '';
+
+  if (!userId) {
+    throw new functions.https.HttpsError('invalid-argument', 'User ID is required');
+  }
+
+  const db = admin.firestore();
+  const userDoc = await db.collection('users').doc(userId).get();
+  if (!userDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'User not found');
+  }
+
+  const truckerProfileDoc = await db.collection('users').doc(userId).collection('truckerProfile').doc('profile').get();
+  if (!truckerProfileDoc.exists) {
+    throw new functions.https.HttpsError('failed-precondition', 'Target user does not have a trucker profile');
+  }
+
+  const complianceRef = db.collection('users').doc(userId).collection('truckerCompliance').doc('profile');
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  await complianceRef.set({
+    cancellationBlockUntil: null,
+    cancellationBlockedAt: null,
+    cancellationBlockReason: null,
+    cancellationResetAt: now,
+    cancellationResetBy: context.auth.uid,
+    cancellationResetReason: reason || 'Reset via admin dashboard',
+    updatedAt: now,
+  }, { merge: true });
+
+  await db.collection(`users/${userId}/notifications`).doc().set({
+    type: 'ACCOUNT_RESTRICTED',
+    title: 'Cancellation Block Reset',
+    message: 'Your cancellation signing block was reset by admin review. Future checks will use a new baseline.',
+    data: {
+      reason: 'admin-trucker-cancellation-reset',
+      resetBy: context.auth.uid,
+    },
+    isRead: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await db.collection('adminLogs').add({
+    action: 'ADMIN_TRUCKER_CANCELLATION_RESET',
+    targetUserId: userId,
+    performedBy: context.auth.uid,
+    reason: reason || 'Reset via admin dashboard',
+    performedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { message: 'Trucker cancellation block reset successfully' };
+});
+
+/**
+ * Get trucker cancellation abuse status for admin review.
+ */
+exports.adminGetTruckerCancellationStatus = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const userId = typeof data?.userId === 'string' ? data.userId.trim() : '';
+  if (!userId) {
+    throw new functions.https.HttpsError('invalid-argument', 'User ID is required');
+  }
+
+  const db = admin.firestore();
+  const [userDoc, profileDoc, complianceDoc] = await Promise.all([
+    db.collection('users').doc(userId).get(),
+    db.collection('users').doc(userId).collection('truckerProfile').doc('profile').get(),
+    db.collection('users').doc(userId).collection('truckerCompliance').doc('profile').get(),
+  ]);
+
+  if (!userDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'User not found');
+  }
+  if (!profileDoc.exists) {
+    throw new functions.https.HttpsError('failed-precondition', 'Target user does not have a trucker profile');
+  }
+
+  const now = new Date();
+  const complianceData = complianceDoc.exists ? (complianceDoc.data() || {}) : {};
+  const resetAt = toDateValue(complianceData.cancellationResetAt);
+  const rollingWindowStart = startOfRollingWindow(now, TRUCKER_CANCELLATION_WINDOW_DAYS);
+  const baselineDate = resetAt && resetAt.getTime() > rollingWindowStart.getTime()
+    ? resetAt
+    : rollingWindowStart;
+
+  const countSnap = await db.collection('contracts')
+    .where('truckerId', '==', userId)
+    .where('cancelledByRole', '==', 'trucker')
+    .where('cancelledAt', '>=', admin.firestore.Timestamp.fromDate(baselineDate))
+    .count()
+    .get();
+  const cancellationCountInWindow = Number(countSnap?.data()?.count || 0);
+
+  const blockUntilDate = toDateValue(complianceData.cancellationBlockUntil);
+  const isBlocked = Boolean(blockUntilDate && blockUntilDate.getTime() > now.getTime());
+
+  return {
+    userId,
+    isBlocked,
+    blockReason: complianceData.cancellationBlockReason || null,
+    blockUntil: blockUntilDate ? blockUntilDate.toISOString() : null,
+    blockedAt: toDateValue(complianceData.cancellationBlockedAt)?.toISOString() || null,
+    resetAt: resetAt ? resetAt.toISOString() : null,
+    resetBy: complianceData.cancellationResetBy || null,
+    resetReason: complianceData.cancellationResetReason || null,
+    docsRequiredOnSigning: complianceData.docsRequiredOnSigning !== false,
+    cancellationCountInWindow,
+    threshold: TRUCKER_CANCELLATION_THRESHOLD,
+    windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
+    blockDays: TRUCKER_CANCELLATION_BLOCK_DAYS,
+    baselineStart: baselineDate.toISOString(),
+  };
 });
 
 /**

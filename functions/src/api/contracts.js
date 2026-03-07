@@ -18,7 +18,98 @@ const {
   upsertBrokerMarketplaceActivity,
 } = require('../services/brokerListingReferralService');
 const { enforceUserRateLimit } = require('../utils/callableRateLimit');
+const { parseTrustedStorageUrl } = require('../utils/storageUrl');
 const PLATFORM_FEE_DEBT_CAP = Number(process.env.PLATFORM_FEE_DEBT_CAP || 15000);
+const TRUCKER_CANCELLATION_THRESHOLD = 5;
+const TRUCKER_CANCELLATION_WINDOW_DAYS = 30;
+const TRUCKER_CANCELLATION_BLOCK_DAYS = 7;
+
+const TRUCKER_CANCELLATION_REASON_LABELS = {
+  vehicle_breakdown: 'Vehicle breakdown',
+  emergency_health: 'Emergency/Health',
+  route_safety_risk: 'Route/Safety risk',
+  schedule_conflict: 'Schedule conflict',
+  payment_terms_issue: 'Payment/Terms issue',
+  other: 'Other',
+};
+
+function toDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+  if (typeof value._seconds === 'number') return new Date(value._seconds * 1000);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function startOfRollingWindow(referenceDate, days) {
+  const result = new Date(referenceDate);
+  result.setDate(result.getDate() - days);
+  return result;
+}
+
+function normalizeReasonCode(reasonCode) {
+  return typeof reasonCode === 'string' ? reasonCode.trim().toLowerCase() : '';
+}
+
+function resolveTruckerCancellationReasonLabel(reasonCode) {
+  return TRUCKER_CANCELLATION_REASON_LABELS[reasonCode] || null;
+}
+
+function resolveTruckerDocumentFieldName(docType) {
+  if (docType === 'driver') return 'driverLicenseCopy';
+  if (docType === 'lto') return 'ltoRegistrationCopy';
+  return null;
+}
+
+function validateTruckerDocumentMetadata(doc, userId, requiredDocType) {
+  if (!doc || typeof doc !== 'object') {
+    return { valid: false, reason: `${requiredDocType}_missing` };
+  }
+
+  const url = typeof doc.url === 'string' ? doc.url.trim() : '';
+  const path = typeof doc.path === 'string' ? doc.path.trim() : '';
+
+  if (!url || !path) {
+    return { valid: false, reason: `${requiredDocType}_missing_path_or_url` };
+  }
+
+  const expectedPrefix = requiredDocType === 'driver'
+    ? `trucker-docs/${userId}/driver_license/`
+    : (requiredDocType === 'lto' ? `trucker-docs/${userId}/lto_registration/` : `trucker-docs/${userId}/`);
+
+  if (!path.startsWith(expectedPrefix)) {
+    return { valid: false, reason: `${requiredDocType}_owner_mismatch` };
+  }
+
+  const parsedStorage = parseTrustedStorageUrl(url);
+  if (!parsedStorage.valid) {
+    return { valid: false, reason: `${requiredDocType}_${parsedStorage.reason}` };
+  }
+
+  if (parsedStorage.objectPath !== path) {
+    return { valid: false, reason: `${requiredDocType}_path_mismatch` };
+  }
+
+  return { valid: true, reason: null };
+}
+
+async function getAdminUserIds(db) {
+  const [adminsByRole, adminsByFlag] = await Promise.all([
+    db.collection('users').where('role', '==', 'admin').limit(200).get(),
+    db.collection('users').where('isAdmin', '==', true).limit(200).get(),
+  ]);
+
+  const recipients = new Set();
+  adminsByRole.docs.forEach((doc) => recipients.add(doc.id));
+  adminsByFlag.docs.forEach((doc) => recipients.add(doc.id));
+  return [...recipients];
+}
+
+function getTruckerComplianceRef(db, truckerId) {
+  return db.collection('users').doc(truckerId).collection('truckerCompliance').doc('profile');
+}
 
 // Helper: Generate unique contract number
 function generateContractNumber() {
@@ -314,6 +405,8 @@ By signing, both parties agree to these terms.
 
   const contractNumber = generateContractNumber();
   const participantIds = [listingOwnerId, bid.bidderId];
+  const shipperId = isCargo ? listingOwnerId : bid.bidderId;
+  const truckerId = isCargo ? bid.bidderId : listingOwnerId;
 
   // Create contract in Firestore
   const contractRef = db.collection('contracts').doc();
@@ -354,6 +447,8 @@ By signing, both parties agree to these terms.
     bidderId: bid.bidderId,
     bidderName: bid.bidderName || '',
     listingOwnerName: listing.userName || bid.listingOwnerName || '',
+    shipperId,
+    truckerId,
     participantIds,
     shipperSignature: null,
     truckerSignature: null,
@@ -418,7 +513,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
   }
 
-  const { contractId } = data;
+  const { contractId, truckPlateNumber } = data || {};
   const userId = context.auth.uid;
 
   if (!contractId) {
@@ -446,15 +541,11 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
 
   const contract = { id: contractDoc.id, ...contractDoc.data() };
 
-  if (contract.status === 'signed' || contract.status === 'completed') {
-    throw new functions.https.HttpsError('failed-precondition', 'Contract has already been signed');
-  }
-
   const listingOwnerId = contract.listingOwnerId;
   const bidderId = contract.bidderId;
   const isCargo = contract.listingType === 'cargo';
-  const shipperId = isCargo ? listingOwnerId : bidderId;
-  const truckerId = isCargo ? bidderId : listingOwnerId;
+  const shipperId = contract.shipperId || (isCargo ? listingOwnerId : bidderId);
+  const truckerId = contract.truckerId || (isCargo ? bidderId : listingOwnerId);
   const feePayerId = contract.platformFeePayerId || truckerId;
 
   if (!contract.platformFeePaid && feePayerId) {
@@ -515,14 +606,177 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
     };
   }
 
+  const updates = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+
+  if (isTrucker) {
+    const complianceRef = getTruckerComplianceRef(db, truckerId);
+    const truckerProfileRef = db.collection('users').doc(truckerId).collection('truckerProfile').doc('profile');
+    const [complianceDoc, truckerProfileDoc] = await Promise.all([
+      complianceRef.get(),
+      truckerProfileRef.get(),
+    ]);
+    const complianceData = complianceDoc.exists ? (complianceDoc.data() || {}) : {};
+    const truckerProfile = truckerProfileDoc.exists ? (truckerProfileDoc.data() || {}) : {};
+    const now = new Date();
+    const blockUntilDate = toDateValue(complianceData.cancellationBlockUntil);
+
+    if (blockUntilDate && now.getTime() < blockUntilDate.getTime()) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Trucker cancellation threshold reached. Contract signing is temporarily blocked.',
+        {
+          reason: 'trucker-cancellation-limit-reached',
+          blockUntil: blockUntilDate.toISOString(),
+          threshold: TRUCKER_CANCELLATION_THRESHOLD,
+          windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
+        }
+      );
+    }
+
+    if (blockUntilDate && now.getTime() >= blockUntilDate.getTime()) {
+      await complianceRef.set({
+        cancellationBlockUntil: null,
+        cancellationBlockedAt: null,
+        cancellationBlockReason: null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      await db.collection('adminLogs').add({
+        action: 'SYSTEM_TRUCKER_CANCELLATION_BLOCK_CLEARED',
+        targetUserId: truckerId,
+        performedBy: 'system',
+        performedAt: admin.firestore.FieldValue.serverTimestamp(),
+        previousBlockUntil: blockUntilDate.toISOString(),
+      });
+    }
+
+    const docsRequiredOnSigning = complianceData.docsRequiredOnSigning !== false;
+    if (docsRequiredOnSigning) {
+      const missingDocs = [];
+      const driverValidation = validateTruckerDocumentMetadata(truckerProfile.driverLicenseCopy, truckerId, 'driver');
+      const ltoValidation = validateTruckerDocumentMetadata(truckerProfile.ltoRegistrationCopy, truckerId, 'lto');
+
+      if (!driverValidation.valid) {
+        missingDocs.push({ field: resolveTruckerDocumentFieldName('driver'), reason: driverValidation.reason });
+      }
+      if (!ltoValidation.valid) {
+        missingDocs.push({ field: resolveTruckerDocumentFieldName('lto'), reason: ltoValidation.reason });
+      }
+
+      if (missingDocs.length > 0) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Required trucker documents are missing or invalid.',
+          {
+            reason: 'missing-required-trucker-documents',
+            missingDocs,
+          }
+        );
+      }
+    }
+
+    const windowStart = startOfRollingWindow(now, TRUCKER_CANCELLATION_WINDOW_DAYS);
+    const resetAt = toDateValue(complianceData.cancellationResetAt);
+    const baselineDate = resetAt && resetAt.getTime() > windowStart.getTime()
+      ? resetAt
+      : windowStart;
+    const cancellationCountSnap = await db.collection('contracts')
+      .where('truckerId', '==', truckerId)
+      .where('cancelledByRole', '==', 'trucker')
+      .where('cancelledAt', '>=', admin.firestore.Timestamp.fromDate(baselineDate))
+      .count()
+      .get();
+    const cancellationCount = Number(cancellationCountSnap?.data()?.count || 0);
+
+    if (cancellationCount >= TRUCKER_CANCELLATION_THRESHOLD) {
+      const blockUntil = new Date(now);
+      blockUntil.setDate(blockUntil.getDate() + TRUCKER_CANCELLATION_BLOCK_DAYS);
+
+      await complianceRef.set({
+        cancellationBlockUntil: admin.firestore.Timestamp.fromDate(blockUntil),
+        cancellationBlockedAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancellationBlockReason: 'trucker-cancellation-limit-reached',
+        cancellationBlockCountAtTrigger: cancellationCount,
+        cancellationBlockThreshold: TRUCKER_CANCELLATION_THRESHOLD,
+        cancellationBlockWindowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      await db.collection(`users/${truckerId}/notifications`).doc().set({
+        type: 'ACCOUNT_RESTRICTED',
+        title: 'Contract Signing Temporarily Blocked',
+        message: `You reached ${cancellationCount} trucker cancellations in ${TRUCKER_CANCELLATION_WINDOW_DAYS} days. You can sign new contracts again on ${blockUntil.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}.`,
+        data: {
+          reason: 'trucker-cancellation-limit-reached',
+          blockUntil: blockUntil.toISOString(),
+          count: cancellationCount,
+          threshold: TRUCKER_CANCELLATION_THRESHOLD,
+          windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
+        },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const adminIds = await getAdminUserIds(db);
+      await Promise.all(adminIds.map((adminId) => db.collection(`users/${adminId}/notifications`).doc().set({
+        type: 'TRUCKER_CANCELLATION_THRESHOLD_HIT',
+        title: 'Trucker Cancellation Threshold Hit',
+        message: `Trucker ${truckerId} hit ${cancellationCount} cancellations in ${TRUCKER_CANCELLATION_WINDOW_DAYS} days.`,
+        data: {
+          truckerId,
+          reason: 'trucker-cancellation-limit-reached',
+          blockUntil: blockUntil.toISOString(),
+          count: cancellationCount,
+          threshold: TRUCKER_CANCELLATION_THRESHOLD,
+        },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })));
+
+      await db.collection('adminLogs').add({
+        action: 'TRUCKER_CANCELLATION_THRESHOLD_BLOCKED',
+        targetUserId: truckerId,
+        performedBy: 'system',
+        performedAt: admin.firestore.FieldValue.serverTimestamp(),
+        count: cancellationCount,
+        threshold: TRUCKER_CANCELLATION_THRESHOLD,
+        windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
+        blockDays: TRUCKER_CANCELLATION_BLOCK_DAYS,
+        blockUntil: blockUntil.toISOString(),
+      });
+
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Trucker cancellation threshold reached. Contract signing is temporarily blocked.',
+        {
+          reason: 'trucker-cancellation-limit-reached',
+          blockUntil: blockUntil.toISOString(),
+          count: cancellationCount,
+          threshold: TRUCKER_CANCELLATION_THRESHOLD,
+          windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
+        }
+      );
+    }
+
+    const resolvedPlateNumber = typeof truckPlateNumber === 'string' ? truckPlateNumber.trim() : '';
+    if (!contract.vehiclePlateNumber && !resolvedPlateNumber) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Truck plate number is required before signing.',
+        { reason: 'missing-truck-plate-number' }
+      );
+    }
+    if (!contract.vehiclePlateNumber && resolvedPlateNumber) {
+      updates.vehiclePlateNumber = resolvedPlateNumber;
+    }
+  }
+
   const signatureTimestamp = new Date();
 
   // Get user's name
   const userDoc = await db.collection('users').doc(userId).get();
   const userName = userDoc.exists ? (userDoc.data().name || userId) : userId;
   const signature = `${userName} - ${signatureTimestamp.toISOString()}`;
-
-  const updates = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
   if (isShipper) {
     updates.shipperSignature = signature;
@@ -792,7 +1046,7 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
   }
 
-  const { contractId, reason } = data;
+  const { contractId, reason, reasonCode } = data || {};
   const userId = context.auth.uid;
 
   if (!contractId) {
@@ -810,20 +1064,46 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
     throw new functions.https.HttpsError('not-found', 'Contract not found');
   }
 
-  const contract = contractDoc.data();
+  const contract = { id: contractDoc.id, ...contractDoc.data() };
+  const isCargo = contract.listingType === 'cargo';
+  const shipperId = contract.shipperId || (isCargo ? contract.listingOwnerId : contract.bidderId);
+  const truckerId = contract.truckerId || (isCargo ? contract.bidderId : contract.listingOwnerId);
 
   // Verify user is participant or admin
   const userDoc = await db.collection('users').doc(userId).get();
-  const isAdmin = userDoc.data()?.role === 'admin';
+  const isAdmin = userDoc.data()?.role === 'admin' || userDoc.data()?.isAdmin === true;
   const isParticipant = contract.participantIds?.includes(userId);
 
   if (!isAdmin && !isParticipant) {
     throw new functions.https.HttpsError('permission-denied', 'Not authorized');
   }
 
+  const cancelledByRole = isAdmin
+    ? 'admin'
+    : (userId === truckerId ? 'trucker' : (userId === shipperId ? 'shipper' : 'unknown'));
+  if (cancelledByRole === 'unknown') {
+    throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+  }
+
+  const normalizedReasonCode = normalizeReasonCode(reasonCode);
+  const mappedTruckerReasonLabel = resolveTruckerCancellationReasonLabel(normalizedReasonCode);
+  if (cancelledByRole === 'trucker' && !mappedTruckerReasonLabel) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Valid trucker cancellation reason code is required'
+    );
+  }
+  const fallbackReason = typeof reason === 'string' ? reason.trim() : '';
+  const resolvedReason = cancelledByRole === 'trucker'
+    ? mappedTruckerReasonLabel
+    : (fallbackReason || 'No reason provided');
+
   // Can only cancel if not yet completed/delivered
   if (contract.status === 'completed') {
     throw new functions.https.HttpsError('failed-precondition', 'Cannot cancel completed contract');
+  }
+  if (contract.status === 'cancelled') {
+    throw new functions.https.HttpsError('failed-precondition', 'Contract is already cancelled');
   }
 
   // Check if any shipment activity occurred
@@ -852,7 +1132,11 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
     status: 'cancelled',
     cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
     cancelledBy: userId,
-    cancellationReason: reason || 'No reason provided',
+    cancelledByRole,
+    shipperId,
+    truckerId,
+    cancellationReasonCode: cancelledByRole === 'trucker' ? normalizedReasonCode : null,
+    cancellationReason: resolvedReason,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
 
@@ -899,13 +1183,98 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
       type: 'CONTRACT_CANCELLED',
       title: 'Contract Cancelled',
       message: `Contract #${contract.contractNumber} has been cancelled. ${contract.platformFeePaid ? '' : 'Platform fee waived.'}`,
-      data: { contractId, reason },
+      data: {
+        contractId,
+        reason: resolvedReason,
+        reasonCode: cancelledByRole === 'trucker' ? normalizedReasonCode : null,
+        cancelledByRole,
+      },
       isRead: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   });
 
   await Promise.all(notificationPromises);
+
+  if (cancelledByRole === 'trucker') {
+    const complianceRef = getTruckerComplianceRef(db, truckerId);
+    const complianceDoc = await complianceRef.get();
+    const complianceData = complianceDoc.exists ? (complianceDoc.data() || {}) : {};
+    const now = new Date();
+    const existingBlockUntil = toDateValue(complianceData.cancellationBlockUntil);
+    const alreadyBlocked = existingBlockUntil && existingBlockUntil.getTime() > now.getTime();
+    const rollingWindowStart = startOfRollingWindow(now, TRUCKER_CANCELLATION_WINDOW_DAYS);
+    const resetAt = toDateValue(complianceData.cancellationResetAt);
+    const baselineDate = resetAt && resetAt.getTime() > rollingWindowStart.getTime()
+      ? resetAt
+      : rollingWindowStart;
+    const countSnap = await db.collection('contracts')
+      .where('truckerId', '==', truckerId)
+      .where('cancelledByRole', '==', 'trucker')
+      .where('cancelledAt', '>=', admin.firestore.Timestamp.fromDate(baselineDate))
+      .count()
+      .get();
+    const cancellationCount = Number(countSnap?.data()?.count || 0);
+
+    if (cancellationCount >= TRUCKER_CANCELLATION_THRESHOLD && !alreadyBlocked) {
+      const blockUntil = new Date(now);
+      blockUntil.setDate(blockUntil.getDate() + TRUCKER_CANCELLATION_BLOCK_DAYS);
+
+      await complianceRef.set({
+        cancellationBlockUntil: admin.firestore.Timestamp.fromDate(blockUntil),
+        cancellationBlockedAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancellationBlockReason: 'trucker-cancellation-limit-reached',
+        cancellationBlockCountAtTrigger: cancellationCount,
+        cancellationBlockThreshold: TRUCKER_CANCELLATION_THRESHOLD,
+        cancellationBlockWindowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      await db.collection(`users/${truckerId}/notifications`).doc().set({
+        type: 'ACCOUNT_RESTRICTED',
+        title: 'Contract Signing Temporarily Blocked',
+        message: `You reached ${cancellationCount} trucker cancellations in ${TRUCKER_CANCELLATION_WINDOW_DAYS} days. You can sign new contracts again on ${blockUntil.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}.`,
+        data: {
+          reason: 'trucker-cancellation-limit-reached',
+          blockUntil: blockUntil.toISOString(),
+          count: cancellationCount,
+          threshold: TRUCKER_CANCELLATION_THRESHOLD,
+          windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
+        },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const adminIds = await getAdminUserIds(db);
+      await Promise.all(adminIds.map((adminId) => db.collection(`users/${adminId}/notifications`).doc().set({
+        type: 'TRUCKER_CANCELLATION_THRESHOLD_HIT',
+        title: 'Trucker Cancellation Threshold Hit',
+        message: `Trucker ${truckerId} hit ${cancellationCount} cancellations in ${TRUCKER_CANCELLATION_WINDOW_DAYS} days.`,
+        data: {
+          truckerId,
+          reason: 'trucker-cancellation-limit-reached',
+          blockUntil: blockUntil.toISOString(),
+          count: cancellationCount,
+          threshold: TRUCKER_CANCELLATION_THRESHOLD,
+        },
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })));
+
+      await db.collection('adminLogs').add({
+        action: 'TRUCKER_CANCELLATION_THRESHOLD_BLOCKED',
+        targetUserId: truckerId,
+        relatedContractId: contractId,
+        performedBy: 'system',
+        performedAt: admin.firestore.FieldValue.serverTimestamp(),
+        count: cancellationCount,
+        threshold: TRUCKER_CANCELLATION_THRESHOLD,
+        windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
+        blockDays: TRUCKER_CANCELLATION_BLOCK_DAYS,
+        blockUntil: blockUntil.toISOString(),
+      });
+    }
+  }
 
   try {
     await recordTruckBookingContractActivity(db, contractId, { ...contract, status: 'cancelled' }, 'cancelled');

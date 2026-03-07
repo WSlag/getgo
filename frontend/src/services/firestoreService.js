@@ -20,6 +20,20 @@ import { db, storage, auth, functions } from '../firebase';
 import { getCoordinates } from '../utils/cityCoordinates';
 import { resolveEffectivePostingRole } from '@/utils/workspace';
 
+const TRUCKER_DOC_FIELD_BY_TYPE = {
+  driver_license: 'driverLicenseCopy',
+  lto_registration: 'ltoRegistrationCopy',
+};
+const ALLOWED_TRUCKER_DOC_TYPES = new Set(Object.keys(TRUCKER_DOC_FIELD_BY_TYPE));
+const ALLOWED_TRUCKER_DOC_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_TRUCKER_DOC_SIZE_BYTES = 5 * 1024 * 1024;
+
+function sanitizeStorageFileName(fileName = 'document') {
+  return String(fileName)
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 120);
+}
+
 
 // ============================================================
 // PHOTO UPLOAD
@@ -71,6 +85,58 @@ export const updateUserProfile = async (uid, data) => {
     ...data,
     updatedAt: serverTimestamp()
   });
+};
+
+export const uploadTruckerComplianceDocument = async (docType, file) => {
+  const userId = auth.currentUser?.uid;
+  if (!userId) throw new Error('Not authenticated');
+  if (!ALLOWED_TRUCKER_DOC_TYPES.has(docType)) {
+    throw new Error('Unsupported document type');
+  }
+  if (!(file instanceof File)) {
+    throw new Error('No file selected');
+  }
+  if (!ALLOWED_TRUCKER_DOC_CONTENT_TYPES.has(file.type)) {
+    throw new Error('Only JPG, PNG, or WebP images are allowed');
+  }
+  if (file.size > MAX_TRUCKER_DOC_SIZE_BYTES) {
+    throw new Error('File must be 5MB or less');
+  }
+
+  const safeName = sanitizeStorageFileName(file.name || `${docType}.jpg`);
+  const timestamp = Date.now();
+  const storagePath = `trucker-docs/${userId}/${docType}/${timestamp}_${safeName}`;
+  const storageRef = ref(storage, storagePath);
+  const snapshot = await uploadBytes(storageRef, file, {
+    contentType: file.type,
+    cacheControl: 'private,max-age=300',
+  });
+  const downloadURL = await getDownloadURL(snapshot.ref);
+
+  const fieldName = TRUCKER_DOC_FIELD_BY_TYPE[docType];
+  const profileRef = doc(db, 'users', userId, 'truckerProfile', 'profile');
+  await setDoc(profileRef, {
+    [fieldName]: {
+      url: downloadURL,
+      path: storagePath,
+      fileName: safeName,
+      contentType: file.type,
+      sizeBytes: Number(file.size || 0),
+      uploadedAt: serverTimestamp(),
+    },
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  return {
+    fieldName,
+    metadata: {
+      url: downloadURL,
+      path: storagePath,
+      fileName: safeName,
+      contentType: file.type,
+      sizeBytes: Number(file.size || 0),
+    },
+  };
 };
 
 // ============================================================

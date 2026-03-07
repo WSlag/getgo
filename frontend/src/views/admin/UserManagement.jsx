@@ -16,6 +16,7 @@ import {
   Loader2,
   UserCheck,
   UserX,
+  RefreshCw,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -76,7 +77,20 @@ function StatusBadge({ isActive, isVerified }) {
 }
 
 // User detail modal
-function UserDetailModal({ open, onClose, user, onSuspend, onActivate, onVerify, onToggleAdmin, loading }) {
+function UserDetailModal({
+  open,
+  onClose,
+  user,
+  onSuspend,
+  onActivate,
+  onVerify,
+  onToggleAdmin,
+  onResetCancellationBlock,
+  loading,
+  cancellationStatus,
+  cancellationStatusLoading,
+  cancellationStatusError,
+}) {
   if (!user) return null;
 
   return (
@@ -128,6 +142,44 @@ function UserDetailModal({ open, onClose, user, onSuspend, onActivate, onVerify,
                 Granted on {formatDate(user.adminGrantedAt)}
                 {user.adminGrantedBy && ` by ${user.adminGrantedBy}`}
               </p>
+            </div>
+          )}
+
+          {user.role === 'trucker' && (
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+              <h4 className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-3 flex items-center gap-2">
+                <RefreshCw className={cn('size-4', cancellationStatusLoading ? 'animate-spin' : '')} />
+                Cancellation Abuse Status
+              </h4>
+              {cancellationStatusError && (
+                <p className="text-sm text-red-600 dark:text-red-400">{cancellationStatusError}</p>
+              )}
+              {!cancellationStatusError && cancellationStatus && (
+                <div className="space-y-1.5 text-sm">
+                  <p className="text-amber-900 dark:text-amber-100">
+                    In-window count: <strong>{cancellationStatus.cancellationCountInWindow}</strong> / {cancellationStatus.threshold}
+                    {' '}({cancellationStatus.windowDays} days)
+                  </p>
+                  <p className="text-amber-800 dark:text-amber-200">
+                    Baseline start: {formatDate(cancellationStatus.baselineStart)}
+                  </p>
+                  <p className="text-amber-800 dark:text-amber-200">
+                    Block status: {cancellationStatus.isBlocked ? 'Blocked' : 'Not blocked'}
+                    {cancellationStatus.blockUntil ? ` until ${formatDate(cancellationStatus.blockUntil)}` : ''}
+                  </p>
+                  {cancellationStatus.blockReason && (
+                    <p className="text-amber-800 dark:text-amber-200">
+                      Block reason: {cancellationStatus.blockReason}
+                    </p>
+                  )}
+                  <p className="text-amber-800 dark:text-amber-200">
+                    Reset at: {cancellationStatus.resetAt ? formatDate(cancellationStatus.resetAt) : 'Not reset'}
+                  </p>
+                </div>
+              )}
+              {!cancellationStatusError && !cancellationStatus && !cancellationStatusLoading && (
+                <p className="text-sm text-amber-800 dark:text-amber-200">No cancellation status data available.</p>
+              )}
             </div>
           )}
 
@@ -188,6 +240,18 @@ function UserDetailModal({ open, onClose, user, onSuspend, onActivate, onVerify,
                 Grant Admin
               </Button>
             )}
+
+            {user.role === 'trucker' && (
+              <Button
+                onClick={() => onResetCancellationBlock(user.id)}
+                disabled={loading}
+                variant="outline"
+                className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300"
+              >
+                {loading ? <Loader2 className="size-4 animate-spin mr-2" /> : <RefreshCw className="size-4 mr-2" />}
+                Reset Cancellation Block
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
@@ -205,6 +269,13 @@ export function UserManagement() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null); // { type: 'suspend'|'activate', userId }
+  const [resetTargetUserId, setResetTargetUserId] = useState(null);
+  const [resetReason, setResetReason] = useState('');
+  const [cancellationStatus, setCancellationStatus] = useState(null);
+  const [cancellationStatusLoading, setCancellationStatusLoading] = useState(false);
+  const [cancellationStatusError, setCancellationStatusError] = useState('');
+  const selectedUserId = selectedUser?.id || '';
+  const selectedUserRole = selectedUser?.role || '';
 
   // Fetch users
   const fetchUsers = async () => {
@@ -231,6 +302,40 @@ export function UserManagement() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCancellationStatus = async () => {
+      if (!showDetailModal || !selectedUserId || selectedUserRole !== 'trucker') {
+        setCancellationStatus(null);
+        setCancellationStatusLoading(false);
+        setCancellationStatusError('');
+        return;
+      }
+
+      setCancellationStatusLoading(true);
+      setCancellationStatusError('');
+      try {
+        const response = await api.admin.getTruckerCancellationStatus(selectedUserId);
+        if (cancelled) return;
+        setCancellationStatus(response || null);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Error loading trucker cancellation status:', error);
+        setCancellationStatus(null);
+        setCancellationStatusError('Could not load cancellation status.');
+      } finally {
+        if (!cancelled) {
+          setCancellationStatusLoading(false);
+        }
+      }
+    };
+
+    void loadCancellationStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [showDetailModal, selectedUserId, selectedUserRole]);
 
   // Handle suspend user
   const handleSuspend = async (userId) => {
@@ -283,6 +388,19 @@ export function UserManagement() {
       setShowDetailModal(false);
     } catch (error) {
       console.error('Error toggling admin:', error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResetCancellationBlock = async (userId, reason) => {
+    setActionLoading(true);
+    try {
+      await api.admin.unblockTruckerCancellationBlock(userId, reason);
+      await fetchUsers();
+      setShowDetailModal(false);
+    } catch (error) {
+      console.error('Error resetting trucker cancellation block:', error);
     } finally {
       setActionLoading(false);
     }
@@ -408,13 +526,23 @@ export function UserManagement() {
         onClose={() => {
           setShowDetailModal(false);
           setSelectedUser(null);
+          setCancellationStatus(null);
+          setCancellationStatusLoading(false);
+          setCancellationStatusError('');
         }}
         user={selectedUser}
         onSuspend={(userId) => setConfirmAction({ type: 'suspend', userId })}
         onActivate={(userId) => setConfirmAction({ type: 'activate', userId })}
         onVerify={handleVerify}
         onToggleAdmin={handleToggleAdmin}
+        onResetCancellationBlock={(userId) => {
+          setResetTargetUserId(userId);
+          setResetReason('');
+        }}
         loading={actionLoading}
+        cancellationStatus={cancellationStatus}
+        cancellationStatusLoading={cancellationStatusLoading}
+        cancellationStatusError={cancellationStatusError}
       />
 
       <ConfirmDialog
@@ -440,6 +568,64 @@ export function UserManagement() {
         }}
         onCancel={() => setConfirmAction(null)}
       />
+
+      <Dialog
+        open={!!resetTargetUserId}
+        onOpenChange={(open) => {
+          if (!open && !actionLoading) {
+            setResetTargetUserId(null);
+            setResetReason('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Trucker Cancellation Block</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              This clears the active cancellation signing block and resets the baseline for future threshold checks.
+            </p>
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Reason</label>
+              <textarea
+                className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+                rows={3}
+                value={resetReason}
+                onChange={(e) => setResetReason(e.target.value)}
+                placeholder="Admin reset reason"
+                disabled={actionLoading}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setResetTargetUserId(null);
+                  setResetReason('');
+                }}
+                disabled={actionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={async () => {
+                  if (!resetTargetUserId) return;
+                  await handleResetCancellationBlock(resetTargetUserId, resetReason.trim() || 'Reset via admin dashboard');
+                  setResetTargetUserId(null);
+                  setResetReason('');
+                }}
+                disabled={actionLoading}
+              >
+                {actionLoading ? <Loader2 className="size-4 animate-spin mr-2" /> : <RefreshCw className="size-4 mr-2" />}
+                Reset
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

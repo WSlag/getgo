@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FileText,
   MapPin,
@@ -18,6 +18,8 @@ import {
   Info,
   User,
   Phone,
+  Upload,
+  XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PesoIcon } from '@/components/ui/PesoIcon';
@@ -27,27 +29,52 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+
+const TRUCKER_CANCELLATION_REASON_OPTIONS = [
+  { value: 'vehicle_breakdown', label: 'Vehicle breakdown' },
+  { value: 'emergency_health', label: 'Emergency/Health' },
+  { value: 'route_safety_risk', label: 'Route/Safety risk' },
+  { value: 'schedule_conflict', label: 'Schedule conflict' },
+  { value: 'payment_terms_issue', label: 'Payment/Terms issue' },
+  { value: 'other', label: 'Other' },
+];
 
 export function ContractModal({
   open,
   onClose,
   contract,
   currentUser,
+  truckerProfile,
+  truckerCompliance,
   onSign,
+  onCancel,
   onComplete,
   onPayPlatformFee,
+  onUploadTruckerDocument,
   loading = false,
   darkMode = false,
 }) {
   const [confirmSign, setConfirmSign] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [showFullTerms, setShowFullTerms] = useState(false);
   const [acknowledgedLiability, setAcknowledgedLiability] = useState(false);
+  const [cancelReasonCode, setCancelReasonCode] = useState('');
+  const [cancelError, setCancelError] = useState('');
+  const [truckPlateNumber, setTruckPlateNumber] = useState('');
+  const [uploadingDocType, setUploadingDocType] = useState('');
   const isMobile = useMediaQuery('(max-width: 1023px)');
+
+  useEffect(() => {
+    setTruckPlateNumber(contract?.vehiclePlateNumber || '');
+    setCancelReasonCode('');
+    setCancelError('');
+    setConfirmCancel(false);
+  }, [contract?.id, contract?.vehiclePlateNumber]);
 
   if (!contract) return null;
 
@@ -79,7 +106,14 @@ export function ContractModal({
   const hasUserSigned = isShipper ? !!contract.shipperSignature : !!contract.truckerSignature;
   const otherPartySigned = isShipper ? !!contract.truckerSignature : !!contract.shipperSignature;
   const fullyExecuted = contract.status === 'signed' || contract.status === 'completed' || contract.status === 'in_transit';
-
+  const docsRequiredOnSigning = truckerCompliance?.docsRequiredOnSigning !== false;
+  const hasDriverCopy = Boolean(truckerProfile?.driverLicenseCopy?.url);
+  const hasLtoCopy = Boolean(truckerProfile?.ltoRegistrationCopy?.url);
+  const missingRequiredDocs = [];
+  if (docsRequiredOnSigning && !hasDriverCopy) missingRequiredDocs.push('Driver License Copy');
+  if (docsRequiredOnSigning && !hasLtoCopy) missingRequiredDocs.push('LTO Certificate of Registration Copy');
+  const requiresPlateInput = isTrucker && !contract.vehiclePlateNumber;
+  const canCancelContract = isTrucker && ['draft', 'signed'].includes(String(contract.status || '').toLowerCase());
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -147,15 +181,48 @@ export function ContractModal({
     if (!acknowledgedLiability && contract.status === 'draft') {
       return;
     }
-    onSign?.(contract.id);
+    const signPayload = {};
+    if (requiresPlateInput && truckPlateNumber.trim()) {
+      signPayload.truckPlateNumber = truckPlateNumber.trim();
+    }
+    onSign?.(contract.id, signPayload);
     setConfirmSign(false);
     setAcknowledgedLiability(false);
   };
 
+  const handleCancelContract = () => {
+    if (!cancelReasonCode) {
+      setCancelError('Please select a cancellation reason.');
+      return;
+    }
+    onCancel?.(contract.id, { reasonCode: cancelReasonCode });
+    setConfirmCancel(false);
+    setCancelReasonCode('');
+    setCancelError('');
+  };
+
+  const handleUploadDoc = async (docType, event) => {
+    const file = event?.target?.files?.[0];
+    if (!file || !onUploadTruckerDocument) return;
+    try {
+      setUploadingDocType(docType);
+      await onUploadTruckerDocument(docType, file);
+    } finally {
+      setUploadingDocType('');
+      if (event?.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
   const handleClose = () => {
     setConfirmSign(false);
+    setConfirmCancel(false);
+    setCancelReasonCode('');
+    setCancelError('');
     setAcknowledgedLiability(false);
     setShowFullTerms(false);
+    setTruckPlateNumber(contract?.vehiclePlateNumber || '');
     onClose?.();
   };
 
@@ -595,6 +662,111 @@ export function ContractModal({
           </div>
         )}
 
+        {contract.status === 'cancelled' && (
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+            <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '10px' }} className="flex items-center gap-1.5">
+              <XCircle style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} />
+              Cancellation Details
+            </h4>
+            <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" style={{ padding: isMobile ? '10px' : '12px' }}>
+              <p style={{ fontSize: isMobile ? '12px' : '13px', color: '#7f1d1d' }}>
+                Reason: <strong>{contract.cancellationReason || 'Not provided'}</strong>
+              </p>
+              {contract.cancelledByRole && (
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#991b1b', marginTop: '4px', textTransform: 'capitalize' }}>
+                  Cancelled by: {contract.cancelledByRole}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isTrucker && (
+          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+            <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '10px' }} className="flex items-center gap-1.5">
+              <FileText style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} />
+              Trucker Documents
+            </h4>
+            {docsRequiredOnSigning && missingRequiredDocs.length > 0 && (
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800" style={{ padding: isMobile ? '10px' : '12px', marginBottom: '10px' }}>
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#92400e' }}>
+                  Required before signing: {missingRequiredDocs.join(', ')}
+                </p>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
+                <div>
+                  <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>Driver License Copy</p>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: hasDriverCopy ? '#16a34a' : '#6b7280' }}>
+                    {hasDriverCopy ? 'Uploaded' : 'Not uploaded'}
+                  </p>
+                </div>
+                <div className="flex items-center" style={{ gap: '8px' }}>
+                  {hasDriverCopy && (
+                    <a
+                      href={truckerProfile?.driverLicenseCopy?.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 underline"
+                    >
+                      View
+                    </a>
+                  )}
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(event) => handleUploadDoc('driver_license', event)}
+                      disabled={loading || uploadingDocType === 'driver_license'}
+                    />
+                    <span className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs text-white">
+                      <Upload className="size-3" />
+                      {uploadingDocType === 'driver_license' ? 'Uploading...' : (hasDriverCopy ? 'Replace' : 'Upload')}
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-800/50" style={{ padding: isMobile ? '10px' : '12px' }}>
+                <div>
+                  <p style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>LTO Certificate of Registration Copy</p>
+                  <p style={{ fontSize: isMobile ? '11px' : '12px', color: hasLtoCopy ? '#16a34a' : '#6b7280' }}>
+                    {hasLtoCopy ? 'Uploaded' : 'Not uploaded'}
+                  </p>
+                </div>
+                <div className="flex items-center" style={{ gap: '8px' }}>
+                  {hasLtoCopy && (
+                    <a
+                      href={truckerProfile?.ltoRegistrationCopy?.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 underline"
+                    >
+                      View
+                    </a>
+                  )}
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(event) => handleUploadDoc('lto_registration', event)}
+                      disabled={loading || uploadingDocType === 'lto_registration'}
+                    />
+                    <span className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs text-white">
+                      <Upload className="size-3" />
+                      {uploadingDocType === 'lto_registration' ? 'Uploading...' : (hasLtoCopy ? 'Replace' : 'Upload')}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Sign Confirmation */}
         {confirmSign && contract.status === 'draft' && !hasUserSigned && (
           <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800" style={{ padding: isMobile ? '12px' : '16px' }}>
@@ -605,6 +777,21 @@ export function ContractModal({
                 <p style={{ fontSize: isMobile ? '12px' : '13px', color: '#a16207', marginTop: '4px' }}>
                   By signing this contract, you agree to all terms and conditions. This action creates a legally binding agreement.
                 </p>
+
+                {requiresPlateInput && (
+                  <div style={{ marginTop: isMobile ? '8px' : '12px' }}>
+                    <label className="text-xs font-medium text-yellow-900 dark:text-yellow-300">
+                      Truck Plate Number (required)
+                    </label>
+                    <Input
+                      type="text"
+                      value={truckPlateNumber}
+                      onChange={(e) => setTruckPlateNumber(e.target.value)}
+                      placeholder="Enter truck plate number"
+                      className="mt-1 bg-white"
+                    />
+                  </div>
+                )}
 
                 <label className="flex items-start cursor-pointer" style={{ gap: isMobile ? '6px' : '8px', marginTop: isMobile ? '8px' : '12px' }}>
                   <input
@@ -631,12 +818,76 @@ export function ContractModal({
               variant={confirmSign ? "destructive" : "gradient"}
               size={isMobile ? "default" : "lg"}
               onClick={handleSign}
-              disabled={loading || (confirmSign && !acknowledgedLiability)}
+              disabled={loading || (confirmSign && (!acknowledgedLiability || (requiresPlateInput && !truckPlateNumber.trim())))}
               className="gap-2 w-full"
             >
               <PenTool className="size-4" />
               {loading ? 'Signing...' : confirmSign ? 'Confirm & Sign Contract' : 'Sign Contract'}
             </Button>
+          )}
+
+          {canCancelContract && !confirmCancel && (
+            <Button
+              variant="outline"
+              size={isMobile ? "default" : "lg"}
+              onClick={() => setConfirmCancel(true)}
+              disabled={loading}
+              className="gap-2 w-full border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
+            >
+              <XCircle className="size-4" />
+              Cancel Contract
+            </Button>
+          )}
+
+          {canCancelContract && confirmCancel && (
+            <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20" style={{ padding: isMobile ? '10px' : '12px' }}>
+              <p style={{ fontSize: isMobile ? '12px' : '13px', color: '#991b1b', fontWeight: 600, marginBottom: '8px' }}>
+                Select cancellation reason
+              </p>
+              <select
+                value={cancelReasonCode}
+                onChange={(e) => {
+                  setCancelReasonCode(e.target.value);
+                  setCancelError('');
+                }}
+                className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm"
+                disabled={loading}
+              >
+                <option value="">Select reason...</option>
+                {TRUCKER_CANCELLATION_REASON_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {cancelError && (
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#b91c1c', marginTop: '6px' }}>{cancelError}</p>
+              )}
+              <div className="flex gap-2" style={{ marginTop: '10px' }}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={handleCancelContract}
+                  disabled={loading || !cancelReasonCode}
+                >
+                  {loading ? 'Cancelling...' : 'Confirm Cancel'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="flex-1"
+                  onClick={() => {
+                    setConfirmCancel(false);
+                    setCancelReasonCode('');
+                    setCancelError('');
+                  }}
+                  disabled={loading}
+                >
+                  Keep Contract
+                </Button>
+              </div>
+            </div>
           )}
 
           {contract.status === 'draft' && hasUserSigned && !otherPartySigned && (

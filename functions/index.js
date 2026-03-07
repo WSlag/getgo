@@ -1392,6 +1392,8 @@ exports.adminGetPendingPayments = adminFunctions.adminGetPendingPayments;
 exports.adminGetUsers = adminFunctions.adminGetUsers;
 exports.adminSuspendUser = adminFunctions.adminSuspendUser;
 exports.adminActivateUser = adminFunctions.adminActivateUser;
+exports.adminUnblockTruckerCancellationBlock = adminFunctions.adminUnblockTruckerCancellationBlock;
+exports.adminGetTruckerCancellationStatus = adminFunctions.adminGetTruckerCancellationStatus;
 exports.adminVerifyUser = adminFunctions.adminVerifyUser;
 exports.adminToggleAdmin = adminFunctions.adminToggleAdmin;
 exports.adminGetFinancialSummary = adminFunctions.adminGetFinancialSummary;
@@ -1483,6 +1485,9 @@ exports.onTruckListingDeletedForReferrals = listingReferralTriggers.onTruckListi
 
 const chatTriggers = require('./src/triggers/chatTriggers');
 exports.onChatMessageCreated = chatTriggers.onChatMessageCreated;
+
+const truckerComplianceTriggers = require('./src/triggers/truckerComplianceTriggers');
+exports.onTruckerProfileCreated = truckerComplianceTriggers.onTruckerProfileCreated;
 
 // =============================================================================
 // SCHEDULED FUNCTIONS

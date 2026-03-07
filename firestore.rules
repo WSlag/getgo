@@ -263,6 +263,12 @@ service cloud.firestore {
         allow write: if isOwner(uid);
       }
 
+      // Trucker Compliance (server-managed enforcement state)
+      match /truckerCompliance/{docId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow write: if false;
+      }
+
       // Broker Profile subcollection (including nested referrals and commissions)
       match /brokerProfile/{docId} {
         allow read: if isOwner(uid) || isAdmin();
