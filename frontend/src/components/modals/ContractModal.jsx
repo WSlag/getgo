@@ -100,8 +100,17 @@ export function ContractModal({
   const isShipper = isCargo ? isListingOwner : isBidder;
   const isTrucker = isCargo ? isBidder : isListingOwner;
 
-  const shipperInfo = isCargo ? listingOwner : bidder;
-  const truckerInfo = isCargo ? bidder : listingOwner;
+  // Use contract-embedded party info (populated by getContract CF) with bid fallback
+  const shipperInfoRaw = isCargo ? listingOwner : bidder;
+  const truckerInfoRaw = isCargo ? bidder : listingOwner;
+  const shipperInfo = {
+    name: contract.shipperName || shipperInfoRaw?.name || contract.listingOwnerName || '',
+    phone: contract.shipperPhone || shipperInfoRaw?.phone || '',
+  };
+  const truckerInfo = {
+    name: contract.truckerName || truckerInfoRaw?.name || contract.bidderName || '',
+    phone: contract.truckerPhone || truckerInfoRaw?.phone || '',
+  };
 
   const hasUserSigned = isShipper ? !!contract.shipperSignature : !!contract.truckerSignature;
   const otherPartySigned = isShipper ? !!contract.truckerSignature : !!contract.shipperSignature;
