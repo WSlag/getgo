@@ -467,7 +467,7 @@ export function ShipperActivityView({
                   }
                   if (item.source === 'cargo') { onOpenListing?.(item.rawEntity); }
                 }}
-                className="w-full text-left px-4 py-4 transition-colors hover:bg-orange-50/60 dark:hover:bg-orange-950/20 active:bg-orange-50 dark:active:bg-orange-950/30"
+                className="w-full text-left px-5 py-4 transition-colors hover:bg-orange-50/60 dark:hover:bg-orange-950/20 active:bg-orange-50 dark:active:bg-orange-950/30"
               >
                 {/* Row 1: icon + label + status badge */}
                 <div className="flex items-center gap-3">
