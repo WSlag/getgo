@@ -1059,7 +1059,7 @@ export default function KargaMarketplace() {
         messenger: `fb-messenger://share/?link=${encodeURIComponent(link)}`,
         viber: `viber://forward?text=${encodeURIComponent(text)}`,
       };
-      window.open(urls[platform], '_blank');
+      window.open(urls[platform], '_blank', 'noopener,noreferrer');
     };
     
     const handlePayoutRequest = () => {

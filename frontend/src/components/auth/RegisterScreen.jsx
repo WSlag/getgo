@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { User, Truck, Package, ArrowRight, Loader2, Building2, Mail, Link2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 import { cn } from '@/lib/utils';
 import BrokerOnboardingModal from '../broker/BrokerOnboardingModal';
 import { OnboardingGuideModal } from '../modals/OnboardingGuideModal';
 
 export default function RegisterScreen({ darkMode }) {
   const { authUser, createUserProfile } = useAuth();
+  const showToast = useToast();
   const [name, setName] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
@@ -17,6 +19,7 @@ export default function RegisterScreen({ darkMode }) {
   const [role, setRole] = useState('shipper');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [referralNotice, setReferralNotice] = useState('');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showBrokerOnboarding, setShowBrokerOnboarding] = useState(false);
 
@@ -36,6 +39,7 @@ export default function RegisterScreen({ darkMode }) {
 
     setLoading(true);
     setError('');
+    setReferralNotice('');
 
     const result = await createUserProfile({
       name: name.trim(),
@@ -49,6 +53,17 @@ export default function RegisterScreen({ darkMode }) {
 
     if (!result.success) {
       setError(result.error || 'Failed to create profile. Please try again.');
+      return;
+    }
+
+    if (result.referralAttribution?.status === 'failed') {
+      const message = result.referralAttribution.message || 'Profile created, but referral attribution is still pending.';
+      setReferralNotice(message);
+      showToast({
+        type: 'error',
+        title: 'Referral Pending',
+        message,
+      });
     }
   };
 
@@ -57,6 +72,7 @@ export default function RegisterScreen({ darkMode }) {
 
     setLoading(true);
     setError('');
+    setReferralNotice('');
 
     const fallbackName = buildDefaultName();
     const result = await createUserProfile({
@@ -71,6 +87,17 @@ export default function RegisterScreen({ darkMode }) {
 
     if (!result.success) {
       setError(result.error || 'Failed to continue. Please try again.');
+      return;
+    }
+
+    if (result.referralAttribution?.status === 'failed') {
+      const message = result.referralAttribution.message || 'Profile created, but referral attribution is still pending.';
+      setReferralNotice(message);
+      showToast({
+        type: 'error',
+        title: 'Referral Pending',
+        message,
+      });
     }
   };
 
@@ -350,6 +377,16 @@ export default function RegisterScreen({ darkMode }) {
               style={{ padding: '12px 14px', borderRadius: '10px', marginBottom: '20px' }}
             >
               <p className="text-red-600 dark:text-red-400" style={{ fontSize: '14px' }}>{error}</p>
+            </div>
+          )}
+
+          {referralNotice && (
+            <div
+              role="status"
+              className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+              style={{ padding: '12px 14px', borderRadius: '10px', marginBottom: '20px' }}
+            >
+              <p className="text-amber-700 dark:text-amber-300" style={{ fontSize: '14px' }}>{referralNotice}</p>
             </div>
           )}
 
