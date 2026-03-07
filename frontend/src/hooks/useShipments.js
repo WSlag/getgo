@@ -27,8 +27,8 @@ export function useShipments(userId) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => {
-          const docData = doc.data();
+        const data = snapshot.docs.map((docSnap) => {
+          const docData = docSnap.data();
           const createdAt = parseTimestampSafely(docData.createdAt);
           const updatedAt = parseTimestampSafely(docData.updatedAt);
           const deliveredAt = parseTimestampSafely(docData.deliveredAt);
@@ -56,7 +56,7 @@ export function useShipments(userId) {
           };
 
           return {
-            id: doc.id,
+            id: docSnap.id,
             ...docData,
             createdAt: createdAt.date,
             updatedAt: updatedAt.date,
@@ -70,32 +70,39 @@ export function useShipments(userId) {
               : (createdAt.hasTimestamp ? formatTimeAgo(createdAt.date) : ''),
           };
         });
-        // Backfill missing contract fields for older shipments
-        const enriched = await Promise.all(
-          data.map(async (shipment) => {
-            if (shipment.shipperName || !shipment.contractId) return shipment;
-            try {
-              const contractDoc = await getDoc(doc(db, 'contracts', shipment.contractId));
-              if (!contractDoc.exists()) return shipment;
-              const c = contractDoc.data();
-              const isCargo = (shipment.listingType || c.listingType) === 'cargo';
-              return {
-                ...shipment,
-                shipperName: isCargo ? (c.listingOwnerName || '') : (c.bidderName || ''),
-                truckerName: isCargo ? (c.bidderName || '') : (c.listingOwnerName || ''),
-                pickupDate: shipment.pickupDate || c.pickupDate || null,
-                expectedDeliveryDate: shipment.expectedDeliveryDate || c.expectedDeliveryDate || null,
-                vehiclePlateNumber: shipment.vehiclePlateNumber || c.vehiclePlateNumber || '',
-                agreedPrice: shipment.agreedPrice || c.agreedPrice || 0,
-              };
-            } catch {
-              return shipment;
-            }
-          })
-        );
-        setShipments(sortEntitiesNewestFirst(enriched, { fallbackKeys: ['deliveredAt'] }));
+
+        // Backfill missing contract fields for older shipments (async, updates state when done)
+        const backfill = async () => {
+          const enriched = await Promise.all(
+            data.map(async (shipment) => {
+              if (shipment.shipperName || !shipment.contractId) return shipment;
+              try {
+                const contractDoc = await getDoc(doc(db, 'contracts', shipment.contractId));
+                if (!contractDoc.exists()) return shipment;
+                const c = contractDoc.data();
+                const isCargo = (shipment.listingType || c.listingType) === 'cargo';
+                return {
+                  ...shipment,
+                  shipperName: isCargo ? (c.listingOwnerName || '') : (c.bidderName || ''),
+                  truckerName: isCargo ? (c.bidderName || '') : (c.listingOwnerName || ''),
+                  pickupDate: shipment.pickupDate || c.pickupDate || null,
+                  expectedDeliveryDate: shipment.expectedDeliveryDate || c.expectedDeliveryDate || null,
+                  vehiclePlateNumber: shipment.vehiclePlateNumber || c.vehiclePlateNumber || '',
+                  agreedPrice: shipment.agreedPrice || c.agreedPrice || 0,
+                };
+              } catch {
+                return shipment;
+              }
+            })
+          );
+          setShipments(sortEntitiesNewestFirst(enriched, { fallbackKeys: ['deliveredAt'] }));
+        };
+
+        // Show basic data immediately, then enrich
+        setShipments(sortEntitiesNewestFirst(data, { fallbackKeys: ['deliveredAt'] }));
         setLoading(false);
         setError(null);
+        backfill();
       },
       (err) => {
         console.error('Error fetching shipments:', err);
