@@ -114,9 +114,14 @@ const api = {
     getById: (id) => callFunction('getContract', { contractId: id }),
     getByBid: (bidId) => callFunction('getContractByBid', { bidId }),
     create: (data) => callFunction('createContract', data),
-    sign: (id) => callFunction('signContract', { contractId: id }),
+    sign: (id, data = {}) => callFunction('signContract', { contractId: id, ...(data || {}) }),
     complete: (id) => callFunction('completeContract', { contractId: id }),
-    cancel: (id, reason) => callFunction('cancelContract', { contractId: id, reason }),
+    cancel: (id, payload = null) => {
+      if (payload && typeof payload === 'object') {
+        return callFunction('cancelContract', { contractId: id, ...payload });
+      }
+      return callFunction('cancelContract', { contractId: id, reason: payload });
+    },
   },
 
   ratings: {
@@ -220,6 +225,10 @@ const api = {
     getUsers: (params) => callFunction('adminGetUsers', params || {}),
     suspendUser: (userId, data) => callFunction('adminSuspendUser', { userId, ...data }),
     activateUser: (userId) => callFunction('adminActivateUser', { userId }),
+    getTruckerCancellationStatus: (userId) =>
+      callFunction('adminGetTruckerCancellationStatus', { userId }),
+    unblockTruckerCancellationBlock: (userId, reason) =>
+      callFunction('adminUnblockTruckerCancellationBlock', { userId, reason }),
     verifyUser: (userId) => callFunction('adminVerifyUser', { userId }),
     toggleAdmin: (userId, grant) => callFunction('adminToggleAdmin', { userId, grant }),
 

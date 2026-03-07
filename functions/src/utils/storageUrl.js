@@ -119,6 +119,24 @@ function extractStorageObject(parsedUrl) {
 }
 
 function parseTrustedPaymentScreenshotUrl(rawUrl, expectedUserId = null) {
+  const parsedStorageUrl = parseTrustedStorageUrl(rawUrl);
+  if (!parsedStorageUrl.valid) {
+    return parsedStorageUrl;
+  }
+
+  if (!parsedStorageUrl.objectPath.startsWith(PAYMENT_PREFIX)) {
+    return { valid: false, reason: 'outside_payments_prefix' };
+  }
+
+  const userId = normalizeUserId(expectedUserId);
+  if (userId && !parsedStorageUrl.objectPath.startsWith(`${PAYMENT_PREFIX}${userId}/`)) {
+    return { valid: false, reason: 'owner_mismatch' };
+  }
+
+  return parsedStorageUrl;
+}
+
+function parseTrustedStorageUrl(rawUrl) {
   if (typeof rawUrl !== 'string' || rawUrl.length === 0 || rawUrl.length > MAX_URL_LENGTH) {
     return { valid: false, reason: 'invalid_url_length' };
   }
@@ -139,15 +157,6 @@ function parseTrustedPaymentScreenshotUrl(rawUrl, expectedUserId = null) {
     return { valid: false, reason: 'invalid_storage_path' };
   }
 
-  if (!storageObject.objectPath.startsWith(PAYMENT_PREFIX)) {
-    return { valid: false, reason: 'outside_payments_prefix' };
-  }
-
-  const userId = normalizeUserId(expectedUserId);
-  if (userId && !storageObject.objectPath.startsWith(`${PAYMENT_PREFIX}${userId}/`)) {
-    return { valid: false, reason: 'owner_mismatch' };
-  }
-
   return {
     valid: true,
     reason: null,
@@ -162,6 +171,7 @@ function isTrustedPaymentScreenshotUrl(rawUrl, expectedUserId = null) {
 }
 
 module.exports = {
+  parseTrustedStorageUrl,
   isTrustedPaymentScreenshotUrl,
   parseTrustedPaymentScreenshotUrl
 };

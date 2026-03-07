@@ -17,6 +17,7 @@ import {
   updateTruckListing,
   createBid,
   uploadListingPhotos,
+  uploadTruckerComplianceDocument,
   acceptBid,
   rejectBid,
   reopenListing,
@@ -118,6 +119,7 @@ export default function GetGoApp() {
     userProfile,
     shipperProfile,
     truckerProfile,
+    truckerCompliance,
     currentRole,
     brokerProfile,
     isBroker,
@@ -402,6 +404,7 @@ export default function GetGoApp() {
   const getUserErrorMessage = (error, fallback) => {
     const code = String(error?.code || '').toLowerCase();
     const message = String(error?.message || '').toLowerCase();
+    const reason = String(error?.details?.reason || '').toLowerCase();
 
     if (code.includes('platform-fee-cap-exceeded') || code.includes('resource-exhausted') || message.includes('exceed allowed cap')) {
       return 'Cannot accept this bid yet because the projected outstanding platform fees exceed the allowed cap.';
@@ -426,6 +429,16 @@ export default function GetGoApp() {
     }
     if (code.includes('already-exists') || message.includes('already exists')) {
       return 'This action was already completed.';
+    }
+    if (reason === 'missing-required-trucker-documents') {
+      return 'Driver License Copy and LTO Certificate of Registration Copy are required before signing this contract.';
+    }
+    if (reason === 'trucker-cancellation-limit-reached') {
+      const blockUntil = error?.details?.blockUntil ? new Date(error.details.blockUntil) : null;
+      if (blockUntil && !Number.isNaN(blockUntil.getTime())) {
+        return `Contract signing is temporarily blocked due to frequent cancellations. Try again after ${blockUntil.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}.`;
+      }
+      return 'Contract signing is temporarily blocked due to frequent cancellations.';
     }
     return fallback;
   };
@@ -1597,10 +1610,10 @@ export default function GetGoApp() {
   };
 
   // Handler: Sign contract
-  const handleSignContract = async (contractId) => {
+  const handleSignContract = async (contractId, signData = {}) => {
     setContractLoading(true);
     try {
-      const response = await api.contracts.sign(contractId);
+      const response = await api.contracts.sign(contractId, signData || {});
       const resolvedContract = response?.contract
         ? { id: contractId, ...response.contract }
         : (await api.contracts.getById(contractId))?.contract || null;
@@ -1660,6 +1673,33 @@ export default function GetGoApp() {
     } finally {
       setContractLoading(false);
     }
+  };
+
+  const handleCancelContract = async (contractId, cancelPayload = {}) => {
+    setContractLoading(true);
+    try {
+      await api.contracts.cancel(contractId, cancelPayload || {});
+      showToast({
+        type: 'success',
+        title: 'Contract Cancelled',
+        message: 'The contract was cancelled and participants were notified.',
+      });
+      closeModal('contract');
+      setActiveTab('contracts');
+    } catch (error) {
+      console.error('Error cancelling contract:', error);
+      showToast({
+        type: 'error',
+        title: 'Cancellation Failed',
+        message: getUserErrorMessage(error, 'Failed to cancel contract. Please try again.'),
+      });
+    } finally {
+      setContractLoading(false);
+    }
+  };
+
+  const handleUploadTruckerDocument = async (docType, file) => {
+    return uploadTruckerComplianceDocument(docType, file);
   };
 
   // Handler: Complete contract (delivery confirmation)
@@ -2692,9 +2732,13 @@ export default function GetGoApp() {
           onClose={() => closeModal('contract')}
           contract={getModalData('contract')}
           currentUser={{ id: authUser?.uid, ...userProfile }}
+          truckerProfile={truckerProfile}
+          truckerCompliance={truckerCompliance}
           onSign={handleSignContract}
+          onCancel={handleCancelContract}
           onComplete={handleCompleteContract}
           onPayPlatformFee={handlePayPlatformFee}
+          onUploadTruckerDocument={handleUploadTruckerDocument}
           loading={contractLoading}
         />
       </Suspense>

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   User, Phone, Mail, Facebook, Building2, MapPin,
   Truck, Star, Award, Wallet, LogOut, Package,
-  FileText, Calendar, Edit3, Save, KeyRound, RefreshCw,
-  ClipboardList, ChevronRight
+  FileText, Edit3, Save, KeyRound, RefreshCw,
+  ClipboardList, ChevronRight, Upload
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { uploadTruckerComplianceDocument } from '@/services/firestoreService';
 
 export function ProfilePage({ onNavigateToActivity }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
@@ -41,6 +42,7 @@ export function ProfilePage({ onNavigateToActivity }) {
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [uploadingDocType, setUploadingDocType] = useState('');
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
@@ -102,6 +104,22 @@ export function ProfilePage({ onNavigateToActivity }) {
 
   const handleLogout = async () => {
     await logout();
+  };
+
+  const handleUploadTruckerDoc = async (docType, event) => {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingDocType(docType);
+      await uploadTruckerComplianceDocument(docType, file);
+    } catch (error) {
+      console.error('Error uploading trucker document:', error);
+    } finally {
+      setUploadingDocType('');
+      if (event?.target) {
+        event.target.value = '';
+      }
+    }
   };
 
   const getInitial = () => {
@@ -516,17 +534,79 @@ export function ProfilePage({ onNavigateToActivity }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50">
-                  <div className="size-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-                    <Calendar className="size-5 text-amber-600" />
+                  <div className="size-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                    <FileText className="size-5 text-indigo-600" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">License Expiry</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Driver License Copy</p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {truckerProfile?.licenseExpiry
-                        ? formatDate(truckerProfile.licenseExpiry)
-                        : 'Not set'
-                      }
+                      {truckerProfile?.driverLicenseCopy?.url ? 'Uploaded' : 'Not set'}
                     </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {truckerProfile?.driverLicenseCopy?.url && (
+                      <a
+                        href={truckerProfile.driverLicenseCopy.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 underline"
+                      >
+                        View
+                      </a>
+                    )}
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(event) => handleUploadTruckerDoc('driver_license', event)}
+                        disabled={uploadingDocType === 'driver_license'}
+                      />
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs text-white">
+                        <Upload className="size-3" />
+                        {uploadingDocType === 'driver_license'
+                          ? 'Uploading...'
+                          : (truckerProfile?.driverLicenseCopy?.url ? 'Replace' : 'Upload')}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+                  <div className="size-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                    <FileText className="size-5 text-amber-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">LTO Certificate of Registration Copy</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {truckerProfile?.ltoRegistrationCopy?.url ? 'Uploaded' : 'Not set'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {truckerProfile?.ltoRegistrationCopy?.url && (
+                      <a
+                        href={truckerProfile.ltoRegistrationCopy.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 underline"
+                      >
+                        View
+                      </a>
+                    )}
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(event) => handleUploadTruckerDoc('lto_registration', event)}
+                        disabled={uploadingDocType === 'lto_registration'}
+                      />
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs text-white">
+                        <Upload className="size-3" />
+                        {uploadingDocType === 'lto_registration'
+                          ? 'Uploading...'
+                          : (truckerProfile?.ltoRegistrationCopy?.url ? 'Replace' : 'Upload')}
+                      </span>
+                    </label>
                   </div>
                 </div>
               </>
