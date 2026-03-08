@@ -42,6 +42,20 @@ const SLIDES = [
     sub: 'From Luzon to Mindanao, trusted carriers across the Philippines.',
     pills: ['Verified', 'Secure Payments', 'Rated Drivers'],
   },
+  {
+    id: 'broker',
+    bg: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 35%, #0891b2 70%, #059669 100%)',
+    orbColor: 'rgba(124,58,237,0.5)',
+    orbColor2: 'rgba(8,145,178,0.35)',
+    iconBg: 'rgba(255,255,255,0.18)',
+    iconBorder: 'rgba(255,255,255,0.3)',
+    iconPath: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
+    iconViewBox: '0 0 24 22',
+    headline: 'Be a Broker',
+    sub: 'Refer deals, earn commission. Zero capital, unlimited income.',
+    pills: ['Commission', 'Zero Capital', 'Unlimited Earn'],
+    isBrokerCta: true,
+  },
 ];
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -84,7 +98,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
     delta < 0 ? next() : prev();
   };
 
-  const height = isMobile ? 210 : 240;
+  const height = isMobile ? 210 : 320;
 
   return (
     <div
@@ -125,6 +139,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
               slide={slide}
               total={total}
               isMobile={isMobile}
+              onCtaClick={slide.isBrokerCta ? onEarnAsBrokerClick : undefined}
             />
           ))}
         </div>
@@ -173,7 +188,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
 
 // ─── Individual Slide ───────────────────────────────────────────────────────
 
-function Slide({ slide, total, isMobile }) {
+function Slide({ slide, total, isMobile, onCtaClick }) {
   const { bg, orbColor, orbColor2, iconBg, iconBorder, iconPath, iconViewBox, headline, sub, pills } = slide;
   const visiblePills = pills;
 
@@ -242,67 +257,79 @@ function Slide({ slide, total, isMobile }) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          padding: isMobile ? '16px 50px 28px 48px' : '28px 80px 40px 32px',
-          maxWidth: isMobile ? '100%' : '70%',
+          padding: isMobile ? '24px 24px 24px 24px' : '40px 60px 40px 48px',
+          maxWidth: isMobile ? '100%' : '80%',
+          margin: '0',
+          width: '100%',
           boxSizing: 'border-box',
+          alignItems: 'flex-start',
+          textAlign: 'left',
         }}
       >
-        {/* Icon tile */}
+        {/* Icon + Headline row */}
         <div
           style={{
-            width: isMobile ? '38px' : '52px',
-            height: isMobile ? '38px' : '52px',
-            borderRadius: '12px',
-            background: iconBg,
-            border: `1px solid ${iconBorder}`,
-            backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: isMobile ? '8px' : '14px',
-            flexShrink: 0,
+            gap: isMobile ? '10px' : '18px',
+            marginBottom: isMobile ? '5px' : '10px',
           }}
         >
-          <svg
-            width={isMobile ? '19' : '26'}
-            height={isMobile ? '19' : '26'}
-            viewBox={iconViewBox}
-            fill="none"
-            stroke="white"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+          {/* Icon tile */}
+          <div
+            style={{
+              width: isMobile ? '38px' : '56px',
+              height: isMobile ? '38px' : '56px',
+              borderRadius: '12px',
+              background: iconBg,
+              border: `1px solid ${iconBorder}`,
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
           >
-            <path d={iconPath} />
-          </svg>
-        </div>
+            <svg
+              width={isMobile ? '19' : '28'}
+              height={isMobile ? '19' : '28'}
+              viewBox={iconViewBox}
+              fill="none"
+              stroke="white"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d={iconPath} />
+            </svg>
+          </div>
 
-        {/* Headline */}
-        <h2
-          style={{
-            margin: 0,
-            fontFamily: 'Outfit, sans-serif',
-            fontWeight: 800,
-            fontSize: isMobile ? '19px' : '30px',
-            color: 'white',
-            lineHeight: 1.15,
-            marginBottom: isMobile ? '5px' : '8px',
-            letterSpacing: '-0.02em',
-          }}
-        >
-          {headline}
-        </h2>
+          {/* Headline */}
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: 'Outfit, sans-serif',
+              fontWeight: 800,
+              fontSize: isMobile ? '19px' : '38px',
+              color: 'white',
+              lineHeight: 1.15,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {headline}
+          </h2>
+        </div>
 
         {/* Subtext */}
         <p
           style={{
             margin: 0,
-            fontSize: isMobile ? '11px' : '14px',
+            fontSize: isMobile ? '11px' : '17px',
             color: 'rgba(255,255,255,0.85)',
             lineHeight: 1.4,
-            marginBottom: visiblePills.length ? (isMobile ? '10px' : '16px') : 0,
-            maxWidth: isMobile ? '240px' : '380px',
+            marginBottom: visiblePills.length ? (isMobile ? '10px' : '20px') : 0,
+            maxWidth: isMobile ? '100%' : '520px',
           }}
         >
           {sub}
@@ -310,18 +337,18 @@ function Slide({ slide, total, isMobile }) {
 
         {/* Pill badges */}
         {visiblePills.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '5px' : '8px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '5px' : '8px', justifyContent: 'flex-start' }}>
             {visiblePills.map((p) => (
               <span
                 key={p}
                 style={{
-                  fontSize: isMobile ? '10px' : '12px',
+                  fontSize: isMobile ? '10px' : '14px',
                   fontWeight: 600,
                   color: 'white',
                   background: 'rgba(255,255,255,0.2)',
                   border: '1px solid rgba(255,255,255,0.35)',
                   borderRadius: '999px',
-                  padding: isMobile ? '3px 9px' : '5px 14px',
+                  padding: isMobile ? '3px 9px' : '7px 18px',
                   backdropFilter: 'blur(4px)',
                   whiteSpace: 'nowrap',
                   fontFamily: 'Outfit, sans-serif',
@@ -332,6 +359,38 @@ function Slide({ slide, total, isMobile }) {
               </span>
             ))}
           </div>
+        )}
+
+        {/* CTA button — broker slide only */}
+        {onCtaClick && (
+          <button
+            type="button"
+            onClick={onCtaClick}
+            style={{
+              marginTop: isMobile ? '10px' : '16px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: isMobile ? '8px 18px' : '10px 24px',
+              borderRadius: '999px',
+              background: 'rgba(255,255,255,0.22)',
+              border: '1.5px solid rgba(255,255,255,0.55)',
+              backdropFilter: 'blur(6px)',
+              color: 'white',
+              fontFamily: 'Outfit, sans-serif',
+              fontSize: isMobile ? '12px' : '15px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              letterSpacing: '0.01em',
+              alignSelf: 'flex-start',
+            }}
+          >
+            Activate Broker
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="2" y1="7" x2="12" y2="7" />
+              <polyline points="8,3 12,7 8,11" />
+            </svg>
+          </button>
         )}
       </div>
     </div>
