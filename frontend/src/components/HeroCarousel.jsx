@@ -43,6 +43,34 @@ const SLIDES = [
     pills: ['Verified', 'Secure Payments', 'Rated Drivers'],
   },
   {
+    id: 'manage',
+    isImage: true,
+    image: '/assets/problem-logistics-manager.png',
+    placeholderGradient: 'linear-gradient(135deg, rgba(249, 115, 22, 0.3) 0%, rgba(59, 130, 246, 0.3) 100%)',
+    overlayGradient: 'linear-gradient(90deg, rgba(10,14,23,0.82) 0%, rgba(10,14,23,0.62) 38%, rgba(10,14,23,0.18) 68%, rgba(10,14,23,0.06) 100%)',
+    iconBg: 'rgba(255,255,255,0.18)',
+    iconBorder: 'rgba(255,255,255,0.3)',
+    iconPath: 'M12 2a8 8 0 00-8 8v1.5l-1 2V15h18v-1.5l-1-2V10a8 8 0 00-8-8zm0 20a3 3 0 003-3H9a3 3 0 003 3z',
+    iconViewBox: '0 0 24 24',
+    headline: 'Struggling to Manage Your Logistics?',
+    sub: 'Multiple shipments, delays, and manual coordination between shippers and truckers.',
+    pills: ['Manual Follow-up', 'Delayed Booking', 'Missed Opportunities'],
+  },
+  {
+    id: 'solution',
+    isImage: true,
+    image: '/assets/warehouse-worker-phone.png',
+    placeholderGradient: 'linear-gradient(135deg, rgba(147, 51, 234, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%)',
+    overlayGradient: 'linear-gradient(90deg, rgba(14,23,42,0.84) 0%, rgba(14,23,42,0.64) 40%, rgba(14,23,42,0.16) 70%, rgba(14,23,42,0.05) 100%)',
+    iconBg: 'rgba(255,255,255,0.18)',
+    iconBorder: 'rgba(255,255,255,0.3)',
+    iconPath: 'M3 3h18v14H3zM8 21h8M12 17v4',
+    iconViewBox: '0 0 24 24',
+    headline: 'One Platform to Control Your Logistics',
+    sub: 'Post cargo, track shipments, and connect with truckers instantly in one marketplace.',
+    pills: ['Cargo Marketplace', 'Live Tracking', 'Smart Bidding'],
+  },
+  {
     id: 'broker',
     bg: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 35%, #0891b2 70%, #059669 100%)',
     orbColor: 'rgba(124,58,237,0.5)',
@@ -189,64 +217,107 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
 // ─── Individual Slide ───────────────────────────────────────────────────────
 
 function Slide({ slide, total, isMobile, onCtaClick }) {
-  const { bg, orbColor, orbColor2, iconBg, iconBorder, iconPath, iconViewBox, headline, sub, pills } = slide;
+  const { bg, orbColor, orbColor2, isImage, image, placeholderGradient, overlayGradient, iconBg, iconBorder, iconPath, iconViewBox, headline, sub, pills } = slide;
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const imageRef = useRef(null);
+
+  // Lazy-load images with Intersection Observer
+  useEffect(() => {
+    if (!isImage) return;
+    
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && image && !imageLoaded) {
+        const img = new Image();
+        img.onload = () => setImageLoaded(true);
+        img.onerror = () => setImageError(true);
+        img.src = image;
+      }
+    }, { rootMargin: '50px' });
+
+    if (imageRef.current) {
+      observer.observe(imageRef.current);
+    }
+    return () => observer.disconnect();
+  }, [isImage, image, imageLoaded]);
+
   const visiblePills = pills;
 
   return (
     <div
+      ref={imageRef}
       style={{
         width: `${100 / total}%`,
         height: '100%',
-        background: bg,
+        background: isImage 
+          ? (imageLoaded && !imageError ? `url(${image})` : placeholderGradient)
+          : bg,
+        backgroundSize: 'cover',
+        backgroundPosition: isMobile ? '68% center' : 'center',
+        backgroundAttachment: 'fixed',
         position: 'relative',
         overflow: 'hidden',
         flexShrink: 0,
+        transition: isImage ? 'background-image 0.4s ease-in-out' : 'none',
       }}
     >
-      {/* Large decorative orb — top right */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-20%',
-          right: '-8%',
-          width: isMobile ? '160px' : '240px',
-          height: isMobile ? '160px' : '240px',
-          borderRadius: '28px',
-          background: `radial-gradient(circle at 40% 40%, ${orbColor}, ${orbColor2} 60%, transparent 80%)`,
-          backdropFilter: 'blur(2px)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          transform: 'rotate(12deg)',
-          pointerEvents: 'none',
-        }}
-      />
+      {/* Image overlay gradient for text readability */}
+      {isImage && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: overlayGradient,
+            zIndex: 1,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
 
-      {/* Secondary smaller orb — bottom right */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-10%',
-          right: '8%',
-          width: isMobile ? '80px' : '120px',
-          height: isMobile ? '80px' : '120px',
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${orbColor} 0%, transparent 70%)`,
-          pointerEvents: 'none',
-          opacity: 0.6,
-        }}
-      />
-
-      {/* Top-left ambient glow */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-30%',
-          left: '-10%',
-          width: '50%',
-          height: '120%',
-          background: 'radial-gradient(ellipse, rgba(255,255,255,0.08) 0%, transparent 65%)',
-          pointerEvents: 'none',
-        }}
-      />
+      {/* Decorative orbs — gradient slides only */}
+      {!isImage && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              top: '-20%',
+              right: '-8%',
+              width: isMobile ? '160px' : '240px',
+              height: isMobile ? '160px' : '240px',
+              borderRadius: '28px',
+              background: `radial-gradient(circle at 40% 40%, ${orbColor}, ${orbColor2} 60%, transparent 80%)`,
+              backdropFilter: 'blur(2px)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              transform: 'rotate(12deg)',
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '-10%',
+              right: '8%',
+              width: isMobile ? '80px' : '120px',
+              height: isMobile ? '80px' : '120px',
+              borderRadius: '50%',
+              background: `radial-gradient(circle, ${orbColor} 0%, transparent 70%)`,
+              pointerEvents: 'none',
+              opacity: 0.6,
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: '-30%',
+              left: '-10%',
+              width: '50%',
+              height: '120%',
+              background: 'radial-gradient(ellipse, rgba(255,255,255,0.08) 0%, transparent 65%)',
+              pointerEvents: 'none',
+            }}
+          />
+        </>
+      )}
 
       {/* Content */}
       <div
@@ -257,8 +328,8 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          padding: isMobile ? '24px 24px 24px 24px' : '40px 60px 40px 48px',
-          maxWidth: isMobile ? '100%' : '80%',
+          padding: isMobile ? '18px 52px 42px 18px' : '34px 72px 52px 32px',
+          maxWidth: isMobile ? '100%' : '64%',
           margin: '0',
           width: '100%',
           boxSizing: 'border-box',
