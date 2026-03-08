@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 
-// ─── Slide data ────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Slide data ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const SLIDES = [
   {
-    id: 'welcome',
-    bg: 'linear-gradient(135deg, #F97316 0%, #FB923C 40%, #FBBF24 100%)',
-    orbColor: 'rgba(251,191,36,0.45)',
-    orbColor2: 'rgba(253,230,138,0.3)',
+    id: 'truckers',
+    isImage: true,
+    image: '/assets/trucker-phone-cab.png',
+    placeholderGradient: 'linear-gradient(135deg, rgba(251, 146, 60, 0.3) 0%, rgba(249, 115, 22, 0.3) 100%)',
+    overlayGradient: 'linear-gradient(90deg, rgba(10,14,23,0.82) 0%, rgba(10,14,23,0.62) 38%, rgba(10,14,23,0.18) 68%, rgba(10,14,23,0.06) 100%)',
     iconBg: 'rgba(255,255,255,0.18)',
     iconBorder: 'rgba(255,255,255,0.3)',
     iconPath: 'M1 3h11v9H1zM12 6h4l3 3v3h-7V6zM5.5 15.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM16.5 15.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
@@ -17,23 +18,25 @@ const SLIDES = [
     pills: ['Cargo Listings', 'Truck Bookings', 'Bidding'],
   },
   {
-    id: 'ship',
-    bg: 'linear-gradient(135deg, #9333EA 0%, #C026D3 50%, #EC4899 100%)',
-    orbColor: 'rgba(236,72,153,0.4)',
-    orbColor2: 'rgba(192,38,211,0.3)',
+    id: 'cargo',
+    isImage: true,
+    image: '/assets/warehouse-worker-phone.png',
+    placeholderGradient: 'linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%)',
+    overlayGradient: 'linear-gradient(90deg, rgba(10,14,23,0.82) 0%, rgba(10,14,23,0.62) 38%, rgba(10,14,23,0.18) 68%, rgba(10,14,23,0.06) 100%)',
     iconBg: 'rgba(255,255,255,0.18)',
     iconBorder: 'rgba(255,255,255,0.3)',
-    iconPath: 'M10 1L20 6v10L10 21 0 16V6L10 1zM10 1v10M0 6l10 5M20 6l-10 5M5 3.5l10 5',
-    iconViewBox: '0 0 20 22',
-    headline: 'Ship Smarter, Faster',
-    sub: 'Real-time tracking and instant booking confirmations for your cargo.',
-    pills: ['Instant Quotes', 'Live GPS', 'Verified Drivers'],
+    iconPath: 'M1 3h11v9H1zM12 6h4l3 3v3h-7V6zM5.5 15.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM16.5 15.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
+    iconViewBox: '0 0 20 18',
+    headline: 'Book Trucks in Seconds',
+    sub: 'Post cargo and receive bids from available truckers fast with a smoother dispatch workflow.',
+    pills: ['Fast Dispatch', 'Verified Truckers', 'Better Pricing'],
   },
   {
-    id: 'coverage',
-    bg: 'linear-gradient(135deg, #2563EB 0%, #0EA5E9 50%, #06B6D4 100%)',
-    orbColor: 'rgba(6,182,212,0.4)',
-    orbColor2: 'rgba(14,165,233,0.3)',
+    id: 'network',
+    isImage: true,
+    image: '/assets/highway-sunset-truck.png',
+    placeholderGradient: 'linear-gradient(135deg, rgba(36, 99, 235, 0.3) 0%, rgba(6, 182, 212, 0.3) 100%)',
+    overlayGradient: 'linear-gradient(90deg, rgba(10,14,23,0.82) 0%, rgba(10,14,23,0.62) 38%, rgba(10,14,23,0.18) 68%, rgba(10,14,23,0.06) 100%)',
     iconBg: 'rgba(255,255,255,0.18)',
     iconBorder: 'rgba(255,255,255,0.3)',
     iconPath: 'M10 1C6.686 1 4 3.686 4 7c0 5 6 12 6 12s6-7 6-12c0-3.314-2.686-6-6-6zm0 8a2 2 0 110-4 2 2 0 010 4z',
@@ -72,9 +75,10 @@ const SLIDES = [
   },
   {
     id: 'broker',
-    bg: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 35%, #0891b2 70%, #059669 100%)',
-    orbColor: 'rgba(124,58,237,0.5)',
-    orbColor2: 'rgba(8,145,178,0.35)',
+    isImage: true,
+    image: '/assets/broker-booking.png',
+    placeholderGradient: 'linear-gradient(135deg, rgba(124, 58, 237, 0.3) 0%, rgba(8, 145, 178, 0.3) 100%)',
+    overlayGradient: 'linear-gradient(90deg, rgba(10,14,23,0.82) 0%, rgba(10,14,23,0.62) 38%, rgba(10,14,23,0.18) 68%, rgba(10,14,23,0.06) 100%)',
     iconBg: 'rgba(255,255,255,0.18)',
     iconBorder: 'rgba(255,255,255,0.3)',
     iconPath: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
@@ -86,7 +90,7 @@ const SLIDES = [
   },
 ];
 
-// ─── Component ─────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Component ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
   const [current, setCurrent] = useState(0);
@@ -206,7 +210,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
           ))}
         </div>
 
-        {/* Nav arrows — always inside card */}
+        {/* Nav arrows ΓÇö always inside card */}
         <NavArrow direction="left" onClick={prev} isMobile={isMobile} />
         <NavArrow direction="right" onClick={next} isMobile={isMobile} />
       </div>
@@ -214,7 +218,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
   );
 }
 
-// ─── Individual Slide ───────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Individual Slide ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 function Slide({ slide, total, isMobile, onCtaClick }) {
   const { bg, orbColor, orbColor2, isImage, image, placeholderGradient, overlayGradient, iconBg, iconBorder, iconPath, iconViewBox, headline, sub, pills } = slide;
@@ -293,7 +297,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
         />
       )}
 
-      {/* Decorative orbs — gradient slides only */}
+      {/* Decorative orbs ΓÇö gradient slides only */}
       {!isImage && orbColor && (
         <>
           <div
@@ -451,7 +455,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           </div>
         )}
 
-        {/* CTA button — broker slide only */}
+        {/* CTA button ΓÇö broker slide only */}
         {onCtaClick && (
           <button
             type="button"
@@ -487,7 +491,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
   );
 }
 
-// ─── Nav Arrow Button ───────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Nav Arrow Button ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 function NavArrow({ direction, onClick, isMobile }) {
   const isLeft = direction === 'left';
