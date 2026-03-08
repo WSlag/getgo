@@ -383,6 +383,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              alignSelf: 'flex-start',
             }}
           >
             <svg
