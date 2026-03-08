@@ -355,21 +355,21 @@ export function TruckerActivityView({
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
         {statCards.map(({ label, value, iconEl, iconBg }, idx) => (
           <div
             key={label}
-            className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 p-3 relative overflow-hidden"
-            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+            className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 relative overflow-hidden flex flex-col justify-center"
+            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '10px 10px 10px 12px', minHeight: '76px' }}
           >
             {idx === 0 && (
               <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: 'linear-gradient(180deg, #FF9A56, #FF6B35)' }} />
             )}
-            <div className={`size-7 rounded-xl ${iconBg} flex items-center justify-center mb-2`}>
+            <div className={`size-6 rounded-lg ${iconBg} flex items-center justify-center mb-1.5 shrink-0`}>
               {iconEl}
             </div>
-            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 mb-0.5 leading-none truncate">{label}</p>
-            <p className="text-xl font-black text-gray-900 dark:text-white leading-none" style={{ fontFamily: 'Outfit, sans-serif' }}>{value}</p>
+            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 leading-tight truncate mb-0.5">{label}</p>
+            <p className="text-[18px] font-black text-gray-900 dark:text-white leading-none" style={{ fontFamily: 'Outfit, sans-serif' }}>{value}</p>
           </div>
         ))}
       </div>

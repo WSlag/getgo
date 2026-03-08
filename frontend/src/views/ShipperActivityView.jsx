@@ -349,8 +349,7 @@ export function ShipperActivityView({
     { label: 'Total', value: summary.total, iconEl: <TrendingUp className="size-3.5 text-orange-500" />, iconBg: 'bg-orange-100 dark:bg-orange-950/40' },
     { label: 'Cargo', value: summary.cargo, iconEl: <Package className="size-3.5 text-blue-500" />, iconBg: 'bg-blue-100 dark:bg-blue-950/40' },
     { label: 'Bids', value: summary.bids, iconEl: <Truck className="size-3.5 text-purple-500" />, iconBg: 'bg-purple-100 dark:bg-purple-950/40' },
-    { label: 'Truck Bookings', value: summary.truck_bookings, iconEl: <Truck className="size-3.5 text-green-500" />, iconBg: 'bg-green-100 dark:bg-green-950/40' },
-    { label: 'Shipment', value: summary.shipment, iconEl: <Truck className="size-3.5 text-cyan-500" />, iconBg: 'bg-cyan-100 dark:bg-cyan-950/40' },
+    { label: 'Bookings', value: summary.truck_bookings, iconEl: <Truck className="size-3.5 text-green-500" />, iconBg: 'bg-green-100 dark:bg-green-950/40' },
     { label: 'Contracts', value: summary.contracts, iconEl: <FileText className="size-3.5 text-indigo-500" />, iconBg: 'bg-indigo-100 dark:bg-indigo-950/40' },
     { label: 'Completed', value: summary.completed, iconEl: <TrendingUp className="size-3.5 text-green-500" />, iconBg: 'bg-green-100 dark:bg-green-950/40' },
   ];
@@ -394,22 +393,22 @@ export function ShipperActivityView({
         </div>
       </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+      {/* Stats grid — 6 cards, 3 cols = 2 clean rows */}
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
         {statCards.map(({ label, value, iconEl, iconBg }, idx) => (
           <div
             key={label}
-            className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 p-3 relative overflow-hidden"
-            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+            className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 relative overflow-hidden flex flex-col justify-center"
+            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '10px 10px 10px 12px', minHeight: '76px' }}
           >
             {idx === 0 && (
               <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: 'linear-gradient(180deg, #FF9A56, #FF6B35)' }} />
             )}
-            <div className={`size-7 rounded-xl ${iconBg} flex items-center justify-center mb-2`}>
+            <div className={`size-6 rounded-lg ${iconBg} flex items-center justify-center mb-1.5 shrink-0`}>
               {iconEl}
             </div>
-            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 mb-0.5 leading-none truncate">{label}</p>
-            <p className="text-xl font-black text-gray-900 dark:text-white leading-none" style={{ fontFamily: 'Outfit, sans-serif' }}>{value}</p>
+            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 leading-tight truncate mb-0.5">{label}</p>
+            <p className="text-[18px] font-black text-gray-900 dark:text-white leading-none" style={{ fontFamily: 'Outfit, sans-serif' }}>{value}</p>
           </div>
         ))}
       </div>
