@@ -268,12 +268,6 @@ export function HomeView({
       {/* Hero Carousel */}
       <HeroCarousel isMobile={isMobile} onEarnAsBrokerClick={onActivateBroker} />
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900" style={{ padding: isMobile ? '12px' : '16px', marginBottom: isMobile ? '12px' : '16px' }}>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Workspace</p>
-            <p className="text-sm font-bold text-gray-900 dark:text-white">{workspaceLabel}</p>
-          </div>
-        </div>
         {roleKpis.length > 0 && (
           <div className="grid grid-cols-3 gap-2 mt-3">
             {roleKpis.map((kpi) => (
