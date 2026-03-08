@@ -130,7 +130,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
     delta < 0 ? next() : prev();
   };
 
-  const height = isMobile ? 210 : 320;
+  const height = isMobile ? 240 : 340;
 
   return (
     <div
@@ -139,6 +139,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
         margin: isMobile ? '0 0 12px' : '0 0 16px',
         userSelect: 'none',
         flexShrink: 0,
+              marginTop: '2px',
       }}
     >
       {/* Card */}
@@ -351,7 +352,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          padding: isMobile ? '18px 52px 42px 60px' : '34px 72px 52px 100px',
+          padding: isMobile ? '18px 40px 42px 48px' : '34px 72px 52px 100px',
           maxWidth: isMobile ? '100%' : '64%',
           margin: '0',
           width: '100%',
@@ -365,7 +366,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           style={{
             display: 'flex',
             alignItems: 'flex-start',
-            gap: isMobile ? '12px' : '18px',
+            gap: isMobile ? '14px' : '18px',
             marginBottom: isMobile ? '8px' : '16px',
             width: '100%',
           }}
@@ -407,7 +408,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
-              gap: isMobile ? '4px' : '8px',
+              gap: isMobile ? '10px' : '12px',
             }}
           >
             {/* Headline */}
@@ -416,7 +417,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
                 margin: 0,
                 fontFamily: 'Outfit, sans-serif',
                 fontWeight: 800,
-                fontSize: isMobile ? '19px' : '38px',
+                fontSize: isMobile ? '22px' : '38px',
                 color: 'white',
                 lineHeight: 1.15,
                 letterSpacing: '-0.02em',
@@ -429,7 +430,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
             <p
               style={{
                 margin: 0,
-                fontSize: isMobile ? '11px' : '17px',
+                fontSize: isMobile ? '13px' : '17px',
                 color: 'rgba(255,255,255,0.85)',
                 lineHeight: 1.4,
                 maxWidth: isMobile ? '100%' : '520px',
