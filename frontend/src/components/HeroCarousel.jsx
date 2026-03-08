@@ -218,30 +218,55 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
 
 function Slide({ slide, total, isMobile, onCtaClick }) {
   const { bg, orbColor, orbColor2, isImage, image, placeholderGradient, overlayGradient, iconBg, iconBorder, iconPath, iconViewBox, headline, sub, pills } = slide;
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
   const imageRef = useRef(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   // Lazy-load images with Intersection Observer
   useEffect(() => {
-    if (!isImage) return;
-    
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && image && !imageLoaded) {
-        const img = new Image();
-        img.onload = () => setImageLoaded(true);
-        img.onerror = () => setImageError(true);
-        img.src = image;
-      }
-    }, { rootMargin: '50px' });
+    if (!isImage || !image) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !imageLoaded) {
+            // Preload the image
+            const img = new Image();
+            img.onload = () => {
+              setImageLoaded(true);
+              if (imageRef.current) {
+                imageRef.current.style.backgroundImage = `url(${image})`;
+              }
+            };
+            img.src = image;
+          }
+        });
+      },
+      { rootMargin: '100px' }
+    );
 
     if (imageRef.current) {
       observer.observe(imageRef.current);
     }
-    return () => observer.disconnect();
+
+    return () => {
+      if (imageRef.current) {
+        observer.unobserve(imageRef.current);
+      }
+    };
   }, [isImage, image, imageLoaded]);
 
-  const visiblePills = pills;
+  const visiblePills = pills || [];
+
+  // Determine background style
+  const backgroundStyle = isImage
+    ? {
+        background: placeholderGradient,
+        backgroundSize: 'cover',
+        backgroundPosition: isMobile ? '68% center' : 'center',
+      }
+    : {
+        background: bg,
+      };
 
   return (
     <div
@@ -249,16 +274,10 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
       style={{
         width: `${100 / total}%`,
         height: '100%',
-        background: isImage 
-          ? (imageLoaded && !imageError ? `url(${image})` : placeholderGradient)
-          : bg,
-        backgroundSize: 'cover',
-        backgroundPosition: isMobile ? '68% center' : 'center',
-        backgroundAttachment: 'fixed',
         position: 'relative',
         overflow: 'hidden',
         flexShrink: 0,
-        transition: isImage ? 'background-image 0.4s ease-in-out' : 'none',
+        ...backgroundStyle,
       }}
     >
       {/* Image overlay gradient for text readability */}
@@ -275,7 +294,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
       )}
 
       {/* Decorative orbs — gradient slides only */}
-      {!isImage && (
+      {!isImage && orbColor && (
         <>
           <div
             style={{
