@@ -360,16 +360,17 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           textAlign: 'left',
         }}
       >
-        {/* Icon + Headline row */}
+        {/* Icon + Text column wrapper */}
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
-            gap: isMobile ? '10px' : '18px',
-            marginBottom: isMobile ? '5px' : '10px',
+            alignItems: 'flex-start',
+            gap: isMobile ? '12px' : '18px',
+            marginBottom: isMobile ? '8px' : '16px',
+            width: '100%',
           }}
         >
-          {/* Icon tile */}
+          {/* Icon tile - left */}
           <div
             style={{
               width: isMobile ? '38px' : '56px',
@@ -399,37 +400,46 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
             </svg>
           </div>
 
-          {/* Headline */}
-          <h2
+          {/* Text column - headline and subtext stacked */}
+          <div
             style={{
-              margin: 0,
-              fontFamily: 'Outfit, sans-serif',
-              fontWeight: 800,
-              fontSize: isMobile ? '19px' : '38px',
-              color: 'white',
-              lineHeight: 1.15,
-              letterSpacing: '-0.02em',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: isMobile ? '4px' : '8px',
             }}
           >
-            {headline}
-          </h2>
+            {/* Headline */}
+            <h2
+              style={{
+                margin: 0,
+                fontFamily: 'Outfit, sans-serif',
+                fontWeight: 800,
+                fontSize: isMobile ? '19px' : '38px',
+                color: 'white',
+                lineHeight: 1.15,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              {headline}
+            </h2>
+
+            {/* Subtext */}
+            <p
+              style={{
+                margin: 0,
+                fontSize: isMobile ? '11px' : '17px',
+                color: 'rgba(255,255,255,0.85)',
+                lineHeight: 1.4,
+                maxWidth: isMobile ? '100%' : '520px',
+              }}
+            >
+              {sub}
+            </p>
+          </div>
         </div>
 
-        {/* Subtext */}
-        <p
-          style={{
-            margin: 0,
-            fontSize: isMobile ? '11px' : '17px',
-            color: 'rgba(255,255,255,0.85)',
-            lineHeight: 1.4,
-            marginBottom: visiblePills.length ? (isMobile ? '10px' : '20px') : 0,
-            maxWidth: isMobile ? '100%' : '520px',
-          }}
-        >
-          {sub}
-        </p>
-
-        {/* Pill badges */}
+        {/* Pill badges */}{/* Pill badges */}
         {visiblePills.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '5px' : '8px', justifyContent: 'flex-start' }}>
             {visiblePills.map((p) => (
