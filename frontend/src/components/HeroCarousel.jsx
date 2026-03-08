@@ -347,7 +347,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          padding: isMobile ? '18px 52px 42px 18px' : '34px 72px 52px 32px',
+          padding: isMobile ? '18px 52px 42px 60px' : '34px 72px 52px 100px',
           maxWidth: isMobile ? '100%' : '64%',
           margin: '0',
           width: '100%',
