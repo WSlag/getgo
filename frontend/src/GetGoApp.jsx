@@ -2190,6 +2190,10 @@ export default function GetGoApp() {
               onCreateListing={handlePostClick}
               onOpenMessages={() => setActiveTab('messages')}
               onOpenListing={handleOpenActivityListing}
+              onNavigateToContracts={(filter) => {
+                setContractFilter(filter || 'all');
+                setActiveTab('contracts');
+              }}
               bidsCount={activityBidsCount}
               contractsCount={activityContractsCount}
               isBroker={isBroker}

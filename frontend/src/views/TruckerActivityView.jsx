@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Loader2, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
+import { Loader2, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar, AlertTriangle } from 'lucide-react';
 import { useMyBids, useBidsOnMyListings } from '@/hooks/useBids';
 import { useContracts } from '@/hooks/useContracts';
 import { inferBidPerspectiveRole, inferContractPerspectiveRole } from '@/utils/workspace';
@@ -109,6 +109,15 @@ function iconStyle(item) {
   return { background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa', color: '#f97316' };
 }
 
+function hasPayableUnpaidPlatformFee(contract, userId) {
+  if (!contract || !userId) return false;
+  if (contract.platformFeePayerId !== userId) return false;
+  if (contract.platformFeePaid !== false) return false;
+  if (contract.status === 'cancelled') return false;
+  if (contract.platformFeeStatus === 'waived') return false;
+  return true;
+}
+
 function matchesTypeFilter(item, activeTypeFilter) {
   if (activeTypeFilter === 'all') return true;
   return item.typeBuckets.includes(activeTypeFilter);
@@ -126,6 +135,7 @@ export function TruckerActivityView({
   onBrowseMarketplace,
   onCreateListing,
   onOpenMessages,
+  onNavigateToContracts,
   typeFilter,
   statusFilter,
   onTypeFilterChange,
@@ -300,6 +310,28 @@ export function TruckerActivityView({
     };
   }, [normalizedItems, activeTypeFilter, activeStatusFilter]);
 
+  // Calculate due payment summary for trucker (trucker pays platform fees)
+  const duePaymentSummary = useMemo(() => {
+    const unpaidContracts = truckerContracts.filter((contract) =>
+      hasPayableUnpaidPlatformFee(contract, userId)
+    );
+
+    const totalDue = unpaidContracts.reduce((sum, contract) =>
+      sum + Number(contract.platformFee || 0), 0
+    );
+
+    const hasOverdue = unpaidContracts.some((contract) =>
+      contract.platformFeeStatus === 'overdue'
+    );
+
+    return {
+      totalDue,
+      contractCount: unpaidContracts.length,
+      hasOverdue,
+      unpaidContracts,
+    };
+  }, [truckerContracts, userId]);
+
   const filterChipBase = 'inline-flex items-center justify-center rounded-full text-[13px] font-semibold leading-none transition-all duration-200 active:scale-95';
   const filterChipActive = 'text-white shadow-sm';
   const filterChipInactive = 'bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:text-orange-600 dark:hover:text-orange-400';
@@ -353,6 +385,91 @@ export function TruckerActivityView({
           </div>
         </div>
       </div>
+
+      {/* Due Payment Card - Only show if there are unpaid fees */}
+      {duePaymentSummary.contractCount > 0 && (
+        <div
+          className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 p-4 relative overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md active:scale-[0.995]"
+          style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+          onClick={() => onNavigateToContracts?.('unpaid_fees')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              onNavigateToContracts?.('unpaid_fees');
+            }
+          }}
+          aria-label={`Due payment: PHP ${duePaymentSummary.totalDue.toLocaleString()}. Click to view unpaid fees.`}
+        >
+          {/* Gradient left border for urgency */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl"
+            style={{
+              background: duePaymentSummary.hasOverdue
+                ? 'linear-gradient(180deg, #ef4444 0%, #dc2626 100%)'
+                : 'linear-gradient(180deg, #f97316 0%, #ea580c 100%)'
+            }}
+          />
+
+          <div className="pl-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {/* Warning Icon */}
+              <div
+                className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  duePaymentSummary.hasOverdue
+                    ? 'bg-red-100 dark:bg-red-950/40'
+                    : 'bg-orange-100 dark:bg-orange-950/40'
+                }`}
+              >
+                <AlertTriangle
+                  className={`size-5 ${duePaymentSummary.hasOverdue ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'}`}
+                />
+              </div>
+
+              {/* Due Payment Info */}
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    Due Payment
+                  </p>
+                  {duePaymentSummary.hasOverdue && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+                      OVERDUE
+                    </span>
+                  )}
+                </div>
+                <p className="text-xl font-black text-gray-900 dark:text-white leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                  PHP {duePaymentSummary.totalDue.toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {duePaymentSummary.contractCount} contract{duePaymentSummary.contractCount !== 1 ? 's' : ''} with unpaid fee{duePaymentSummary.contractCount !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+
+            {/* Pay Now Button */}
+            <button
+              type="button"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all active:scale-95 hover:opacity-90 shrink-0"
+              style={{
+                background: duePaymentSummary.hasOverdue
+                  ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                  : 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
+                boxShadow: duePaymentSummary.hasOverdue
+                  ? '0 4px 12px rgba(220,38,38,0.35)'
+                  : '0 4px 12px rgba(249,115,22,0.35)'
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigateToContracts?.('unpaid_fees');
+              }}
+            >
+              Pay Now
+              <ArrowRight className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
