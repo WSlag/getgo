@@ -36,7 +36,6 @@ import { useTruckListings } from './hooks/useTruckListings';
 import { useNotifications } from './hooks/useNotifications';
 import { useMyBids } from './hooks/useBids';
 import { useConversations } from './hooks/useConversations';
-import MessagesView from './views/MessagesView';
 // Wallet removed - using direct GCash payment
 import { useShipments } from './hooks/useShipments';
 import { useTheme } from './hooks/useTheme';
@@ -2064,7 +2063,6 @@ export default function GetGoApp() {
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
         unreadNotifications={unreadNotifications}
-        unreadMessages={unreadMessages}
         userInitial={userInitial}
         currentRole={userRole}
         workspaceRole={activeWorkspace}
@@ -2260,7 +2258,7 @@ export default function GetGoApp() {
         )}
 
         {activeTab === 'profile' && <ErrorBoundary><ProfilePage onNavigateToActivity={() => handleTabChange('activity')} /></ErrorBoundary>}
-        {activeTab === 'help' && <ErrorBoundary><HelpSupportView onBack={() => setActiveTab('home')} onShowOnboardingGuide={() => setShowOnboardingGuide(true)} currentUser={authUser} userProfile={userProfile} /></ErrorBoundary>}
+        {activeTab === 'help' && <ErrorBoundary><HelpSupportView onBack={() => setActiveTab('home')} onShowOnboardingGuide={() => setShowOnboardingGuide(true)} /></ErrorBoundary>}
 
         {activeTab === 'broker' && (
           <ErrorBoundary>
@@ -2325,17 +2323,16 @@ export default function GetGoApp() {
 
         {activeTab === 'messages' && authUser && (
           <ErrorBoundary>
-            <MessagesView
+            <ChatView
               currentUser={authUser}
               workspaceRole={activeWorkspace}
-              unreadMessages={unreadMessages}
+              conversations={workspaceConversations}
+              conversationsLoading={conversationsLoading}
               onOpenChat={(bid, listing, type) => {
                 openModal('chat', { bid, listing, type, bidId: bid.id });
               }}
-              onOpenContract={handleOpenContract}
               onBrowseMarketplace={() => setActiveTab('home')}
               onCreateListing={handlePostClick}
-              onOpenMessages={() => setActiveTab('messages')}
               darkMode={darkMode}
             />
           </ErrorBoundary>
