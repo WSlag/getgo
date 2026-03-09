@@ -179,20 +179,24 @@ export default function MessagesView() {
     if (currentUser?.uid) {
       loadConversations();
     }
-  }, [currentUser]);
+  }, [currentUser, loadConversations]);
 
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
+    if (!currentUser?.uid) return;
     try {
       setLoading(true);
+      setError(null);
+      console.log('[MessagesView] Loading conversations for user:', currentUser.uid);
       const messages = await getUserSupportMessages(currentUser.uid, 100);
+      console.log('[MessagesView] Loaded messages:', messages.length);
       setConversations(messages);
     } catch (err) {
-      console.error('Error loading conversations:', err);
-      setError('Failed to load messages');
+      console.error('[MessagesView] Error loading conversations:', err);
+      setError(err.message || 'Failed to load messages. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
 
   const handleSendMessage = async (message, category) => {
     try {
@@ -213,8 +217,11 @@ export default function MessagesView() {
 
   const filteredConversations = useMemo(() => {
     return conversations.filter(conv => {
-      const matchesSearch = conv.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           conv.category.toLowerCase().includes(searchTerm.toLowerCase());
+      // Add null checks to prevent crashes
+      const convMessage = conv.message || '';
+      const convCategory = conv.category || '';
+      const matchesSearch = convMessage.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           convCategory.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || conv.status === statusFilter;
       return matchesSearch && matchesStatus;
     }).sort((a, b) => {
@@ -242,6 +249,39 @@ export default function MessagesView() {
                 <div key={i} className="h-24 bg-gray-300 dark:bg-gray-700 rounded-xl" />
               ))}
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Display error state if there's an error
+  if (error) {
+    return (
+      <div className="flex-1 bg-gray-50 dark:bg-gray-950 overflow-y-auto">
+        <div className="max-w-6xl mx-auto p-4 lg:p-6">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Messages</h1>
+            <p className="text-gray-600 dark:text-gray-400">Chat with our support team</p>
+          </div>
+          
+          <div className="mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>
+            <button 
+              onClick={loadConversations}
+              className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+
+          {/* Still allow starting new conversation */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+            <h2 className="font-semibold text-gray-900 dark:text-white mb-4">Start a new conversation</h2>
+            <NewMessageForm
+              onSendMessage={handleSendMessage}
+              isLoading={newMessageLoading}
+            />
           </div>
         </div>
       </div>
