@@ -333,7 +333,7 @@ function GettingStartedSection({ onBack, onShowOnboardingGuide }) {
   );
 }
 
-function ContactSection({ onBack, currentUser }) {
+function ContactSection({ onBack, currentUser, userProfile }) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [sendStatus, setSendStatus] = useState(null);
@@ -375,7 +375,7 @@ function ContactSection({ onBack, currentUser }) {
     setErrorMessage('');
 
     try {
-      const userName = currentUser.displayName || currentUser.name || 'User';
+      const userName = userProfile?.name || currentUser?.displayName || currentUser?.phoneNumber || 'User';
       const { sendSupportMessage, getUserSupportMessages } = await import('@/services/firestoreService');
 
       await sendSupportMessage(

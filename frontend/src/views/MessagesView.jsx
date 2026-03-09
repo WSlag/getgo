@@ -166,7 +166,7 @@ function NewMessageForm({ onSendMessage, isLoading }) {
 }
 
 export default function MessagesView() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -197,7 +197,7 @@ export default function MessagesView() {
   const handleSendMessage = async (message, category) => {
     try {
       setNewMessageLoading(true);
-      await sendSupportMessage(currentUser.uid, currentUser.name, message, category);
+      await sendSupportMessage(currentUser.uid, userProfile?.name || currentUser?.phoneNumber || 'User', message, category);
       await loadConversations();
     } catch (err) {
       console.error('Error sending message:', err);
