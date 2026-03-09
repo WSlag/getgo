@@ -122,7 +122,14 @@ export function ContractModal({
   if (docsRequiredOnSigning && !hasDriverCopy) missingRequiredDocs.push('Driver License Copy');
   if (docsRequiredOnSigning && !hasLtoCopy) missingRequiredDocs.push('LTO Certificate of Registration Copy');
   const requiresPlateInput = isTrucker && !contract.vehiclePlateNumber;
-  const canCancelContract = isTrucker && ['draft', 'signed'].includes(String(contract.status || '').toLowerCase());
+  // Check if shipment has started (prevents cancellation per backend logic)
+  const shipmentStarted = contract.shipment && (
+    ['picked_up', 'in_transit', 'delivered'].includes(contract.shipment.status) ||
+    (contract.shipment.progress > 0)
+  );
+  const canCancelContract = isTrucker &&
+    ['draft', 'signed'].includes(String(contract.status || '').toLowerCase()) &&
+    !shipmentStarted;
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -513,7 +520,7 @@ export function ContractModal({
         </div>
 
         {/* Platform Fee Payment Section - For Truckers Only */}
-        {!contract.platformFeePaid && isTrucker && (
+        {!contract.platformFeePaid && isTrucker && contract.status !== 'cancelled' && contract.platformFeeStatus !== 'waived' && (
           <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <div className={cn(
               "rounded-lg border",
@@ -900,6 +907,15 @@ export function ContractModal({
               <XCircle className="size-4" />
               Cancel Contract
             </Button>
+          )}
+
+          {/* Show message when cancellation is disabled due to shipment activity */}
+          {isTrucker && ['draft', 'signed'].includes(contract.status) && shipmentStarted && (
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800" style={{ padding: isMobile ? '10px' : '12px' }}>
+              <p style={{ fontSize: isMobile ? '12px' : '13px', color: '#92400e', textAlign: 'center' }}>
+                Cancellation unavailable: Shipment has already started. Contact admin for dispute resolution.
+              </p>
+            </div>
           )}
 
           {canCancelContract && confirmCancel && (
