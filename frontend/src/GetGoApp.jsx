@@ -2936,8 +2936,25 @@ export default function GetGoApp() {
           platform={platform}
           browserName={inAppBrowserName}
           onOpenBrowser={() => {
-            const url = buildAndroidIntentUrl(window.location.href);
-            if (url) window.location.href = url;
+            if (platform === 'android') {
+              const url = buildAndroidIntentUrl(window.location.href);
+              if (url) window.location.href = url;
+            } else if (platform === 'ios') {
+              // On iOS, copy the link to clipboard so user can paste in Safari
+              navigator.clipboard.writeText(window.location.href).then(() => {
+                showToast({
+                  title: 'Link copied!',
+                  description: 'Paste it in Safari to open GetGo.',
+                  variant: 'success',
+                });
+              }).catch(() => {
+                showToast({
+                  title: 'Could not copy link',
+                  description: 'Please use the manual steps above.',
+                  variant: 'warning',
+                });
+              });
+            }
           }}
         />
       )}

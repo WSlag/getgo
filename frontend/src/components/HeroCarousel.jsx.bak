@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+๏ปฟimport { useState, useEffect, useRef, useCallback } from 'react';
 
-// G๖วG๖วG๖ว Slide data G๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖ว
+// ฮ“รถรฮ“รถรฮ“รถร Slide data ฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถร
 
 const SLIDES = [
   {
@@ -90,7 +90,7 @@ const SLIDES = [
   },
 ];
 
-// G๖วG๖วG๖ว Component G๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖ว
+// ฮ“รถรฮ“รถรฮ“รถร Component ฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถร
 
 export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
   const [current, setCurrent] = useState(0);
@@ -130,7 +130,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
     delta < 0 ? next() : prev();
   };
 
-  const height = isMobile ? 240 : 340;
+  const height = isMobile ? 210 : 320;
 
   return (
     <div
@@ -139,7 +139,6 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
         margin: isMobile ? '0 0 12px' : '0 0 16px',
         userSelect: 'none',
         flexShrink: 0,
-              marginTop: '2px',
       }}
     >
       {/* Card */}
@@ -211,7 +210,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
           ))}
         </div>
 
-        {/* Nav arrows Gว๖ always inside card */}
+        {/* Nav arrows ฮ“รรถ always inside card */}
         <NavArrow direction="left" onClick={prev} isMobile={isMobile} />
         <NavArrow direction="right" onClick={next} isMobile={isMobile} />
       </div>
@@ -219,7 +218,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
   );
 }
 
-// G๖วG๖วG๖ว Individual Slide G๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖ว
+// ฮ“รถรฮ“รถรฮ“รถร Individual Slide ฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถร
 
 function Slide({ slide, total, isMobile, onCtaClick }) {
   const { bg, orbColor, orbColor2, isImage, image, placeholderGradient, overlayGradient, iconBg, iconBorder, iconPath, iconViewBox, headline, sub, pills } = slide;
@@ -298,7 +297,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
         />
       )}
 
-      {/* Decorative orbs Gว๖ gradient slides only */}
+      {/* Decorative orbs ฮ“รรถ gradient slides only */}
       {!isImage && orbColor && (
         <>
           <div
@@ -352,7 +351,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          padding: isMobile ? '18px 40px 42px 48px' : '34px 72px 52px 100px',
+          padding: isMobile ? '18px 52px 42px 60px' : '34px 72px 52px 100px',
           maxWidth: isMobile ? '100%' : '64%',
           margin: '0',
           width: '100%',
@@ -361,89 +360,76 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           textAlign: 'left',
         }}
       >
-        {/* Icon + Text column wrapper */}
+        {/* Icon + Headline row */}
         <div
           style={{
             display: 'flex',
-            alignItems: 'flex-start',
-            gap: isMobile ? '14px' : '18px',
-            marginBottom: isMobile ? '8px' : '16px',
-            width: '100%',
+            alignItems: 'center',
+            gap: isMobile ? '10px' : '18px',
+            marginBottom: isMobile ? '5px' : '10px',
           }}
         >
-          {/* Icon tile - left (hidden on mobile) */}
-{!isMobile && (
-            <div
-              style={{
-                width: isMobile ? '38px' : '56px',
-                height: isMobile ? '38px' : '56px',
-                borderRadius: '12px',
-                background: iconBg,
-                border: `1px solid ${iconBorder}`,
-                backdropFilter: 'blur(8px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                alignSelf: 'flex-start',
-              }}
-            >
-              <svg
-                width={isMobile ? '19' : '28'}
-                height={isMobile ? '19' : '28'}
-                viewBox={iconViewBox}
-                fill="none"
-                stroke="white"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d={iconPath} />
-              </svg>
-            </div>
-)}
-
-          {/* Text column - headline and subtext stacked */}
+          {/* Icon tile */}
           <div
             style={{
-              flex: 1,
+              width: isMobile ? '38px' : '56px',
+              height: isMobile ? '38px' : '56px',
+              borderRadius: '12px',
+              background: iconBg,
+              border: `1px solid ${iconBorder}`,
+              backdropFilter: 'blur(8px)',
               display: 'flex',
-              flexDirection: 'column',
-              gap: isMobile ? '10px' : '12px',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
             }}
           >
-            {/* Headline */}
-            <h2
-              style={{
-                margin: 0,
-                fontFamily: 'Outfit, sans-serif',
-                fontWeight: 800,
-                fontSize: isMobile ? '22px' : '38px',
-                color: 'white',
-                lineHeight: 1.15,
-                letterSpacing: '-0.02em',
-              }}
+            <svg
+              width={isMobile ? '19' : '28'}
+              height={isMobile ? '19' : '28'}
+              viewBox={iconViewBox}
+              fill="none"
+              stroke="white"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
             >
-              {headline}
-            </h2>
-
-            {/* Subtext */}
-            <p
-              style={{
-                margin: 0,
-                fontSize: isMobile ? '13px' : '17px',
-                color: 'rgba(255,255,255,0.85)',
-                lineHeight: 1.4,
-                maxWidth: isMobile ? '100%' : '520px',
-              }}
-            >
-              {sub}
-            </p>
+              <path d={iconPath} />
+            </svg>
           </div>
+
+          {/* Headline */}
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: 'Outfit, sans-serif',
+              fontWeight: 800,
+              fontSize: isMobile ? '19px' : '38px',
+              color: 'white',
+              lineHeight: 1.15,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {headline}
+          </h2>
         </div>
 
-        {/* Pill badges */}{/* Pill badges */}
+        {/* Subtext */}
+        <p
+          style={{
+            margin: 0,
+            fontSize: isMobile ? '11px' : '17px',
+            color: 'rgba(255,255,255,0.85)',
+            lineHeight: 1.4,
+            marginBottom: visiblePills.length ? (isMobile ? '10px' : '20px') : 0,
+            maxWidth: isMobile ? '100%' : '520px',
+          }}
+        >
+          {sub}
+        </p>
+
+        {/* Pill badges */}
         {visiblePills.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '5px' : '8px', justifyContent: 'flex-start' }}>
             {visiblePills.map((p) => (
@@ -469,7 +455,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           </div>
         )}
 
-        {/* CTA button Gว๖ broker slide only */}
+        {/* CTA button ฮ“รรถ broker slide only */}
         {onCtaClick && (
           <button
             type="button"
@@ -505,7 +491,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
   );
 }
 
-// G๖วG๖วG๖ว Nav Arrow Button G๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖ว
+// ฮ“รถรฮ“รถรฮ“รถร Nav Arrow Button ฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถร
 
 function NavArrow({ direction, onClick, isMobile }) {
   const isLeft = direction === 'left';

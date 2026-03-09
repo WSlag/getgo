@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Activity View Redesign Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f1f5f9; font-family: 'Outfit', sans-serif; padding: 24px; }
+  h2 { font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; margin-top: 24px; }
+  .page { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── Filter panel ── */
+  .filter-panel {
+    background: white;
+    border: 1px solid #f3f4f6;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    position: relative;
+    overflow: hidden;
+  }
+  .filter-panel::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    border-radius: 16px 0 0 16px;
+    background: linear-gradient(180deg, #FF9A56 0%, #FF6B35 100%);
+  }
+  .filter-inner { padding-left: 8px; display: flex; flex-direction: column; gap: 10px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #f3f4f6;
+    color: #6b7280;
+    border: none;
+    cursor: pointer;
+  }
+  .chip.active {
+    background: linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(249,115,22,0.3);
+  }
+  .divider { height: 1px; background: #f3f4f6; }
+
+  /* ── Stat cards ── */
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat-card {
+    background: white;
+    border: 1px solid #f3f4f6;
+    border-radius: 14px;
+    padding: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card.total::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, #FF9A56, #FF6B35);
+    border-radius: 14px 0 0 14px;
+  }
+  .stat-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .stat-label { font-size: 10px; font-weight: 500; color: #9ca3af; margin-bottom: 2px; }
+  .stat-value { font-size: 22px; font-weight: 900; color: #111827; line-height: 1; }
+
+  /* ── Activity list ── */
+  .activity-list {
+    background: white;
+    border: 1px solid #f3f4f6;
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .activity-card {
+    background: white;
+    border: 1px solid #f3f4f6;
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .activity-card:hover {
+    border-color: #fed7aa;
+    box-shadow: 0 4px 12px rgba(249,115,22,0.1);
+  }
+  .row1 { display: flex; align-items: center; gap: 12px; }
+  .type-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 15px;
+  }
+  .type-icon.orange { background: linear-gradient(135deg, #fff7ed, #ffedd5); border: 1px solid #fed7aa; }
+  .type-icon.blue   { background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #bfdbfe; }
+  .type-icon.green  { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #bbf7d0; }
+  .type-icon.indigo { background: linear-gradient(135deg, #eef2ff, #e0e7ff); border: 1px solid #c7d2fe; }
+  .item-label { font-size: 14px; font-weight: 700; color: #111827; line-height: 1.2; }
+  .item-route { font-size: 11px; color: #9ca3af; margin-top: 2px; display: flex; align-items: center; gap: 4px; }
+  .route-arrow { color: #fdba74; font-size: 10px; }
+  .badge {
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: capitalize;
+  }
+  .badge.accepted  { background: #dbeafe; color: #1d4ed8; }
+  .badge.completed { background: #dcfce7; color: #15803d; }
+  .badge.pending   { background: #fef3c7; color: #b45309; }
+  .badge.cancelled { background: #fee2e2; color: #b91c1c; }
+  .row2 {
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 8px; margin-top: 8px; margin-left: 48px;
+    font-size: 11px; color: #9ca3af;
+  }
+  .with-name { color: #4b5563; font-weight: 600; }
+  .amount { font-weight: 800; color: #f97316; }
+  .date { margin-left: auto; display: flex; align-items: center; gap: 3px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h2>Filter Panel</h2>
+  <div class="filter-panel">
+    <div class="filter-inner">
+      <div class="chip-row">
+        <button class="chip active">All</button>
+        <button class="chip">Cargo Bids</button>
+        <button class="chip">Truck Bookings</button>
+        <button class="chip">Contracts</button>
+        <button class="chip">Delivery</button>
+      </div>
+      <div class="divider"></div>
+      <div class="chip-row">
+        <button class="chip active">All</button>
+        <button class="chip">Pending</button>
+        <button class="chip">Accepted</button>
+        <button class="chip">Completed</button>
+        <button class="chip">Cancelled</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>Stat Cards</h2>
+  <div class="stat-grid">
+    <div class="stat-card total">
+      <div class="stat-icon" style="background:#fff7ed;">📦</div>
+      <div class="stat-label">Total</div>
+      <div class="stat-value">17</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#eff6ff;">🚛</div>
+      <div class="stat-label">Cargo Bids</div>
+      <div class="stat-value">9</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#f0fdf4;">🚚</div>
+      <div class="stat-label">Truck Bookings</div>
+      <div class="stat-value">1</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#eef2ff;">📄</div>
+      <div class="stat-label">Contracts</div>
+      <div class="stat-value">7</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#ecfeff;">🗺️</div>
+      <div class="stat-label">Delivery</div>
+      <div class="stat-value">3</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#f0fdf4;">✅</div>
+      <div class="stat-label">Completed</div>
+      <div class="stat-value">3</div>
+    </div>
+  </div>
+
+  <h2>Activity List</h2>
+  <div class="activity-list">
+
+    <!-- Contract — Accepted -->
+    <div class="activity-card">
+      <div class="row1">
+        <div class="type-icon indigo">📄</div>
+        <div style="flex:1;min-width:0;">
+          <div class="item-label">Contract</div>
+          <div class="item-route">Gensan <span class="route-arrow">→</span> Manila</div>
+        </div>
+        <span class="badge accepted">Accepted</span>
+      </div>
+      <div class="row2">
+        <span>With: <span class="with-name">Loy Antonio</span></span>
+        <span class="amount">PHP 72,000</span>
+        <span class="date">📅 Mar 7, 01:48 PM</span>
+      </div>
+    </div>
+
+    <!-- Cargo Bid — Accepted -->
+    <div class="activity-card">
+      <div class="row1">
+        <div class="type-icon orange">📦</div>
+        <div style="flex:1;min-width:0;">
+          <div class="item-label">Cargo Bid</div>
+          <div class="item-route">Gensan <span class="route-arrow">→</span> Manila</div>
+        </div>
+        <span class="badge accepted">Accepted</span>
+      </div>
+      <div class="row2">
+        <span>With: <span class="with-name">Loy Antonio</span></span>
+        <span class="amount">PHP 72,000</span>
+        <span class="date">📅 Mar 6, 05:36 PM</span>
+      </div>
+    </div>
+
+    <!-- Delivery Contract — Completed -->
+    <div class="activity-card">
+      <div class="row1">
+        <div class="type-icon green">🚛</div>
+        <div style="flex:1;min-width:0;">
+          <div class="item-label">Delivery Contract</div>
+          <div class="item-route">Butuan <span class="route-arrow">→</span> City of Cebu</div>
+        </div>
+        <span class="badge completed">Completed</span>
+      </div>
+      <div class="row2">
+        <span>With: <span class="with-name">Loue Baja</span></span>
+        <span class="amount">PHP 30,000</span>
+        <span class="date">📅 Mar 5, 09:44 PM</span>
+      </div>
+    </div>
+
+    <!-- Cargo Bid — Cancelled -->
+    <div class="activity-card">
+      <div class="row1">
+        <div class="type-icon orange">📦</div>
+        <div style="flex:1;min-width:0;">
+          <div class="item-label">Cargo Bid</div>
+          <div class="item-route">Cebu <span class="route-arrow">→</span> Manila</div>
+        </div>
+        <span class="badge cancelled">Cancelled</span>
+      </div>
+      <div class="row2">
+        <span>With: <span class="with-name">Loy Antonio</span></span>
+        <span class="amount">PHP 57,000</span>
+        <span class="date">📅 Feb 22, 03:06 PM</span>
+      </div>
+    </div>
+
+    <!-- Truck Booking — Pending -->
+    <div class="activity-card">
+      <div class="row1">
+        <div class="type-icon blue">🚚</div>
+        <div style="flex:1;min-width:0;">
+          <div class="item-label">Truck Booking</div>
+          <div class="item-route">Davao <span class="route-arrow">→</span> Manila</div>
+        </div>
+        <span class="badge pending">Pending</span>
+      </div>
+      <div class="row2">
+        <span>With: <span class="with-name">Loy Antonio</span></span>
+        <span class="amount">PHP 5,000</span>
+        <span class="date">📅 Feb 23, 08:43 AM</span>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>
