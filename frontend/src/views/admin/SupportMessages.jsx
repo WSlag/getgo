@@ -6,7 +6,7 @@ import { getAllSupportMessages, addAdminReply, updateSupportMessageStatus } from
 import { useAuth } from '@/contexts/AuthContext';
 
 export function SupportMessages() {
-  const { user } = useAuth();
+  const { authUser } = useAuth();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState(null);
@@ -31,12 +31,12 @@ export function SupportMessages() {
   };
 
   const handleSendReply = async () => {
-    if (!replyText.trim() || !selectedMessage || !user) return;
+    if (!replyText.trim() || !selectedMessage || !authUser) return;
 
     setSendingReply(true);
     try {
-      const adminName = user.displayName || user.email || 'Admin';
-      await addAdminReply(selectedMessage.id, user.uid, adminName, replyText.trim());
+      const adminName = authUser.displayName || authUser.email || 'Admin';
+      await addAdminReply(selectedMessage.id, authUser.uid, adminName, replyText.trim());
       
       // Refresh messages
       await fetchMessages();
