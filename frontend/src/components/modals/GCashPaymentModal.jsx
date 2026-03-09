@@ -484,9 +484,6 @@ export function GCashPaymentModal({
 
         <div style={{ marginBottom: '12px' }}>
           <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Send to</div>
-          <div style={{ fontSize: '18px', fontWeight: '700', color: '#111827', marginBottom: '2px' }}>
-            {order?.gcashAccountName}
-          </div>
           <div style={{ fontSize: '14px', color: '#6b7280' }}>
             {displayGcashNumber}
           </div>
@@ -689,7 +686,6 @@ export function GCashPaymentModal({
         <ul style={{ fontSize: '12px', color: '#78350f', margin: 0, paddingLeft: '20px' }}>
           <li style={{ marginBottom: '4px' }}>Reference number clearly visible</li>
           <li style={{ marginBottom: '4px' }}>Amount matches {formatPrice(order?.amount)}</li>
-          <li style={{ marginBottom: '4px' }}>Receiver name: {order?.gcashAccountName}</li>
           <li>Transaction timestamp (recent)</li>
         </ul>
       </div>
