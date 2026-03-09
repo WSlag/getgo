@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   X,
   Menu,
+  MessageCircle,
 } from 'lucide-react';
 import { PesoIcon } from '@/components/ui/PesoIcon';
 
@@ -25,6 +26,7 @@ const navItems = [
   { id: 'contracts', label: 'Contracts', icon: FileText },
   { id: 'shipments', label: 'Shipments', icon: Truck },
   { id: 'payments', label: 'Payments', icon: CreditCard, badge: 'pendingPayments' },
+  { id: 'supportMessages', label: 'Support Messages', icon: MessageCircle },
   { id: 'financial', label: 'Financial', icon: PesoIcon },
   { id: 'disputes', label: 'Disputes', icon: AlertTriangle, badge: 'openDisputes' },
   { id: 'referrals', label: 'Referrals', icon: Link2 },
