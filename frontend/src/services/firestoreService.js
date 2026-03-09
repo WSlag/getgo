@@ -1022,7 +1022,7 @@ export const addAdminReply = async (messageId, adminId, adminName, reply) => {
     adminId,
     adminName: adminName || 'Admin',
     message: reply.trim(),
-    createdAt: serverTimestamp(),
+    createdAt: new Date(),
   };
 
   await updateDoc(messageRef, {
