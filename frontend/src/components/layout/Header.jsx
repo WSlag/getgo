@@ -10,6 +10,7 @@ export function Header({
   darkMode = false,
   onToggleDarkMode,
   unreadNotifications = 0,
+  unreadMessages = 0,
   userInitial = 'U',
   currentRole = 'shipper',
   workspaceRole = 'shipper',
@@ -63,6 +64,7 @@ export function Header({
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
+              const showBadge = item.id === 'messages' && unreadMessages > 0;
 
               return (
                 <button
@@ -91,9 +93,9 @@ export function Header({
                   <div className="flex items-center gap-2 relative">
                     <Icon className="size-4" />
                     <span className="font-medium text-sm">{item.label}</span>
-                    {item.badge > 0 && (
+                    {showBadge && (
                       <Badge className="absolute -top-2 -right-2 size-5 flex items-center justify-center p-0 bg-red-500 text-white text-xs border-2 border-white dark:border-gray-900">
-                        {item.badge > 9 ? '9+' : item.badge}
+                        {unreadMessages > 9 ? '9+' : unreadMessages}
                       </Badge>
                     )}
                   </div>
