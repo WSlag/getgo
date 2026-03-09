@@ -1,6 +1,6 @@
-๏ปฟimport { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
-// ฮ“รถรฮ“รถรฮ“รถร Slide data ฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถร
+// G๖วG๖วG๖ว Slide data G๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖ว
 
 const SLIDES = [
   {
@@ -90,7 +90,7 @@ const SLIDES = [
   },
 ];
 
-// ฮ“รถรฮ“รถรฮ“รถร Component ฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถร
+// G๖วG๖วG๖ว Component G๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖ว
 
 export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
   const [current, setCurrent] = useState(0);
@@ -211,7 +211,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
           ))}
         </div>
 
-        {/* Nav arrows ฮ“รรถ always inside card */}
+        {/* Nav arrows Gว๖ always inside card */}
         <NavArrow direction="left" onClick={prev} isMobile={isMobile} />
         <NavArrow direction="right" onClick={next} isMobile={isMobile} />
       </div>
@@ -219,7 +219,7 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
   );
 }
 
-// ฮ“รถรฮ“รถรฮ“รถร Individual Slide ฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถร
+// G๖วG๖วG๖ว Individual Slide G๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖ว
 
 function Slide({ slide, total, isMobile, onCtaClick }) {
   const { bg, orbColor, orbColor2, isImage, image, placeholderGradient, overlayGradient, iconBg, iconBorder, iconPath, iconViewBox, headline, sub, pills } = slide;
@@ -298,7 +298,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
         />
       )}
 
-      {/* Decorative orbs ฮ“รรถ gradient slides only */}
+      {/* Decorative orbs Gว๖ gradient slides only */}
       {!isImage && orbColor && (
         <>
           <div
@@ -371,7 +371,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
             width: '100%',
           }}
         >
-          {/* Icon tile - left */}
+          {/* Icon tile - left (hidden on mobile) */}
           <div
             style={{
               width: isMobile ? '38px' : '56px',
@@ -467,7 +467,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           </div>
         )}
 
-        {/* CTA button ฮ“รรถ broker slide only */}
+        {/* CTA button Gว๖ broker slide only */}
         {onCtaClick && (
           <button
             type="button"
@@ -503,7 +503,7 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
   );
 }
 
-// ฮ“รถรฮ“รถรฮ“รถร Nav Arrow Button ฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถรฮ“รถร
+// G๖วG๖วG๖ว Nav Arrow Button G๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖วG๖ว
 
 function NavArrow({ direction, onClick, isMobile }) {
   const isLeft = direction === 'left';
