@@ -19,6 +19,7 @@ export default function ActivityView({
   onOpenMessages,
   onOpenListing,
   onToast,
+  onNavigateToContracts,
   bidsCount: _bidsCount = 0,
   contractsCount: _contractsCount = 0,
   isBroker = false,
@@ -95,6 +96,7 @@ export default function ActivityView({
             onBrowseMarketplace={onBrowseMarketplace}
             onCreateListing={onCreateListing}
             onOpenMessages={onOpenMessages}
+            onNavigateToContracts={onNavigateToContracts}
             typeFilter={truckerFilters.typeFilter}
             statusFilter={truckerFilters.statusFilter}
             onTypeFilterChange={(value) => setWorkspaceFilter('trucker', 'typeFilter', value)}
