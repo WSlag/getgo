@@ -36,6 +36,7 @@ import { useTruckListings } from './hooks/useTruckListings';
 import { useNotifications } from './hooks/useNotifications';
 import { useMyBids } from './hooks/useBids';
 import { useConversations } from './hooks/useConversations';
+import MessagesView from './views/MessagesView';
 // Wallet removed - using direct GCash payment
 import { useShipments } from './hooks/useShipments';
 import { useTheme } from './hooks/useTheme';
@@ -2063,6 +2064,7 @@ export default function GetGoApp() {
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
         unreadNotifications={unreadNotifications}
+        unreadMessages={unreadMessages}
         userInitial={userInitial}
         currentRole={userRole}
         workspaceRole={activeWorkspace}
@@ -2323,16 +2325,17 @@ export default function GetGoApp() {
 
         {activeTab === 'messages' && authUser && (
           <ErrorBoundary>
-            <ChatView
+            <MessagesView
               currentUser={authUser}
               workspaceRole={activeWorkspace}
-              conversations={workspaceConversations}
-              conversationsLoading={conversationsLoading}
+              unreadMessages={unreadMessages}
               onOpenChat={(bid, listing, type) => {
                 openModal('chat', { bid, listing, type, bidId: bid.id });
               }}
+              onOpenContract={handleOpenContract}
               onBrowseMarketplace={() => setActiveTab('home')}
               onCreateListing={handlePostClick}
+              onOpenMessages={() => setActiveTab('messages')}
               darkMode={darkMode}
             />
           </ErrorBoundary>
