@@ -1033,3 +1033,54 @@ export const addAdminReply = async (messageId, adminId, adminName, reply) => {
 
   return replyData;
 };
+
+/**
+ * Get all support messages (for admin view)
+ * @param {number} limit_count - Maximum number of messages to fetch
+ * @returns {Promise<Array>} - Array of all support messages
+ */
+export const getAllSupportMessages = async (limit_count = 50) => {
+  const q = query(
+    collection(db, 'supportMessages'),
+    orderBy('createdAt', 'desc'),
+    limit(limit_count)
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate?.() || data.createdAt,
+      updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
+      replies: (data.replies || []).map(reply => ({
+        ...reply,
+        createdAt: reply.createdAt?.toDate?.() || reply.createdAt,
+      })),
+    };
+  });
+};
+
+/**
+ * Update support message status
+ * @param {string} messageId - Support message ID
+ * @param {string} status - New status ('open', 'in_progress', 'resolved')
+ * @returns {Promise<void>}
+ */
+export const updateSupportMessageStatus = async (messageId, status) => {
+  if (!messageId || !status) {
+    throw new Error('Message ID and status are required');
+  }
+
+  const validStatuses = ['open', 'in_progress', 'resolved'];
+  if (!validStatuses.includes(status)) {
+    throw new Error('Invalid status. Must be: open, in_progress, or resolved');
+  }
+
+  const messageRef = doc(db, 'supportMessages', messageId);
+  await updateDoc(messageRef, {
+    status,
+    updatedAt: serverTimestamp(),
+  });
+};
