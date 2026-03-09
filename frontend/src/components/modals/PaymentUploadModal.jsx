@@ -243,7 +243,6 @@ export function PaymentUploadModal({
               }}>
                 <li>Reference number must be visible</li>
                 <li>Amount must match: <strong>PHP {formatPrice(order?.amount)}</strong></li>
-                <li>Receiver name: <strong>{order?.gcashAccountName || 'KARGA CONNECT'}</strong></li>
                 <li>Transaction date/time must be clear</li>
               </ul>
             </div>
