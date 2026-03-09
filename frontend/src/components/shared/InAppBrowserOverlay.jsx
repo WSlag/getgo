@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ExternalLink, MoreVertical, Copy, ShieldCheck } from 'lucide-react';
 import { AppLogo } from './AppLogo';
 
@@ -41,6 +40,16 @@ const BROWSER_INSTRUCTIONS = {
     ios: [
       'Tap the Safari icon at the bottom.',
       'If needed, choose "Open in Safari".',
+    ],
+  },
+  whatsapp: {
+    android: [
+      'Tap the three-dot menu in the top-right corner.',
+      'Choose "Open in browser".',
+    ],
+    ios: [
+      'Tap the share button in WhatsApp.',
+      'Choose "Open in Safari".',
     ],
   },
   outlook: {
@@ -92,6 +101,7 @@ function getBrowserLabel(browserName) {
     wechat: 'WeChat',
     tiktok: 'TikTok',
     twitter: 'X (Twitter)',
+    whatsapp: 'WhatsApp',
     android_webview: 'an in-app browser',
   };
   return labels[browserName] || 'this app';
@@ -100,18 +110,6 @@ function getBrowserLabel(browserName) {
 export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
   const instructions = getInstructionSteps(browserName, platform);
   const label = getBrowserLabel(browserName);
-  const isAndroid = platform === 'android';
-  const [copied, setCopied] = useState(false);
-
-  const handleCopyUrl = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      // Clipboard API may not be available in some WebViews.
-    }
-  };
 
   return (
     <div
@@ -191,6 +189,24 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
               </button>
             )}
 
+            {/* iOS primary CTA */}
+            {platform === 'ios' && (
+              <button
+                data-testid="inapp-primary-cta"
+                onClick={onOpenBrowser}
+                className="animate-overlay-enter-delay mt-5 flex w-full items-center justify-center gap-2 rounded-2xl text-white font-bold text-[15px] transition-all active:scale-[0.97] hover:opacity-90"
+                style={{
+                  padding: '14px 16px',
+                  background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
+                  boxShadow: '0 6px 20px rgba(249,115,22,0.4)',
+                  fontFamily: 'Outfit, sans-serif',
+                }}
+              >
+                <Copy className="size-5" />
+                Copy Link to Open in Safari
+              </button>
+            )}
+
             {/* Manual steps */}
             <div
               data-testid="inapp-steps"
@@ -216,19 +232,6 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
                 ))}
               </ol>
             </div>
-
-            {/* iOS copy link */}
-            {platform === 'ios' && (
-              <button
-                data-testid="inapp-ios-copy"
-                onClick={handleCopyUrl}
-                className="animate-overlay-enter-delay mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50 active:scale-[0.98]"
-                style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
-              >
-                <Copy className="size-4 text-orange-500" />
-                {copied ? 'Link copied!' : 'Copy link to open in Safari'}
-              </button>
-            )}
           </div>
         </div>
       </div>

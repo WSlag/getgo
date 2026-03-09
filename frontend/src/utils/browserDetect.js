@@ -15,6 +15,7 @@ const IN_APP_BROWSERS = [
   { tokens: ['MicroMessenger'], name: 'wechat' },
   { tokens: ['BytedanceWebview', 'TikTok'], name: 'tiktok' },
   { tokens: ['Twitter'], name: 'twitter' },
+  { tokens: ['WhatsApp'], name: 'whatsapp' },
 ];
 
 export function detectInAppBrowser() {
