@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft, BookOpen, HelpCircle, MessageCircle, Shield, FileText,
-  ChevronRight, ChevronDown, ChevronUp, Mail, Clock, Play,
+  ChevronRight, ChevronDown, ChevronUp, Mail, Clock, Play, Send, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useAuth } from '@/contexts/AuthContext';
 import { LegalPageContent } from '@/components/legal/LegalPageContent';
 import {
   PRIVACY_POLICY_META,
@@ -14,6 +15,17 @@ import {
   TERMS_OF_SERVICE_META,
   TERMS_OF_SERVICE_SECTIONS,
 } from '@/data/termsOfServiceContent';
+import {
+  createSupportConversation,
+  sendSupportMessage,
+  getUserConversations,
+  getConversationMessages,
+  subscribeToUserConversations,
+  subscribeToMessages,
+  markConversationAsRead,
+  SUPPORT_CATEGORIES,
+  CONVERSATION_STATUS,
+} from '@/services/supportMessageService';
 
 /* ------------------------------------------------------------------ */
 /*  FAQ Data                                                           */
@@ -402,6 +414,442 @@ function ContactSection({ onBack }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Chat Admin Section                                                */
+/* ------------------------------------------------------------------ */
+
+function ChatAdminSection({ onBack }) {
+  const { userProfile, authUser } = useAuth();
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [newSubject, setNewSubject] = useState('account');
+  const messagesEndRef = useRef(null);
+
+  // Load conversations on mount
+  useEffect(() => {
+    if (!authUser?.uid) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = subscribeToUserConversations(authUser.uid, (convs) => {
+      setConversations(convs);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [authUser?.uid]);
+
+  // Load messages when conversation is selected
+  useEffect(() => {
+    if (!selectedConversation) {
+      setMessages([]);
+      return;
+    }
+
+    const unsubscribe = subscribeToMessages(selectedConversation.id, (msgs) => {
+      setMessages(msgs);
+    });
+
+    // Mark as read
+    markConversationAsRead(selectedConversation.id, authUser.uid, false);
+
+    return () => unsubscribe();
+  }, [selectedConversation?.id, authUser?.uid]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation || sending) return;
+
+    setSending(true);
+    try {
+      await sendSupportMessage(
+        selectedConversation.id,
+        authUser.uid,
+        userProfile?.name || 'User',
+        'user',
+        newMessage.trim()
+      );
+      setNewMessage('');
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleCreateConversation = async () => {
+    if (!newMessage.trim() || !authUser?.uid) return;
+
+    setSending(true);
+    try {
+      const result = await createSupportConversation(
+        authUser.uid,
+        userProfile?.name || 'User',
+        userProfile?.role || 'shipper',
+        newSubject,
+        newMessage.trim()
+      );
+      setShowNewForm(false);
+      setNewMessage('');
+      // Select the new conversation
+      const conv = conversations.find(c => c.id === result.id);
+      if (conv) setSelectedConversation(conv);
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return '';
+    const now = Date.now();
+    const time = timestamp instanceof Date ? timestamp.getTime() : timestamp;
+    const diff = now - time;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return 'Just now';
+  };
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      open: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', label: 'Open' },
+      pending: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-600 dark:text-yellow-400', label: 'Pending' },
+      resolved: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', label: 'Resolved' },
+      closed: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-500 dark:text-gray-400', label: 'Closed' },
+    };
+    const config = statusConfig[status] || statusConfig.open;
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+        {config.label}
+      </span>
+    );
+  };
+
+  // New conversation form
+  if (showNewForm) {
+    return (
+      <>
+        <button
+          onClick={() => setShowNewForm(false)}
+          className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
+          style={{ marginBottom: '16px' }}
+        >
+          <ArrowLeft className="size-4" />
+          Back to Conversations
+        </button>
+
+        <div
+          className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm"
+          style={{ padding: '24px', marginBottom: '24px' }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-xl bg-purple-500/15 flex items-center justify-center flex-shrink-0">
+              <MessageCircle className="size-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">New Message</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400" style={{ marginTop: '2px' }}>
+                Start a conversation with support
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm"
+          style={{ padding: '24px' }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                Category
+              </label>
+              <select
+                value={newSubject}
+                onChange={(e) => setNewSubject(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                {SUPPORT_CATEGORIES.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                Message
+              </label>
+              <textarea
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Describe your issue or question..."
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
+                rows={6}
+                maxLength={5000}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-right">
+                {newMessage.length}/5000
+              </p>
+            </div>
+
+            <Button
+              onClick={handleCreateConversation}
+              disabled={!newMessage.trim() || sending}
+              className="w-full"
+              variant="gradient"
+            >
+              {sending ? (
+                <>
+                  <Loader2 className="size-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="size-4 mr-2" />
+                  Send Message
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Conversation detail view
+  if (selectedConversation) {
+    return (
+      <>
+        <button
+          onClick={() => setSelectedConversation(null)}
+          className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
+          style={{ marginBottom: '16px' }}
+        >
+          <ArrowLeft className="size-4" />
+          Back to Conversations
+        </button>
+
+        <div
+          className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm"
+          style={{ padding: '16px', marginBottom: '16px' }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {SUPPORT_CATEGORIES.find(c => c.id === selectedConversation.subject)?.label || selectedConversation.subject}
+              </h2>
+              <div className="flex items-center gap-2 mt-1">
+                {getStatusBadge(selectedConversation.status)}
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {formatTimeAgo(selectedConversation.updatedAt)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div
+          className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm"
+          style={{ padding: '16px', marginBottom: '16px', maxHeight: '400px', overflowY: 'auto' }}
+        >
+          {messages.length === 0 ? (
+            <div className="text-center py-8">
+              <MessageCircle className="size-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No messages yet. Start the conversation!
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {messages.map((msg) => {
+                const isUser = msg.senderRole === 'user';
+                return (
+                  <div
+                    key={msg.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: isUser ? 'flex-end' : 'flex-start'
+                    }}
+                  >
+                    <div
+                      style={{
+                        maxWidth: '80%',
+                        padding: '12px 16px',
+                        borderRadius: '16px',
+                        background: isUser
+                          ? 'linear-gradient(to bottom right, #fb923c, #ea580c)'
+                          : '#f3f4f6 dark:bg-gray-800',
+                        color: isUser ? 'white' : '#111827',
+                      }}
+                    >
+                      {!isUser && (
+                        <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">
+                          GetGo Support
+                        </p>
+                      )}
+                      <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                      <p className="text-xs mt-1" style={{ color: isUser ? 'rgba(255,255,255,0.7)' : '#9ca3af' }}>
+                        {formatTimeAgo(msg.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Reply form */}
+        {selectedConversation.status !== 'resolved' && selectedConversation.status !== 'closed' && (
+          <div
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm"
+            style={{ padding: '16px' }}
+          >
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <textarea
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="flex-1 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
+                rows={2}
+                maxLength={5000}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+              />
+              <Button
+                onClick={handleSendMessage}
+                disabled={!newMessage.trim() || sending}
+                variant="gradient"
+                className="self-end"
+              >
+                {sending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Send className="size-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // Conversations list
+  return (
+    <>
+      <button
+        onClick={onBack}
+        className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
+        style={{ marginBottom: '16px' }}
+      >
+        <ArrowLeft className="size-4" />
+        Back
+      </button>
+
+      <div
+        className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm"
+        style={{ padding: '24px', marginBottom: '24px' }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-xl bg-purple-500/15 flex items-center justify-center flex-shrink-0">
+              <MessageCircle className="size-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Chat Admin</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400" style={{ marginTop: '2px' }}>
+                Message our support team
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={() => setShowNewForm(true)}
+            variant="gradient"
+            size="sm"
+          >
+            <MessageCircle className="size-4 mr-2" />
+            New
+          </Button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {loading ? (
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-8 text-center">
+            <Loader2 className="size-6 text-orange-500 animate-spin mx-auto" />
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Loading conversations...</p>
+          </div>
+        ) : conversations.length === 0 ? (
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-8 text-center">
+            <MessageCircle className="size-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No conversations yet. Start a new chat with support!
+            </p>
+          </div>
+        ) : (
+          conversations.map((conv) => (
+            <button
+              key={conv.id}
+              onClick={() => setSelectedConversation(conv)}
+              className="w-full bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700 transition-all text-left"
+              style={{ padding: '16px' }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                      {SUPPORT_CATEGORIES.find(c => c.id === conv.subject)?.label || conv.subject}
+                    </p>
+                    {conv.unreadCount > 0 && (
+                      <span className="px-1.5 py-0.5 bg-orange-500 text-white text-xs rounded-full">
+                        {conv.unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {conv.lastMessage}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  {getStatusBadge(conv.status)}
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    {formatTimeAgo(conv.updatedAt)}
+                  </span>
+                </div>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Menu Cards                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -423,12 +871,20 @@ const MENU_ITEMS = [
     desc: 'Common questions answered',
   },
   {
-    id: 'contact',
+    id: 'chatAdmin',
     icon: MessageCircle,
+    iconBg: 'bg-purple-100 dark:bg-purple-900/30',
+    iconColor: 'text-purple-600 dark:text-purple-400',
+    title: 'Chat Admin',
+    desc: 'Message our support team',
+  },
+  {
+    id: 'contact',
+    icon: Mail,
     iconBg: 'bg-green-100 dark:bg-green-900/30',
     iconColor: 'text-green-600 dark:text-green-400',
-    title: 'Contact Support',
-    desc: 'Get help from our team',
+    title: 'Email Support',
+    desc: 'Contact via email',
   },
   {
     id: 'privacy',
@@ -463,6 +919,14 @@ export function HelpSupportView({ onBack, onShowOnboardingGuide }) {
     return (
       <Wrapper isMobile={isMobile}>
         <FAQSection onBack={goMain} />
+      </Wrapper>
+    );
+  }
+
+  if (activeSection === 'chatAdmin') {
+    return (
+      <Wrapper isMobile={isMobile}>
+        <ChatAdminSection onBack={goMain} />
       </Wrapper>
     );
   }

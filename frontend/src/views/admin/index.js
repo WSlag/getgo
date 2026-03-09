@@ -11,3 +11,4 @@ export { ReferralManagement } from './ReferralManagement';
 export { BrokerPayoutsView } from './BrokerPayoutsView';
 export { RatingsManagement } from './RatingsManagement';
 export { SystemSettings } from './SystemSettings';
+export { SupportMessagesView } from './SupportMessagesView';

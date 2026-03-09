@@ -20,6 +20,7 @@ import { BrokerPayoutsView } from './BrokerPayoutsView';
 import { RatingsManagement } from './RatingsManagement';
 import { SystemSettings } from './SystemSettings';
 import { ContractVerificationView } from '../ContractVerificationView';
+import { SupportMessagesView } from './SupportMessagesView';
 
 import api from '@/services/api';
 
@@ -33,6 +34,7 @@ const sectionTitles = {
   payments: { title: 'Payment Review', subtitle: 'Review and verify GCash payment submissions' },
   financial: { title: 'Financial Overview', subtitle: 'Platform revenue and transactions' },
   disputes: { title: 'Disputes', subtitle: 'Handle and resolve disputes' },
+  support: { title: 'Support Messages', subtitle: 'Manage user support conversations' },
   referrals: { title: 'Referral Program', subtitle: 'Manage brokers and referrals' },
   brokerPayouts: { title: 'Broker Payouts', subtitle: 'Review and approve broker payout requests' },
   ratings: { title: 'Ratings & Reviews', subtitle: 'Monitor platform quality' },
@@ -49,6 +51,7 @@ export function AdminDashboard({ onBackToApp }) {
     pendingPayments: 0,
     openDisputes: 0,
     pendingBrokerPayouts: 0,
+    openSupportTickets: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
   const refreshTimerRef = useRef(null);
@@ -145,6 +148,8 @@ export function AdminDashboard({ onBackToApp }) {
         return <FinancialOverview />;
       case 'disputes':
         return <DisputesManagement />;
+      case 'support':
+        return <SupportMessagesView />;
       case 'referrals':
         return <ReferralManagement />;
       case 'brokerPayouts':

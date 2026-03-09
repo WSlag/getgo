@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   X,
   Menu,
+  MessageSquare,
 } from 'lucide-react';
 import { PesoIcon } from '@/components/ui/PesoIcon';
 
@@ -27,6 +28,7 @@ const navItems = [
   { id: 'payments', label: 'Payments', icon: CreditCard, badge: 'pendingPayments' },
   { id: 'financial', label: 'Financial', icon: PesoIcon },
   { id: 'disputes', label: 'Disputes', icon: AlertTriangle, badge: 'openDisputes' },
+  { id: 'support', label: 'Support Messages', icon: MessageSquare, badge: 'openSupportTickets' },
   { id: 'referrals', label: 'Referrals', icon: Link2 },
   { id: 'brokerPayouts', label: 'Broker Payouts', icon: Landmark, badge: 'pendingBrokerPayouts' },
   { id: 'ratings', label: 'Ratings', icon: Star },
