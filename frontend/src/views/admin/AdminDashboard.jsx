@@ -20,7 +20,6 @@ import { BrokerPayoutsView } from './BrokerPayoutsView';
 import { RatingsManagement } from './RatingsManagement';
 import { SystemSettings } from './SystemSettings';
 import { ContractVerificationView } from '../ContractVerificationView';
-import { SupportMessages } from './SupportMessages';
 
 import api from '@/services/api';
 
@@ -32,7 +31,6 @@ const sectionTitles = {
   contractVerification: { title: 'Contract Verification', subtitle: 'Verify that contracts are being created after payment approval' },
   shipments: { title: 'Shipments', subtitle: 'Track active shipments' },
   payments: { title: 'Payment Review', subtitle: 'Review and verify GCash payment submissions' },
-  supportMessages: { title: 'Support Messages', subtitle: 'View and respond to user support messages' },
   financial: { title: 'Financial Overview', subtitle: 'Platform revenue and transactions' },
   disputes: { title: 'Disputes', subtitle: 'Handle and resolve disputes' },
   referrals: { title: 'Referral Program', subtitle: 'Manage brokers and referrals' },
@@ -143,8 +141,6 @@ export function AdminDashboard({ onBackToApp }) {
         return <ShipmentsView />;
       case 'payments':
         return <PaymentsView />;
-      case 'supportMessages':
-        return <SupportMessages />;
       case 'financial':
         return <FinancialOverview />;
       case 'disputes':
