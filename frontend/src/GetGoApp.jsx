@@ -2258,7 +2258,7 @@ export default function GetGoApp() {
         )}
 
         {activeTab === 'profile' && <ErrorBoundary><ProfilePage onNavigateToActivity={() => handleTabChange('activity')} /></ErrorBoundary>}
-        {activeTab === 'help' && <ErrorBoundary><HelpSupportView onBack={() => setActiveTab('home')} onShowOnboardingGuide={() => setShowOnboardingGuide(true)} /></ErrorBoundary>}
+        {activeTab === 'help' && <ErrorBoundary><HelpSupportView onBack={() => setActiveTab('home')} onShowOnboardingGuide={() => setShowOnboardingGuide(true)} currentUser={authUser} /></ErrorBoundary>}
 
         {activeTab === 'broker' && (
           <ErrorBoundary>

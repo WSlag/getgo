@@ -12,7 +12,8 @@ import {
   orderBy,
   limit,
   serverTimestamp,
-  writeBatch
+  writeBatch,
+  arrayUnion
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -897,4 +898,138 @@ export const getMyRatings = async (userId) => {
     query(collection(db, 'ratings'), where('raterId', '==', userId), orderBy('createdAt', 'desc'))
   );
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+// ============================================================
+// SUPPORT MESSAGES
+// ============================================================
+
+/**
+ * Send a support message to admin
+ * @param {string} userId - User ID sending the message
+ * @param {string} userName - User's display name
+ * @param {string} message - Message content
+ * @param {string} category - Support category (optional, e.g., 'general', 'technical', 'billing')
+ * @returns {Promise<Object>} - Created message with ID
+ */
+export const sendSupportMessage = async (userId, userName, message, category = 'general') => {
+  const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
+  const normalizedUserName = typeof userName === 'string' && userName.trim()
+    ? userName.trim()
+    : 'User';
+  const normalizedMessage = typeof message === 'string' ? message.trim() : '';
+  const normalizedCategory = typeof category === 'string' ? category.trim() : 'general';
+
+  if (!normalizedUserId) {
+    const err = new Error('User must be authenticated to send support message');
+    err.code = 'unauthenticated';
+    throw err;
+  }
+
+  if (!normalizedMessage) {
+    const err = new Error('Message cannot be empty');
+    err.code = 'invalid-argument';
+    throw err;
+  }
+
+  if (normalizedMessage.length > 2000) {
+    const err = new Error('Message is too long (max 2000 characters)');
+    err.code = 'invalid-argument';
+    throw err;
+  }
+
+  // Create support message document
+  const supportMessagesRef = collection(db, 'supportMessages');
+  const messageRef = await addDoc(supportMessagesRef, {
+    userId: normalizedUserId,
+    userName: normalizedUserName,
+    message: normalizedMessage,
+    category: normalizedCategory,
+    status: 'open', // open, in_progress, resolved
+    read: false,
+    isRead: false,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return {
+    id: messageRef.id,
+    userId: normalizedUserId,
+    userName: normalizedUserName,
+    message: normalizedMessage,
+    category: normalizedCategory,
+    status: 'open',
+    createdAt: new Date().toISOString()
+  };
+};
+
+/**
+ * Get support messages for the current user
+ * @param {string} userId - User ID
+ * @param {number} limit_count - Maximum number of messages to fetch
+ * @returns {Promise<Array>} - Array of support messages with replies
+ */
+export const getUserSupportMessages = async (userId, limit_count = 20) => {
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+
+  const q = query(
+    collection(db, 'supportMessages'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc'),
+    limit(limit_count)
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate?.() || data.createdAt,
+      updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
+      replies: (data.replies || []).map(reply => ({
+        ...reply,
+        createdAt: reply.createdAt?.toDate?.() || reply.createdAt,
+      })),
+    };
+  });
+};
+
+/**
+ * Add admin reply to a support message
+ * @param {string} messageId - Support message ID
+ * @param {string} adminId - Admin user ID
+ * @param {string} adminName - Admin name
+ * @param {string} reply - Reply message
+ * @returns {Promise<Object>} - Updated message
+ */
+export const addAdminReply = async (messageId, adminId, adminName, reply) => {
+  if (!messageId || !adminId || !reply?.trim()) {
+    throw new Error('Message ID, admin ID, and reply are required');
+  }
+
+  const messageRef = doc(db, 'supportMessages', messageId);
+  const messageSnap = await getDoc(messageRef);
+
+  if (!messageSnap.exists()) {
+    throw new Error('Support message not found');
+  }
+
+  const replyData = {
+    id: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    adminId,
+    adminName: adminName || 'Admin',
+    message: reply.trim(),
+    createdAt: serverTimestamp(),
+  };
+
+  await updateDoc(messageRef, {
+    replies: arrayUnion(replyData),
+    status: 'in_progress',
+    updatedAt: serverTimestamp(),
+  });
+
+  return replyData;
 };

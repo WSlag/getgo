@@ -529,5 +529,33 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false;
     }
+
+    // Support Messages - Users can create their own support messages
+    match /supportMessages/{messageId} {
+      // Allow authenticated users to create their own support messages
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'userName', 'message', 'status', 'createdAt'])
+        && request.resource.data.status == 'open'
+        && request.resource.data.read == false;
+
+      // Allow users to read their own messages, admins can read all
+      allow read: if isAuth() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+
+      // Only admins can update support messages (for status changes, replies)
+      // Allow updates for: adding replies, updating status, marking as read
+      allow update: if isAdmin()
+        && (
+          // Allow updating status and replies
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replies', 'status', 'updatedAt', 'read', 'isRead']))
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']))
+        )
+        && request.resource.data.updatedAt is timestamp;
+
+      // Only admins can delete support messages
+      allow delete: if isAdmin();
+    }
   }
 }
