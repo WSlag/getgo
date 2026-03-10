@@ -157,6 +157,7 @@ export function usePWAInstall() {
         !iosDismissedRecently
       )
     );
+  const isInstallAlreadySatisfied = standalone || installAccepted;
 
   return {
     // In-app browser
@@ -177,6 +178,7 @@ export function usePWAInstall() {
 
     // General
     isStandalone: standalone,
+    isInstallAlreadySatisfied,
     isInstallEngagementReached: engagementReached,
     markEngagement,
   };
