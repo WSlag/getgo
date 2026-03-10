@@ -1,19 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  MessageSquare,
-  Send,
-  CheckCircle2,
-  Clock,
   AlertCircle,
-  Search,
-  User,
-  Loader2,
+  CheckCircle2,
   ChevronLeft,
-  X,
+  Clock,
+  Inbox,
+  Loader2,
+  MessageSquare,
+  Search,
+  Send,
+  Sparkles,
 } from 'lucide-react';
-import { cn, formatDate } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -22,8 +25,6 @@ import {
 } from '@/components/ui/dialog';
 import {
   sendSupportMessage,
-  getAllConversations,
-  getConversationMessages,
   subscribeToAllConversations,
   subscribeToMessages,
   markConversationAsRead,
@@ -31,60 +32,110 @@ import {
   SUPPORT_CATEGORIES,
   CONVERSATION_STATUS,
 } from '@/services/supportMessageService';
-import { useAuth } from '@/contexts/AuthContext';
 
-/* ------------------------------------------------------------------ */
-/*  Status Badge                                                       */
-/* ------------------------------------------------------------------ */
+const STATUS_FILTERS = ['all', 'open', 'pending', 'resolved'];
+
+const STATUS_CONFIG = {
+  open: {
+    icon: AlertCircle,
+    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    statText: 'text-blue-600 dark:text-blue-400',
+  },
+  pending: {
+    icon: Clock,
+    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    statText: 'text-amber-600 dark:text-amber-400',
+  },
+  resolved: {
+    icon: CheckCircle2,
+    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    statText: 'text-emerald-600 dark:text-emerald-400',
+  },
+  closed: {
+    icon: CheckCircle2,
+    badge: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+    statText: 'text-gray-600 dark:text-gray-300',
+  },
+};
+
+const ROLE_CONFIG = {
+  shipper: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  trucker: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  broker: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  admin: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+};
+
+function toSafeDate(timestamp) {
+  if (!timestamp) return null;
+  if (timestamp instanceof Date) return timestamp;
+  if (typeof timestamp?.toDate === 'function') return timestamp.toDate();
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatTimeAgo(timestamp) {
+  const date = toSafeDate(timestamp);
+  if (!date) return '';
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return 'Just now';
+}
+
+function getCategoryLabel(subject) {
+  return SUPPORT_CATEGORIES.find((category) => category.id === subject)?.label || subject || 'General';
+}
 
 function StatusBadge({ status }) {
-  const config = {
-    open: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', icon: AlertCircle },
-    pending: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-600 dark:text-yellow-400', icon: Clock },
-    resolved: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', icon: CheckCircle2 },
-    closed: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-500 dark:text-gray-400', icon: CheckCircle2 },
-  };
-
-  const { bg, text, icon: Icon } = config[status] || config.open;
-  const label = status?.charAt(0).toUpperCase() + status?.slice(1) || 'Open';
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.open;
+  const Icon = config.icon;
+  const label = status?.charAt(0)?.toUpperCase() + status?.slice(1) || 'Open';
 
   return (
-    <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium', bg, text)}>
+    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold', config.badge)}>
       <Icon className="size-3.5" />
       {label}
     </span>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Role Badge                                                         */
-/* ------------------------------------------------------------------ */
-
 function RoleBadge({ role }) {
-  const config = {
-    shipper: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-600 dark:text-orange-400' },
-    trucker: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
-    broker: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
-  };
-
-  const { bg, text } = config[role] || config.shipper;
-  const label = role?.charAt(0).toUpperCase() + role?.slice(1) || 'User';
+  const normalizedRole = typeof role === 'string' ? role.toLowerCase() : '';
+  const badgeClass = ROLE_CONFIG[normalizedRole] || ROLE_CONFIG.shipper;
+  const label = normalizedRole ? normalizedRole.charAt(0).toUpperCase() + normalizedRole.slice(1) : 'User';
 
   return (
-    <span className={cn('inline-flex px-2 py-0.5 rounded-full text-xs font-medium', bg, text)}>
+    <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold', badgeClass)}>
       {label}
     </span>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Main Component                                                     */
-/* ------------------------------------------------------------------ */
+function StatTile({ label, value, icon: Icon, toneClass, accentClass }) {
+  return (
+    <div className="rounded-2xl border border-gray-200/80 bg-white/85 px-3 py-2.5 shadow-sm dark:border-gray-800 dark:bg-gray-900/75">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          {label}
+        </span>
+        <span className={cn('inline-flex size-6 items-center justify-center rounded-lg', accentClass)}>
+          <Icon className="size-3.5 text-white" />
+        </span>
+      </div>
+      <p className={cn('text-xl font-bold leading-none', toneClass)}>{value}</p>
+    </div>
+  );
+}
 
 export function SupportMessagesView() {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const { authUser } = useAuth();
-  
+
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -94,12 +145,15 @@ export function SupportMessagesView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [showResolveModal, setShowResolveModal] = useState(false);
-  const [resolveNote, setResolveNote] = useState('');
   const [error, setError] = useState(null);
-  
-  const messagesEndRef = useRef(null);
 
-  // Load conversations
+  const messagesEndRef = useRef(null);
+  const selectedConversationId = selectedConversation?.id || null;
+  const selectedConversationUpdatedAt = selectedConversation?.updatedAt || null;
+  const selectedConversationStatus = selectedConversation?.status || null;
+  const selectedConversationLastMessage = selectedConversation?.lastMessage || null;
+  const selectedConversationAdminUnread = selectedConversation?.adminUnreadCount || 0;
+
   useEffect(() => {
     if (!authUser?.uid) {
       setLoading(false);
@@ -109,58 +163,116 @@ export function SupportMessagesView() {
     const status = statusFilter === 'all' ? null : statusFilter;
     const unsubscribe = subscribeToAllConversations(
       status,
-      (convs) => {
-        setConversations(convs);
+      (nextConversations) => {
+        setConversations(nextConversations);
         setLoading(false);
         setError(null);
       },
       (snapshotError) => {
         console.error('Error loading admin conversations:', snapshotError);
         setLoading(false);
-        setError(snapshotError?.code === 'unauthenticated'
-          ? 'Your session is not ready. Please sign in again.'
-          : 'Failed to load support conversations.');
+        setError(
+          snapshotError?.code === 'unauthenticated'
+            ? 'Your session is not ready. Please sign in again.'
+            : 'Failed to load support conversations.'
+        );
       }
     );
 
     return () => unsubscribe();
   }, [statusFilter, authUser?.uid]);
 
-  // Load messages when conversation is selected
   useEffect(() => {
-    if (!selectedConversation || !authUser?.uid) {
+    if (!selectedConversationId || !authUser?.uid) {
       setMessages([]);
       return;
     }
 
     const unsubscribe = subscribeToMessages(
-      selectedConversation.id,
-      (msgs) => {
-        setMessages(msgs);
+      selectedConversationId,
+      (nextMessages) => {
+        setMessages(nextMessages);
         setError(null);
       },
       (snapshotError) => {
         console.error('Error loading support messages:', snapshotError);
-        setError(snapshotError?.code === 'unauthenticated'
-          ? 'Your session expired. Please sign in again.'
-          : 'Failed to load support messages.');
+        setError(
+          snapshotError?.code === 'unauthenticated'
+            ? 'Your session expired. Please sign in again.'
+            : 'Failed to load support messages.'
+        );
       }
     );
 
-    // Mark as read
-    markConversationAsRead(selectedConversation.id, authUser.uid).catch((readError) => {
+    markConversationAsRead(selectedConversationId, authUser.uid).catch((readError) => {
       console.error('Failed to mark admin conversation as read:', readError);
     });
 
     return () => unsubscribe();
-  }, [selectedConversation?.id, authUser?.uid]);
+  }, [selectedConversationId, authUser?.uid]);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (!selectedConversationId) return;
+
+    const nextConversation = conversations.find((conversation) => conversation.id === selectedConversationId);
+    if (!nextConversation) {
+      setSelectedConversation(null);
+      setMessages([]);
+      return;
     }
+
+    const previousUpdatedAt = toSafeDate(selectedConversationUpdatedAt)?.getTime() || 0;
+    const nextUpdatedAt = toSafeDate(nextConversation.updatedAt)?.getTime() || 0;
+    const conversationChanged = (
+      previousUpdatedAt !== nextUpdatedAt
+      || selectedConversationStatus !== nextConversation.status
+      || selectedConversationLastMessage !== nextConversation.lastMessage
+      || selectedConversationAdminUnread !== nextConversation.adminUnreadCount
+    );
+
+    if (conversationChanged) {
+      setSelectedConversation(nextConversation);
+    }
+  }, [
+    conversations,
+    selectedConversationId,
+    selectedConversationUpdatedAt,
+    selectedConversationStatus,
+    selectedConversationLastMessage,
+    selectedConversationAdminUnread,
+  ]);
+
+  useEffect(() => {
+    if (!messagesEndRef.current) return;
+    messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery) return conversations;
+    const query = searchQuery.toLowerCase();
+    return conversations.filter((conversation) => (
+      conversation.userName?.toLowerCase().includes(query)
+      || conversation.subject?.toLowerCase().includes(query)
+      || conversation.id?.toLowerCase().includes(query)
+      || conversation.lastMessage?.toLowerCase().includes(query)
+    ));
+  }, [conversations, searchQuery]);
+
+  const stats = useMemo(() => ({
+    total: conversations.length,
+    open: conversations.filter((conversation) => conversation.status === 'open').length,
+    pending: conversations.filter((conversation) => conversation.status === 'pending').length,
+    resolved: conversations.filter((conversation) => conversation.status === 'resolved').length,
+  }), [conversations]);
+
+  const workspaceHeight = isMobile ? 'calc(100dvh - 178px)' : 'calc(100vh - 232px)';
+  const showConversationRail = !isMobile || !selectedConversation;
+  const showChatPanel = !isMobile || Boolean(selectedConversation);
+
+  const handleSelectConversation = (conversation) => {
+    setSelectedConversation(conversation);
+    setError(null);
+  };
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || sending || !authUser?.uid) return;
@@ -176,13 +288,13 @@ export function SupportMessagesView() {
         newMessage.trim()
       );
       setNewMessage('');
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      if (error?.code === 'unauthenticated') {
-        setError('Your session is not ready. Please sign in again.');
-      } else {
-        setError('Failed to send support reply.');
-      }
+    } catch (sendError) {
+      console.error('Failed to send message:', sendError);
+      setError(
+        sendError?.code === 'unauthenticated'
+          ? 'Your session is not ready. Please sign in again.'
+          : 'Failed to send support reply.'
+      );
     } finally {
       setSending(false);
     }
@@ -200,366 +312,411 @@ export function SupportMessagesView() {
         authUser.uid
       );
       setShowResolveModal(false);
-      setResolveNote('');
-      // Refresh selected conversation
-      const updated = conversations.find(c => c.id === selectedConversation.id);
-      if (updated) setSelectedConversation(updated);
-    } catch (error) {
-      console.error('Failed to resolve:', error);
-      if (error?.code === 'unauthenticated') {
-        setError('Your session is not ready. Please sign in again.');
-      } else {
-        setError('Failed to resolve conversation.');
-      }
+    } catch (resolveError) {
+      console.error('Failed to resolve conversation:', resolveError);
+      setError(
+        resolveError?.code === 'unauthenticated'
+          ? 'Your session is not ready. Please sign in again.'
+          : 'Failed to resolve conversation.'
+      );
     } finally {
       setSending(false);
     }
   };
 
-  const formatTimeAgo = (timestamp) => {
-    if (!timestamp) return '';
-    const now = Date.now();
-    const time = timestamp instanceof Date ? timestamp.getTime() : timestamp;
-    const diff = now - time;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    if (minutes > 0) return `${minutes}m ago`;
-    return 'Just now';
-  };
-
-  // Filter conversations by search
-  const filteredConversations = conversations.filter(conv => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      conv.userName?.toLowerCase().includes(query) ||
-      conv.subject?.toLowerCase().includes(query) ||
-      conv.id.toLowerCase().includes(query)
-    );
-  });
-
-  // Calculate stats
-  const stats = {
-    total: conversations.length,
-    open: conversations.filter(c => c.status === 'open').length,
-    pending: conversations.filter(c => c.status === 'pending').length,
-    resolved: conversations.filter(c => c.status === 'resolved').length,
-  };
-
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 mb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="size-10 rounded-xl bg-purple-500/15 flex items-center justify-center">
-              <MessageSquare className="size-5 text-purple-600 dark:text-purple-400" />
+    <div className="flex flex-col gap-4">
+      <section className="rounded-2xl border border-gray-200/80 bg-white/90 p-4 shadow-sm dark:border-gray-800/80 dark:bg-gray-900/80 lg:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg shadow-orange-500/30">
+              <Sparkles className="size-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Support Messages</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Manage user support conversations
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-600 dark:text-orange-400">
+                Inbox Overview
+              </p>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Monitor conversations, prioritize urgent threads, and keep response times fast.
               </p>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-4">
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Total</p>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.open}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Open</p>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-          <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.pending}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Pending</p>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-          <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.resolved}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Resolved</p>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-        <div className="flex h-full">
-          {/* Conversations list */}
-          <div className={cn(
-            "border-r border-gray-200 dark:border-gray-800 flex flex-col",
-            selectedConversation ? (isMobile ? 'hidden' : 'w-80') : 'w-full'
-          )}>
-            {/* Filters */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800">
-              <div className="relative mb-3">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by user or subject..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
-                />
-              </div>
-              <div className="flex gap-2">
-                {['all', 'open', 'pending', 'resolved'].map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    className={cn(
-                      "px-3 py-1 rounded-lg text-xs font-medium transition-colors",
-                      statusFilter === status
-                        ? "bg-orange-500 text-white"
-                        : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                    )}
-                  >
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Conversations */}
-            <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="size-6 text-orange-500 animate-spin" />
-                </div>
-              ) : filteredConversations.length === 0 ? (
-                <div className="p-8 text-center">
-                  <MessageSquare className="size-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    No conversations found
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {filteredConversations.map((conv) => (
-                    <button
-                      key={conv.id}
-                      onClick={() => setSelectedConversation(conv)}
-                      className={cn(
-                        "w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors",
-                        selectedConversation?.id === conv.id && "bg-orange-50 dark:bg-orange-900/20"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                              {conv.userName}
-                            </p>
-                            {conv.adminUnreadCount > 0 && (
-                              <span className="px-1.5 py-0.5 bg-orange-500 text-white text-xs rounded-full">
-                                {conv.adminUnreadCount}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            {SUPPORT_CATEGORIES.find(c => c.id === conv.subject)?.label || conv.subject}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <StatusBadge status={conv.status} />
-                          <span className="text-xs text-gray-400 dark:text-gray-500">
-                            {formatTimeAgo(conv.updatedAt)}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {conv.lastMessage}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+            <StatTile
+              label="Total"
+              value={stats.total}
+              icon={Inbox}
+              toneClass="text-gray-900 dark:text-white"
+              accentClass="bg-gradient-to-br from-slate-500 to-slate-600"
+            />
+            <StatTile
+              label="Open"
+              value={stats.open}
+              icon={AlertCircle}
+              toneClass={STATUS_CONFIG.open.statText}
+              accentClass="bg-gradient-to-br from-blue-500 to-blue-600"
+            />
+            <StatTile
+              label="Pending"
+              value={stats.pending}
+              icon={Clock}
+              toneClass={STATUS_CONFIG.pending.statText}
+              accentClass="bg-gradient-to-br from-amber-500 to-amber-600"
+            />
+            <StatTile
+              label="Resolved"
+              value={stats.resolved}
+              icon={CheckCircle2}
+              toneClass={STATUS_CONFIG.resolved.statText}
+              accentClass="bg-gradient-to-br from-emerald-500 to-emerald-600"
+            />
           </div>
+        </div>
+      </section>
 
-          {/* Chat panel */}
-          {selectedConversation ? (
-            <div className={cn(
-              "flex-1 flex flex-col",
-              !selectedConversation && 'hidden lg:flex'
+      <section
+        className="overflow-hidden rounded-3xl border border-gray-200/80 bg-white/95 shadow-sm dark:border-gray-800 dark:bg-gray-950/75"
+        style={{ height: workspaceHeight, minHeight: isMobile ? 520 : 560, maxHeight: 860 }}
+      >
+        <div className="flex h-full min-h-0">
+          {showConversationRail && (
+            <aside className={cn(
+              'flex min-h-0 flex-col bg-white/95 dark:bg-gray-950/80',
+              isMobile ? 'w-full' : 'w-[360px] border-r border-gray-200 dark:border-gray-800'
             )}>
-              {/* Chat header */}
-              <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {isMobile && (
-                    <button
-                      onClick={() => setSelectedConversation(null)}
-                      className="p-1 -ml-1"
-                    >
-                      <ChevronLeft className="size-5 text-gray-500" />
-                    </button>
-                  )}
+              <div className="border-b border-gray-200 bg-gradient-to-r from-orange-50/70 via-white to-white px-4 py-4 dark:border-gray-800 dark:from-orange-950/20 dark:via-gray-950 dark:to-gray-950 lg:px-5">
+                <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-gray-900 dark:text-white">
-                        {selectedConversation.userName}
-                      </p>
-                      <RoleBadge role={selectedConversation.userRole} />
-                    </div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Conversation Queue</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {SUPPORT_CATEGORIES.find(c => c.id === selectedConversation.subject)?.label || selectedConversation.subject}
+                      {filteredConversations.length} visible thread{filteredConversations.length === 1 ? '' : 's'}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={selectedConversation.status} />
-                  {selectedConversation.status !== 'resolved' && selectedConversation.status !== 'closed' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowResolveModal(true)}
-                    >
-                      <CheckCircle2 className="size-4 mr-1" />
-                      Resolve
-                    </Button>
-                  )}
+
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search user, category, or message..."
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    className="h-10 rounded-xl border-gray-200 bg-white/90 pl-10 text-sm dark:border-gray-700 dark:bg-gray-900/80"
+                  />
+                </div>
+
+                <div className="hide-scrollbar flex gap-2 overflow-x-auto pb-1">
+                  {STATUS_FILTERS.map((status) => {
+                    const isActive = statusFilter === status;
+                    const label = status.charAt(0).toUpperCase() + status.slice(1);
+
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => setStatusFilter(status)}
+                        className={cn(
+                          'whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200',
+                          isActive
+                            ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30'
+                            : 'border border-gray-200 bg-white text-gray-600 hover:border-orange-200 hover:text-orange-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-orange-700 dark:hover:text-orange-300'
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {error && (
-                  <div className="mb-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                    <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              {!selectedConversation && error && (
+                <div className="mx-4 mt-4 rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+                  <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
+                </div>
+              )}
+
+              <div className="flex-1 overflow-y-auto p-3 lg:p-4">
+                {loading ? (
+                  <div className="flex h-full min-h-[220px] flex-col items-center justify-center text-center">
+                    <Loader2 className="mb-3 size-7 animate-spin text-orange-500" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Loading conversations...</p>
                   </div>
-                )}
-                {messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <MessageSquare className="size-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        No messages yet
-                      </p>
-                    </div>
+                ) : filteredConversations.length === 0 ? (
+                  <div className="flex h-full min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50/70 p-6 text-center dark:border-gray-700 dark:bg-gray-900/60">
+                    <Inbox className="mb-3 size-9 text-gray-300 dark:text-gray-600" />
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No conversations found</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Try adjusting the search or status filter.
+                    </p>
                   </div>
                 ) : (
-                  messages.map((msg) => {
-                    const isAdmin = msg.senderRole === 'admin';
-                    return (
-                      <div
-                        key={msg.id}
-                        className={cn("flex", isAdmin ? "justify-end" : "justify-start")}
-                      >
-                        <div
+                  <div className="space-y-2.5">
+                    {filteredConversations.map((conversation) => {
+                      const isSelected = selectedConversation?.id === conversation.id;
+                      const unreadCount = Number(conversation.adminUnreadCount || 0);
+                      const userInitial = conversation.userName?.trim()?.charAt(0)?.toUpperCase() || 'U';
+
+                      return (
+                        <button
+                          key={conversation.id}
+                          type="button"
+                          onClick={() => handleSelectConversation(conversation)}
                           className={cn(
-                            "max-w-[70%] rounded-2xl px-4 py-3",
-                            isAdmin
-                              ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white"
-                              : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white"
+                            'w-full rounded-2xl border p-3.5 text-left transition-all duration-200',
+                            'hover:-translate-y-0.5 hover:shadow-md',
+                            isSelected
+                              ? 'border-orange-300 bg-orange-50/80 shadow-lg shadow-orange-500/10 dark:border-orange-700 dark:bg-orange-900/20'
+                              : 'border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900/75'
                           )}
                         >
-                          {!isAdmin && (
-                            <p className="text-xs font-medium text-orange-600 dark:text-orange-400 mb-1">
-                              {msg.senderName}
+                          <div className="flex items-start gap-3">
+                            <div className={cn(
+                              'mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold',
+                              isSelected
+                                ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30'
+                                : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
+                            )}>
+                              {userInitial}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                                      {conversation.userName || 'User'}
+                                    </p>
+                                    {unreadCount > 0 && (
+                                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                        {unreadCount}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+                                    {getCategoryLabel(conversation.subject)}
+                                  </p>
+                                </div>
+                                <span className="shrink-0 text-[11px] font-medium text-gray-400 dark:text-gray-500">
+                                  {formatTimeAgo(conversation.updatedAt)}
+                                </span>
+                              </div>
+
+                              <p className="mt-2 truncate text-xs text-gray-600 dark:text-gray-300">
+                                {conversation.lastMessage || 'No message yet'}
+                              </p>
+
+                              <div className="mt-3 flex items-center justify-between gap-2">
+                                <StatusBadge status={conversation.status} />
+                                <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                                  #{conversation.id.slice(0, 8)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </aside>
+          )}
+
+          {showChatPanel && (
+            <div className="flex min-h-0 flex-1 flex-col bg-gradient-to-b from-white via-white to-orange-50/20 dark:from-gray-950 dark:via-gray-950 dark:to-orange-950/10">
+              {selectedConversation ? (
+                <>
+                  <div className="border-b border-gray-200 bg-white/95 px-4 py-4 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 lg:px-6 lg:py-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        {isMobile && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedConversation(null)}
+                            className="mt-0.5 rounded-xl border border-gray-200 bg-white p-2 text-gray-500 transition-colors hover:border-orange-300 hover:text-orange-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-orange-700 dark:hover:text-orange-300"
+                            aria-label="Back to conversations"
+                          >
+                            <ChevronLeft className="size-4" />
+                          </button>
+                        )}
+
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-base font-semibold text-gray-900 dark:text-white">
+                              {selectedConversation.userName || 'User'}
                             </p>
-                          )}
-                          {isAdmin && (
-                            <p className="text-xs font-medium text-purple-200 mb-1">
-                              GetGo Support
-                            </p>
-                          )}
-                          <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
-                          <p className={cn(
-                            "text-xs mt-1",
-                            isAdmin ? "text-purple-200" : "text-gray-400"
-                          )}>
-                            {formatTimeAgo(msg.createdAt)}
+                            <RoleBadge role={selectedConversation.userRole} />
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <span>{getCategoryLabel(selectedConversation.subject)}</span>
+                            <span className="text-gray-300 dark:text-gray-600">•</span>
+                            <span>Updated {formatTimeAgo(selectedConversation.updatedAt)}</span>
+                            <span className="text-gray-300 dark:text-gray-600">•</span>
+                            <span>#{selectedConversation.id.slice(0, 10)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={selectedConversation.status} />
+                        {selectedConversation.status !== 'resolved' && selectedConversation.status !== 'closed' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowResolveModal(true)}
+                          >
+                            <CheckCircle2 className="mr-1 size-4" />
+                            Resolve
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="px-4 pt-3 lg:px-6">
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+                        <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 lg:py-5">
+                    {messages.length === 0 ? (
+                      <div className="flex h-full min-h-[220px] items-center justify-center">
+                        <div className="rounded-2xl border border-dashed border-gray-300 bg-white/80 p-8 text-center dark:border-gray-700 dark:bg-gray-900/70">
+                          <MessageSquare className="mx-auto mb-3 size-10 text-gray-300 dark:text-gray-600" />
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No messages yet</p>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Start the conversation by sending a reply below.
                           </p>
                         </div>
                       </div>
-                    );
-                  })
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Reply form */}
-              {selectedConversation.status !== 'resolved' && selectedConversation.status !== 'closed' ? (
-                <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-                  <div className="flex gap-2">
-                    <textarea
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Type your reply..."
-                      className="flex-1 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
-                      rows={2}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendMessage();
-                        }
-                      }}
-                    />
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!newMessage.trim() || sending}
-                      variant="gradient"
-                      className="self-end"
-                    >
-                      {sending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Send className="size-4" />
-                      )}
-                    </Button>
+                    ) : (
+                      <div className="space-y-4">
+                        {messages.map((message) => {
+                          const isAdmin = message.senderRole === 'admin';
+                          return (
+                            <div
+                              key={message.id}
+                              className={cn('flex', isAdmin ? 'justify-end' : 'justify-start')}
+                            >
+                              <div
+                                className={cn(
+                                  'max-w-[88%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[75%]',
+                                  isAdmin
+                                    ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-orange-500/20'
+                                    : 'border border-gray-200 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100'
+                                )}
+                              >
+                                <p className={cn(
+                                  'mb-1 text-xs font-semibold',
+                                  isAdmin ? 'text-orange-100' : 'text-orange-600 dark:text-orange-400'
+                                )}>
+                                  {isAdmin ? 'GetGo Support' : message.senderName || 'User'}
+                                </p>
+                                <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.message}</p>
+                                <p className={cn(
+                                  'mt-1.5 text-xs',
+                                  isAdmin ? 'text-orange-100/90' : 'text-gray-400 dark:text-gray-500'
+                                )}>
+                                  {formatTimeAgo(message.createdAt)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
                   </div>
-                </div>
+
+                  {selectedConversation.status !== 'resolved' && selectedConversation.status !== 'closed' ? (
+                    <div
+                      className="border-t border-gray-200 bg-white/95 px-3 py-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 lg:px-5 lg:py-4"
+                      style={{ paddingBottom: isMobile ? 'calc(12px + env(safe-area-inset-bottom, 0px))' : undefined }}
+                    >
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-2.5 shadow-sm dark:border-gray-700 dark:bg-gray-900/80 lg:p-3">
+                        <div className="flex items-end gap-2">
+                          <Textarea
+                            value={newMessage}
+                            onChange={(event) => setNewMessage(event.target.value)}
+                            placeholder="Type your reply..."
+                            rows={2}
+                            className="min-h-[78px] flex-1 border-gray-200 bg-white text-sm dark:border-gray-700 dark:bg-gray-950"
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' && !event.shiftKey) {
+                                event.preventDefault();
+                                handleSendMessage();
+                              }
+                            }}
+                          />
+                          <Button
+                            onClick={handleSendMessage}
+                            disabled={!newMessage.trim() || sending}
+                            variant="gradient"
+                            size="icon"
+                            className="size-11 shrink-0 rounded-2xl"
+                            aria-label="Send reply"
+                          >
+                            {sending ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Send className="size-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <p className="mt-2 px-1 text-[11px] text-gray-500 dark:text-gray-400">
+                          Press Enter to send, Shift + Enter for a new line.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="border-t border-gray-200 bg-gray-50/90 px-4 py-4 dark:border-gray-800 dark:bg-gray-900/70 lg:px-6"
+                      style={{ paddingBottom: isMobile ? 'calc(16px + env(safe-area-inset-bottom, 0px))' : undefined }}
+                    >
+                      <div className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-300">
+                        <CheckCircle2 className="size-4 text-emerald-500" />
+                        This conversation has been {selectedConversation.status}.
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                    This conversation has been {selectedConversation.status}
-                  </p>
+                <div className="hidden h-full flex-1 items-center justify-center lg:flex">
+                  <div className="max-w-sm rounded-2xl border border-dashed border-gray-300 bg-white/80 p-8 text-center dark:border-gray-700 dark:bg-gray-900/70">
+                    <MessageSquare className="mx-auto mb-3 size-11 text-gray-300 dark:text-gray-600" />
+                    <p className="text-base font-semibold text-gray-800 dark:text-gray-100">
+                      Select a conversation
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Choose a thread from the queue to read messages and reply.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
-          ) : (
-            <div className="hidden lg:flex flex-1 items-center justify-center">
-              <div className="text-center">
-                <MessageSquare className="size-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-500 dark:text-gray-400">
-                  Select a conversation to view messages
-                </p>
-              </div>
-            </div>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Resolve Modal */}
       <Dialog open={showResolveModal} onOpenChange={setShowResolveModal}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Resolve Conversation</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Are you sure you want to resolve this conversation? The user will be notified.
+          <div className="mt-3 space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Mark this conversation as resolved? The user will see the updated status.
             </p>
-            <textarea
-              value={resolveNote}
-              onChange={(e) => setResolveNote(e.target.value)}
-              placeholder="Add a resolution note (optional)..."
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
-              rows={3}
-            />
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowResolveModal(false)}>
+              <Button variant="outline" onClick={() => setShowResolveModal(false)} disabled={sending}>
                 Cancel
               </Button>
               <Button variant="gradient" onClick={handleResolve} disabled={sending}>
-                {sending ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                {sending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
                 Resolve
               </Button>
             </div>
@@ -571,3 +728,4 @@ export function SupportMessagesView() {
 }
 
 export default SupportMessagesView;
+
