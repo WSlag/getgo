@@ -12,14 +12,12 @@ import {
   linkWithCredential,
 } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, waitForAppCheckInitialization, isAuthAppVerificationBypassed } from '../firebase';
+import { auth, db, waitForAppCheckInitialization } from '../firebase';
 import api from '../services/api';
 import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 
 const AuthContext = createContext();
 const RECAPTCHA_CONTAINER_ID = 'firebase-auth-recaptcha-container';
-const AUTH_RECAPTCHA_CONFIG_ENDPOINT = 'https://identitytoolkit.googleapis.com/v2/recaptchaConfig';
-const AUTH_RECAPTCHA_CONFIG_TIMEOUT_MS = 8000;
 const EMAIL_MAGIC_LINK_FEATURE_ENABLED =
   import.meta.env.VITE_ENABLE_EMAIL_MAGIC_LINK === 'true'
   || Boolean(import.meta.env.DEV);
@@ -27,8 +25,6 @@ const EMAIL_LINK_STORAGE_KEY = 'karga_email_link_state_v1';
 const REFERRAL_CODE_STORAGE_KEY = 'karga_referral_code';
 const REFERRAL_ERROR_STORAGE_KEY = 'karga_referral_attribution_last_error';
 const EMAIL_LINK_GENERIC_MESSAGE = 'If an eligible account exists, a sign-in link will be sent.';
-
-let authRecaptchaSiteKeyPromise = null;
 
 function normalizeEmail(value) {
   const email = String(value || '').trim().toLowerCase();
@@ -181,63 +177,6 @@ function writePendingEmailLinkState(payload) {
 function clearPendingEmailLinkState() {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(EMAIL_LINK_STORAGE_KEY);
-}
-
-function extractAuthRecaptchaSiteKey(recaptchaKeyResource) {
-  if (!recaptchaKeyResource || typeof recaptchaKeyResource !== 'string') {
-    return '';
-  }
-  const keyParts = recaptchaKeyResource.split('/').filter(Boolean);
-  return keyParts[keyParts.length - 1] || '';
-}
-
-function buildAuthRecaptchaConfigUrl(apiKey) {
-  const url = new URL(AUTH_RECAPTCHA_CONFIG_ENDPOINT);
-  url.searchParams.set('key', apiKey);
-  url.searchParams.set('clientType', 'CLIENT_TYPE_WEB');
-  url.searchParams.set('version', 'RECAPTCHA_ENTERPRISE');
-  return url.toString();
-}
-
-async function fetchAuthRecaptchaSiteKey() {
-  if (authRecaptchaSiteKeyPromise) {
-    return authRecaptchaSiteKeyPromise;
-  }
-
-  authRecaptchaSiteKeyPromise = (async () => {
-    if (typeof window === 'undefined') return '';
-
-    const apiKey = String(import.meta.env?.VITE_FIREBASE_API_KEY || '').trim();
-    if (!apiKey) return '';
-
-    const configUrl = buildAuthRecaptchaConfigUrl(apiKey);
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    let timeoutId = null;
-
-    try {
-      if (controller) {
-        timeoutId = setTimeout(() => controller.abort(), AUTH_RECAPTCHA_CONFIG_TIMEOUT_MS);
-      }
-
-      const response = await fetch(configUrl, {
-        method: 'GET',
-        credentials: 'omit',
-        signal: controller?.signal,
-      });
-      if (!response.ok) return '';
-
-      const payload = await response.json();
-      return extractAuthRecaptchaSiteKey(payload?.recaptchaKey);
-    } catch {
-      return '';
-    } finally {
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId);
-      }
-    }
-  })();
-
-  return authRecaptchaSiteKeyPromise;
 }
 
 function ensureRecaptchaContainer() {
@@ -826,18 +765,6 @@ export function AuthProvider({ children }) {
       }
 
       await waitForAppCheckInitialization();
-      if (import.meta.env.DEV && !isAuthAppVerificationBypassed) {
-        const siteKey = await fetchAuthRecaptchaSiteKey();
-        if (!siteKey) {
-          const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
-          const isLocalHost = currentHost === 'localhost' || currentHost === '127.0.0.1';
-          const recaptchaConfigError = isLocalHost
-            ? 'Phone OTP is unavailable on localhost because Firebase reCAPTCHA config could not be loaded. Use Firebase Auth Emulator/test numbers or configure authorized domains and reCAPTCHA settings.'
-            : `Phone OTP is unavailable because Firebase reCAPTCHA config could not be loaded for ${currentHost}. Check Firebase Authentication phone sign-in and reCAPTCHA settings.`;
-          setAuthError(recaptchaConfigError);
-          return { success: false, error: recaptchaConfigError, code: 'auth/recaptcha-config-missing' };
-        }
-      }
       // NOTE: Do NOT preload the reCAPTCHA Enterprise script here.
       // App Check already initialises grecaptcha.enterprise with its own site key.
       // Pre-loading a second Enterprise script with the Identity Platform key

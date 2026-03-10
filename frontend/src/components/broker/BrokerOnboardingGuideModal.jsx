@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import api from '../../services/api';
 
 // ─── Enrollment Step (Step 0) ─────────────────────────────────────────────────
@@ -176,6 +176,7 @@ export function BrokerOnboardingGuideModal({
         aria-describedby="broker-guide-description"
         className="bg-white dark:bg-gray-900 w-full max-w-[calc(100vw-32px)] sm:max-w-md lg:max-w-lg rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto border-0 overflow-hidden"
       >
+        <DialogTitle className="sr-only">GetGo broker onboarding guide</DialogTitle>
         {/* Gradient Header Band */}
         <div
           className={cn('relative flex flex-col items-center pt-8 pb-6 px-6', `bg-gradient-to-br ${current.iconGradient}`)}
