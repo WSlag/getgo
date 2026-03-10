@@ -185,9 +185,11 @@ export function ProfileDropdown({
           </DropdownMenuItem>
 
           {/* Dark Mode Toggle */}
-          <button
-            type="button"
-            onClick={() => onToggleDarkMode?.()}
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault();
+              onToggleDarkMode?.();
+            }}
             className={menuItemClass}
           >
             <div className="flex w-full min-w-0 items-center gap-3">
@@ -202,11 +204,15 @@ export function ProfileDropdown({
               <Switch
                 checked={darkMode}
                 onCheckedChange={onToggleDarkMode}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
                 className="data-[state=checked]:bg-orange-500"
               />
             </div>
-          </button>
+          </DropdownMenuItem>
 
           {/* Help & Support */}
           <DropdownMenuItem onSelect={onHelpSupport} className={menuItemClass}>
@@ -253,4 +259,3 @@ export function ProfileDropdown({
 }
 
 export default ProfileDropdown;
-

@@ -50,6 +50,11 @@ test.describe('In-app browser overlay', () => {
       await expect(page.getByTestId('inapp-ios-copy')).toBeVisible();
       await expect(page.getByTestId('inapp-steps').locator('li')).toHaveCount(2);
       await expect(page.getByTestId('inapp-primary-cta')).toHaveCount(0);
+
+      const hasHorizontalOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth + 1
+      );
+      expect(hasHorizontalOverflow).toBe(false);
     });
   });
 });

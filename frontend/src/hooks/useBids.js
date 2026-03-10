@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
+import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 
 // Hook to get bids for a specific listing
 export function useBidsForListing(listingId, listingType, listingOwnerId = null) {
@@ -46,8 +47,9 @@ export function useBidsForListing(listingId, listingType, listingOwnerId = null)
         setError(null);
       },
       (err) => {
-        console.error('Error fetching bids for listing:', err);
-        setError(err.message);
+        reportFirestoreListenerError('bids for listing', err);
+        setBids([]);
+        setError(isPermissionDeniedError(err) ? null : err.message);
         setLoading(false);
       }
     );
@@ -69,6 +71,7 @@ export function useMyBids(userId) {
     if (!userId) {
       setBids([]);
       setLoading(false);
+      setError(null);
       return;
     }
     deniedListingReadsRef.current.clear();
@@ -156,8 +159,9 @@ export function useMyBids(userId) {
         setError(null);
       },
       (err) => {
-        console.error('Error fetching my bids:', err);
-        setError(err.message);
+        reportFirestoreListenerError('my bids', err);
+        setBids([]);
+        setError(isPermissionDeniedError(err) ? null : err.message);
         setLoading(false);
       }
     );
@@ -178,6 +182,7 @@ export function useBidsOnMyListings(userId) {
     if (!userId) {
       setBids([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
@@ -203,8 +208,9 @@ export function useBidsOnMyListings(userId) {
         setError(null);
       },
       (err) => {
-        console.error('Error fetching bids on my listings:', err);
-        setError(err.message);
+        reportFirestoreListenerError('bids on my listings', err);
+        setBids([]);
+        setError(isPermissionDeniedError(err) ? null : err.message);
         setLoading(false);
       }
     );

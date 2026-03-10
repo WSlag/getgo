@@ -3,6 +3,7 @@ import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestor
 import { db } from '../firebase';
 import { formatTimeAgo } from '../utils/dateFormatting';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
+import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 
 const isRead = (notification) => notification?.isRead === true || notification?.read === true;
 
@@ -15,6 +16,7 @@ export function useNotifications(userId, maxResults = 50) {
     if (!userId) {
       setNotifications([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
@@ -44,8 +46,9 @@ export function useNotifications(userId, maxResults = 50) {
         setError(null);
       },
       (err) => {
-        console.error('Error fetching notifications:', err);
-        setError(err.message);
+        reportFirestoreListenerError('notifications', err);
+        setNotifications([]);
+        setError(isPermissionDeniedError(err) ? null : err.message);
         setLoading(false);
       }
     );

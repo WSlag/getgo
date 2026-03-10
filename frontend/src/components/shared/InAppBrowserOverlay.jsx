@@ -1,4 +1,4 @@
-import { ExternalLink, MoreVertical, Copy, ShieldCheck } from 'lucide-react';
+import { ExternalLink, Copy, ShieldCheck } from 'lucide-react';
 import { AppLogo } from './AppLogo';
 
 const BROWSER_INSTRUCTIONS = {
@@ -114,13 +114,13 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
   return (
     <div
       data-testid="inapp-overlay"
-      className="fixed inset-0 z-[10000] overflow-y-auto"
+      className="fixed inset-0 z-[10000] overflow-x-hidden overflow-y-auto"
       style={{
         background: 'linear-gradient(160deg, #fff7ed 0%, #ffffff 50%, #fff7ed 100%)',
         paddingTop: 'max(24px, env(safe-area-inset-top, 20px))',
         paddingBottom: 'max(24px, env(safe-area-inset-bottom, 16px))',
-        paddingLeft: '20px',
-        paddingRight: '20px',
+        paddingLeft: 'clamp(18px, 5vw, 24px)',
+        paddingRight: 'clamp(18px, 5vw, 24px)',
       }}
     >
       {/* Decorative background blobs */}
@@ -132,42 +132,44 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
       <div className="relative mx-auto flex min-h-full w-full max-w-sm items-center justify-center">
         <div
           data-testid="inapp-card"
-          className="animate-overlay-enter w-full overflow-hidden rounded-3xl bg-white shadow-2xl"
+          className="animate-overlay-enter w-full overflow-hidden rounded-[22px] bg-white shadow-2xl sm:rounded-2xl"
           style={{ boxShadow: '0 24px 64px -12px rgba(249,115,22,0.18), 0 8px 24px -4px rgba(0,0,0,0.08)' }}
         >
           {/* Orange gradient header band */}
           <div
-            className="relative flex items-center gap-3 px-5 py-4 overflow-hidden"
+            className="relative flex items-center gap-2.5 overflow-hidden pl-6 pr-5 py-3.5 sm:gap-3 sm:pl-7 sm:pr-6 sm:py-4"
             style={{ background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)' }}
           >
             {/* Decorative rings */}
             <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full border border-white/10 pointer-events-none" />
             <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full border border-white/10 pointer-events-none" />
 
-            <div className="relative z-10 flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 border border-white/30 backdrop-blur-sm shadow-lg">
+            <div className="relative z-10 flex size-12 shrink-0 items-center justify-center rounded-xl border border-white/30 bg-white/20 shadow-lg backdrop-blur-sm">
               <AppLogo size={32} className="shrink-0" />
             </div>
-            <div className="relative z-10">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/70">
+            <div className="relative z-10 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-white/70">
                 GetGo Secure Access
               </p>
-              <div className="mt-0.5 flex items-center gap-1.5">
-                <ShieldCheck className="size-3.5 text-white" />
-                <span className="text-sm font-semibold text-white">External browser required</span>
+              <div className="mt-0.5 flex items-center gap-1 sm:gap-1.5">
+                <ShieldCheck className="size-3.5 shrink-0 text-white" />
+                <span className="break-words text-xs font-semibold leading-tight text-white sm:text-sm">
+                  External browser required
+                </span>
               </div>
             </div>
           </div>
 
           {/* Body */}
-          <div className="px-5 pt-5 pb-6">
+          <div className="pl-6 pr-5 pb-5 pt-4 sm:pl-7 sm:pr-6 sm:pb-6 sm:pt-5">
             <h1
               data-testid="inapp-title"
-              className="text-2xl font-black leading-tight text-gray-900"
+              className="break-words text-[clamp(1.65rem,6vw,2rem)] font-black leading-[1.05] text-gray-900"
               style={{ fontFamily: 'Outfit, sans-serif' }}
             >
               {platform === 'android' ? 'Open in Google' : 'Open in Safari'}
             </h1>
-            <p className="mt-2 text-sm leading-relaxed text-gray-500">
+            <p className="mt-2 break-words text-[13px] leading-relaxed text-gray-500 sm:text-sm">
               You are viewing GetGo in {label}&apos;s built-in browser. For the best and most stable experience, continue in your phone&apos;s browser.
             </p>
 
@@ -176,7 +178,7 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
               <button
                 data-testid="inapp-primary-cta"
                 onClick={onOpenBrowser}
-                className="animate-overlay-enter-delay mt-5 flex w-full items-center justify-center gap-2 rounded-2xl text-white font-bold text-[15px] transition-all active:scale-[0.97] hover:opacity-90"
+                className="animate-overlay-enter-delay mt-4 flex w-full items-center justify-center gap-2 rounded-xl text-center text-[15px] font-bold leading-tight text-white transition-all hover:opacity-90 active:scale-[0.97] sm:mt-5 sm:rounded-2xl"
                 style={{
                   padding: '14px 16px',
                   background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
@@ -184,17 +186,17 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
                   fontFamily: 'Outfit, sans-serif',
                 }}
               >
-                <ExternalLink className="size-5" />
-                Open in Google
+                <ExternalLink className="size-5 shrink-0" />
+                <span className="break-words whitespace-normal">Open in Google</span>
               </button>
             )}
 
             {/* iOS primary CTA */}
             {platform === 'ios' && (
               <button
-                data-testid="inapp-primary-cta"
+                data-testid="inapp-ios-copy"
                 onClick={onOpenBrowser}
-                className="animate-overlay-enter-delay mt-5 flex w-full items-center justify-center gap-2 rounded-2xl text-white font-bold text-[15px] transition-all active:scale-[0.97] hover:opacity-90"
+                className="animate-overlay-enter-delay mt-4 flex w-full items-center justify-center gap-2 rounded-xl text-center text-[14px] font-bold leading-tight text-white transition-all hover:opacity-90 active:scale-[0.97] sm:mt-5 sm:rounded-2xl sm:text-[15px]"
                 style={{
                   padding: '14px 16px',
                   background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
@@ -202,30 +204,29 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
                   fontFamily: 'Outfit, sans-serif',
                 }}
               >
-                <Copy className="size-5" />
-                Copy Link to Open in Safari
+                <Copy className="size-5 shrink-0" />
+                <span className="break-words whitespace-normal">Copy Link to Open in Safari</span>
               </button>
             )}
 
             {/* Manual steps */}
             <div
               data-testid="inapp-steps"
-              className="mt-4 rounded-2xl border border-orange-100 bg-orange-50/60 p-4"
+              className="mt-4 rounded-xl border border-orange-100 bg-orange-50/60 pl-5 pr-4 py-4 sm:rounded-2xl sm:pl-6 sm:pr-5 sm:py-5"
             >
-              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em] text-orange-400">
+              <p className="mb-2.5 break-words text-[10px] font-bold uppercase tracking-[0.11em] leading-tight text-orange-400 sm:mb-3">
                 {platform === 'android' ? 'If the button does not work' : 'Manual steps'}
               </p>
-              <ol className="space-y-3">
+              <ol className="space-y-2.5 sm:space-y-3">
                 {instructions.map((step, index) => (
-                  <li key={`${platform}-${index}`} className="flex items-start gap-3">
+                  <li key={`${platform}-${index}`} className="flex items-start gap-3 sm:gap-3.5">
                     <span
-                      className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                      className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white sm:h-6 sm:w-6 sm:text-xs"
                       style={{ background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)' }}
                     >
                       {index + 1}
                     </span>
-                    <div className="flex min-w-0 items-start gap-1.5 text-sm leading-relaxed text-gray-700">
-                      {index === 0 && <MoreVertical className="mt-0.5 size-4 shrink-0 text-orange-400" />}
+                    <div className="flex min-w-0 items-start pl-1 text-[13px] leading-relaxed text-gray-700 sm:text-sm">
                       <span className="break-words">{step}</span>
                     </div>
                   </li>
