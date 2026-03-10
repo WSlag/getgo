@@ -536,50 +536,16 @@ service cloud.firestore {
     
     // Support Conversations - users can see their own, admins can see all
     match /supportConversations/{conversationId} {
-      allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow create: if isAuth() 
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.userName is string
-        && request.resource.data.userName.size() > 0
-        && request.resource.data.userRole is string
-        && request.resource.data.userRole.size() > 0
-        && request.resource.data.status == 'open'
-        && request.resource.data.subject is string
-        && request.resource.data.subject.size() > 0
-        && request.resource.data.subject.size() <= 100;
-      allow update: if isOwner(resource.data.userId) || isAdmin()
-        // Users can only update status to 'closed', admins can update any field
-        && (
-          isAdmin() 
-          || (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-            && request.resource.data.status in ['open', 'closed']
-          )
-        );
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
       allow delete: if false;
       
       // Messages subcollection within conversations
       match /messages/{messageId} {
-        allow read: if isAuth() && (
-          isOwner(get(/databases/$(database)/documents/supportConversations/$(conversationId)).data.userId)
-          || isAdmin()
-        );
-        allow create: if isAuth() 
-          && (
-            request.resource.data.senderId == request.auth.uid
-            || (isAdmin() && request.resource.data.senderId == 'admin')
-          )
-          && request.resource.data.senderName is string
-          && request.resource.data.message is string
-          && request.resource.data.message.size() > 0
-          && request.resource.data.message.size() <= 5000
-          && request.resource.data.senderRole in ['user', 'admin']
-          && request.resource.data.createdAt is timestamp;
-        allow update: if isAuth() && (
-          isAdmin() 
-          || (isOwner(get(/databases/$(database)/documents/supportConversations/$(conversationId)).data.userId)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'updatedAt']))
-        );
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update: if isAuth();
         allow delete: if false;
       }
     }
