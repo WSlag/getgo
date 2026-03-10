@@ -60,7 +60,7 @@ export function usePWAInstall() {
   useEffect(() => {
     const count = parseInt(localStorage.getItem(KEYS.visitCount) || '0', 10) + 1;
     localStorage.setItem(KEYS.visitCount, String(count));
-    if (count >= 2 && !engagementReached) {
+    if (count >= 1 && !engagementReached) {
       localStorage.setItem(KEYS.engagementReached, 'true');
       setEngagementReached(true);
     }
@@ -177,6 +177,7 @@ export function usePWAInstall() {
 
     // General
     isStandalone: standalone,
+    isInstallEngagementReached: engagementReached,
     markEngagement,
   };
 }
