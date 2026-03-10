@@ -360,6 +360,7 @@ export default function GetGoApp() {
     showIOSInstall,
     dismissIOSInstall,
     launchInstallFromProfile,
+    isInstallAlreadySatisfied,
     isInstallEngagementReached,
     markEngagement,
   } = usePWAInstall();
@@ -2331,7 +2332,7 @@ export default function GetGoApp() {
           <ErrorBoundary>
             <ProfilePage
               onInstallApp={handleProfileInstallClick}
-              showInstallAppButton={isInstallEngagementReached}
+              showInstallAppButton={isInstallEngagementReached && !isInstallAlreadySatisfied}
               onNavigateToActivity={() => handleTabChange('activity')}
             />
           </ErrorBoundary>
