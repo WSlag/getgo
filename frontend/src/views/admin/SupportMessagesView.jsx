@@ -97,7 +97,7 @@ function StatusBadge({ status }) {
   const label = status?.charAt(0)?.toUpperCase() + status?.slice(1) || 'Open';
 
   return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold', config.badge)}>
+    <span className={cn('inline-flex items-center gap-1.5 rounded-[3px] px-2.5 py-1 text-xs font-semibold', config.badge)}>
       <Icon className="size-3.5" />
       {label}
     </span>
@@ -110,7 +110,7 @@ function RoleBadge({ role }) {
   const label = normalizedRole ? normalizedRole.charAt(0).toUpperCase() + normalizedRole.slice(1) : 'User';
 
   return (
-    <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold', badgeClass)}>
+    <span className={cn('inline-flex items-center rounded-[3px] px-2.5 py-1 text-xs font-semibold', badgeClass)}>
       {label}
     </span>
   );
@@ -118,12 +118,12 @@ function RoleBadge({ role }) {
 
 function StatTile({ label, value, icon: Icon, toneClass, accentClass }) {
   return (
-    <div className="rounded-2xl border border-gray-200/80 bg-white/85 px-3 py-2.5 shadow-sm dark:border-gray-800 dark:bg-gray-900/75">
+    <div className="rounded-sm border border-gray-200/80 bg-white/85 px-3 py-2.5 shadow-sm dark:border-gray-800 dark:bg-gray-900/75">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
           {label}
         </span>
-        <span className={cn('inline-flex size-6 items-center justify-center rounded-lg', accentClass)}>
+        <span className={cn('inline-flex size-6 items-center justify-center rounded-[3px]', accentClass)}>
           <Icon className="size-3.5 text-white" />
         </span>
       </div>
@@ -326,10 +326,10 @@ export function SupportMessagesView() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded-2xl border border-gray-200/80 bg-white/90 p-4 shadow-sm dark:border-gray-800/80 dark:bg-gray-900/80 lg:p-5">
+      <section className="rounded-sm border border-gray-200/80 bg-white/90 p-4 shadow-sm dark:border-gray-800/80 dark:bg-gray-900/80 lg:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg shadow-orange-500/30">
+            <div className="flex size-10 items-center justify-center rounded-[3px] bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg shadow-orange-500/30">
               <Sparkles className="size-5 text-white" />
             </div>
             <div>
@@ -376,7 +376,7 @@ export function SupportMessagesView() {
       </section>
 
       <section
-        className="overflow-hidden rounded-3xl border border-gray-200/80 bg-white/95 shadow-sm dark:border-gray-800 dark:bg-gray-950/75"
+        className="overflow-hidden rounded-sm border border-gray-200/80 bg-white/95 shadow-sm dark:border-gray-800 dark:bg-gray-950/75"
         style={{ height: workspaceHeight, minHeight: isMobile ? 520 : 560, maxHeight: 860 }}
       >
         <div className="flex h-full min-h-0">
@@ -402,7 +402,7 @@ export function SupportMessagesView() {
                     placeholder="Search user, category, or message..."
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    className="h-10 rounded-xl border-gray-200 bg-white/90 pl-10 text-sm dark:border-gray-700 dark:bg-gray-900/80"
+                    className="h-10 rounded-[3px] border-gray-200 bg-white/90 pl-10 text-sm dark:border-gray-700 dark:bg-gray-900/80"
                   />
                 </div>
 
@@ -417,7 +417,7 @@ export function SupportMessagesView() {
                         type="button"
                         onClick={() => setStatusFilter(status)}
                         className={cn(
-                          'whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200',
+                          'whitespace-nowrap rounded-[3px] px-3.5 py-1.5 text-xs font-semibold transition-all duration-200',
                           isActive
                             ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30'
                             : 'border border-gray-200 bg-white text-gray-600 hover:border-orange-200 hover:text-orange-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-orange-700 dark:hover:text-orange-300'
@@ -431,7 +431,7 @@ export function SupportMessagesView() {
               </div>
 
               {!selectedConversation && error && (
-                <div className="mx-4 mt-4 rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+                <div className="mx-4 mt-4 rounded-[3px] border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
                   <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
                 </div>
               )}
@@ -443,7 +443,7 @@ export function SupportMessagesView() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">Loading conversations...</p>
                   </div>
                 ) : filteredConversations.length === 0 ? (
-                  <div className="flex h-full min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50/70 p-6 text-center dark:border-gray-700 dark:bg-gray-900/60">
+                  <div className="flex h-full min-h-[220px] flex-col items-center justify-center rounded-sm border border-dashed border-gray-300 bg-gray-50/70 p-6 text-center dark:border-gray-700 dark:bg-gray-900/60">
                     <Inbox className="mb-3 size-9 text-gray-300 dark:text-gray-600" />
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No conversations found</p>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -463,7 +463,7 @@ export function SupportMessagesView() {
                           type="button"
                           onClick={() => handleSelectConversation(conversation)}
                           className={cn(
-                            'w-full rounded-2xl border p-3.5 text-left transition-all duration-200',
+                            'w-full rounded-sm border p-3.5 text-left transition-all duration-200',
                             'hover:-translate-y-0.5 hover:shadow-md',
                             isSelected
                               ? 'border-orange-300 bg-orange-50/80 shadow-lg shadow-orange-500/10 dark:border-orange-700 dark:bg-orange-900/20'
@@ -472,7 +472,7 @@ export function SupportMessagesView() {
                         >
                           <div className="flex items-start gap-3">
                             <div className={cn(
-                              'mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold',
+                              'mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-[3px] text-sm font-bold',
                               isSelected
                                 ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30'
                                 : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
@@ -488,7 +488,7 @@ export function SupportMessagesView() {
                                       {conversation.userName || 'User'}
                                     </p>
                                     {unreadCount > 0 && (
-                                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                      <span className="inline-flex min-w-5 items-center justify-center rounded-[3px] bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                                         {unreadCount}
                                       </span>
                                     )}
@@ -534,7 +534,7 @@ export function SupportMessagesView() {
                           <button
                             type="button"
                             onClick={() => setSelectedConversation(null)}
-                            className="mt-0.5 rounded-xl border border-gray-200 bg-white p-2 text-gray-500 transition-colors hover:border-orange-300 hover:text-orange-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-orange-700 dark:hover:text-orange-300"
+                            className="mt-0.5 rounded-[3px] border border-gray-200 bg-white p-2 text-gray-500 transition-colors hover:border-orange-300 hover:text-orange-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-orange-700 dark:hover:text-orange-300"
                             aria-label="Back to conversations"
                           >
                             <ChevronLeft className="size-4" />
@@ -564,6 +564,7 @@ export function SupportMessagesView() {
                           <Button
                             size="sm"
                             variant="outline"
+                            className="rounded-[3px]"
                             onClick={() => setShowResolveModal(true)}
                           >
                             <CheckCircle2 className="mr-1 size-4" />
@@ -576,7 +577,7 @@ export function SupportMessagesView() {
 
                   {error && (
                     <div className="px-4 pt-3 lg:px-6">
-                      <div className="rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+                      <div className="rounded-[3px] border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
                         <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
                       </div>
                     </div>
@@ -585,7 +586,7 @@ export function SupportMessagesView() {
                   <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 lg:py-5">
                     {messages.length === 0 ? (
                       <div className="flex h-full min-h-[220px] items-center justify-center">
-                        <div className="rounded-2xl border border-dashed border-gray-300 bg-white/80 p-8 text-center dark:border-gray-700 dark:bg-gray-900/70">
+                        <div className="rounded-sm border border-dashed border-gray-300 bg-white/80 p-8 text-center dark:border-gray-700 dark:bg-gray-900/70">
                           <MessageSquare className="mx-auto mb-3 size-10 text-gray-300 dark:text-gray-600" />
                           <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No messages yet</p>
                           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -604,7 +605,7 @@ export function SupportMessagesView() {
                             >
                               <div
                                 className={cn(
-                                  'max-w-[88%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[75%]',
+                                  'max-w-[88%] rounded-[3px] px-4 py-3 shadow-sm sm:max-w-[75%] break-words [overflow-wrap:anywhere]',
                                   isAdmin
                                     ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-orange-500/20'
                                     : 'border border-gray-200 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100'
@@ -616,7 +617,7 @@ export function SupportMessagesView() {
                                 )}>
                                   {isAdmin ? 'GetGo Support' : message.senderName || 'User'}
                                 </p>
-                                <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.message}</p>
+                                <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-relaxed">{message.message}</p>
                                 <p className={cn(
                                   'mt-1.5 text-xs',
                                   isAdmin ? 'text-orange-100/90' : 'text-gray-400 dark:text-gray-500'
@@ -637,14 +638,14 @@ export function SupportMessagesView() {
                       className="border-t border-gray-200 bg-white/95 px-3 py-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 lg:px-5 lg:py-4"
                       style={{ paddingBottom: isMobile ? 'calc(12px + env(safe-area-inset-bottom, 0px))' : undefined }}
                     >
-                      <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-2.5 shadow-sm dark:border-gray-700 dark:bg-gray-900/80 lg:p-3">
+                      <div className="rounded-sm border border-gray-200 bg-gray-50/80 p-2.5 shadow-sm dark:border-gray-700 dark:bg-gray-900/80 lg:p-3">
                         <div className="flex items-end gap-2">
                           <Textarea
                             value={newMessage}
                             onChange={(event) => setNewMessage(event.target.value)}
                             placeholder="Type your reply..."
                             rows={2}
-                            className="min-h-[78px] flex-1 border-gray-200 bg-white text-sm dark:border-gray-700 dark:bg-gray-950"
+                            className="min-h-[78px] flex-1 rounded-[3px] border-gray-200 bg-white text-sm dark:border-gray-700 dark:bg-gray-950"
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' && !event.shiftKey) {
                                 event.preventDefault();
@@ -657,7 +658,7 @@ export function SupportMessagesView() {
                             disabled={!newMessage.trim() || sending}
                             variant="gradient"
                             size="icon"
-                            className="size-11 shrink-0 rounded-2xl"
+                            className="size-11 shrink-0 rounded-[3px]"
                             aria-label="Send reply"
                           >
                             {sending ? (
@@ -686,7 +687,7 @@ export function SupportMessagesView() {
                 </>
               ) : (
                 <div className="hidden h-full flex-1 items-center justify-center lg:flex">
-                  <div className="max-w-sm rounded-2xl border border-dashed border-gray-300 bg-white/80 p-8 text-center dark:border-gray-700 dark:bg-gray-900/70">
+                  <div className="max-w-sm rounded-sm border border-dashed border-gray-300 bg-white/80 p-8 text-center dark:border-gray-700 dark:bg-gray-900/70">
                     <MessageSquare className="mx-auto mb-3 size-11 text-gray-300 dark:text-gray-600" />
                     <p className="text-base font-semibold text-gray-800 dark:text-gray-100">
                       Select a conversation
@@ -703,7 +704,7 @@ export function SupportMessagesView() {
       </section>
 
       <Dialog open={showResolveModal} onOpenChange={setShowResolveModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="rounded-sm sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Resolve Conversation</DialogTitle>
           </DialogHeader>
@@ -712,10 +713,10 @@ export function SupportMessagesView() {
               Mark this conversation as resolved? The user will see the updated status.
             </p>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowResolveModal(false)} disabled={sending}>
+              <Button variant="outline" className="rounded-[3px]" onClick={() => setShowResolveModal(false)} disabled={sending}>
                 Cancel
               </Button>
-              <Button variant="gradient" onClick={handleResolve} disabled={sending}>
+              <Button variant="gradient" className="rounded-[3px]" onClick={handleResolve} disabled={sending}>
                 {sending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
                 Resolve
               </Button>
