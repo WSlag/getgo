@@ -1,20 +1,18 @@
 import {
   collection,
+  deleteDoc,
   doc,
-  addDoc,
-  setDoc,
   getDoc,
   getDocs,
-  updateDoc,
-  query,
-  where,
+  onSnapshot,
   orderBy,
-  limit,
-  serverTimestamp,
-  writeBatch,
-  onSnapshot
+  query,
+  setDoc,
+  updateDoc,
+  where,
+  writeBatch
 } from 'firebase/firestore';
-import { db, auth } from '../firebase';
+import { auth, db } from '../firebase';
 
 // ============================================================
 // SUPPORT MESSAGE CONSTANTS
@@ -36,19 +34,218 @@ export const CONVERSATION_STATUS = {
   CLOSED: 'closed'
 };
 
+const VALID_USER_ROLES = new Set(['shipper', 'trucker', 'broker', 'admin']);
+const VALID_CONVERSATION_STATUSES = new Set(['open', 'pending', 'resolved', 'closed']);
+const IDENTITY_CACHE_TTL_MS = 30_000;
+
+let identityCache = null;
+
+const createServiceError = (code, message) => {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+};
+
+const normalizeString = (value) => (typeof value === 'string' ? value.trim() : '');
+
+const isPermissionDeniedError = (error) => {
+  const code = normalizeString(error?.code).toLowerCase();
+  const message = normalizeString(error?.message).toLowerCase();
+  return (
+    code === 'permission-denied'
+    || message.includes('permission-denied')
+    || message.includes('missing or insufficient permissions')
+  );
+};
+
+const sleep = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
+
+const toDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  if (typeof value?.seconds === 'number') return new Date(value.seconds * 1000);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const normalizeConversationData = (id, data = {}) => ({
+  id,
+  ...data,
+  createdAt: toDate(data.createdAt),
+  updatedAt: toDate(data.updatedAt),
+  lastMessageAt: toDate(data.lastMessageAt),
+  resolvedAt: toDate(data.resolvedAt)
+});
+
+const normalizeMessageData = (id, data = {}) => ({
+  id,
+  ...data,
+  createdAt: toDate(data.createdAt),
+  updatedAt: toDate(data.updatedAt)
+});
+
+const getCurrentAuthUser = () => {
+  const user = auth.currentUser;
+  if (!user?.uid) {
+    throw createServiceError('unauthenticated', 'You must be logged in to use support messaging.');
+  }
+  return user;
+};
+
+const assertCallerUidMatch = (providedUid, authUid, fieldName = 'User ID') => {
+  const normalizedProvidedUid = normalizeString(providedUid);
+  if (normalizedProvidedUid && normalizedProvidedUid !== authUid) {
+    throw createServiceError('permission-denied', `${fieldName} does not match the authenticated user.`);
+  }
+};
+
+const getProfileRole = (profileData) => {
+  const role = normalizeString(profileData?.role).toLowerCase();
+  return VALID_USER_ROLES.has(role) ? role : 'shipper';
+};
+
+const getDisplayName = (authUser, fallbackName) => {
+  const normalizedFallbackName = normalizeString(fallbackName);
+  if (normalizedFallbackName) return normalizedFallbackName;
+  const normalizedAuthName = normalizeString(authUser?.displayName);
+  if (normalizedAuthName) return normalizedAuthName;
+  return 'User';
+};
+
+const resolveIdentity = async () => {
+  const user = getCurrentAuthUser();
+  const now = Date.now();
+
+  if (
+    identityCache &&
+    identityCache.uid === user.uid &&
+    identityCache.expiresAt > now
+  ) {
+    return identityCache;
+  }
+
+  let isAdmin = false;
+  let role = 'shipper';
+
+  try {
+    const tokenResult = await user.getIdTokenResult();
+    if (tokenResult?.claims?.admin === true) {
+      isAdmin = true;
+    }
+    const claimRole = normalizeString(tokenResult?.claims?.role).toLowerCase();
+    if (VALID_USER_ROLES.has(claimRole)) {
+      role = claimRole;
+    }
+  } catch (error) {
+    console.warn('Unable to read token claims for support identity:', error);
+  }
+
+  try {
+    const profileSnap = await getDoc(doc(db, 'users', user.uid));
+    if (profileSnap.exists()) {
+      const profile = profileSnap.data();
+      if (profile?.isAdmin === true || normalizeString(profile?.role).toLowerCase() === 'admin') {
+        isAdmin = true;
+      }
+      role = getProfileRole(profile);
+    }
+  } catch (error) {
+    console.warn('Unable to read user profile for support identity:', error);
+  }
+
+  if (isAdmin) {
+    role = 'admin';
+  }
+
+  identityCache = {
+    uid: user.uid,
+    user,
+    isAdmin,
+    role,
+    expiresAt: now + IDENTITY_CACHE_TTL_MS
+  };
+
+  return identityCache;
+};
+
+const assertValidConversationId = (conversationId) => {
+  const normalizedConversationId = normalizeString(conversationId);
+  if (!normalizedConversationId) {
+    throw createServiceError('invalid-argument', 'Conversation ID is required.');
+  }
+  return normalizedConversationId;
+};
+
+const assertValidMessage = (message) => {
+  const normalizedMessage = normalizeString(message);
+  if (!normalizedMessage) {
+    throw createServiceError('invalid-argument', 'Message is required.');
+  }
+  if (normalizedMessage.length > 5000) {
+    throw createServiceError('invalid-argument', 'Message is too long (max 5000 characters).');
+  }
+  return normalizedMessage;
+};
+
+const assertConversationAccess = (conversationData, identity) => {
+  if (!identity.isAdmin && conversationData.userId !== identity.uid) {
+    throw createServiceError('permission-denied', 'You can only access your own support conversations.');
+  }
+};
+
+const assertAdminOnly = (identity, actionLabel = 'perform this action') => {
+  if (!identity.isAdmin) {
+    throw createServiceError('permission-denied', `You do not have permission to ${actionLabel}.`);
+  }
+};
+
+const normalizeSubject = (subject) => {
+  const normalizedSubject = normalizeString(subject);
+  if (!normalizedSubject) {
+    throw createServiceError('invalid-argument', 'Subject is required.');
+  }
+  return normalizedSubject;
+};
+
+const mapSnapshotToConversations = (snapshot) => snapshot.docs.map((snapshotDoc) => (
+  normalizeConversationData(snapshotDoc.id, snapshotDoc.data())
+));
+
+const mapSnapshotToMessages = (snapshot) => snapshot.docs.map((snapshotDoc) => (
+  normalizeMessageData(snapshotDoc.id, snapshotDoc.data())
+));
+
+const writeMessageDocumentWithRetry = async (
+  messageRef,
+  payload,
+  { attempts = 3, baseDelayMs = 120 } = {}
+) => {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await setDoc(messageRef, payload);
+      return;
+    } catch (error) {
+      lastError = error;
+      const shouldRetry = isPermissionDeniedError(error) && attempt < attempts;
+      if (!shouldRetry) {
+        throw error;
+      }
+      await sleep(baseDelayMs * attempt);
+    }
+  }
+
+  throw lastError;
+};
+
 // ============================================================
 // CREATE CONVERSATION
 // ============================================================
 
-/**
- * Create a new support conversation
- * @param {string} userId - The user's ID
- * @param {string} userName - The user's display name
- * @param {string} userRole - The user's role (shipper, trucker, broker)
- * @param {string} subject - The support category/subject
- * @param {string} initialMessage - The initial message
- * @returns {Promise<{id: string}>} - The created conversation ID
- */
 export const createSupportConversation = async (
   userId,
   userName,
@@ -56,334 +253,259 @@ export const createSupportConversation = async (
   subject,
   initialMessage
 ) => {
-  const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
-  const normalizedUserName = typeof userName === 'string' && userName.trim()
-    ? userName.trim()
-    : 'User';
-  const normalizedUserRole = typeof userRole === 'string' ? userRole.trim() : 'shipper';
-  const normalizedSubject = typeof subject === 'string' ? subject.trim() : '';
-  const normalizedMessage = typeof initialMessage === 'string' ? initialMessage.trim() : '';
+  const identity = await resolveIdentity();
+  assertCallerUidMatch(userId, identity.uid, 'User ID');
 
-  if (!normalizedUserId) {
-    const err = new Error('User ID is required');
-    err.code = 'invalid-argument';
-    throw err;
-  }
+  const normalizedSubject = normalizeSubject(subject);
+  const normalizedMessage = assertValidMessage(initialMessage);
+  const normalizedUserName = getDisplayName(identity.user, userName);
 
-  if (!normalizedSubject) {
-    const err = new Error('Subject is required');
-    err.code = 'invalid-argument';
-    throw err;
-  }
-
-  if (!normalizedMessage) {
-    const err = new Error('Initial message is required');
-    err.code = 'invalid-argument';
-    throw err;
-  }
-
-  if (normalizedMessage.length > 5000) {
-    const err = new Error('Message is too long (max 5000 characters)');
-    err.code = 'invalid-argument';
-    throw err;
-  }
-
-  // Create the conversation document
-  const conversationsRef = collection(db, 'supportConversations');
-  const conversationRef = doc(conversationsRef);
-  const conversationId = conversationRef.id;
-
+  const requestedRole = normalizeString(userRole).toLowerCase();
+  const normalizedUserRole = VALID_USER_ROLES.has(requestedRole) ? requestedRole : identity.role;
   const now = new Date();
-  
+
+  const conversationRef = doc(collection(db, 'supportConversations'));
   await setDoc(conversationRef, {
-    userId: normalizedUserId,
+    userId: identity.uid,
     userName: normalizedUserName,
     userRole: normalizedUserRole,
     status: CONVERSATION_STATUS.OPEN,
     subject: normalizedSubject,
     lastMessage: normalizedMessage.substring(0, 200),
     lastMessageAt: now,
-    lastMessageSenderId: normalizedUserId,
+    lastMessageSenderId: identity.uid,
     unreadCount: 0,
-    adminUnreadCount: 1, // Admin has unread because it's a new conversation
+    adminUnreadCount: 1,
     createdAt: now,
     updatedAt: now,
     resolvedAt: null,
     resolvedBy: null
   });
 
-  // Add the initial message
-  const messagesRef = collection(db, 'supportConversations', conversationId, 'messages');
-  const messageRef = doc(messagesRef);
-  
-  await setDoc(messageRef, {
-    senderId: normalizedUserId,
+  const messageRef = doc(collection(db, 'supportConversations', conversationRef.id, 'messages'));
+  const messagePayload = {
+    senderId: identity.uid,
     senderName: normalizedUserName,
     senderRole: 'user',
     message: normalizedMessage,
     isRead: false,
     createdAt: now,
     updatedAt: now
-  });
+  };
 
-  return { id: conversationId };
+  let messageCreated = false;
+  try {
+    await writeMessageDocumentWithRetry(messageRef, messagePayload, { attempts: 4, baseDelayMs: 150 });
+    messageCreated = true;
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      // Fallback path for occasional parent-document propagation race right after conversation creation.
+      await sleep(300);
+      try {
+        await sendSupportMessage(
+          conversationRef.id,
+          identity.uid,
+          normalizedUserName,
+          'user',
+          normalizedMessage,
+          { skipConversationUpdate: true }
+        );
+        messageCreated = true;
+      } catch (fallbackError) {
+        try {
+          await deleteDoc(conversationRef);
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup orphan support conversation after message write failure:', cleanupError);
+        }
+        throw fallbackError;
+      }
+    } else {
+      try {
+        await deleteDoc(conversationRef);
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup orphan support conversation after message write failure:', cleanupError);
+      }
+      throw error;
+    }
+  }
+
+  if (!messageCreated) {
+    throw createServiceError('permission-denied', 'Failed to create the initial support message.');
+  }
+
+  return { id: conversationRef.id };
 };
 
 // ============================================================
 // SEND MESSAGE
 // ============================================================
 
-/**
- * Send a message in an existing support conversation
- * @param {string} conversationId - The conversation ID
- * @param {string} senderId - The sender's ID (user ID or 'admin')
- * @param {string} senderName - The sender's display name
- * @param {string} senderRole - 'user' or 'admin'
- * @param {string} message - The message content
- * @returns {Promise<{id: string}>} - The created message ID
- */
 export const sendSupportMessage = async (
   conversationId,
   senderId,
   senderName,
   senderRole,
-  message
+  message,
+  options = {}
 ) => {
-  const normalizedConversationId = typeof conversationId === 'string' ? conversationId.trim() : '';
-  const normalizedSenderId = typeof senderId === 'string' ? senderId.trim() : '';
-  const normalizedSenderName = typeof senderName === 'string' && senderName.trim()
-    ? senderName.trim()
-    : 'User';
-  const normalizedSenderRole = senderRole === 'admin' ? 'admin' : 'user';
-  const normalizedMessage = typeof message === 'string' ? message.trim() : '';
+  const skipConversationUpdate = options?.skipConversationUpdate === true;
+  const normalizedConversationId = assertValidConversationId(conversationId);
+  const normalizedMessage = assertValidMessage(message);
+  const identity = await resolveIdentity();
 
-  if (!normalizedConversationId) {
-    const err = new Error('Conversation ID is required');
-    err.code = 'invalid-argument';
-    throw err;
+  assertCallerUidMatch(senderId, identity.uid, 'Sender ID');
+
+  const requestedSenderRole = normalizeString(senderRole).toLowerCase();
+  let derivedSenderRole = identity.isAdmin ? 'admin' : 'user';
+  if (requestedSenderRole) {
+    if (!['user', 'admin'].includes(requestedSenderRole)) {
+      throw createServiceError('invalid-argument', 'Invalid sender role.');
+    }
+    if (requestedSenderRole === 'admin' && !identity.isAdmin) {
+      throw createServiceError('permission-denied', 'Sender role does not match the authenticated user.');
+    }
+    derivedSenderRole = requestedSenderRole;
   }
 
-  if (!normalizedSenderId) {
-    const err = new Error('Sender ID is required');
-    err.code = 'invalid-argument';
-    throw err;
-  }
+  const normalizedSenderName = getDisplayName(
+    identity.user,
+    senderName || (identity.isAdmin ? 'GetGo Support' : 'User')
+  );
 
-  if (!normalizedMessage) {
-    const err = new Error('Message is required');
-    err.code = 'invalid-argument';
-    throw err;
-  }
-
-  if (normalizedMessage.length > 5000) {
-    const err = new Error('Message is too long (max 5000 characters)');
-    err.code = 'invalid-argument';
-    throw err;
-  }
-
-  // Verify conversation exists
   const conversationRef = doc(db, 'supportConversations', normalizedConversationId);
   const conversationSnap = await getDoc(conversationRef);
-  
   if (!conversationSnap.exists()) {
-    const err = new Error('Conversation not found');
-    err.code = 'not-found';
-    throw err;
+    throw createServiceError('not-found', 'Conversation not found.');
   }
 
   const conversationData = conversationSnap.data();
-  const isAdmin = normalizedSenderRole === 'admin';
-
-  // Verify sender is either the conversation owner or an admin
-  if (!isAdmin && conversationData.userId !== normalizedSenderId) {
-    const err = new Error('You can only send messages in your own conversations');
-    err.code = 'permission-denied';
-    throw err;
-  }
+  assertConversationAccess(conversationData, identity);
 
   const now = new Date();
   const messageRef = doc(collection(db, 'supportConversations', normalizedConversationId, 'messages'));
-  
-  await setDoc(messageRef, {
-    senderId: normalizedSenderId,
+  const messagePayload = {
+    senderId: identity.uid,
     senderName: normalizedSenderName,
-    senderRole: normalizedSenderRole,
+    senderRole: derivedSenderRole,
     message: normalizedMessage,
     isRead: false,
     createdAt: now,
     updatedAt: now
-  });
+  };
 
-  // Update conversation with last message info
+  await writeMessageDocumentWithRetry(messageRef, messagePayload, { attempts: 3, baseDelayMs: 120 });
+
+  if (skipConversationUpdate) {
+    return { id: messageRef.id, metadataUpdated: false };
+  }
+
   const updateData = {
     lastMessage: normalizedMessage.substring(0, 200),
     lastMessageAt: now,
-    lastMessageSenderId: normalizedSenderId,
+    lastMessageSenderId: identity.uid,
     updatedAt: now
   };
 
-  // Increment unread count for the recipient
-  if (normalizedSenderRole === 'user') {
+  if (derivedSenderRole === 'user') {
     updateData.adminUnreadCount = (conversationData.adminUnreadCount || 0) + 1;
   } else {
     updateData.unreadCount = (conversationData.unreadCount || 0) + 1;
   }
 
-  await updateDoc(conversationRef, updateData);
-
-  return { id: messageRef.id };
+  try {
+    await updateDoc(conversationRef, updateData);
+    return { id: messageRef.id, metadataUpdated: true };
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      console.warn('Support message created but conversation metadata update was denied.', error);
+      return { id: messageRef.id, metadataUpdated: false };
+    }
+    throw error;
+  }
 };
 
 // ============================================================
 // GET CONVERSATIONS
 // ============================================================
 
-/**
- * Get all support conversations for a user
- * @param {string} userId - The user's ID
- * @returns {Promise<Array>} - Array of conversation objects
- */
 export const getUserConversations = async (userId) => {
-  const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
+  const identity = await resolveIdentity();
+  assertCallerUidMatch(userId, identity.uid, 'User ID');
 
-  if (!normalizedUserId) {
-    const err = new Error('User ID is required');
-    err.code = 'invalid-argument';
-    throw err;
-  }
-
-  const conversationsRef = collection(db, 'supportConversations');
-  const q = query(
-    conversationsRef,
-    where('userId', '==', normalizedUserId),
+  const conversationsQuery = query(
+    collection(db, 'supportConversations'),
+    where('userId', '==', identity.uid),
     orderBy('updatedAt', 'desc')
   );
 
-  const snapshot = await getDocs(q);
-  
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  const snapshot = await getDocs(conversationsQuery);
+  return mapSnapshotToConversations(snapshot);
 };
 
-/**
- * Get all support conversations for admin view
- * @param {string} status - Optional status filter
- * @returns {Promise<Array>} - Array of conversation objects
- */
 export const getAllConversations = async (status = null) => {
-  const conversationsRef = collection(db, 'supportConversations');
-  
-  let q;
-  if (status) {
-    q = query(
-      conversationsRef,
-      where('status', '==', status),
-      orderBy('updatedAt', 'desc')
-    );
-  } else {
-    q = query(
-      conversationsRef,
-      orderBy('updatedAt', 'desc')
-    );
-  }
+  const identity = await resolveIdentity();
+  assertAdminOnly(identity, 'view all support conversations');
 
-  const snapshot = await getDocs(q);
-  
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  const conversationsRef = collection(db, 'supportConversations');
+  const conversationsQuery = status
+    ? query(conversationsRef, where('status', '==', status), orderBy('updatedAt', 'desc'))
+    : query(conversationsRef, orderBy('updatedAt', 'desc'));
+
+  const snapshot = await getDocs(conversationsQuery);
+  return mapSnapshotToConversations(snapshot);
 };
 
-/**
- * Get a single conversation by ID
- * @param {string} conversationId - The conversation ID
- * @returns {Promise<Object>} - The conversation object
- */
 export const getConversation = async (conversationId) => {
-  const normalizedConversationId = typeof conversationId === 'string' ? conversationId.trim() : '';
+  const normalizedConversationId = assertValidConversationId(conversationId);
+  const identity = await resolveIdentity();
 
-  if (!normalizedConversationId) {
-    const err = new Error('Conversation ID is required');
-    err.code = 'invalid-argument';
-    throw err;
+  const conversationSnap = await getDoc(doc(db, 'supportConversations', normalizedConversationId));
+  if (!conversationSnap.exists()) {
+    throw createServiceError('not-found', 'Conversation not found.');
   }
 
-  const conversationRef = doc(db, 'supportConversations', normalizedConversationId);
-  const snapshot = await getDoc(conversationRef);
-
-  if (!snapshot.exists()) {
-    const err = new Error('Conversation not found');
-    err.code = 'not-found';
-    throw err;
-  }
-
-  return { id: snapshot.id, ...snapshot.data() };
+  const conversationData = conversationSnap.data();
+  assertConversationAccess(conversationData, identity);
+  return normalizeConversationData(conversationSnap.id, conversationData);
 };
 
 // ============================================================
 // GET MESSAGES
 // ============================================================
 
-/**
- * Get all messages in a conversation
- * @param {string} conversationId - The conversation ID
- * @returns {Promise<Array>} - Array of message objects
- */
 export const getConversationMessages = async (conversationId) => {
-  const normalizedConversationId = typeof conversationId === 'string' ? conversationId.trim() : '';
+  const normalizedConversationId = assertValidConversationId(conversationId);
+  const identity = await resolveIdentity();
 
-  if (!normalizedConversationId) {
-    const err = new Error('Conversation ID is required');
-    err.code = 'invalid-argument';
-    throw err;
+  const conversationSnap = await getDoc(doc(db, 'supportConversations', normalizedConversationId));
+  if (!conversationSnap.exists()) {
+    throw createServiceError('not-found', 'Conversation not found.');
   }
 
-  const messagesRef = collection(db, 'supportConversations', normalizedConversationId, 'messages');
-  const q = query(
-    messagesRef,
+  assertConversationAccess(conversationSnap.data(), identity);
+
+  const messagesQuery = query(
+    collection(db, 'supportConversations', normalizedConversationId, 'messages'),
     orderBy('createdAt', 'asc')
   );
 
-  const snapshot = await getDocs(q);
-  
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  const snapshot = await getDocs(messagesQuery);
+  return mapSnapshotToMessages(snapshot);
 };
 
-/**
- * Subscribe to conversation messages for real-time updates
- * @param {string} conversationId - The conversation ID
- * @param {Function} callback - Callback function to handle updates
- * @param {Function} [errorCallback] - Optional callback for errors
- * @returns {Function} - Unsubscribe function
- */
 export const subscribeToMessages = (conversationId, callback, errorCallback) => {
-  const normalizedConversationId = typeof conversationId === 'string' ? conversationId.trim() : '';
+  const normalizedConversationId = assertValidConversationId(conversationId);
+  getCurrentAuthUser();
 
-  if (!normalizedConversationId) {
-    const err = new Error('Conversation ID is required');
-    err.code = 'invalid-argument';
-    throw err;
-  }
-
-  const messagesRef = collection(db, 'supportConversations', normalizedConversationId, 'messages');
-  const q = query(
-    messagesRef,
+  const messagesQuery = query(
+    collection(db, 'supportConversations', normalizedConversationId, 'messages'),
     orderBy('createdAt', 'asc')
   );
 
-  return onSnapshot(q, 
+  return onSnapshot(
+    messagesQuery,
     (snapshot) => {
-      const messages = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      callback(messages);
+      callback(mapSnapshotToMessages(snapshot));
     },
     (error) => {
       console.error('Error subscribing to messages:', error);
@@ -394,36 +516,20 @@ export const subscribeToMessages = (conversationId, callback, errorCallback) => 
   );
 };
 
-/**
- * Subscribe to user's conversations for real-time updates
- * @param {string} userId - The user's ID
- * @param {Function} callback - Callback function to handle updates
- * @param {Function} [errorCallback] - Optional callback for errors
- * @returns {Function} - Unsubscribe function
- */
 export const subscribeToUserConversations = (userId, callback, errorCallback) => {
-  const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
+  const authUser = getCurrentAuthUser();
+  assertCallerUidMatch(userId, authUser.uid, 'User ID');
 
-  if (!normalizedUserId) {
-    const err = new Error('User ID is required');
-    err.code = 'invalid-argument';
-    throw err;
-  }
-
-  const conversationsRef = collection(db, 'supportConversations');
-  const q = query(
-    conversationsRef,
-    where('userId', '==', normalizedUserId),
+  const conversationsQuery = query(
+    collection(db, 'supportConversations'),
+    where('userId', '==', authUser.uid),
     orderBy('updatedAt', 'desc')
   );
 
-  return onSnapshot(q, 
+  return onSnapshot(
+    conversationsQuery,
     (snapshot) => {
-      const conversations = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      callback(conversations);
+      callback(mapSnapshotToConversations(snapshot));
     },
     (error) => {
       console.error('Error subscribing to user conversations:', error);
@@ -434,37 +540,18 @@ export const subscribeToUserConversations = (userId, callback, errorCallback) =>
   );
 };
 
-/**
- * Subscribe to all conversations for admin view
- * @param {string} status - Optional status filter
- * @param {Function} callback - Callback function to handle updates
- * @param {Function} [errorCallback] - Optional callback for errors
- * @returns {Function} - Unsubscribe function
- */
 export const subscribeToAllConversations = (status, callback, errorCallback) => {
-  const conversationsRef = collection(db, 'supportConversations');
-  
-  let q;
-  if (status) {
-    q = query(
-      conversationsRef,
-      where('status', '==', status),
-      orderBy('updatedAt', 'desc')
-    );
-  } else {
-    q = query(
-      conversationsRef,
-      orderBy('updatedAt', 'desc')
-    );
-  }
+  getCurrentAuthUser();
 
-  return onSnapshot(q, 
+  const conversationsRef = collection(db, 'supportConversations');
+  const conversationsQuery = status
+    ? query(conversationsRef, where('status', '==', status), orderBy('updatedAt', 'desc'))
+    : query(conversationsRef, orderBy('updatedAt', 'desc'));
+
+  return onSnapshot(
+    conversationsQuery,
     (snapshot) => {
-      const conversations = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      callback(conversations);
+      callback(mapSnapshotToConversations(snapshot));
     },
     (error) => {
       console.error('Error subscribing to all conversations:', error);
@@ -479,100 +566,81 @@ export const subscribeToAllConversations = (status, callback, errorCallback) => 
 // MARK AS READ
 // ============================================================
 
-/**
- * Mark messages in a conversation as read
- * @param {string} conversationId - The conversation ID
- * @param {string} userId - The user's ID (to determine which count to reset)
- * @param {boolean} isAdmin - Whether the user is an admin
- */
-export const markConversationAsRead = async (conversationId, userId, isAdmin = false) => {
-  const normalizedConversationId = typeof conversationId === 'string' ? conversationId.trim() : '';
-  const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
-
-  if (!normalizedConversationId) {
-    const err = new Error('Conversation ID is required');
-    err.code = 'invalid-argument';
-    throw err;
-  }
+export const markConversationAsRead = async (conversationId, userId) => {
+  const normalizedConversationId = assertValidConversationId(conversationId);
+  const identity = await resolveIdentity();
+  assertCallerUidMatch(userId, identity.uid, 'User ID');
 
   const conversationRef = doc(db, 'supportConversations', normalizedConversationId);
   const snapshot = await getDoc(conversationRef);
-
   if (!snapshot.exists()) {
-    return; // Conversation might have been deleted
+    return;
   }
+
+  const conversationData = snapshot.data();
+  assertConversationAccess(conversationData, identity);
 
   const updateData = {
-    updatedAt: new Date()
+    updatedAt: new Date(),
+    unreadCount: identity.isAdmin ? (conversationData.unreadCount || 0) : 0,
+    adminUnreadCount: identity.isAdmin ? 0 : (conversationData.adminUnreadCount || 0)
   };
-
-  if (isAdmin) {
-    updateData.adminUnreadCount = 0;
-  } else {
-    updateData.unreadCount = 0;
-  }
-
   await updateDoc(conversationRef, updateData);
 
-  // Also mark all messages as read
-  const messagesRef = collection(db, 'supportConversations', normalizedConversationId, 'messages');
-  const messagesQuery = query(messagesRef, where('isRead', '==', false));
+  const messagesQuery = query(
+    collection(db, 'supportConversations', normalizedConversationId, 'messages'),
+    where('isRead', '==', false)
+  );
   const messagesSnapshot = await getDocs(messagesQuery);
+  if (messagesSnapshot.empty) {
+    return;
+  }
 
-  const batch = writeBatch(db);
-  messagesSnapshot.docs.forEach(msgDoc => {
-    batch.update(msgDoc.ref, { isRead: true, updatedAt: new Date() });
-  });
-
-  await batch.commit();
+  const batchSize = 400;
+  for (let index = 0; index < messagesSnapshot.docs.length; index += batchSize) {
+    const batch = writeBatch(db);
+    const chunk = messagesSnapshot.docs.slice(index, index + batchSize);
+    chunk.forEach((messageDoc) => {
+      batch.update(messageDoc.ref, { isRead: true, updatedAt: new Date() });
+    });
+    await batch.commit();
+  }
 };
 
 // ============================================================
 // UPDATE CONVERSATION STATUS
 // ============================================================
 
-/**
- * Update conversation status
- * @param {string} conversationId - The conversation ID
- * @param {string} status - New status (open, pending, resolved, closed)
- * @param {string} resolvedBy - Admin UID who resolved the conversation (optional)
- */
 export const updateConversationStatus = async (conversationId, status, resolvedBy = null) => {
-  const normalizedConversationId = typeof conversationId === 'string' ? conversationId.trim() : '';
-  const normalizedStatus = typeof status === 'string' ? status.trim() : '';
-
-  if (!normalizedConversationId) {
-    const err = new Error('Conversation ID is required');
-    err.code = 'invalid-argument';
-    throw err;
+  const normalizedConversationId = assertValidConversationId(conversationId);
+  const normalizedStatus = normalizeString(status).toLowerCase();
+  if (!VALID_CONVERSATION_STATUSES.has(normalizedStatus)) {
+    throw createServiceError('invalid-argument', 'Invalid status value.');
   }
 
-  const validStatuses = ['open', 'pending', 'resolved', 'closed'];
-  if (!validStatuses.includes(normalizedStatus)) {
-    const err = new Error('Invalid status value');
-    err.code = 'invalid-argument';
-    throw err;
-  }
+  const identity = await resolveIdentity();
+  assertAdminOnly(identity, 'update support conversation status');
 
   const conversationRef = doc(db, 'supportConversations', normalizedConversationId);
   const snapshot = await getDoc(conversationRef);
-
   if (!snapshot.exists()) {
-    const err = new Error('Conversation not found');
-    err.code = 'not-found';
-    throw err;
+    throw createServiceError('not-found', 'Conversation not found.');
   }
+
+  const normalizedResolvedBy = normalizeString(resolvedBy);
+  const resolverUid = normalizedResolvedBy || identity.uid;
 
   const updateData = {
     status: normalizedStatus,
     updatedAt: new Date()
   };
 
-  if (normalizedStatus === 'resolved' || normalizedStatus === 'closed') {
+  if (normalizedStatus === CONVERSATION_STATUS.RESOLVED || normalizedStatus === CONVERSATION_STATUS.CLOSED) {
     updateData.resolvedAt = new Date();
-    if (resolvedBy) {
-      updateData.resolvedBy = resolvedBy;
-    }
+    updateData.resolvedBy = resolverUid;
+  } else {
+    updateData.resolvedAt = null;
+    updateData.resolvedBy = null;
   }
 
   await updateDoc(conversationRef, updateData);
@@ -582,40 +650,28 @@ export const updateConversationStatus = async (conversationId, status, resolvedB
 // UTILITY FUNCTIONS
 // ============================================================
 
-/**
- * Get count of open support conversations (for badges)
- * @returns {Promise<number>} - Count of open conversations
- */
 export const getOpenConversationsCount = async () => {
-  const conversationsRef = collection(db, 'supportConversations');
-  const q = query(
-    conversationsRef,
-    where('status', 'in', ['open', 'pending'])
-  );
+  const identity = await resolveIdentity();
+  assertAdminOnly(identity, 'view support conversation metrics');
 
-  const snapshot = await getDocs(q);
+  const snapshot = await getDocs(query(
+    collection(db, 'supportConversations'),
+    where('status', 'in', [CONVERSATION_STATUS.OPEN, CONVERSATION_STATUS.PENDING])
+  ));
   return snapshot.size;
 };
 
-/**
- * Get count of unread admin messages (for admin badges)
- * @returns {Promise<number>} - Count of unread messages
- */
 export const getAdminUnreadCount = async () => {
-  const conversationsRef = collection(db, 'supportConversations');
-  const q = query(
-    conversationsRef,
-    where('adminUnreadCount', '>', 0)
-  );
+  const identity = await resolveIdentity();
+  assertAdminOnly(identity, 'view unread support message counts');
 
-  const snapshot = await getDocs(q);
-  
-  // Sum up all unread counts
-  let totalUnread = 0;
-  snapshot.docs.forEach(doc => {
-    const data = doc.data();
-    totalUnread += data.adminUnreadCount || 0;
-  });
-  
-  return totalUnread;
+  const snapshot = await getDocs(query(
+    collection(db, 'supportConversations'),
+    where('adminUnreadCount', '>', 0)
+  ));
+
+  return snapshot.docs.reduce((totalUnread, snapshotDoc) => {
+    const count = Number(snapshotDoc.data()?.adminUnreadCount || 0);
+    return totalUnread + (Number.isFinite(count) ? count : 0);
+  }, 0);
 };

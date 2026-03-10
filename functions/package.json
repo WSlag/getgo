@@ -5,6 +5,8 @@
     "lint": "eslint .",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "migrate:ratings": "node scripts/migrate-ratings-schema.cjs",
+    "migrate:support:dry": "node scripts/migrate-support-messages-to-conversations.cjs --project=karga-ph",
+    "migrate:support:apply": "node scripts/migrate-support-messages-to-conversations.cjs --project=karga-ph --apply",
     "migrate:broker-role:dry": "node scripts/migrate-broker-primary-role.cjs",
     "migrate:broker-role:apply": "node scripts/migrate-broker-primary-role.cjs --apply",
     "migrate:email-auth:dry": "node scripts/reset-test-user-email-auth.cjs",
