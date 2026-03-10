@@ -359,9 +359,10 @@ export const getConversationMessages = async (conversationId) => {
  * Subscribe to conversation messages for real-time updates
  * @param {string} conversationId - The conversation ID
  * @param {Function} callback - Callback function to handle updates
+ * @param {Function} [errorCallback] - Optional callback for errors
  * @returns {Function} - Unsubscribe function
  */
-export const subscribeToMessages = (conversationId, callback) => {
+export const subscribeToMessages = (conversationId, callback, errorCallback) => {
   const normalizedConversationId = typeof conversationId === 'string' ? conversationId.trim() : '';
 
   if (!normalizedConversationId) {
@@ -376,22 +377,31 @@ export const subscribeToMessages = (conversationId, callback) => {
     orderBy('createdAt', 'asc')
   );
 
-  return onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    callback(messages);
-  });
+  return onSnapshot(q, 
+    (snapshot) => {
+      const messages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      callback(messages);
+    },
+    (error) => {
+      console.error('Error subscribing to messages:', error);
+      if (errorCallback) {
+        errorCallback(error);
+      }
+    }
+  );
 };
 
 /**
  * Subscribe to user's conversations for real-time updates
  * @param {string} userId - The user's ID
  * @param {Function} callback - Callback function to handle updates
+ * @param {Function} [errorCallback] - Optional callback for errors
  * @returns {Function} - Unsubscribe function
  */
-export const subscribeToUserConversations = (userId, callback) => {
+export const subscribeToUserConversations = (userId, callback, errorCallback) => {
   const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
 
   if (!normalizedUserId) {
@@ -407,22 +417,31 @@ export const subscribeToUserConversations = (userId, callback) => {
     orderBy('updatedAt', 'desc')
   );
 
-  return onSnapshot(q, (snapshot) => {
-    const conversations = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    callback(conversations);
-  });
+  return onSnapshot(q, 
+    (snapshot) => {
+      const conversations = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      callback(conversations);
+    },
+    (error) => {
+      console.error('Error subscribing to user conversations:', error);
+      if (errorCallback) {
+        errorCallback(error);
+      }
+    }
+  );
 };
 
 /**
  * Subscribe to all conversations for admin view
  * @param {string} status - Optional status filter
  * @param {Function} callback - Callback function to handle updates
+ * @param {Function} [errorCallback] - Optional callback for errors
  * @returns {Function} - Unsubscribe function
  */
-export const subscribeToAllConversations = (status, callback) => {
+export const subscribeToAllConversations = (status, callback, errorCallback) => {
   const conversationsRef = collection(db, 'supportConversations');
   
   let q;
@@ -439,13 +458,21 @@ export const subscribeToAllConversations = (status, callback) => {
     );
   }
 
-  return onSnapshot(q, (snapshot) => {
-    const conversations = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    callback(conversations);
-  });
+  return onSnapshot(q, 
+    (snapshot) => {
+      const conversations = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      callback(conversations);
+    },
+    (error) => {
+      console.error('Error subscribing to all conversations:', error);
+      if (errorCallback) {
+        errorCallback(error);
+      }
+    }
+  );
 };
 
 // ============================================================

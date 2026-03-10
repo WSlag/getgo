@@ -427,6 +427,7 @@ function ChatAdminSection({ onBack }) {
   const [showNewForm, setShowNewForm] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [newSubject, setNewSubject] = useState('account');
+  const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
 
   // Load conversations on mount
@@ -436,24 +437,37 @@ function ChatAdminSection({ onBack }) {
       return;
     }
 
-    const unsubscribe = subscribeToUserConversations(authUser.uid, (convs) => {
-      setConversations(convs);
-      setLoading(false);
-    });
+    const unsubscribe = subscribeToUserConversations(
+      authUser.uid,
+      (convs) => {
+        setConversations(convs);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error loading conversations:', error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [authUser?.uid]);
 
   // Load messages when conversation is selected
   useEffect(() => {
-    if (!selectedConversation) {
+    if (!selectedConversation || !authUser?.uid) {
       setMessages([]);
       return;
     }
 
-    const unsubscribe = subscribeToMessages(selectedConversation.id, (msgs) => {
-      setMessages(msgs);
-    });
+    const unsubscribe = subscribeToMessages(
+      selectedConversation.id,
+      (msgs) => {
+        setMessages(msgs);
+      },
+      (error) => {
+        console.error('Error loading messages:', error);
+      }
+    );
 
     // Mark as read
     markConversationAsRead(selectedConversation.id, authUser.uid, false);
@@ -469,9 +483,10 @@ function ChatAdminSection({ onBack }) {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation || sending) return;
+    if (!newMessage.trim() || !selectedConversation || sending || !authUser?.uid) return;
 
     setSending(true);
+    setError(null);
     try {
       await sendSupportMessage(
         selectedConversation.id,
@@ -483,6 +498,11 @@ function ChatAdminSection({ onBack }) {
       setNewMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
+      if (error.code === 'permission-denied' || error.message?.includes('permission-denied')) {
+        setError('Unable to send message. Please try logging out and back in.');
+      } else {
+        setError('Failed to send message. Please try again.');
+      }
     } finally {
       setSending(false);
     }
@@ -492,6 +512,7 @@ function ChatAdminSection({ onBack }) {
     if (!newMessage.trim() || !authUser?.uid) return;
 
     setSending(true);
+    setError(null);
     try {
       const result = await createSupportConversation(
         authUser.uid,
@@ -507,6 +528,14 @@ function ChatAdminSection({ onBack }) {
       if (conv) setSelectedConversation(conv);
     } catch (error) {
       console.error('Failed to create conversation:', error);
+      // Check if it's a permission error and provide helpful message
+      if (error.code === 'permission-denied' || error.message?.includes('permission-denied')) {
+        setError('Unable to connect to support. Please try logging out and back in, then refresh the page.');
+      } else if (error.code === 'invalid-argument') {
+        setError(error.message);
+      } else {
+        setError('Failed to create conversation. Please try again.');
+      }
     } finally {
       setSending(false);
     }
@@ -608,6 +637,13 @@ function ChatAdminSection({ onBack }) {
                 {newMessage.length}/5000
               </p>
             </div>
+
+            {/* Error message */}
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              </div>
+            )}
 
             <Button
               onClick={handleCreateConversation}
@@ -724,6 +760,12 @@ function ChatAdminSection({ onBack }) {
             className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm"
             style={{ padding: '16px' }}
           >
+            {/* Error message */}
+            {error && (
+              <div className="mb-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '12px' }}>
               <textarea
                 value={newMessage}
