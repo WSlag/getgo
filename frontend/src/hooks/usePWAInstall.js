@@ -5,6 +5,7 @@ import {
   isStandaloneMode,
   isIOSSafari,
 } from '../utils/browserDetect';
+import { trackAnalyticsEvent } from '../services/analyticsService';
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -45,6 +46,7 @@ export function usePWAInstall() {
   const [iosDismissedRecently, setIosDismissedRecently] = useState(
     () => isWithinCooldown(KEYS.iosDismissedAt)
   );
+  const [manualIOSInstallOpen, setManualIOSInstallOpen] = useState(false);
 
   const deferredPrompt = useRef(null);
 
@@ -90,24 +92,45 @@ export function usePWAInstall() {
   }, []);
 
   const dismissIOSInstall = useCallback(() => {
+    setManualIOSInstallOpen(false);
     localStorage.setItem(KEYS.iosDismissedAt, new Date().toISOString());
     setIosDismissedRecently(true);
   }, []);
 
-  const triggerInstall = useCallback(async () => {
+  const promptInstall = useCallback(async (source = 'unknown') => {
     const prompt = deferredPrompt.current;
-    if (!prompt) return;
+    if (!prompt) return false;
     prompt.prompt();
     const { outcome } = await prompt.userChoice;
     if (outcome === 'accepted') {
       localStorage.setItem(KEYS.installAccepted, 'true');
       setInstallAccepted(true);
+      trackAnalyticsEvent('install_success', { source, platform });
     } else {
       dismissInstallBanner();
     }
     deferredPrompt.current = null;
     setCanPrompt(false);
-  }, [dismissInstallBanner]);
+    return true;
+  }, [dismissInstallBanner, platform]);
+
+  const triggerInstall = useCallback(async () => {
+    await promptInstall('install_banner');
+  }, [promptInstall]);
+
+  const launchInstallFromProfile = useCallback(async () => {
+    if (standalone || installAccepted) return 'already_installed';
+    if (inApp.isInAppBrowser) return 'in_app_browser';
+
+    if (iosSafari) {
+      setManualIOSInstallOpen(true);
+      return 'ios_sheet_opened';
+    }
+
+    const didPrompt = await promptInstall('profile_button');
+    if (didPrompt) return 'prompt_shown';
+    return 'not_available';
+  }, [standalone, installAccepted, inApp.isInAppBrowser, iosSafari, promptInstall]);
 
   // --- Computed booleans ---
   const showInAppOverlay = inApp.isInAppBrowser;
@@ -123,12 +146,17 @@ export function usePWAInstall() {
 
   const showIOSInstall =
     !showInAppOverlay &&
-    bannerReady &&
-    iosSafari &&
-    !standalone &&
-    engagementReached &&
-    !installAccepted &&
-    !iosDismissedRecently;
+    (
+      manualIOSInstallOpen ||
+      (
+        bannerReady &&
+        iosSafari &&
+        !standalone &&
+        engagementReached &&
+        !installAccepted &&
+        !iosDismissedRecently
+      )
+    );
 
   return {
     // In-app browser
@@ -145,6 +173,7 @@ export function usePWAInstall() {
     // iOS Safari
     showIOSInstall,
     dismissIOSInstall,
+    launchInstallFromProfile,
 
     // General
     isStandalone: standalone,

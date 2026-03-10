@@ -87,6 +87,7 @@ import LegalModal from '@/components/legal/LegalModal';
 
 // API
 import api from './services/api';
+import { trackAnalyticsEvent } from './services/analyticsService';
 import { guestCargoListings, guestTruckListings, guestActiveShipments } from '@/data/guestMarketplaceData';
 import { canBidCargoStatus, canBookTruckStatus, matchesMarketplaceFilter, normalizeListingStatus, toTruckUiStatus } from '@/utils/listingStatus';
 import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
@@ -104,6 +105,7 @@ import {
 const SAVED_SEARCHES_KEY_PREFIX = 'karga.savedSearches.v1';
 const SAVED_ROUTES_KEY_PREFIX = 'karga.savedRoutes.v1';
 const ONBOARDING_DISMISSED_KEY_PREFIX = 'karga.onboardingDismissed.v1';
+const INSTALL_STATUS_TOAST_COOLDOWN_MS = 2500;
 
 function getUserScopedKey(prefix, uid) {
   return `${prefix}:${uid || 'guest'}`;
@@ -357,6 +359,7 @@ export default function GetGoApp() {
     dismissInstallBanner,
     showIOSInstall,
     dismissIOSInstall,
+    launchInstallFromProfile,
     markEngagement,
   } = usePWAInstall();
 
@@ -372,6 +375,7 @@ export default function GetGoApp() {
 
   // Admin: preserve last non-admin tab so "Back to App" returns users to context.
   const lastNonAdminTabRef = useRef('home');
+  const installStatusToastRef = useRef({ key: '', shownAt: 0 });
 
   // Onboarding Guide Modal
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
@@ -404,6 +408,61 @@ export default function GetGoApp() {
       lastNonAdminTabRef.current = activeTab;
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    trackAnalyticsEvent('session_start', {
+      initial_tab: activeTab,
+      has_authenticated_user: !!authUser?.uid,
+    });
+    // Fire once per app load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'profile') {
+      trackAnalyticsEvent('profile_open', {
+        role: currentRole || 'shipper',
+      });
+    }
+  }, [activeTab, currentRole]);
+
+  const showInstallStatusToast = useCallback((key, title, message) => {
+    const now = Date.now();
+    const last = installStatusToastRef.current;
+    if (last.key === key && now - last.shownAt < INSTALL_STATUS_TOAST_COOLDOWN_MS) {
+      return;
+    }
+    installStatusToastRef.current = { key, shownAt: now };
+    showToast({ title, message });
+  }, [showToast]);
+
+  const handleProfileInstallClick = useCallback(async () => {
+    trackAnalyticsEvent('install_clicked', { source: 'profile_button' });
+    const status = await launchInstallFromProfile();
+    if (status === 'already_installed') {
+      showInstallStatusToast(
+        'already_installed',
+        'Already installed',
+        'GetGo is already installed on this device.'
+      );
+      return;
+    }
+    if (status === 'in_app_browser') {
+      showInstallStatusToast(
+        'in_app_browser',
+        'Open in browser',
+        'Open this page in Safari or Chrome to install GetGo.'
+      );
+      return;
+    }
+    if (status === 'not_available') {
+      showInstallStatusToast(
+        'not_available',
+        'Install not available',
+        'Install prompt is not available yet. Try again in a moment.'
+      );
+    }
+  }, [launchInstallFromProfile, showInstallStatusToast]);
 
 
   const getUserErrorMessage = (error, fallback) => {
@@ -2267,7 +2326,14 @@ export default function GetGoApp() {
           </main>
         )}
 
-        {activeTab === 'profile' && <ErrorBoundary><ProfilePage onNavigateToActivity={() => handleTabChange('activity')} /></ErrorBoundary>}
+        {activeTab === 'profile' && (
+          <ErrorBoundary>
+            <ProfilePage
+              onInstallApp={handleProfileInstallClick}
+              onNavigateToActivity={() => handleTabChange('activity')}
+            />
+          </ErrorBoundary>
+        )}
         {activeTab === 'help' && <ErrorBoundary><HelpSupportView onBack={() => setActiveTab('home')} onShowOnboardingGuide={() => setShowOnboardingGuide(true)} /></ErrorBoundary>}
 
         {activeTab === 'broker' && (
@@ -2481,6 +2547,10 @@ export default function GetGoApp() {
               };
               await createTruckListing(authUser.uid, userProfile, truckerProfile, listingData);
             }
+            trackAnalyticsEvent('post_created', {
+              role: postingRole,
+              listing_type: postingRole === 'shipper' ? 'cargo' : 'truck',
+            });
             markEngagement();
             closeModal('post');
           } catch (error) {
@@ -2577,6 +2647,10 @@ export default function GetGoApp() {
               ownerId: listing.userId || listing.shipperId || listing.truckerId,
             });
 
+            trackAnalyticsEvent('bid_submitted', {
+              role: interactionRole || currentRole || 'shipper',
+              listing_type: listingType,
+            });
             markEngagement();
             closeModal('bid');
             showToast({
