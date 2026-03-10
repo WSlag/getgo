@@ -11,6 +11,7 @@ import { getWorkspaceLabel } from '@/utils/workspace';
 import { HeroCarousel } from '@/components/HeroCarousel';
 
 const ITEMS_PER_PAGE = 20;
+const MOBILE_STICKY_CONTROLS_MIN_HEIGHT = 132;
 
 export function HomeView({
   activeMarket = 'cargo',
@@ -55,10 +56,11 @@ export function HomeView({
   const listings = activeMarket === 'cargo' ? cargoListings : truckListings;
   const listingCount = listings.length;
   const isAccountSuspended = currentUser?.accountStatus === 'suspended' || currentUser?.isActive === false;
+  const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
 
   // Pagination: show ITEMS_PER_PAGE at a time with "Load More"
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
-  const [controlsHeight, setControlsHeight] = useState(110);
+  const [controlsHeight, setControlsHeight] = useState(MOBILE_STICKY_CONTROLS_MIN_HEIGHT);
   const visibleListings = listings.slice(0, visibleCount);
   const hasMore = visibleCount < listings.length;
 
@@ -77,19 +79,26 @@ export function HomeView({
   }, [activeMarket, filterStatus, searchQuery]);
 
   // Keep mobile spacer aligned with actual sticky controls height.
-  // Measure on mount and viewport/layout changes, not on scroll.
+  // Re-measure aggressively on viewport/layout changes to avoid stale spacer values.
   useLayoutEffect(() => {
     if (!isMobile || typeof window === 'undefined') {
+      setControlsHeight((prev) => (prev !== MOBILE_STICKY_CONTROLS_MIN_HEIGHT ? MOBILE_STICKY_CONTROLS_MIN_HEIGHT : prev));
       return undefined;
     }
 
     let rafId = null;
+    let resizeObserver = null;
+    const timeoutIds = [];
 
     const measureStickyControlsHeight = () => {
       const measuredHeight = stickyControlsRef.current?.getBoundingClientRect()?.height;
-      if (!Number.isFinite(measuredHeight) || measuredHeight <= 0) return;
 
-      const nextHeight = Math.ceil(measuredHeight);
+      if (!Number.isFinite(measuredHeight) || measuredHeight <= 0) {
+        setControlsHeight((prev) => (prev < MOBILE_STICKY_CONTROLS_MIN_HEIGHT ? MOBILE_STICKY_CONTROLS_MIN_HEIGHT : prev));
+        return;
+      }
+
+      const nextHeight = Math.max(MOBILE_STICKY_CONTROLS_MIN_HEIGHT, Math.ceil(measuredHeight));
       setControlsHeight((prev) => (Math.abs(prev - nextHeight) > 0.5 ? nextHeight : prev));
     };
 
@@ -101,6 +110,16 @@ export function HomeView({
     };
 
     scheduleMeasure();
+    timeoutIds.push(window.setTimeout(scheduleMeasure, 120));
+    timeoutIds.push(window.setTimeout(scheduleMeasure, 420));
+
+    if (typeof window.ResizeObserver !== 'undefined' && stickyControlsRef.current) {
+      resizeObserver = new window.ResizeObserver(() => {
+        scheduleMeasure();
+      });
+      resizeObserver.observe(stickyControlsRef.current);
+    }
+
     window.addEventListener('resize', scheduleMeasure);
     window.addEventListener('orientationchange', scheduleMeasure);
 
@@ -108,10 +127,14 @@ export function HomeView({
       if (rafId !== null) {
         window.cancelAnimationFrame(rafId);
       }
+      timeoutIds.forEach((id) => window.clearTimeout(id));
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       window.removeEventListener('resize', scheduleMeasure);
       window.removeEventListener('orientationchange', scheduleMeasure);
     };
-  }, [isMobile, activeMarket, activeWorkspace, isBroker, searchQuery]);
+  }, [isMobile, activeMarket, activeWorkspace, isBroker, searchQuery, mobileHeaderVisible, resolvedMobileHeaderHeight]);
 
   const filterOptions = [
     { id: 'all', label: 'All' },
@@ -122,7 +145,6 @@ export function HomeView({
   const hasCurrentSearchPreset = Boolean(searchQuery?.trim()) || filterStatus !== 'all';
   const showSavedSearchesCard = !isMobile || savedSearches.length > 0 || hasCurrentSearchPreset;
   const mobileStickyPaddingTop = 8;
-  const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
   const listingHeaderTitle = activeMarket === 'cargo'
     ? (activeWorkspace === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
     : (activeWorkspace === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks');
@@ -183,7 +205,7 @@ export function HomeView({
           "max-lg:fixed max-lg:left-0 max-lg:right-0 max-lg:z-40 max-lg:bg-gray-50 max-lg:dark:bg-gray-950"
         )}
         style={{
-          padding: isMobile ? `${mobileStickyPaddingTop}px 16px 0` : '0',
+          padding: isMobile ? `${mobileStickyPaddingTop}px 16px 16px` : '0',
           top: isMobile ? `${mobileHeaderVisible ? resolvedMobileHeaderHeight : 0}px` : undefined,
           transition: isMobile ? 'top 300ms ease-out' : undefined,
           overflowAnchor: 'none',
@@ -218,7 +240,7 @@ export function HomeView({
         </div>
 
         {/* Search Bar */}
-        <div className="relative" style={{ marginBottom: isMobile ? '16px' : '24px' }}>
+        <div className="relative" style={{ marginBottom: isMobile ? '0' : '24px' }}>
           <div className="relative">
             <input
               type="text"

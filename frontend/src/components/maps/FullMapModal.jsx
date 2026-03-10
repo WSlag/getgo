@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { X, Route, Navigation, Loader2 } from 'lucide-react';
@@ -44,6 +44,7 @@ const FitBounds = ({ coordinates }) => {
 export default function FullMapModal({ listing, darkMode = false, onClose }) {
   const [routeData, setRouteData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const previousBodyOverflowRef = useRef(null);
 
   // Fetch route on mount
   useEffect(() => {
@@ -86,9 +87,10 @@ export default function FullMapModal({ listing, darkMode = false, onClose }) {
 
   // Prevent body scroll when modal is open
   useEffect(() => {
+    previousBodyOverflowRef.current = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = previousBodyOverflowRef.current ?? '';
     };
   }, []);
 

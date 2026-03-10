@@ -395,6 +395,66 @@ test.describe('Mobile Responsiveness', () => {
     expect(restoredGeometry.headerHeight).toBeGreaterThan(40);
     expect(restoredGeometry.stickyTop).toBeGreaterThanOrEqual(restoredGeometry.headerBottom - 2);
   });
+
+  test('should keep hero carousel below search controls after tracking live round-trip', async ({ page }) => {
+    const mobileNav = page.locator('nav.fixed').first();
+    const homeNavButton = mobileNav.locator('button').filter({ hasText: /^Home$/i }).first();
+    const trackingNavButton = mobileNav.locator('button').filter({ hasText: /^Tracking$/i }).first();
+
+    await expect(mobileNav).toBeVisible();
+    await expect(trackingNavButton).toBeVisible();
+    await expect(homeNavButton).toBeVisible();
+
+    await trackingNavButton.click();
+    await page.waitForTimeout(900);
+
+    const trackLiveButton = page.locator('button').filter({ hasText: /^Track Live$/i }).first();
+    await expect(trackLiveButton).toBeVisible();
+    await trackLiveButton.click();
+
+    const overlay = page.locator('.tracking-live-overlay').first();
+    await expect(overlay).toBeVisible();
+
+    const closeButton = page.locator('.tracking-live-overlay > div > div:first-child button').first();
+    await expect(closeButton).toBeVisible();
+    await closeButton.click();
+    await page.waitForSelector('.tracking-live-overlay', { state: 'detached', timeout: 10000 });
+
+    await homeNavButton.click();
+    await page.waitForTimeout(1000);
+
+    const geometry = await page.evaluate(() => {
+      const header = document.querySelector('[data-testid="app-header"]');
+      const sticky = document.querySelector('[data-testid="home-sticky-controls"]');
+      const content = document.querySelector('[data-testid="home-scroll-content"]');
+      const spacer = document.querySelector('[data-testid="home-fixed-spacer"]');
+      const hero = content?.firstElementChild;
+
+      if (!header || !sticky || !content || !spacer || !hero) return null;
+
+      const headerRect = header.getBoundingClientRect();
+      const stickyRect = sticky.getBoundingClientRect();
+      const contentRect = content.getBoundingClientRect();
+      const spacerRect = spacer.getBoundingClientRect();
+      const heroRect = hero.getBoundingClientRect();
+
+      return {
+        headerHeight: headerRect.height,
+        stickyBottom: stickyRect.bottom,
+        stickyHeight: stickyRect.height,
+        contentTop: contentRect.top,
+        heroTop: heroRect.top,
+        spacerHeight: spacerRect.height,
+      };
+    });
+
+    expect(geometry).not.toBeNull();
+    expect(geometry.contentTop).toBeGreaterThanOrEqual(geometry.stickyBottom - 1);
+    expect(geometry.heroTop).toBeGreaterThanOrEqual(geometry.stickyBottom - 1);
+    expect(geometry.spacerHeight).toBeGreaterThanOrEqual(
+      geometry.headerHeight + geometry.stickyHeight - 2
+    );
+  });
 });
 
 test.describe('Mobile Responsiveness Narrow Viewport', () => {
