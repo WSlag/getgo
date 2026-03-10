@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { uploadTruckerComplianceDocument } from '@/services/firestoreService';
 
-export function ProfilePage({ onNavigateToActivity, onInstallApp }) {
+export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallAppButton = false }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const {
     userProfile,
@@ -411,22 +411,24 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp }) {
       </div>
 
       {/* Install App Button */}
-      <button
-        onClick={onInstallApp}
-        className="w-full flex items-center justify-between rounded-2xl border border-orange-400/30 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:shadow-md hover:brightness-105 transition-all duration-200 group"
-        style={{ padding: '14px 18px', marginBottom: '12px' }}
-      >
-        <div className="flex items-center gap-3">
-          <div className="size-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0 group-hover:bg-white/25 transition-colors">
-            <Download className="size-5 text-white" />
+      {showInstallAppButton && (
+        <button
+          onClick={onInstallApp}
+          className="w-full flex items-center justify-between rounded-2xl border border-orange-400/30 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:shadow-md hover:brightness-105 transition-all duration-200 group"
+          style={{ padding: '14px 18px', marginBottom: '12px' }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0 group-hover:bg-white/25 transition-colors">
+              <Download className="size-5 text-white" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-white">Install App</p>
+              <p className="text-xs text-white/85">Add GetGo to your home screen</p>
+            </div>
           </div>
-          <div className="text-left">
-            <p className="text-sm font-semibold text-white">Install App</p>
-            <p className="text-xs text-white/85">Add GetGo to your home screen</p>
-          </div>
-        </div>
-        <ChevronRight className="size-5 text-white/90 group-hover:translate-x-0.5 transition-transform" />
-      </button>
+          <ChevronRight className="size-5 text-white/90 group-hover:translate-x-0.5 transition-transform" />
+        </button>
+      )}
 
       {/* My Activity Button */}
         {onNavigateToActivity && (
