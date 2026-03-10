@@ -73,23 +73,23 @@
   <text x="490" y="24" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#374151">AFTER (proposed)</text>
 
   <!-- Card -->
-  <rect x="370" y="36" width="240" height="490" rx="20" fill="white" filter="url(#cardshadow)"/>
+  <rect x="370" y="36" width="240" height="490" rx="16" fill="white" filter="url(#cardshadow)"/>
 
   <!-- Header: logo + title -->
-  <rect x="390" y="56" width="44" height="44" rx="10" fill="#f97316"/>
+  <rect x="390" y="56" width="44" height="44" rx="8" fill="#f97316"/>
   <text x="412" y="83" text-anchor="middle" font-family="Arial" font-size="18" fill="white">🚛</text>
-  <text x="442" y="70" font-family="Arial" font-size="8" font-weight="bold" fill="#94a3b8" letter-spacing="1">GETGO SECURE ACCESS</text>
+  <text x="442" y="70" font-family="Arial" font-size="8" font-weight="bold" fill="#94a3b8" letter-spacing="0.8">GETGO SECURE ACCESS</text>
   <text x="442" y="84" font-family="Arial" font-size="10" font-weight="bold" fill="#334155">✅ External browser required</text>
 
   <!-- Title — left aligned, text-2xl -->
-  <text x="390" y="118" font-family="Arial" font-size="18" font-weight="bold" fill="#0f172a">Open in Google</text>
+  <text x="386" y="118" font-family="Arial" font-size="18" font-weight="bold" fill="#0f172a">Open in Google</text>
 
   <!-- Description text (added for Android) -->
-  <text x="390" y="134" font-family="Arial" font-size="9" fill="#475569">You are viewing GetGo in Facebook's built-in</text>
-  <text x="390" y="146" font-family="Arial" font-size="9" fill="#475569">browser. Open in your phone's browser.</text>
+  <text x="386" y="134" font-family="Arial" font-size="9" fill="#475569">You are viewing GetGo in Facebook's built-in</text>
+  <text x="386" y="146" font-family="Arial" font-size="9" fill="#475569">browser. Open in your phone's browser.</text>
 
   <!-- CTA Button — standard size py-4 / 14px -->
-  <rect x="386" y="158" width="208" height="48" rx="12" fill="url(#orangeGrad)" filter="url(#shadow)"/>
+  <rect x="386" y="158" width="208" height="48" rx="10" fill="url(#orangeGrad)" filter="url(#shadow)"/>
   <text x="490" y="186" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">↗  Open in Google</text>
   <text x="490" y="200" text-anchor="middle" font-family="Arial" font-size="8" fill="#fde68a">14px 16px · 15px · bold · amber→orange</text>
 
@@ -98,18 +98,18 @@
   <text x="490" y="226" text-anchor="middle" font-family="Arial" font-size="8" fill="#22c55e">mt-5 (balanced)</text>
 
   <!-- Instructions box -->
-  <rect x="386" y="232" width="196" height="130" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
-  <text x="398" y="248" font-family="Arial" font-size="7" font-weight="bold" fill="#94a3b8" letter-spacing="1">IF THE BUTTON DOES NOT WORK</text>
+  <rect x="386" y="232" width="196" height="130" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="394" y="248" font-family="Arial" font-size="7" font-weight="bold" fill="#94a3b8" letter-spacing="0.8">IF THE BUTTON DOES NOT WORK</text>
   <!-- Step 1 -->
   <circle cx="408" cy="268" r="10" fill="#ffedd5"/>
   <text x="408" y="272" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#c2410c">1</text>
-  <text x="424" y="264" font-family="Arial" font-size="9" fill="#334155">Tap the three-dot</text>
-  <text x="424" y="276" font-family="Arial" font-size="9" fill="#334155">menu top-right.</text>
+  <text x="420" y="264" font-family="Arial" font-size="9" fill="#334155">Tap the three-dot</text>
+  <text x="420" y="276" font-family="Arial" font-size="9" fill="#334155">menu top-right.</text>
   <!-- Step 2 -->
   <circle cx="408" cy="300" r="10" fill="#ffedd5"/>
   <text x="408" y="304" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#c2410c">2</text>
-  <text x="424" y="296" font-family="Arial" font-size="9" fill="#334155">Choose "Open</text>
-  <text x="424" y="308" font-family="Arial" font-size="9" fill="#334155">in browser".</text>
+  <text x="420" y="296" font-family="Arial" font-size="9" fill="#334155">Choose "Open</text>
+  <text x="420" y="308" font-family="Arial" font-size="9" fill="#334155">in browser".</text>
 
   <!-- Fixes callouts -->
   <rect x="370" y="378" width="240" height="138" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
