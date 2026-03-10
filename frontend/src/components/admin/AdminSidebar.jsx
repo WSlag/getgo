@@ -57,9 +57,9 @@ export function AdminSidebar({
       <aside
         className={cn(
           'fixed top-0 left-0 z-40',
-          'w-72 h-screen',
+          'w-72 h-screen h-[100dvh] min-h-[100svh] max-h-[100dvh]',
           'bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800',
-          'flex flex-col',
+          'flex flex-col overflow-hidden',
           'transition-transform duration-300 ease-in-out',
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
           className
@@ -87,7 +87,7 @@ export function AdminSidebar({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto" style={{ padding: '24px' }}>
+        <nav className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -151,7 +151,10 @@ export function AdminSidebar({
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 dark:border-gray-800" style={{ padding: '16px 24px' }}>
+        <div
+          className="shrink-0 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
+          style={{ padding: '16px 24px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
+        >
           <button
             onClick={onBackToApp}
             className="w-full flex items-center gap-3 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
