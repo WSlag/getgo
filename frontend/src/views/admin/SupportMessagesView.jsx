@@ -83,7 +83,7 @@ function RoleBadge({ role }) {
 
 export function SupportMessagesView() {
   const isMobile = useMediaQuery('(max-width: 1023px)');
-  const { userProfile } = useAuth();
+  const { authUser } = useAuth();
   
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -95,36 +95,65 @@ export function SupportMessagesView() {
   const [newMessage, setNewMessage] = useState('');
   const [showResolveModal, setShowResolveModal] = useState(false);
   const [resolveNote, setResolveNote] = useState('');
+  const [error, setError] = useState(null);
   
   const messagesEndRef = useRef(null);
 
   // Load conversations
   useEffect(() => {
-    const status = statusFilter === 'all' ? null : statusFilter;
-    const unsubscribe = subscribeToAllConversations(status, (convs) => {
-      setConversations(convs);
+    if (!authUser?.uid) {
       setLoading(false);
-    });
+      return;
+    }
+
+    const status = statusFilter === 'all' ? null : statusFilter;
+    const unsubscribe = subscribeToAllConversations(
+      status,
+      (convs) => {
+        setConversations(convs);
+        setLoading(false);
+        setError(null);
+      },
+      (snapshotError) => {
+        console.error('Error loading admin conversations:', snapshotError);
+        setLoading(false);
+        setError(snapshotError?.code === 'unauthenticated'
+          ? 'Your session is not ready. Please sign in again.'
+          : 'Failed to load support conversations.');
+      }
+    );
 
     return () => unsubscribe();
-  }, [statusFilter]);
+  }, [statusFilter, authUser?.uid]);
 
   // Load messages when conversation is selected
   useEffect(() => {
-    if (!selectedConversation) {
+    if (!selectedConversation || !authUser?.uid) {
       setMessages([]);
       return;
     }
 
-    const unsubscribe = subscribeToMessages(selectedConversation.id, (msgs) => {
-      setMessages(msgs);
-    });
+    const unsubscribe = subscribeToMessages(
+      selectedConversation.id,
+      (msgs) => {
+        setMessages(msgs);
+        setError(null);
+      },
+      (snapshotError) => {
+        console.error('Error loading support messages:', snapshotError);
+        setError(snapshotError?.code === 'unauthenticated'
+          ? 'Your session expired. Please sign in again.'
+          : 'Failed to load support messages.');
+      }
+    );
 
     // Mark as read
-    markConversationAsRead(selectedConversation.id, 'admin', true);
+    markConversationAsRead(selectedConversation.id, authUser.uid).catch((readError) => {
+      console.error('Failed to mark admin conversation as read:', readError);
+    });
 
     return () => unsubscribe();
-  }, [selectedConversation?.id]);
+  }, [selectedConversation?.id, authUser?.uid]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -134,13 +163,14 @@ export function SupportMessagesView() {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation || sending) return;
+    if (!newMessage.trim() || !selectedConversation || sending || !authUser?.uid) return;
 
     setSending(true);
+    setError(null);
     try {
       await sendSupportMessage(
         selectedConversation.id,
-        'admin',
+        authUser.uid,
         'GetGo Support',
         'admin',
         newMessage.trim()
@@ -148,20 +178,26 @@ export function SupportMessagesView() {
       setNewMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
+      if (error?.code === 'unauthenticated') {
+        setError('Your session is not ready. Please sign in again.');
+      } else {
+        setError('Failed to send support reply.');
+      }
     } finally {
       setSending(false);
     }
   };
 
   const handleResolve = async () => {
-    if (!selectedConversation || sending) return;
+    if (!selectedConversation || sending || !authUser?.uid) return;
 
     setSending(true);
+    setError(null);
     try {
       await updateConversationStatus(
         selectedConversation.id,
         CONVERSATION_STATUS.RESOLVED,
-        userProfile?.uid
+        authUser.uid
       );
       setShowResolveModal(false);
       setResolveNote('');
@@ -170,6 +206,11 @@ export function SupportMessagesView() {
       if (updated) setSelectedConversation(updated);
     } catch (error) {
       console.error('Failed to resolve:', error);
+      if (error?.code === 'unauthenticated') {
+        setError('Your session is not ready. Please sign in again.');
+      } else {
+        setError('Failed to resolve conversation.');
+      }
     } finally {
       setSending(false);
     }
@@ -389,6 +430,11 @@ export function SupportMessagesView() {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {error && (
+                  <div className="mb-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                  </div>
+                )}
                 {messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">

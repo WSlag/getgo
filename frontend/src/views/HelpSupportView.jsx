@@ -442,10 +442,14 @@ function ChatAdminSection({ onBack }) {
       (convs) => {
         setConversations(convs);
         setLoading(false);
+        setError(null);
       },
       (error) => {
         console.error('Error loading conversations:', error);
         setLoading(false);
+        if (error?.code === 'unauthenticated') {
+          setError('Your session is not ready yet. Please wait a moment and try again.');
+        }
       }
     );
 
@@ -463,14 +467,20 @@ function ChatAdminSection({ onBack }) {
       selectedConversation.id,
       (msgs) => {
         setMessages(msgs);
+        setError(null);
       },
       (error) => {
         console.error('Error loading messages:', error);
+        if (error?.code === 'unauthenticated') {
+          setError('Your session expired. Please log in again.');
+        }
       }
     );
 
     // Mark as read
-    markConversationAsRead(selectedConversation.id, authUser.uid, false);
+    markConversationAsRead(selectedConversation.id, authUser.uid).catch((error) => {
+      console.error('Failed to mark conversation as read:', error);
+    });
 
     return () => unsubscribe();
   }, [selectedConversation?.id, authUser?.uid]);
@@ -500,6 +510,8 @@ function ChatAdminSection({ onBack }) {
       console.error('Failed to send message:', error);
       if (error.code === 'permission-denied' || error.message?.includes('permission-denied')) {
         setError('Unable to send message. Please try logging out and back in.');
+      } else if (error.code === 'unauthenticated') {
+        setError('Your session is not ready yet. Please wait a moment and try again.');
       } else {
         setError('Failed to send message. Please try again.');
       }
@@ -531,6 +543,8 @@ function ChatAdminSection({ onBack }) {
       // Check if it's a permission error and provide helpful message
       if (error.code === 'permission-denied' || error.message?.includes('permission-denied')) {
         setError('Unable to connect to support. Please try logging out and back in, then refresh the page.');
+      } else if (error.code === 'unauthenticated') {
+        setError('Your session is not ready yet. Please wait a moment and try again.');
       } else if (error.code === 'invalid-argument') {
         setError(error.message);
       } else {

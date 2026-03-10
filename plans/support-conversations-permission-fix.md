@@ -1,95 +1,65 @@
-# Fix Plan: Firestore Support Conversations Permission Error
+# Support Conversations Permission Fix (karga-ph)
 
 ## Problem Summary
-Users are seeing "FirebaseError: Missing or insufficient permissions" when trying to access support conversations on the production app (`getgoph.web.app`).
+Users saw `FirebaseError: Missing or insufficient permissions` for support chat operations (`subscribe`, `create`, `send`).
 
-## Root Cause Analysis
+## Confirmed Root Cause
+- Hosting is served from `getgoph.web.app` (`getgoph-a09bb`), but the frontend runtime Firebase config points to `karga-ph`.
+- New support code reads/writes `supportConversations/*`.
+- Deployed Firestore config on `karga-ph` still used legacy `supportMessages/*` rules and indexes.
+- Result: app attempted `supportConversations` operations against a project where those paths were not authorized/indexed.
 
-### 1. Firestore Security Rules
-The security rules for `supportConversations` exist in the local codebase at [`firestore.rules:533-551`](firestore.rules:533):
+## Implemented Fix Scope
+- Hardened `supportConversations` and `supportConversations/{id}/messages` Firestore rules in `firestore.rules`.
+- Enforced auth-derived identity in frontend support service:
+  - write/query identity comes from `auth.currentUser`
+  - admin send uses authenticated admin UID (no `'admin'` sentinel senderId)
+  - normalized Firestore timestamps to `Date`
+  - explicit `unauthenticated` error signaling
+- Updated user/admin support views to handle unauthenticated session paths and updated service behavior.
+- Added idempotent migration script:
+  - `functions/scripts/migrate-support-messages-to-conversations.cjs`
+  - supports dry-run and apply modes.
+- Completed legacy migration and removed the `supportMessages` rules block from deployed policy.
+- Added deployment and verification guardrails:
+  - `npm run deploy:firestore:prod` deploys rules + indexes to `karga-ph`
+  - `npm run verify:firestore:support:prod` validates deployed rules release, required indexes, and that legacy `supportMessages` rules are absent
+  - migration script aliases added in root and functions package scripts.
 
-```javascript
-// Support Conversations - users can see their own, admins can see all
-match /supportConversations/{conversationId} {
-  allow read: if isAuth();
-  allow create: if isAuth();
-  allow update: if isAuth();
-  allow delete: if false;
-  
-  // Messages subcollection within conversations
-  match /messages/{messageId} {
-    allow read: if isAuth();
-    allow create: if isAuth();
-    allow update: if isAuth();
-    allow delete: if false;
-  }
-}
-```
+## Runtime Topology (Correct)
+- Hosting URL: `https://getgoph.web.app`
+- Frontend Firebase project: `karga-ph`
+- Firestore/Auth/Functions runtime target for support chat: `karga-ph`
 
-**Issue**: These rules may not be deployed to the production Firebase project (`getgoph-a09bb`).
+## Runbook
+1. Configure migration credentials (Admin SDK requirement):
+   - Set `GOOGLE_APPLICATION_CREDENTIALS` to a service-account JSON with Firestore read/write access on `karga-ph`.
+2. Dry-run migration:
+   - `npm run migrate:support:dry`
+3. Apply migration:
+   - `npm run migrate:support:apply`
+4. Deploy Firestore config to runtime backend project:
+   - `npm run deploy:firestore:prod`
+5. Verify deployed rules + indexes:
+   - `npm run verify:firestore:support:prod`
 
-### 2. Firestore Indexes
-The required composite indexes for the support conversations queries are defined in [`firestore.indexes.json:336-359`](firestore.indexes.json:336):
-- `userId` + `updatedAt` (DESC) - for user's conversations
-- `status` + `updatedAt` (DESC) - for admin view
-- `userId` + `status` + `updatedAt` (DESC) - for filtered admin view
+## Post-Deploy Validation
+1. Hard refresh web clients to bypass stale service-worker bundles.
+2. Confirm runtime frontend bundle includes latest support chunks:
+   - `HelpSupportView-*.js`
+   - `supportMessageService-*.js`
+3. Execute user flow:
+   - create conversation
+   - send message
+   - verify compose input clears and no `permission-denied` in console
+4. Execute admin flow:
+   - open same conversation
+   - verify message is visible in thread
+   - send admin reply and resolve
 
-**Issue**: These indexes may not be deployed to production.
-
-### 3. Query Being Used
-The app uses this query in [`supportMessageService.js:414-418`](frontend/src/services/supportMessageService.js:414):
-```javascript
-const q = query(
-  conversationsRef,
-  where('userId', '==', normalizedUserId),
-  orderBy('updatedAt', 'desc')
-);
-```
-
-This query requires a composite index on `[userId, updatedAt]`.
-
-## Solution
-
-### Step 1: Deploy Firestore Security Rules
-Deploy the security rules to the production Firebase project:
-
-```bash
-firebase use prod-getgoph
-firebase deploy --only firestore:rules
-```
-
-Or if using the default project:
-```bash
-firebase deploy --only firestore:rules
-```
-
-### Step 2: Deploy Firestore Indexes
-Deploy the composite indexes to the production Firebase project:
-
-```bash
-firebase deploy --only firestore:indexes
-```
-
-### Step 3: Verify the Deployment
-After deployment, verify the rules are active by:
-1. Checking the Firebase Console > Firestore > Rules
-2. Testing the support messages feature on the production app
-
-## Alternative: If Rules Are Already Deployed
-
-If the rules are already deployed and the error persists, possible causes:
-
-1. **User Authentication Issue**: The user might not be properly authenticated when the subscription is made
-2. **Token Expiry**: Firebase auth token might have expired
-3. **Caching Issue**: Try clearing the browser cache or testing in incognito mode
-
-## Files Involved
-- [`firestore.rules`](firestore.rules) - Firestore security rules (lines 533-551)
-- [`firestore.indexes.json`](firestore.indexes.json) - Firestore composite indexes (lines 336-359)
-- [`frontend/src/services/supportMessageService.js`](frontend/src/services/supportMessageService.js) - Support message service (lines 404-435)
-- [`frontend/src/views/HelpSupportView.jsx`](frontend/src/views/HelpSupportView.jsx) - Help support view (lines 434-453)
-
-## Firebase Project Configuration
-- **Production Project**: `getgoph-a09bb`
-- **Hosting URL**: `getgoph.web.app`
-- **Project Alias**: `prod-getgoph` (in .firebaserc)
+## Acceptance Checks
+- User can list/create/reply in own support conversations.
+- Admin can list all conversations, reply, and resolve.
+- Non-admin cannot read/write another user conversation.
+- Non-admin cannot write `senderRole: 'admin'`.
+- No support-chat `permission-denied` errors in normal user/admin flows.
