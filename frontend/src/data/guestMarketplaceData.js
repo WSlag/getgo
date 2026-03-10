@@ -268,7 +268,9 @@ export const guestActiveShipments = [
     progress: 36,
     origin: 'Davao City',
     destination: 'Manila',
-    currentLocation: { name: 'Pagadian Transit Hub' },
+    originCoords: { lat: 7.1907, lng: 125.4553 },
+    destCoords: { lat: 14.5995, lng: 120.9842 },
+    currentLocation: { name: 'Pagadian Transit Hub', lat: 7.8257, lng: 123.4364 },
     lastUpdate: '12 min ago',
   },
   {
@@ -278,7 +280,9 @@ export const guestActiveShipments = [
     progress: 58,
     origin: 'Cebu City',
     destination: 'Iloilo City',
-    currentLocation: { name: 'Guimaras Channel' },
+    originCoords: { lat: 10.3157, lng: 123.8854 },
+    destCoords: { lat: 10.7202, lng: 122.5621 },
+    currentLocation: { name: 'Guimaras Channel', lat: 10.57, lng: 122.62 },
     lastUpdate: '5 min ago',
   },
   {
@@ -288,7 +292,9 @@ export const guestActiveShipments = [
     progress: 74,
     origin: 'General Santos',
     destination: 'Cagayan de Oro',
-    currentLocation: { name: 'Malaybalay Bypass' },
+    originCoords: { lat: 6.1164, lng: 125.1716 },
+    destCoords: { lat: 8.4542, lng: 124.6319 },
+    currentLocation: { name: 'Malaybalay Bypass', lat: 8.1575, lng: 125.1278 },
     lastUpdate: '18 min ago',
   },
 ];

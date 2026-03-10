@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { X, MapPinned, MapPin, Navigation, Radio, Loader2, CheckCircle2 } from 'lucide-react';
@@ -151,6 +151,7 @@ export default function TrackingMap({
 }) {
   const [routeData, setRouteData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const previousBodyOverflowRef = useRef(null);
 
   const safeProgress = Number(shipment?.progress || 0);
   const currentLocationName = shipment?.currentLocation?.name || shipment?.currentLocation || 'Unknown';
@@ -249,9 +250,10 @@ export default function TrackingMap({
 
   useEffect(() => {
     if (showFull) {
+      previousBodyOverflowRef.current = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return () => {
-        document.body.style.overflow = 'unset';
+        document.body.style.overflow = previousBodyOverflowRef.current ?? '';
       };
     }
     return undefined;
