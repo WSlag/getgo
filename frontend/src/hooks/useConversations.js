@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
+import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 
 /**
  * Hook to fetch all conversations for a user
@@ -18,6 +19,7 @@ export function useConversations(userId) {
     if (!userId) {
       setConversations([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
@@ -112,11 +114,16 @@ export function useConversations(userId) {
           recompute();
         },
         (err) => {
-          console.error(`Error subscribing messages for bid ${bidId}:`, err);
+          reportFirestoreListenerError(`messages for bid ${bidId}`, err);
           messagesByBid.set(bidId, []);
           recompute();
 
-          if (err?.code === 'permission-denied' && !disposed && bidMap.has(bidId)) {
+          const code = String(err?.code || '').toLowerCase();
+          const shouldRetry =
+            !isPermissionDeniedError(err)
+            && (code === 'unavailable' || code === 'deadline-exceeded');
+
+          if (shouldRetry && !disposed && bidMap.has(bidId)) {
             const attempts = (messageRetryCounts.get(bidId) || 0) + 1;
             if (attempts <= 3 && !messageRetryTimers.has(bidId)) {
               messageRetryCounts.set(bidId, attempts);
@@ -196,8 +203,9 @@ export function useConversations(userId) {
         syncBids();
       },
       (err) => {
-        console.error('Error subscribing bidder conversations:', err);
-        setError(err.message);
+        reportFirestoreListenerError('bidder conversations', err);
+        setConversations([]);
+        setError(isPermissionDeniedError(err) ? null : err.message);
         setLoading(false);
       }
     );
@@ -210,8 +218,9 @@ export function useConversations(userId) {
         syncBids();
       },
       (err) => {
-        console.error('Error subscribing owner conversations:', err);
-        setError(err.message);
+        reportFirestoreListenerError('owner conversations', err);
+        setConversations([]);
+        setError(isPermissionDeniedError(err) ? null : err.message);
         setLoading(false);
       }
     );

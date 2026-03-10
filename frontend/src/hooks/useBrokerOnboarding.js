@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { doc, onSnapshot, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { reportFirestoreListenerError } from '../utils/firebaseErrors';
 
 const HOME_CARD_COOLDOWN_DAYS = 7; // Reappear after 7 days if dismissed
 
@@ -47,12 +48,15 @@ export function useBrokerOnboarding(userId, isBroker) {
           };
           setDoc(trackingRef, initialData)
             .then(() => setTracking({ id: 'tracking', ...initialData }))
-            .catch(console.error);
+            .catch((error) => {
+              reportFirestoreListenerError('broker onboarding tracking initialization', error);
+            });
         }
         setLoading(false);
       },
       (error) => {
-        console.error('Error listening to broker onboarding tracking:', error);
+        reportFirestoreListenerError('broker onboarding tracking', error);
+        setTracking(null);
         setLoading(false);
       }
     );

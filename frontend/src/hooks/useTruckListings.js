@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/f
 import { db } from '../firebase';
 import { normalizeListingStatus, toTruckUiStatus } from '../utils/listingStatus';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
+import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 
 export function useTruckListings(options = {}) {
   const {
@@ -97,8 +98,9 @@ export function useTruckListings(options = {}) {
         setError(null);
       },
       (err) => {
-        console.error('Error fetching truck listings:', err);
-        setError(err.message);
+        reportFirestoreListenerError('truck listings', err);
+        setListings([]);
+        setError(isPermissionDeniedError(err) ? null : err.message);
         setLoading(false);
       }
     );

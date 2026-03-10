@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/f
 import { db } from '../firebase';
 import { normalizeListingStatus } from '../utils/listingStatus';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
+import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 
 export function useCargoListings(options = {}) {
   const {
@@ -95,8 +96,9 @@ export function useCargoListings(options = {}) {
         setError(null);
       },
       (err) => {
-        console.error('Error fetching cargo listings:', err);
-        setError(err.message);
+        reportFirestoreListenerError('cargo listings', err);
+        setListings([]);
+        setError(isPermissionDeniedError(err) ? null : err.message);
         setLoading(false);
       }
     );

@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { getCoordinates } from '../utils/cityCoordinates';
 import { formatTimeAgo } from '../utils/dateFormatting';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
+import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 
 export function useShipments(userId) {
   const [shipments, setShipments] = useState([]);
@@ -14,6 +15,7 @@ export function useShipments(userId) {
     if (!userId) {
       setShipments([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
@@ -105,8 +107,9 @@ export function useShipments(userId) {
         backfill();
       },
       (err) => {
-        console.error('Error fetching shipments:', err);
-        setError(err.message);
+        reportFirestoreListenerError('shipments', err);
+        setShipments([]);
+        setError(isPermissionDeniedError(err) ? null : err.message);
         setLoading(false);
       }
     );

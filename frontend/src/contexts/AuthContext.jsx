@@ -14,14 +14,12 @@ import {
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, waitForAppCheckInitialization, isAuthAppVerificationBypassed } from '../firebase';
 import api from '../services/api';
+import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 
 const AuthContext = createContext();
 const RECAPTCHA_CONTAINER_ID = 'firebase-auth-recaptcha-container';
 const AUTH_RECAPTCHA_CONFIG_ENDPOINT = 'https://identitytoolkit.googleapis.com/v2/recaptchaConfig';
 const AUTH_RECAPTCHA_CONFIG_TIMEOUT_MS = 8000;
-const AUTH_RECAPTCHA_SCRIPT_TIMEOUT_MS = 8000;
-const RECAPTCHA_ENTERPRISE_SCRIPT_ORIGIN = 'https://www.google.com';
-const RECAPTCHA_ENTERPRISE_SCRIPT_PATH = '/recaptcha/enterprise.js';
 const EMAIL_MAGIC_LINK_FEATURE_ENABLED =
   import.meta.env.VITE_ENABLE_EMAIL_MAGIC_LINK === 'true'
   || Boolean(import.meta.env.DEV);
@@ -31,7 +29,6 @@ const REFERRAL_ERROR_STORAGE_KEY = 'karga_referral_attribution_last_error';
 const EMAIL_LINK_GENERIC_MESSAGE = 'If an eligible account exists, a sign-in link will be sent.';
 
 let authRecaptchaSiteKeyPromise = null;
-const authRecaptchaScriptLoadPromises = new Map();
 
 function normalizeEmail(value) {
   const email = String(value || '').trim().toLowerCase();
@@ -202,57 +199,6 @@ function buildAuthRecaptchaConfigUrl(apiKey) {
   return url.toString();
 }
 
-function isMatchingEnterpriseScript(scriptSrc, siteKey) {
-  if (!scriptSrc || !siteKey || typeof window === 'undefined') return false;
-  try {
-    const parsed = new URL(scriptSrc, window.location.origin);
-    return (
-      parsed.origin === RECAPTCHA_ENTERPRISE_SCRIPT_ORIGIN
-      && parsed.pathname === RECAPTCHA_ENTERPRISE_SCRIPT_PATH
-      && parsed.searchParams.get('render') === siteKey
-    );
-  } catch {
-    return false;
-  }
-}
-
-function getMatchingEnterpriseScript(siteKey) {
-  if (typeof document === 'undefined') return null;
-  const scripts = document.querySelectorAll('script[src]');
-  for (const script of scripts) {
-    if (isMatchingEnterpriseScript(script.getAttribute('src') || '', siteKey)) {
-      return script;
-    }
-  }
-  return null;
-}
-
-function waitForScriptLoad(scriptEl, timeoutMs) {
-  return new Promise((resolve) => {
-    let settled = false;
-    let timeoutId = null;
-
-    const cleanup = () => {
-      scriptEl.removeEventListener('load', onFinish);
-      scriptEl.removeEventListener('error', onFinish);
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId);
-      }
-    };
-
-    const onFinish = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve();
-    };
-
-    scriptEl.addEventListener('load', onFinish, { once: true });
-    scriptEl.addEventListener('error', onFinish, { once: true });
-    timeoutId = setTimeout(onFinish, timeoutMs);
-  });
-}
-
 async function fetchAuthRecaptchaSiteKey() {
   if (authRecaptchaSiteKeyPromise) {
     return authRecaptchaSiteKeyPromise;
@@ -292,44 +238,6 @@ async function fetchAuthRecaptchaSiteKey() {
   })();
 
   return authRecaptchaSiteKeyPromise;
-}
-
-async function ensureAuthEnterpriseRecaptchaScript(siteKey) {
-  if (!siteKey || typeof window === 'undefined' || typeof document === 'undefined') return;
-
-  if (window.grecaptcha?.enterprise && getMatchingEnterpriseScript(siteKey)) {
-    return;
-  }
-
-  if (authRecaptchaScriptLoadPromises.has(siteKey)) {
-    await authRecaptchaScriptLoadPromises.get(siteKey);
-    return;
-  }
-
-  const scriptUrl = `${RECAPTCHA_ENTERPRISE_SCRIPT_ORIGIN}${RECAPTCHA_ENTERPRISE_SCRIPT_PATH}?render=${encodeURIComponent(siteKey)}`;
-  const existingScript = getMatchingEnterpriseScript(siteKey);
-  const scriptEl = existingScript || document.createElement('script');
-
-  if (!existingScript) {
-    scriptEl.src = scriptUrl;
-    scriptEl.async = true;
-    scriptEl.defer = true;
-    document.head.appendChild(scriptEl);
-  }
-
-  const loadPromise = waitForScriptLoad(scriptEl, AUTH_RECAPTCHA_SCRIPT_TIMEOUT_MS);
-  authRecaptchaScriptLoadPromises.set(siteKey, loadPromise);
-  await loadPromise;
-}
-
-async function preloadAuthRecaptchaEnterpriseScript() {
-  try {
-    const siteKey = await fetchAuthRecaptchaSiteKey();
-    if (!siteKey) return;
-    await ensureAuthEnterpriseRecaptchaScript(siteKey);
-  } catch {
-    // Continue with default Auth flow if preload fails.
-  }
 }
 
 function ensureRecaptchaContainer() {
@@ -514,7 +422,12 @@ export function AuthProvider({ children }) {
       }
       setLoading(false);
     }, (error) => {
-      console.error('Error listening to user profile:', error);
+      reportFirestoreListenerError('user profile', error);
+      setUserProfile(null);
+      setIsNewUser(false);
+      if (isPermissionDeniedError(error)) {
+        setAuthError('Unable to load your profile due to insufficient permissions. Please sign in again.');
+      }
       setLoading(false);
     });
 
@@ -529,7 +442,7 @@ export function AuthProvider({ children }) {
     const unsubShipper = onSnapshot(shipperRef, (snap) => {
       setShipperProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
     }, (error) => {
-      console.error('Error listening to shipper profile:', error);
+      reportFirestoreListenerError('shipper profile', error);
       setShipperProfile(null);
     });
 
@@ -620,7 +533,7 @@ export function AuthProvider({ children }) {
     const unsubTrucker = onSnapshot(truckerRef, (snap) => {
       setTruckerProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
     }, (error) => {
-      console.error('Error listening to trucker profile:', error);
+      reportFirestoreListenerError('trucker profile', error);
       setTruckerProfile(null);
     });
 
@@ -635,7 +548,7 @@ export function AuthProvider({ children }) {
     const unsubCompliance = onSnapshot(complianceRef, (snap) => {
       setTruckerCompliance(snap.exists() ? { id: snap.id, ...snap.data() } : null);
     }, (error) => {
-      console.error('Error listening to trucker compliance:', error);
+      reportFirestoreListenerError('trucker compliance', error);
       setTruckerCompliance(null);
     });
 
@@ -650,7 +563,7 @@ export function AuthProvider({ children }) {
     const unsubBroker = onSnapshot(brokerRef, (snap) => {
       setBrokerProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
     }, (error) => {
-      console.error('Error listening to broker profile:', error);
+      reportFirestoreListenerError('broker profile', error);
       setBrokerProfile(null);
     });
 
@@ -665,7 +578,7 @@ export function AuthProvider({ children }) {
     const unsubWallet = onSnapshot(walletRef, (snap) => {
       setWallet(snap.exists() ? { id: snap.id, ...snap.data() } : { balance: 0 });
     }, (error) => {
-      console.error('Error listening to wallet:', error);
+      reportFirestoreListenerError('wallet', error);
       setWallet({ balance: 0 });
     });
 
@@ -913,6 +826,18 @@ export function AuthProvider({ children }) {
       }
 
       await waitForAppCheckInitialization();
+      if (import.meta.env.DEV && !isAuthAppVerificationBypassed) {
+        const siteKey = await fetchAuthRecaptchaSiteKey();
+        if (!siteKey) {
+          const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+          const isLocalHost = currentHost === 'localhost' || currentHost === '127.0.0.1';
+          const recaptchaConfigError = isLocalHost
+            ? 'Phone OTP is unavailable on localhost because Firebase reCAPTCHA config could not be loaded. Use Firebase Auth Emulator/test numbers or configure authorized domains and reCAPTCHA settings.'
+            : `Phone OTP is unavailable because Firebase reCAPTCHA config could not be loaded for ${currentHost}. Check Firebase Authentication phone sign-in and reCAPTCHA settings.`;
+          setAuthError(recaptchaConfigError);
+          return { success: false, error: recaptchaConfigError, code: 'auth/recaptcha-config-missing' };
+        }
+      }
       // NOTE: Do NOT preload the reCAPTCHA Enterprise script here.
       // App Check already initialises grecaptcha.enterprise with its own site key.
       // Pre-loading a second Enterprise script with the Identity Platform key

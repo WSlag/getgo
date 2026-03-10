@@ -90,6 +90,7 @@ import api from './services/api';
 import { guestCargoListings, guestTruckListings, guestActiveShipments } from '@/data/guestMarketplaceData';
 import { canBidCargoStatus, canBookTruckStatus, matchesMarketplaceFilter, normalizeListingStatus, toTruckUiStatus } from '@/utils/listingStatus';
 import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
+import { isPermissionDeniedError, reportFirestoreListenerError } from '@/utils/firebaseErrors';
 import {
   WORKSPACE_ROLES,
   normalizeWorkspaceRole,
@@ -129,19 +130,23 @@ export default function GetGoApp() {
     clearReferralAttributionEvent,
   } = useAuth();
 
+  const canSubscribeUserData = Boolean(authUser?.uid && userProfile);
+  const activeUserId = canSubscribeUserData ? authUser.uid : null;
+  const authUserForDataHooks = canSubscribeUserData ? authUser : null;
+
   // Firebase Data Hooks - fetch ALL listings, filter in view layer
   // Pass authUser so hooks only subscribe when authenticated (avoids permission errors)
-  const { listings: firebaseCargoListings } = useCargoListings({ authUser });
-  const { listings: firebaseTruckListings } = useTruckListings({ authUser });
-  const { notifications: firebaseNotifications } = useNotifications(authUser?.uid);
-  const { bids: myBids } = useMyBids(authUser?.uid);
-  const { conversations, loading: conversationsLoading } = useConversations(authUser?.uid);
+  const { listings: firebaseCargoListings } = useCargoListings({ authUser: authUserForDataHooks });
+  const { listings: firebaseTruckListings } = useTruckListings({ authUser: authUserForDataHooks });
+  const { notifications: firebaseNotifications } = useNotifications(activeUserId);
+  const { bids: myBids } = useMyBids(activeUserId);
+  const { conversations, loading: conversationsLoading } = useConversations(activeUserId);
   // Wallet removed - using direct GCash payment for platform fees
   const {
     shipments: firebaseShipments,
     activeShipments: firebaseActiveShipments,
     deliveredShipments: firebaseDeliveredShipments,
-  } = useShipments(authUser?.uid);
+  } = useShipments(activeUserId);
 
   // Custom Hooks for UI State
   const { darkMode, toggleDarkMode } = useTheme();
@@ -166,7 +171,7 @@ export default function GetGoApp() {
     emitBid,
     emitShipmentUpdate,
     clearNotification,
-  } = useSocket(authUser?.uid);
+  } = useSocket(activeUserId);
 
   // Broker Onboarding & Re-engagement
   const {
@@ -177,7 +182,7 @@ export default function GetGoApp() {
     markOnboardingDeclined: handleBrokerOnboardingDeclined,
     markBrokerGuideCompleted,
     activateTrigger,
-  } = useBrokerOnboarding(authUser?.uid, isBroker);
+  } = useBrokerOnboarding(activeUserId, isBroker);
 
   // Auth Guard for protected actions
   const {
@@ -577,7 +582,7 @@ export default function GetGoApp() {
 
   // Load contracts function (can be called manually to refresh)
   const loadContracts = async () => {
-    if (!authUser?.uid) {
+    if (!activeUserId) {
       setContracts([]);
       return;
     }
@@ -589,7 +594,7 @@ export default function GetGoApp() {
         fallbackKeys: ['signedAt', 'completedAt', 'updatedAt'],
       }));
     } catch (error) {
-      console.error('Error fetching contracts:', error);
+      reportFirestoreListenerError('contracts (fallback fetch)', error);
       setContracts([]);
     } finally {
       setContractsLoading(false);
@@ -598,7 +603,7 @@ export default function GetGoApp() {
 
   // Subscribe contracts for current user (real-time)
   useEffect(() => {
-    if (!authUser?.uid) {
+    if (!activeUserId) {
       setContracts([]);
       setContractsLoading(false);
       return;
@@ -608,7 +613,7 @@ export default function GetGoApp() {
 
     const contractsQuery = query(
       collection(db, 'contracts'),
-      where('participantIds', 'array-contains', authUser.uid)
+      where('participantIds', 'array-contains', activeUserId)
     );
 
     const unsubscribe = onSnapshot(
@@ -625,7 +630,12 @@ export default function GetGoApp() {
         setContractsLoading(false);
       },
       async (error) => {
-        console.error('Error subscribing contracts:', error);
+        reportFirestoreListenerError('contracts', error);
+        if (isPermissionDeniedError(error)) {
+          setContracts([]);
+          setContractsLoading(false);
+          return;
+        }
         try {
           await loadContracts();
         } finally {
@@ -635,7 +645,7 @@ export default function GetGoApp() {
     );
 
     return () => unsubscribe();
-  }, [authUser?.uid]);
+  }, [activeUserId]);
 
   // Mark PWA engagement when a user signs in (fires once per uid).
   useEffect(() => {
