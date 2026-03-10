@@ -23,11 +23,182 @@ const AUTH_MODAL_SELECTOR = '[data-testid="auth-modal"]';
 const AUTH_PHONE_INPUT_SELECTOR = `${AUTH_MODAL_SELECTOR} input[placeholder="9171234567"]`;
 const AUTH_OTP_INPUT_SELECTOR = `${AUTH_MODAL_SELECTOR} input[placeholder="000000"], ${AUTH_MODAL_SELECTOR} input[type="text"][maxlength="6"]`;
 
+async function getAuthModalDetails(page) {
+  const modal = page.locator(AUTH_MODAL_SELECTOR).first();
+  const visible = await modal.isVisible().catch(() => false);
+  if (!visible) {
+    return { visible: false };
+  }
+
+  const title = String(await modal.locator('h2').first().textContent().catch(() => '') || '').trim();
+  const error = String(
+    await modal.locator('p.text-red-600, p.text-red-500, .text-red-600, .text-red-500').first()
+      .textContent()
+      .catch(() => '')
+      || ''
+  ).trim();
+  const phoneStepVisible = await modal.locator('input[placeholder="9171234567"]').first().isVisible().catch(() => false);
+  const otpStepVisible = await modal.locator('input[placeholder="000000"], input[type="text"][maxlength="6"]').first()
+    .isVisible()
+    .catch(() => false);
+
+  return {
+    visible: true,
+    title,
+    error,
+    phoneStepVisible,
+    otpStepVisible,
+  };
+}
+
+async function tryDismissAuthModal(page) {
+  const authModal = page.locator(AUTH_MODAL_SELECTOR).first();
+  const authModalVisible = await authModal.isVisible().catch(() => false);
+  if (!authModalVisible) {
+    return true;
+  }
+
+  const closeButton = page.locator(`${AUTH_MODAL_SELECTOR} button`).first();
+  if (await closeButton.isVisible().catch(() => false)) {
+    await closeButton.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(250);
+  }
+
+  if (await authModal.isVisible().catch(() => false)) {
+    const backdrop = page.locator(`${AUTH_MODAL_SELECTOR} > div`).first();
+    if (await backdrop.isVisible().catch(() => false)) {
+      await backdrop.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(250);
+    }
+  }
+
+  if (await authModal.isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(250);
+  }
+
+  return !(await authModal.isVisible().catch(() => false));
+}
+
+async function assertNoBlockingOverlays(page, context) {
+  const authModal = await getAuthModalDetails(page);
+  if (authModal.visible) {
+    const details = [
+      authModal.title ? `title="${authModal.title}"` : 'title="<missing>"',
+      authModal.error ? `error="${authModal.error}"` : 'error="<none>"',
+      authModal.phoneStepVisible ? 'step=phone' : null,
+      authModal.otpStepVisible ? 'step=otp' : null,
+    ].filter(Boolean).join(', ');
+    throw new Error(`[AuthFixture] ${context} blocked by auth modal (${details}).`);
+  }
+
+  const genericDialogVisible = await page.locator('[role="dialog"]').first().isVisible().catch(() => false);
+  if (genericDialogVisible) {
+    throw new Error(`[AuthFixture] ${context} blocked by visible [role="dialog"] overlay.`);
+  }
+}
+
+async function waitForAuthenticatedStateOrThrow(page, timeoutMs = 30000) {
+  try {
+    await page.waitForFunction(
+      () => {
+        const headings = Array.from(document.querySelectorAll('h1'));
+        const onRegistrationScreen = headings.some((h) =>
+          String(h.textContent || '').includes('Complete Your Profile')
+        );
+        const authModalVisible = Boolean(document.querySelector('[data-testid="auth-modal"]'));
+        const hasFirebaseAuthUser = Object.keys(window.localStorage || {}).some((key) => {
+          if (!key.startsWith('firebase:authUser:')) return false;
+          const value = window.localStorage.getItem(key);
+          return Boolean(value && value !== 'null');
+        });
+        return onRegistrationScreen || (hasFirebaseAuthUser && !authModalVisible);
+      },
+      { timeout: timeoutMs }
+    );
+  } catch (error) {
+    const authModal = await getAuthModalDetails(page);
+    const hasFirebaseAuthUser = await page.evaluate(() => {
+      try {
+        return Object.keys(window.localStorage || {}).some((key) => {
+          if (!key.startsWith('firebase:authUser:')) return false;
+          const value = window.localStorage.getItem(key);
+          return Boolean(value && value !== 'null');
+        });
+      } catch (e) {
+        return false;
+      }
+    });
+
+    const details = [
+      `authUserInStorage=${hasFirebaseAuthUser}`,
+      `authModalVisible=${authModal.visible}`,
+      authModal.title ? `title="${authModal.title}"` : null,
+      authModal.error ? `error="${authModal.error}"` : null,
+      authModal.phoneStepVisible ? 'step=phone' : null,
+      authModal.otpStepVisible ? 'step=otp' : null,
+    ].filter(Boolean).join(', ');
+
+    throw new Error(
+      `[AuthFixture] OTP verification did not complete authentication within ${timeoutMs}ms (${details}).`
+    );
+  }
+}
+
+async function getAuthModalFlowState(page) {
+  return page.evaluate(() => {
+    const modal = document.querySelector('[data-testid="auth-modal"]');
+    if (!modal) {
+      return { status: 'closed', error: '' };
+    }
+
+    const hasOtpInput = Boolean(
+      modal.querySelector('input[placeholder="000000"], input[type="text"][maxlength="6"]')
+    );
+    if (hasOtpInput) {
+      return { status: 'otp', error: '' };
+    }
+
+    const hasPhoneInput = Boolean(modal.querySelector('input[placeholder="9171234567"]'));
+    const errorText = String(
+      modal.querySelector('p.text-red-600, p.text-red-500, .text-red-600, .text-red-500')?.textContent || ''
+    ).trim();
+    if (errorText) {
+      return { status: hasPhoneInput ? 'phone' : 'unknown', error: errorText };
+    }
+
+    return { status: hasPhoneInput ? 'phone' : 'unknown', error: '' };
+  });
+}
+
+async function waitForOtpStepOrThrow(page, timeoutMs = 25000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const state = await getAuthModalFlowState(page);
+    if (state.status === 'otp' || state.status === 'closed') {
+      return state;
+    }
+    if (state.error) {
+      throw new Error(`[AuthFixture] Failed to request OTP: ${state.error}`);
+    }
+    await page.waitForTimeout(250);
+  }
+
+  const finalState = await getAuthModalFlowState(page);
+  const detail = finalState.error
+    ? `status=${finalState.status}, error="${finalState.error}"`
+    : `status=${finalState.status}`;
+  throw new Error(`[AuthFixture] Timed out waiting for OTP step after pressing Continue (${detail}).`);
+}
+
 async function dismissBlockingDialogs(page, maxAttempts = 6) {
   for (let i = 0; i < maxAttempts; i++) {
+    await tryDismissAuthModal(page);
+    const authModalVisible = await page.locator(AUTH_MODAL_SELECTOR).first().isVisible().catch(() => false);
+
     const dialog = page.locator('[role="dialog"]').first();
     const isDialogVisible = await dialog.isVisible().catch(() => false);
-    if (!isDialogVisible) {
+    if (!isDialogVisible && !authModalVisible) {
       return;
     }
 
@@ -91,14 +262,22 @@ export const test = base.extend({
         // This ensures each test starts fresh without cached credentials
         // from previous tests that may have been invalidated by clearEmulatorData()
         await page.goto('/');
-        await page.evaluate(() => {
+        await page.evaluate(async () => {
           try { localStorage.clear(); } catch (e) {}
           try { sessionStorage.clear(); } catch (e) {}
           // Clear indexedDB Firebase auth databases
           const dbNames = ['firebaseLocalStorageDb', 'firebase-heartbeat-database'];
-          dbNames.forEach(name => {
-            try { indexedDB.deleteDatabase(name); } catch (e) {}
-          });
+          await Promise.all(dbNames.map((name) => new Promise((resolve) => {
+            try {
+              const req = indexedDB.deleteDatabase(name);
+              req.onsuccess = () => resolve();
+              req.onerror = () => resolve();
+              req.onblocked = () => resolve();
+              setTimeout(resolve, 500);
+            } catch (e) {
+              resolve();
+            }
+          })));
         });
         // Reload to apply storage clear
         await page.reload({ waitUntil: 'domcontentloaded' });
@@ -150,62 +329,52 @@ export const test = base.extend({
           hasText: /continue|send|next/i,
         }).first();
         await sendButton.click();
-
-        await page.waitForSelector(AUTH_OTP_INPUT_SELECTOR, { timeout: 15000 });
+        const otpTransitionState = await waitForOtpStepOrThrow(page, 25000);
 
         // Fetch the actual OTP from the Firebase Auth Emulator REST API
-        let otpCode = TEST_OTP_CODE; // fallback
-        try {
-          const resp = await fetch(
-            `http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/verificationCodes`
-          );
-          if (resp.ok) {
-            const data = await resp.json();
-            const e164Phone = phoneNumber.startsWith('+') ? phoneNumber : `+63${phoneNumber}`;
-            const matching = (data.verificationCodes || [])
-              .filter((v) => v.phoneNumber === e164Phone)
-              .pop();
-            if (matching?.code) {
-              otpCode = matching.code;
-            }
-          }
-        } catch (e) {
-          // Emulator not available or different version - use fallback
-        }
-
-        const otpInput = page.locator(AUTH_OTP_INPUT_SELECTOR).first();
-        await otpInput.fill(otpCode);
-
-        // Click Verify button
-        await page.waitForTimeout(300);
-        const verifyButton = page.locator(`${AUTH_MODAL_SELECTOR} button`).filter({
-          hasText: /^verify$|verify code/i,
-        }).first();
-
-        if (await verifyButton.count() > 0) {
-          await verifyButton.click();
-        }
-
-        // Wait for either registration screen or authenticated shell.
-        await page.waitForFunction(
-          () => {
-            const headings = Array.from(document.querySelectorAll('h1'));
-            const onRegistrationScreen = headings.some((h) =>
-              String(h.textContent || '').includes('Complete Your Profile')
+        if (otpTransitionState.status === 'otp') {
+          let otpCode = TEST_OTP_CODE; // fallback
+          try {
+            const resp = await fetch(
+              `http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/verificationCodes`
             );
-            const hasMainHeader = !!document.querySelector('header');
-            const authModalVisible = Boolean(document.querySelector('[data-testid="auth-modal"]'));
-            return onRegistrationScreen || (hasMainHeader && !authModalVisible);
-          },
-          { timeout: 30000 }
-        ).catch(() => {});
+            if (resp.ok) {
+              const data = await resp.json();
+              const e164Phone = phoneNumber.startsWith('+') ? phoneNumber : `+63${phoneNumber}`;
+              const matching = (data.verificationCodes || [])
+                .filter((v) => v.phoneNumber === e164Phone)
+                .pop();
+              if (matching?.code) {
+                otpCode = matching.code;
+              }
+            }
+          } catch (e) {
+            // Emulator not available or different version - use fallback
+          }
+
+          const otpInput = page.locator(AUTH_OTP_INPUT_SELECTOR).first();
+          await otpInput.fill(otpCode);
+
+          // Click Verify button
+          await page.waitForTimeout(300);
+          const verifyButton = page.locator(`${AUTH_MODAL_SELECTOR} button`).filter({
+            hasText: /^verify$|verify code/i,
+          }).first();
+
+          if (await verifyButton.count() > 0) {
+            await verifyButton.click();
+          }
+        }
+
+        await waitForAuthenticatedStateOrThrow(page, 30000);
 
         await page.waitForFunction(
           () => !document.querySelector('.animate-spin'),
           { timeout: 20000 }
-        ).catch(() => {});
+        );
 
         await dismissBlockingDialogs(page);
+        await assertNoBlockingOverlays(page, 'login completion');
         await page.waitForTimeout(500);
       },
 
@@ -536,6 +705,7 @@ export const test = base.extend({
       async navigateTo(tabName) {
         const tabLower = tabName.toLowerCase();
         await dismissBlockingDialogs(page);
+        await assertNoBlockingOverlays(page, `navigateTo("${tabLower}") precondition`);
 
         if (tabLower === 'messages' || tabLower === 'chat') {
           await page.evaluate(() => {
@@ -597,6 +767,7 @@ export const test = base.extend({
         if (await navBtn.count() > 0) {
           const isVisible = await navBtn.isVisible().catch(() => false);
           if (isVisible) {
+            await assertNoBlockingOverlays(page, `navigateTo("${tabLower}") before sidebar click`);
             await navBtn.click();
             await page.waitForTimeout(1000);
             return;
@@ -609,6 +780,7 @@ export const test = base.extend({
           const btn = anyBtn.nth(i);
           const isVisible = await btn.isVisible().catch(() => false);
           if (isVisible) {
+            await assertNoBlockingOverlays(page, `navigateTo("${tabLower}") before fallback click`);
             await btn.click();
             await page.waitForTimeout(1000);
             return;
