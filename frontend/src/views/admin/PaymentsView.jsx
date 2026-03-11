@@ -18,64 +18,67 @@ import {
 } from 'lucide-react';
 import { cn, getFraudScoreStyle, formatDate, formatPrice } from '@/lib/utils';
 import { PesoIcon } from '@/components/ui/PesoIcon';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { AppButton } from '@/components/ui/app-button';
+import { AppDialog } from '@/components/ui/app-dialog';
+import { AppTextarea } from '@/components/ui/app-input';
+import { AppSelect } from '@/components/ui/app-select';
+import { StatusChip } from '@/components/ui/status-chip';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
 import api from '@/services/api';
 
-// Status badge component
+const REJECTION_REASONS = [
+  { value: 'invalid_screenshot', label: 'Invalid Screenshot' },
+  { value: 'amount_mismatch', label: 'Amount Mismatch' },
+  { value: 'duplicate_reference', label: 'Duplicate Reference Number' },
+  { value: 'wrong_receiver', label: 'Wrong Receiver' },
+  { value: 'suspected_fraud', label: 'Suspected Fraud' },
+  { value: 'expired_receipt', label: 'Expired Receipt' },
+  { value: 'unreadable', label: 'Unreadable Screenshot' },
+  { value: 'other', label: 'Other' },
+];
+
 function StatusBadge({ status }) {
   const config = {
-    pending: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400', icon: Clock },
-    processing: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', icon: Loader2 },
-    manual_review: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-600 dark:text-yellow-400', icon: AlertTriangle },
-    approved: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', icon: CheckCircle2 },
-    rejected: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-600 dark:text-red-400', icon: XCircle },
+    pending: { variant: 'neutral', icon: Clock },
+    processing: { variant: 'secure', icon: Loader2 },
+    manual_review: { variant: 'pending', icon: AlertTriangle },
+    approved: { variant: 'transit', icon: CheckCircle2 },
+    rejected: { variant: 'cancelled', icon: XCircle },
   };
 
-  const { bg, text, icon: Icon } = config[status] || config.pending;
+  const { variant, icon: Icon } = config[status] || config.pending;
   const label = status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Pending';
 
   return (
-    <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium', bg, text)}>
+    <StatusChip variant={variant} className="text-xs font-medium">
       <Icon className={cn('size-3.5', status === 'processing' && 'animate-spin')} />
       {label}
-    </span>
+    </StatusChip>
   );
 }
 
-// Fraud flag badge
 function FraudFlagBadge({ flag, score }) {
-  const flagColors = {
-    AMOUNT_MISMATCH: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    DUPLICATE_REFERENCE: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-    DUPLICATE_IMAGE: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-    SIMILAR_IMAGE: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-    RECEIVER_MISMATCH: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-    TIMESTAMP_EXPIRED: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
-    LOW_OCR_CONFIDENCE: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    SUSPICIOUS_DIMENSIONS: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
-    MISSING_EXIF: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
-    NEW_ACCOUNT_HIGH_VALUE: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-    VELOCITY_EXCEEDED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  const flagVariants = {
+    AMOUNT_MISMATCH: 'cancelled',
+    DUPLICATE_REFERENCE: 'verified',
+    DUPLICATE_IMAGE: 'verified',
+    SIMILAR_IMAGE: 'pending',
+    RECEIVER_MISMATCH: 'pending',
+    TIMESTAMP_EXPIRED: 'neutral',
+    LOW_OCR_CONFIDENCE: 'secure',
+    SUSPICIOUS_DIMENSIONS: 'neutral',
+    MISSING_EXIF: 'neutral',
+    NEW_ACCOUNT_HIGH_VALUE: 'pending',
+    VELOCITY_EXCEEDED: 'cancelled',
   };
 
   return (
-    <span className={cn(
-      'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
-      flagColors[flag] || 'bg-gray-100 text-gray-600'
-    )}>
+    <StatusChip variant={flagVariants[flag] || 'neutral'} className="px-2 py-0.5 text-[11px] font-medium">
       <Flag className="size-3" />
       {flag?.replace(/_/g, ' ')}
       {score && <span className="opacity-70">(+{score})</span>}
-    </span>
+    </StatusChip>
   );
 }
 
@@ -88,16 +91,16 @@ function normalizeFraudFlag(flag) {
   };
 }
 
-// Fraud score indicator using shared utility
 function FraudScoreIndicator({ score }) {
   const style = getFraudScoreStyle(score);
+  const variant = score > 70 ? 'cancelled' : score > 10 ? 'pending' : 'transit';
 
   return (
-    <div className={cn('flex items-center gap-2 px-3 py-1.5 rounded-lg', style.bg, style.color)}>
+    <StatusChip variant={variant} className={cn('px-3 py-1.5 text-xs', style.color)}>
       <Shield className="size-4" />
       <span className="font-bold">{score}</span>
-      <span className="text-xs opacity-80">{style.label}</span>
-    </div>
+      <span className="opacity-80">{style.label}</span>
+    </StatusChip>
   );
 }
 
@@ -168,6 +171,18 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
 
+  const resetFormState = useCallback(() => {
+    setNotes('');
+    setRejectionReason('');
+    setShowRejectForm(false);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !submission) {
+      resetFormState();
+    }
+  }, [open, submission, resetFormState]);
+
   if (!submission) return null;
 
   const handleApprove = () => {
@@ -179,29 +194,35 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
     onReject(submission.id, rejectionReason, notes);
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[85vh] lg:max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              'size-12 rounded-xl flex items-center justify-center',
-              submission.status === 'manual_review'
-                ? 'bg-gradient-to-br from-yellow-400 to-orange-500'
-                : 'bg-gradient-to-br from-blue-400 to-blue-600'
-            )}>
-              <FileText className="size-6 text-white" />
-            </div>
-            <div>
-              <DialogTitle className="text-xl">Payment Submission Review</DialogTitle>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Order: {submission.orderId?.slice(0, 8)}...
-              </p>
-            </div>
-          </div>
-        </DialogHeader>
+  const handleDialogOpenChange = (nextOpen) => {
+    if (!nextOpen) {
+      resetFormState();
+      onClose();
+    }
+  };
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 mt-4" style={{ gap: '24px' }}>
+  return (
+    <AppDialog
+      open={open}
+      onOpenChange={handleDialogOpenChange}
+      title="Payment Submission Review"
+      description={`Order: ${submission.orderId?.slice(0, 8) || 'N/A'}...`}
+      className="max-w-4xl max-h-[85vh] lg:max-h-[90vh] overflow-y-auto"
+    >
+      <div className="mb-4 flex items-center gap-3">
+        <div
+          className={cn(
+            'flex size-12 items-center justify-center rounded-[10px]',
+            submission.status === 'manual_review'
+              ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+              : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+          )}
+        >
+          <FileText className="size-6" />
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Left: Screenshot */}
           <div>
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
@@ -352,84 +373,75 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
             )}
 
             {/* Admin Notes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Admin Notes (optional)
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any notes about this review..."
-                rows={2}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+            <AppTextarea
+              label="Admin Notes (optional)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any notes about this review..."
+              rows={2}
+              textareaClassName="min-h-20"
+            />
 
             {/* Action Buttons */}
             {submission.status === 'manual_review' && (
               <div className="space-y-3">
                 {!showRejectForm ? (
                   <div className="flex gap-3">
-                    <Button
+                    <AppButton
                       onClick={handleApprove}
                       disabled={loading}
-                      className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                      variant="success"
+                      size="md"
+                      className="flex-1"
                     >
                       {loading ? (
-                        <Loader2 className="size-4 animate-spin mr-2" />
+                        <Loader2 className="mr-2 size-4 animate-spin" />
                       ) : (
-                        <CheckCircle2 className="size-4 mr-2" />
+                        <CheckCircle2 className="mr-2 size-4" />
                       )}
                       Approve Payment
-                    </Button>
-                    <Button
+                    </AppButton>
+                    <AppButton
                       onClick={() => setShowRejectForm(true)}
-                      variant="outline"
-                      className="flex-1 border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+                      variant="danger"
+                      size="md"
+                      className="flex-1"
                     >
-                      <XCircle className="size-4 mr-2" />
+                      <XCircle className="mr-2 size-4" />
                       Reject
-                    </Button>
+                    </AppButton>
                   </div>
                 ) : (
                   <div className="space-y-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                    <label className="block text-sm font-medium text-red-700 dark:text-red-300">
-                      Rejection Reason (required)
-                    </label>
-                    <select
+                    <AppSelect
+                      label="Rejection Reason (required)"
                       value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      className="w-full px-4 py-2 rounded-xl border border-red-200 dark:border-red-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500"
-                    >
-                      <option value="">Select a reason...</option>
-                      <option value="invalid_screenshot">Invalid Screenshot</option>
-                      <option value="amount_mismatch">Amount Mismatch</option>
-                      <option value="duplicate_reference">Duplicate Reference Number</option>
-                      <option value="wrong_receiver">Wrong Receiver</option>
-                      <option value="suspected_fraud">Suspected Fraud</option>
-                      <option value="expired_receipt">Expired Receipt</option>
-                      <option value="unreadable">Unreadable Screenshot</option>
-                      <option value="other">Other</option>
-                    </select>
+                      onValueChange={setRejectionReason}
+                      options={REJECTION_REASONS}
+                      placeholder="Select a reason..."
+                    />
                     <div className="flex gap-2">
-                      <Button
+                      <AppButton
                         onClick={handleReject}
                         disabled={loading || !rejectionReason}
-                        className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                        variant="danger"
+                        size="md"
+                        className="flex-1"
                       >
                         {loading ? (
-                          <Loader2 className="size-4 animate-spin mr-2" />
+                          <Loader2 className="mr-2 size-4 animate-spin" />
                         ) : (
-                          <XCircle className="size-4 mr-2" />
+                          <XCircle className="mr-2 size-4" />
                         )}
                         Confirm Rejection
-                      </Button>
-                      <Button
+                      </AppButton>
+                      <AppButton
                         onClick={() => setShowRejectForm(false)}
                         variant="ghost"
+                        size="md"
                       >
                         Cancel
-                      </Button>
+                      </AppButton>
                     </div>
                   </div>
                 )}
@@ -437,14 +449,12 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
             )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+    </AppDialog>
   );
 }
 
 // Main PaymentsView component
 export function PaymentsView({ className }) {
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [submissions, setSubmissions] = useState([]);
   const [outstandingContracts, setOutstandingContracts] = useState([]);
   const [outstandingSummary, setOutstandingSummary] = useState(null);
@@ -670,19 +680,14 @@ export function PaymentsView({ className }) {
       key: 'flags',
       header: 'Flags',
       render: (_, row) => (
-        <div className="flex flex-wrap gap-1 max-w-xs">
+        <div className="max-w-xs space-x-1">
           {row.fraudFlags?.slice(0, 2).map((flag, idx) => (
-            <span
-              key={idx}
-              className="px-1.5 py-0.5 bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30 rounded text-xs"
-            >
-              {normalizeFraudFlag(flag).label.replace(/_/g, ' ').slice(0, 12)}
-            </span>
+            <FraudFlagBadge key={idx} flag={normalizeFraudFlag(flag).label} />
           ))}
           {row.fraudFlags?.length > 2 && (
-            <span className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded text-xs">
+            <StatusChip variant="neutral" className="px-1.5 py-0.5 text-xs font-medium">
               +{row.fraudFlags.length - 2}
-            </span>
+            </StatusChip>
           )}
         </div>
       ),
@@ -701,17 +706,18 @@ export function PaymentsView({ className }) {
       header: 'Actions',
       align: 'right',
       render: (_, row) => (
-        <Button
+        <AppButton
           size="sm"
           variant="ghost"
           onClick={(e) => {
             e.stopPropagation();
             handleViewDetails(row);
           }}
+          className="h-8 px-2"
         >
-          <Eye className="size-4 mr-1" />
+          <Eye className="mr-1 size-4" />
           Review
-        </Button>
+        </AppButton>
       ),
     },
   ], [handleViewDetails]);
@@ -775,17 +781,17 @@ export function PaymentsView({ className }) {
       render: (_, row) => {
         const due = row._dueStatus || getDueStatus(row);
         const config = {
-          overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-          due_today: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-          due_soon: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-          upcoming: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-          pending_signing: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-          unknown: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+          overdue: 'cancelled',
+          due_today: 'pending',
+          due_soon: 'pending',
+          upcoming: 'secure',
+          pending_signing: 'neutral',
+          unknown: 'neutral',
         };
         return (
-          <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium', config[due.state] || config.unknown)}>
+          <StatusChip variant={config[due.state] || config.unknown} className="text-xs font-medium">
             {due.label}
-          </span>
+          </StatusChip>
         );
       },
     },
@@ -793,14 +799,12 @@ export function PaymentsView({ className }) {
       key: 'account',
       header: 'Account',
       render: (_, row) => (
-        <span className={cn(
-          'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium',
-          row.truckerAccountStatus === 'suspended'
-            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-        )}>
+        <StatusChip
+          variant={row.truckerAccountStatus === 'suspended' ? 'cancelled' : 'transit'}
+          className="text-xs font-medium"
+        >
           {row.truckerAccountStatus === 'suspended' ? 'Suspended' : 'Active'}
-        </span>
+        </StatusChip>
       ),
     },
   ], []);
@@ -845,10 +849,10 @@ export function PaymentsView({ className }) {
   );
 
   return (
-    <div className={className} style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
+    <div className={cn('flex flex-col gap-4 lg:gap-6', className)}>
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-6">
           <StatCard
             title="Pending Review"
             value={resolvedStats.pendingReview || 0}
@@ -918,7 +922,7 @@ export function PaymentsView({ className }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-6">
           <StatCard
             title="Unpaid Fees"
             value={outstandingSummary?.totalContracts || outstandingContracts.length}
