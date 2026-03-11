@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Link2,
   Users,
@@ -10,8 +10,10 @@ import {
 } from 'lucide-react';
 import { cn, formatPrice } from '@/lib/utils';
 import { PesoIcon } from '@/components/ui/PesoIcon';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { Button } from '@/components/ui/button';
+import { AppButton } from '@/components/ui/app-button';
+import { AppCard } from '@/components/ui/app-card';
+import { SectionHeader } from '@/components/ui/section-header';
+import { StatusChip } from '@/components/ui/status-chip';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
 import api from '@/services/api';
@@ -55,26 +57,27 @@ const emptyReport = {
   brokerBreakdown: [],
 };
 
-function TierBadge({ tier }) {
-  const config = {
-    STARTER: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400' },
-    SILVER: { bg: 'bg-slate-100 dark:bg-slate-900/30', text: 'text-slate-600 dark:text-slate-400' },
-    GOLD: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-600 dark:text-yellow-400' },
-    PLATINUM: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
-  };
+const tierChipVariant = {
+  STARTER: 'neutral',
+  SILVER: 'secure',
+  GOLD: 'pending',
+  PLATINUM: 'completed',
+};
 
-  const { bg, text } = config[tier] || config.STARTER;
+function TierChip({ tier, className }) {
+  const normalizedTier = String(tier || 'STARTER').toUpperCase();
+  const label = tier || 'Starter';
+  const variant = tierChipVariant[normalizedTier] || tierChipVariant.STARTER;
 
   return (
-    <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium', bg, text)}>
+    <StatusChip variant={variant} className={cn('h-6 justify-center whitespace-nowrap', className)}>
       <Award className="size-3.5" />
-      {tier || 'Starter'}
-    </span>
+      {label}
+    </StatusChip>
   );
 }
 
 export function ReferralManagement() {
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [brokers, setBrokers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -175,7 +178,7 @@ export function ReferralManagement() {
     {
       key: 'tier',
       header: 'Tier',
-      render: (_, row) => <TierBadge tier={row.tier} />,
+      render: (_, row) => <TierChip tier={row.tier} />,
     },
     {
       key: 'referrals',
@@ -207,10 +210,10 @@ export function ReferralManagement() {
       header: 'Actions',
       align: 'right',
       render: () => (
-        <Button size="sm" variant="ghost">
+        <AppButton size="sm" variant="ghost">
           <Eye className="size-4 mr-1" />
           View
-        </Button>
+        </AppButton>
       ),
     },
   ];
@@ -277,7 +280,7 @@ export function ReferralManagement() {
     {
       key: 'tier',
       header: 'Tier',
-      render: (value) => <TierBadge tier={value} />,
+      render: (value) => <TierChip tier={value} />,
     },
     {
       key: 'contractsCancelledUnpaid',
@@ -297,8 +300,8 @@ export function ReferralManagement() {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
-      <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
+    <div className="flex flex-col gap-5 lg:gap-7">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-6">
         <StatCard
           title="Total Brokers"
           value={stats.total}
@@ -325,7 +328,7 @@ export function ReferralManagement() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: isDesktop ? '16px' : '12px' }}>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:gap-4">
         <StatCard
           title="Referred Cancelled (Unpaid)"
           value={referralReport.summary.referredCancelledUnpaidContracts}
@@ -346,10 +349,7 @@ export function ReferralManagement() {
         />
       </div>
 
-      <div
-        className="bg-amber-50 dark:bg-amber-900/15 rounded-xl border border-amber-200 dark:border-amber-800 shadow-sm"
-        style={{ padding: isDesktop ? '20px' : '14px' }}
-      >
+      <AppCard className="border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/15 lg:p-5">
         <div className="flex items-start gap-3">
           <AlertTriangle className="size-5 text-amber-600 dark:text-amber-400 mt-0.5" />
           <div>
@@ -364,33 +364,36 @@ export function ReferralManagement() {
             </p>
           </div>
         </div>
-      </div>
+      </AppCard>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: isDesktop ? '24px' : '16px' }}>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Commission Tiers</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '16px' : '12px' }}>
-          <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-center">
-            <TierBadge tier="STARTER" />
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">3%</p>
+      <AppCard className="p-4 lg:p-6">
+        <SectionHeader
+          title="Commission Tiers"
+          titleClassName="text-lg font-semibold tracking-normal"
+        />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+          <div className="rounded-[14px] bg-slate-50 p-4 text-center dark:bg-slate-800/50">
+            <TierChip tier="STARTER" className="mx-auto" />
+            <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">3%</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">0-10 referrals</p>
           </div>
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-center">
-            <TierBadge tier="SILVER" />
+          <div className="p-4 rounded-[14px] bg-slate-50 dark:bg-slate-900/50 text-center">
+            <TierChip tier="SILVER" className="mx-auto" />
             <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">4%</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">11-25 referrals</p>
           </div>
-          <div className="p-4 rounded-xl bg-yellow-50 dark:bg-yellow-900/20 text-center">
-            <TierBadge tier="GOLD" />
+          <div className="p-4 rounded-[14px] bg-yellow-50 dark:bg-yellow-900/20 text-center">
+            <TierChip tier="GOLD" className="mx-auto" />
             <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">5%</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">26-50 referrals</p>
           </div>
-          <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-center">
-            <TierBadge tier="PLATINUM" />
+          <div className="p-4 rounded-[14px] bg-purple-50 dark:bg-purple-900/20 text-center">
+            <TierChip tier="PLATINUM" className="mx-auto" />
             <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">6%</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">50+ referrals</p>
           </div>
         </div>
-      </div>
+      </AppCard>
 
       <DataTable
         columns={brokerColumns}
