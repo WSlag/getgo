@@ -1,14 +1,23 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { AppButton } from '@/components/ui/app-button';
+import { AppInput } from '@/components/ui/app-input';
 import {
   Search,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Loader2,
 } from 'lucide-react';
+
+const DEFAULT_SKELETON_ROWS = 6;
+const MIN_SKELETON_ROWS = 3;
+const MAX_SKELETON_ROWS = 10;
+
+function clampSkeletonRows(count) {
+  if (!Number.isFinite(count)) return DEFAULT_SKELETON_ROWS;
+  return Math.min(MAX_SKELETON_ROWS, Math.max(MIN_SKELETON_ROWS, Math.round(count)));
+}
 
 function DataTableComponent({
   columns,
@@ -25,33 +34,55 @@ function DataTableComponent({
   pagination,
   className,
 }) {
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
-  const sectionPadding = isDesktop ? 'px-6 py-5' : 'p-4';
-  const cellPadding = isDesktop ? 'px-6 py-3.5' : 'px-4 py-3';
-  const footerPadding = isDesktop ? 'px-6 py-3.5' : 'px-4 py-3';
+  const sectionPadding = 'p-4 lg:px-6 lg:py-5';
+  const cellPadding = 'px-4 py-3 lg:px-6 lg:py-3.5';
+  const footerPadding = 'px-4 py-3 lg:px-6 lg:py-3.5';
+  const safeColumns = useMemo(
+    () => (Array.isArray(columns) ? columns : []),
+    [columns]
+  );
+  const safeData = useMemo(
+    () => (Array.isArray(data) ? data : []),
+    [data]
+  );
+  const safeColSpan = Math.max(safeColumns.length, 1);
+
+  const [lastStableRowCount, setLastStableRowCount] = useState(DEFAULT_SKELETON_ROWS);
+
+  useEffect(() => {
+    if (!loading && safeData.length > 0) {
+      const next = clampSkeletonRows(safeData.length);
+      setLastStableRowCount((prev) => (prev === next ? prev : next));
+    }
+  }, [loading, safeData]);
+
+  const skeletonRowCount = useMemo(
+    () => clampSkeletonRows(lastStableRowCount),
+    [lastStableRowCount]
+  );
 
   return (
-    <div className={cn('bg-card text-card-foreground rounded-xl border border-border shadow-sm overflow-hidden', className)}>
+    <div
+      className={cn(
+        'overflow-hidden rounded-[14px] border border-slate-200 bg-white text-slate-900 shadow-[0_1px_3px_rgba(0,0,0,0.08)]',
+        'dark:border-slate-800 dark:bg-slate-900 dark:text-white',
+        className
+      )}
+    >
       {/* Header with search and filters */}
       {(searchable || filters) && (
-        <div className={cn('border-b border-border', sectionPadding)}>
+        <div className={cn('border-b border-slate-200 dark:border-slate-800', sectionPadding)}>
           <div className="flex flex-col sm:flex-row gap-3">
             {searchable && (
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <input
+                <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                <AppInput
                   type="text"
-                  value={searchQuery}
-                  onChange={(e) => onSearchChange(e.target.value)}
+                  value={searchQuery ?? ''}
+                  onChange={(e) => onSearchChange?.(e.target.value)}
                   placeholder={searchPlaceholder}
-                  className={cn(
-                    'w-full pl-10 pr-4 py-2 rounded-lg',
-                    'bg-muted/60',
-                    'border border-border',
-                    'text-foreground placeholder:text-muted-foreground',
-                    'focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none',
-                    'transition-all duration-200'
-                  )}
+                  className="w-full"
+                  inputClassName="pl-10"
                 />
               </div>
             )}
@@ -64,12 +95,12 @@ function DataTableComponent({
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="bg-muted/50 border-b border-border">
-              {columns.map((col, idx) => (
+            <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+              {safeColumns.map((col, idx) => (
                 <th
                   key={col.key || idx}
                   className={cn(
-                    'text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground',
+                    'text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400',
                     cellPadding,
                     col.align === 'center' && 'text-center',
                     col.align === 'right' && 'text-right',
@@ -82,40 +113,58 @@ function DataTableComponent({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
+              Array.from({ length: skeletonRowCount }).map((_, rowIdx) => (
+                <tr key={`loading-row-${rowIdx}`} className="animate-pulse">
+                  {(safeColumns.length > 0 ? safeColumns : [{ key: 'skeleton' }]).map((col, colIdx) => (
+                    <td
+                      key={`loading-cell-${rowIdx}-${col.key || colIdx}`}
+                      className={cn(
+                        'text-sm',
+                        cellPadding,
+                        col.align === 'center' && 'text-center',
+                        col.align === 'right' && 'text-right',
+                        col.cellClassName
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'h-4 rounded bg-slate-200/90 dark:bg-slate-700/80',
+                          col.align === 'right' && 'ml-auto',
+                          col.align === 'center' && 'mx-auto',
+                          colIdx === 0 ? 'w-32' : 'w-20',
+                          colIdx === safeColumns.length - 1 && 'w-16'
+                        )}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : safeData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="py-12">
-                  <div className="flex flex-col items-center justify-center">
-                    <Loader2 className="size-8 text-orange-500 animate-spin mb-2" />
-                    <p className="text-muted-foreground text-sm">Loading...</p>
-                  </div>
-                </td>
-              </tr>
-            ) : data.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} className="py-12">
+                <td colSpan={safeColSpan} className="py-12">
                   <div className="flex flex-col items-center justify-center">
                     {EmptyIcon && (
-                      <div className="size-12 rounded-xl bg-muted flex items-center justify-center mb-3">
-                        <EmptyIcon className="size-6 text-muted-foreground" />
+                      <div className="mb-3 flex size-12 items-center justify-center rounded-[14px] bg-slate-100 dark:bg-slate-800">
+                        <EmptyIcon className="size-6 text-slate-500 dark:text-slate-400" />
                       </div>
                     )}
-                    <p className="text-muted-foreground">{emptyMessage}</p>
+                    <p className="text-slate-500 dark:text-slate-400">{emptyMessage}</p>
                   </div>
                 </td>
               </tr>
             ) : (
-              data.map((row, rowIdx) => (
+              safeData.map((row, rowIdx) => (
                 <tr
                   key={row.id || rowIdx}
                   onClick={() => onRowClick?.(row)}
                   className={cn(
-                    'hover:bg-muted/40 transition-colors',
+                    'transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40',
                     onRowClick && 'cursor-pointer'
                   )}
                 >
-                  {columns.map((col, colIdx) => (
+                  {safeColumns.map((col, colIdx) => (
                     <td
                       key={col.key || colIdx}
                       className={cn(
@@ -138,42 +187,54 @@ function DataTableComponent({
 
       {/* Pagination */}
       {pagination && (
-        <div className={cn('border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3', footerPadding)}>
-          <p className="text-sm text-muted-foreground">
+        <div className={cn('flex flex-col items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800 sm:flex-row', footerPadding)}>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Showing {pagination.from} to {pagination.to} of {pagination.total} results
           </p>
           <div className="flex items-center gap-1">
-            <button
+            <AppButton
+              type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => pagination.onPageChange(1)}
               disabled={pagination.page === 1}
-              className="p-2 rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-9 min-w-9 px-2"
             >
-              <ChevronsLeft className="size-4 text-muted-foreground" />
-            </button>
-            <button
+              <ChevronsLeft className="size-4 text-slate-500 dark:text-slate-400" />
+            </AppButton>
+            <AppButton
+              type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => pagination.onPageChange(pagination.page - 1)}
               disabled={pagination.page === 1}
-              className="p-2 rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-9 min-w-9 px-2"
             >
-              <ChevronLeft className="size-4 text-muted-foreground" />
-            </button>
-            <span className="px-4 py-2 text-sm font-medium text-foreground">
+              <ChevronLeft className="size-4 text-slate-500 dark:text-slate-400" />
+            </AppButton>
+            <span className="px-4 py-2 text-sm font-medium text-slate-900 dark:text-white">
               Page {pagination.page} of {pagination.totalPages}
             </span>
-            <button
+            <AppButton
+              type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => pagination.onPageChange(pagination.page + 1)}
               disabled={pagination.page === pagination.totalPages}
-              className="p-2 rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-9 min-w-9 px-2"
             >
-              <ChevronRight className="size-4 text-muted-foreground" />
-            </button>
-            <button
+              <ChevronRight className="size-4 text-slate-500 dark:text-slate-400" />
+            </AppButton>
+            <AppButton
+              type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => pagination.onPageChange(pagination.totalPages)}
               disabled={pagination.page === pagination.totalPages}
-              className="p-2 rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-9 min-w-9 px-2"
             >
-              <ChevronsRight className="size-4 text-muted-foreground" />
-            </button>
+              <ChevronsRight className="size-4 text-slate-500 dark:text-slate-400" />
+            </AppButton>
           </div>
         </div>
       )}
@@ -187,18 +248,18 @@ DataTable.displayName = 'DataTable';
 // Filter button component
 function FilterButtonComponent({ active, onClick, children, className }) {
   return (
-    <button
+    <AppButton
+      type="button"
       onClick={onClick}
+      variant={active ? 'primary' : 'secondary'}
+      size="sm"
       className={cn(
-        'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap',
-        active
-          ? 'bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30'
-          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600',
+        'h-9 whitespace-nowrap px-4 py-2 text-sm font-medium',
         className
       )}
     >
       {children}
-    </button>
+    </AppButton>
   );
 }
 
