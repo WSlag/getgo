@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   Settings,
   Percent,
@@ -12,16 +12,18 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PesoIcon } from '@/components/ui/PesoIcon';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { Button } from '@/components/ui/button';
+import { AppButton } from '@/components/ui/app-button';
+import { AppCard } from '@/components/ui/app-card';
+import { AppInput } from '@/components/ui/app-input';
+import { Switch } from '@/components/ui/switch';
 import api from '@/services/api';
 
 function SettingCard({ title, description, children, icon: Icon }) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: '24px' }}>
+    <AppCard className="p-4 lg:p-6">
       <div className="flex items-start gap-4">
         {Icon && (
-          <div className="size-12 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-[14px] bg-orange-100 dark:bg-orange-900/30">
             <Icon className="size-6 text-orange-600 dark:text-orange-400" />
           </div>
         )}
@@ -33,38 +35,38 @@ function SettingCard({ title, description, children, icon: Icon }) {
           {children}
         </div>
       </div>
-    </div>
+    </AppCard>
   );
 }
 
 function SettingInput({ label, value, onChange, type = 'text', suffix, prefix, placeholder, disabled = false }) {
   return (
     <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+      <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {label}
       </label>
       <div className="relative">
         {prefix && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{prefix}</span>
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
+            {prefix}
+          </span>
         )}
-        <input
+        <AppInput
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className={cn(
-            'w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700',
-            'bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white',
-            'focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none',
-            'transition-all duration-200',
-            disabled && 'opacity-70 cursor-not-allowed',
+          className="mb-0"
+          inputClassName={cn(
             prefix && 'pl-14',
             suffix && 'pr-16'
           )}
         />
         {suffix && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">{suffix}</span>
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
+            {suffix}
+          </span>
         )}
       </div>
     </div>
@@ -73,36 +75,28 @@ function SettingInput({ label, value, onChange, type = 'text', suffix, prefix, p
 
 function SettingToggle({ label, description, checked, onChange, disabled = false }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700 last:border-0">
+    <div className="flex items-center justify-between border-b border-gray-100 py-3 dark:border-gray-700 last:border-0">
       <div>
         <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
         {description && (
           <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
         )}
       </div>
-      <button
-        type="button"
+      <Switch
+        checked={checked}
         disabled={disabled}
-        onClick={() => onChange(!checked)}
+        onCheckedChange={() => onChange(!checked)}
         className={cn(
-          'relative w-12 h-6 rounded-full transition-colors duration-200',
-          disabled && 'opacity-60 cursor-not-allowed',
-          checked ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'
+          'h-6 w-11 border-0 shadow-none',
+          'data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600',
+          disabled && 'opacity-60'
         )}
-      >
-        <span
-          className={cn(
-            'absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-200',
-            checked && 'translate-x-6'
-          )}
-        />
-      </button>
+      />
     </div>
   );
 }
 
 export function SystemSettings() {
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -263,22 +257,23 @@ export function SystemSettings() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
-      <div className="flex justify-between items-center gap-3 flex-wrap">
+    <div className="flex flex-col gap-5 lg:gap-7">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300 px-4 py-2 text-sm">
+          <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
             {error}
           </div>
         ) : <div />}
         <div className="flex items-center gap-2">
-          <Button variant="outline" disabled={loading || saving} onClick={loadSettings}>
+          <AppButton variant="outline" size="md" disabled={loading || saving} onClick={loadSettings}>
             <RefreshCw className={cn('size-4 mr-2', loading && 'animate-spin')} />
             Reload
-          </Button>
-          <Button
+          </AppButton>
+          <AppButton
             onClick={handleSave}
             disabled={saving || loading}
-            className="bg-gradient-to-r from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white shadow-lg shadow-orange-500/30"
+            variant={saved ? 'success' : 'primary'}
+            size="md"
           >
             {saving ? (
               <Loader2 className="size-4 animate-spin mr-2" />
@@ -288,7 +283,7 @@ export function SystemSettings() {
               <Save className="size-4 mr-2" />
             )}
             {saved ? 'Saved!' : 'Save Changes'}
-          </Button>
+          </AppButton>
         </div>
       </div>
 
@@ -297,7 +292,7 @@ export function SystemSettings() {
         description="Configure the platform fee structure for transactions"
         icon={PesoIcon}
       >
-        <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: '16px' }}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <SettingInput
             label="Fee Percentage"
             value={platformFeePercent}
@@ -330,7 +325,7 @@ export function SystemSettings() {
         description="Configure the GCash account for receiving payments"
         icon={CreditCard}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: '16px' }}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <SettingInput
             label="GCash Number"
             value={gcashNumber}
@@ -353,7 +348,7 @@ export function SystemSettings() {
         description="Set commission percentages for each broker tier"
         icon={Percent}
       >
-        <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: '16px' }}>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <SettingInput
             label="Starter Tier"
             value={starterCommission}
@@ -434,7 +429,7 @@ export function SystemSettings() {
           />
         </div>
         {maintenanceMode && (
-          <div className="mt-4 p-4 rounded-xl bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+          <div className="mt-4 rounded-[14px] border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20">
             <p className="text-sm text-yellow-700 dark:text-yellow-300">
               Warning: Maintenance mode is enabled. Regular users cannot access the platform.
             </p>
@@ -442,30 +437,30 @@ export function SystemSettings() {
         )}
       </SettingCard>
 
-      <div className="bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800" style={{ padding: '24px' }}>
+      <AppCard className="border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20 lg:p-6">
         <h3 className="text-lg font-semibold text-red-700 dark:text-red-300 mb-2">Danger Zone</h3>
         <p className="text-sm text-red-600 dark:text-red-400 mb-4">
           These actions are irreversible. Please proceed with caution.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button
-            variant="outline"
+          <AppButton
+            variant="danger"
+            size="md"
             disabled
-            className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
           >
             <RefreshCw className="size-4 mr-2" />
             Clear Cache
-          </Button>
-          <Button
-            variant="outline"
+          </AppButton>
+          <AppButton
+            variant="danger"
+            size="md"
             disabled
-            className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
           >
             <Bell className="size-4 mr-2" />
             Send System Alert
-          </Button>
+          </AppButton>
         </div>
-      </div>
+      </AppCard>
     </div>
   );
 }
