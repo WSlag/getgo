@@ -1,54 +1,67 @@
-import React from 'react';
 import { X, Users, ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { AppButton } from '@/components/ui/app-button';
+import { AppCard } from '@/components/ui/app-card';
+import { StatusChip } from '@/components/ui/status-chip';
 
 export default function BrokerHomeCard({ onActivate, onDismiss, className = '' }) {
   return (
-    <div className={`relative rounded-xl border-2 border-green-200 dark:border-green-800 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 overflow-hidden ${className}`}>
+    <AppCard
+      className={cn(
+        'relative overflow-hidden border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/20',
+        className
+      )}
+    >
       {/* Dismiss Button */}
-      <button
+      <AppButton
         onClick={onDismiss}
-        className="absolute top-3 right-3 size-7 rounded-full bg-white/80 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-800 flex items-center justify-center transition-all shadow-sm z-10"
+        variant="secondary"
+        size="icon"
+        className="absolute top-3 right-3 z-10"
         aria-label="Dismiss"
       >
-        <X className="size-4 text-gray-600 dark:text-gray-400" />
-      </button>
+        <X className="size-4 text-slate-600 dark:text-slate-400" />
+      </AppButton>
 
-      <div className="p-5">
+      <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="size-12 rounded-xl bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-lg">
+        <div className="flex items-start gap-3 pr-10">
+          <div className="size-12 rounded-[10px] bg-emerald-500 flex items-center justify-center text-white shadow-[0_6px_12px_rgba(0,0,0,0.10)]">
             <Users className="size-6 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-gray-900 dark:text-white">Earn While You Ship</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Become a GetGo Broker</p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white">
+                Earn While You Ship
+              </h3>
+              <StatusChip variant="verified">Broker</StatusChip>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Become a GetGo Broker</p>
           </div>
         </div>
 
         {/* Benefits */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-100 dark:border-gray-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Commission Rate</p>
-            <p className="text-lg font-bold text-green-600 dark:text-green-400">3-6%</p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-100 dark:border-gray-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Earning Potential</p>
-            <p className="text-lg font-bold text-green-600 dark:text-green-400">Unlimited</p>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
+          <AppCard className="rounded-[14px] border-slate-200 bg-white p-3 shadow-none dark:border-slate-700 dark:bg-slate-900/90">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Commission Rate</p>
+            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">3-6%</p>
+          </AppCard>
+          <AppCard className="rounded-[14px] border-slate-200 bg-white p-3 shadow-none dark:border-slate-700 dark:bg-slate-900/90">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Earning Potential</p>
+            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">Unlimited</p>
+          </AppCard>
         </div>
 
         {/* CTA */}
-        <button
+        <AppButton
           onClick={onActivate}
-          className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-500/30"
+          variant="success"
+          className="w-full"
         >
           Activate Broker
           <ArrowRight className="size-4" />
-        </button>
+        </AppButton>
       </div>
-
-      {/* Decorative Element */}
-      <div className="absolute -bottom-10 -right-10 size-32 rounded-full bg-green-200/20 dark:bg-green-800/20 blur-2xl pointer-events-none" />
-    </div>
+    </AppCard>
   );
 }
