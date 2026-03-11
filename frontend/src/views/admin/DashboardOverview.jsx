@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   Users,
@@ -16,7 +16,10 @@ import {
   HardDrive,
 } from 'lucide-react';
 import { StatCard, StatCardSkeleton } from '@/components/admin/StatCard';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { AppCard } from '@/components/ui/app-card';
+import { AppButton } from '@/components/ui/app-button';
+import { SectionHeader } from '@/components/ui/section-header';
+import { StatusChip } from '@/components/ui/status-chip';
 import api from '@/services/api';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/firebase';
@@ -34,14 +37,37 @@ function formatTimeAgo(date) {
 }
 
 const PLATFORM_HEALTH = [
-  { label: 'API Status', status: 'Operational', icon: ShieldCheck, gradient: 'from-green-400 to-green-600 shadow-green-500/30', cardBg: 'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20' },
-  { label: 'Database', status: 'Connected', icon: Database, gradient: 'from-teal-400 to-teal-600 shadow-teal-500/30', cardBg: 'from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/20' },
-  { label: 'Payments', status: 'Active', icon: CreditCard, gradient: 'from-blue-400 to-blue-600 shadow-blue-500/30', cardBg: 'from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20' },
-  { label: 'Storage', status: 'Healthy', icon: HardDrive, gradient: 'from-purple-400 to-purple-600 shadow-purple-500/30', cardBg: 'from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20' },
+  {
+    label: 'API Status',
+    status: 'Operational',
+    icon: ShieldCheck,
+    iconClassName: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+    statusVariant: 'secure',
+  },
+  {
+    label: 'Database',
+    status: 'Connected',
+    icon: Database,
+    iconClassName: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+    statusVariant: 'accepted',
+  },
+  {
+    label: 'Payments',
+    status: 'Active',
+    icon: CreditCard,
+    iconClassName: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+    statusVariant: 'pending',
+  },
+  {
+    label: 'Storage',
+    status: 'Healthy',
+    icon: HardDrive,
+    iconClassName: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
+    statusVariant: 'completed',
+  },
 ];
 
 export function DashboardOverview({ badges, onNavigate }) {
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
@@ -120,7 +146,8 @@ export function DashboardOverview({ badges, onNavigate }) {
             message: `Payment submission (${d.status || 'pending'})`,
             time: formatTimeAgo(d.createdAt?.toDate?.() || new Date()),
             icon: CreditCard,
-            iconGradient: 'from-blue-400 to-blue-600 shadow-blue-500/30',
+            iconClassName: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+            chipVariant: 'secure',
             ts: d.createdAt?.toMillis?.() || 0,
           });
         });
@@ -131,7 +158,8 @@ export function DashboardOverview({ badges, onNavigate }) {
             message: `Contract ${d.status || 'created'}`,
             time: formatTimeAgo(d.createdAt?.toDate?.() || new Date()),
             icon: FileText,
-            iconGradient: 'from-purple-400 to-purple-600 shadow-purple-500/30',
+            iconClassName: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
+            chipVariant: 'completed',
             ts: d.createdAt?.toMillis?.() || 0,
           });
         });
@@ -142,7 +170,8 @@ export function DashboardOverview({ badges, onNavigate }) {
             message: `New ${d.role || 'user'} registered`,
             time: formatTimeAgo(d.createdAt?.toDate?.() || new Date()),
             icon: Users,
-            iconGradient: 'from-green-400 to-green-600 shadow-green-500/30',
+            iconClassName: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+            chipVariant: 'transit',
             ts: d.createdAt?.toMillis?.() || 0,
           });
         });
@@ -151,7 +180,6 @@ export function DashboardOverview({ badges, onNavigate }) {
         console.error('Error fetching recent activity:', e);
       }
       setRecentActivity(activityItems.slice(0, 6));
-
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -160,17 +188,43 @@ export function DashboardOverview({ badges, onNavigate }) {
   };
 
   const quickActions = [
-    { label: 'Review Payments', count: badges?.pendingPayments || 0, section: 'payments', icon: CreditCard, color: 'from-blue-400 to-blue-600' },
-    { label: 'Verify Contracts', section: 'contractVerification', icon: ShieldCheck, color: 'from-indigo-400 to-indigo-600' },
-    { label: 'Manage Users', section: 'users', icon: Users, color: 'from-green-400 to-green-600' },
-    { label: 'View Contracts', section: 'contracts', icon: FileText, color: 'from-purple-400 to-purple-600' },
-    { label: 'Track Shipments', section: 'shipments', icon: Truck, color: 'from-orange-400 to-orange-600' },
+    {
+      label: 'Review Payments',
+      count: badges?.pendingPayments || 0,
+      section: 'payments',
+      icon: CreditCard,
+      iconClassName: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+    },
+    {
+      label: 'Verify Contracts',
+      section: 'contractVerification',
+      icon: ShieldCheck,
+      iconClassName: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
+    },
+    {
+      label: 'Manage Users',
+      section: 'users',
+      icon: Users,
+      iconClassName: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+    },
+    {
+      label: 'View Contracts',
+      section: 'contracts',
+      icon: FileText,
+      iconClassName: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+    },
+    {
+      label: 'Track Shipments',
+      section: 'shipments',
+      icon: Truck,
+      iconClassName: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    },
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
+    <div className="flex flex-col gap-4 lg:gap-6">
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-6">
         {loading ? (
           <>
             <StatCardSkeleton />
@@ -206,7 +260,7 @@ export function DashboardOverview({ badges, onNavigate }) {
             />
             <StatCard
               title="Today's Revenue"
-              value={`₱${(stats?.totalAmountToday || 0).toLocaleString()}`}
+              value={`PHP ${(stats?.totalAmountToday || 0).toLocaleString()}`}
               subtitle={`${stats?.approvedToday || 0} approved`}
               icon={CreditCard}
               iconColor="bg-gradient-to-br from-orange-400 to-orange-600 shadow-orange-500/30"
@@ -217,11 +271,11 @@ export function DashboardOverview({ badges, onNavigate }) {
       </div>
 
       {/* KPI Snapshot */}
-      <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-6">
         <StatCard
           title="Fee Recovery (8w)"
           value={`${(kpiSummary?.feeRecoveryRate || 0).toFixed(1)}%`}
-          subtitle={`₱${(kpiSummary?.feesCollected || 0).toLocaleString()} collected`}
+          subtitle={`PHP ${(kpiSummary?.feesCollected || 0).toLocaleString()} collected`}
           icon={TrendingUp}
           iconColor="bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/30"
         />
@@ -249,7 +303,7 @@ export function DashboardOverview({ badges, onNavigate }) {
       </div>
 
       {/* Payment Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: isDesktop ? '24px' : '12px' }}>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:gap-6">
         <StatCard
           title="Pending Payments"
           value={stats?.pendingPayments || 0}
@@ -272,110 +326,127 @@ export function DashboardOverview({ badges, onNavigate }) {
       </div>
 
       {/* Quick Actions & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: isDesktop ? '24px' : '16px' }}>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         {/* Quick Actions */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: isDesktop ? '24px' : '16px' }}>
-          <div className="mb-4">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Navigation</p>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Actions</h2>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-3" style={{ gap: isDesktop ? '12px' : '10px' }}>
-            {quickActions.map((action) => {
+        <AppCard>
+          <SectionHeader
+            title="Quick Actions"
+            titleClassName="text-lg font-semibold tracking-normal"
+          />
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            {quickActions.map(action => {
               const Icon = action.icon;
               return (
-                <button
+                <AppButton
                   key={action.section}
+                  variant="secondary"
+                  size="md"
                   onClick={() => onNavigate(action.section)}
                   className={cn(
-                    'flex flex-col items-center gap-2 p-4 rounded-xl',
-                    'bg-gradient-to-br', action.color,
-                    'text-white shadow-lg hover:shadow-xl',
-                    'hover:scale-105 active:scale-95 transition-all duration-300'
+                    'h-auto w-full min-h-32 flex-col items-start justify-between rounded-[14px] p-3 text-left',
+                    'whitespace-normal hover:border-orange-200 hover:bg-slate-100 dark:hover:border-orange-700 dark:hover:bg-slate-800/90'
                   )}
                 >
-                  <div className="size-9 rounded-lg bg-white/20 flex items-center justify-center">
-                    <Icon className="size-5" />
-                  </div>
-                  <span className="text-xs font-semibold text-center leading-tight">{action.label}</span>
-                  {action.count > 0 && (
-                    <span className="px-2 py-0.5 bg-white/25 rounded-full text-xs font-medium">
-                      {action.count} pending
+                  <div className="flex w-full items-start gap-3">
+                    <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-[10px]', action.iconClassName)}>
+                      <Icon className="size-5" />
+                    </div>
+                    <span className="text-sm font-semibold leading-snug text-slate-900 dark:text-white">
+                      {action.label}
                     </span>
-                  )}
-                </button>
+                  </div>
+                  <div className="flex min-h-6 items-center">
+                    {action.count > 0 ? (
+                      <StatusChip variant="pending" className="text-[11px]">
+                        {action.count} pending
+                      </StatusChip>
+                    ) : (
+                      <StatusChip variant="neutral" aria-hidden className="invisible text-[11px]">
+                        0 pending
+                      </StatusChip>
+                    )}
+                  </div>
+                </AppButton>
               );
             })}
           </div>
-        </div>
+        </AppCard>
 
         {/* Recent Activity */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: isDesktop ? '24px' : '16px' }}>
-          <div className="mb-4">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Live feed</p>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Activity</h2>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <AppCard>
+          <SectionHeader
+            title="Recent Activity"
+            titleClassName="text-lg font-semibold tracking-normal"
+          />
+          <div className="space-y-3">
             {recentActivity.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="size-12 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center mb-3">
-                  <Clock className="size-6 text-gray-400 dark:text-gray-500" />
+                <div className="mb-3 flex size-12 items-center justify-center rounded-[10px] bg-slate-100 dark:bg-slate-800">
+                  <Clock className="size-6 text-slate-400 dark:text-slate-500" />
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">No recent activity</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Activity will appear as users interact with the platform</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">No recent activity</p>
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Activity will appear as users interact with the platform</p>
               </div>
             ) : (
               recentActivity.map((activity, idx) => {
                 const Icon = activity.icon;
                 return (
-                  <div key={idx} className="flex items-center gap-3">
-                    <div className={cn(
-                      'size-10 rounded-lg bg-gradient-to-br flex items-center justify-center shadow-lg flex-shrink-0',
-                      activity.iconGradient
-                    )}>
-                      <Icon className="size-5 text-white" />
+                  <div
+                    key={idx}
+                    className="flex items-center gap-3 rounded-[10px] border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50"
+                  >
+                    <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-[10px]', activity.iconClassName)}>
+                      <Icon className="size-5" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
                         {activity.message}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         {activity.time}
                       </p>
                     </div>
+                    <StatusChip variant={activity.chipVariant || 'neutral'} className="shrink-0 capitalize">
+                      {activity.type}
+                    </StatusChip>
                   </div>
                 );
               })
             )}
           </div>
-        </div>
+        </AppCard>
       </div>
 
       {/* Platform Health */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: isDesktop ? '24px' : '16px' }}>
-        <div className="mb-4">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Status</p>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Platform Health</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '16px' : '12px' }}>
-          {PLATFORM_HEALTH.map((item) => {
+      <AppCard>
+        <SectionHeader
+          title="Platform Health"
+          titleClassName="text-lg font-semibold tracking-normal"
+        />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {PLATFORM_HEALTH.map(item => {
             const ItemIcon = item.icon;
             return (
-              <div key={item.label} className={cn('flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br', item.cardBg)}>
-                <div className={cn('size-10 rounded-lg bg-gradient-to-br flex items-center justify-center shadow-lg flex-shrink-0', item.gradient)}>
-                  <ItemIcon className="size-5 text-white" />
+              <div
+                key={item.label}
+                className="flex items-center gap-3 rounded-[14px] border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50"
+              >
+                <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-[10px]', item.iconClassName)}>
+                  <ItemIcon className="size-5" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <div className="size-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.label}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{item.label}</p>
+                  <div className="mt-1">
+                    <StatusChip variant={item.statusVariant} className="text-[11px]">
+                      {item.status}
+                    </StatusChip>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{item.status}</p>
                 </div>
               </div>
             );
           })}
         </div>
-      </div>
+      </AppCard>
     </div>
   );
 }
