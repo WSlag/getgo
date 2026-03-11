@@ -378,7 +378,10 @@ export default function KargaMarketplace() {
   // Register as broker - Firebase version
   const registerAsBroker = async () => {
     if (!authUser) return;
-    await api.broker.register();
+    const registerResult = await api.broker.register();
+    if (registerResult?.alreadyRegistered) {
+      // Treat re-activation as idempotent success and continue to dashboard.
+    }
     setEarningsTab('dashboard');
   };
 

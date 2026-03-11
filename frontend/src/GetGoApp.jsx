@@ -1896,12 +1896,15 @@ export default function GetGoApp() {
   };
 
   // Handler: Broker guide modal - user completed activation inside the modal
-  const handleBrokerGuideActivated = async () => {
+  const handleBrokerGuideActivated = async (registerResult = null) => {
+    const alreadyRegistered = registerResult?.alreadyRegistered === true;
     await handleBrokerConverted();
     showToast({
       type: 'success',
-      title: 'Broker Activated!',
-      message: 'Start sharing your referral link to earn commissions.',
+      title: alreadyRegistered ? 'Broker Already Active' : 'Broker Activated!',
+      message: alreadyRegistered
+        ? 'Your broker profile is already active. You can continue sharing your referral link.'
+        : 'Start sharing your referral link to earn commissions.',
     });
   };
 
@@ -2351,13 +2354,7 @@ export default function GetGoApp() {
                 }
                 setActiveTab('activity');
               }}
-              onBrokerRegistered={() => {
-                showToast({
-                  type: 'success',
-                  title: 'Broker Activated',
-                  message: 'You can now share your referral link and request payouts.',
-                });
-              }}
+              onBrokerRegistered={() => { void handleBrokerConverted(); }}
               onToast={showToast}
             />
           </ErrorBoundary>

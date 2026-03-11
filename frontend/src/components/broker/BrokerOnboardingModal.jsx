@@ -8,8 +8,8 @@ export default function BrokerOnboardingModal({ open, onClose, onActivate, userR
   const handleActivate = async () => {
     setLoading(true);
     try {
-      await api.broker.register();
-      onActivate?.();
+      const registerResult = await api.broker.register();
+      onActivate?.(registerResult);
       onClose();
     } catch (error) {
       console.error('Broker activation error:', error);
