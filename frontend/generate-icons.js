@@ -35,9 +35,11 @@ IMPORTANT: PWA Icons Setup
 The PWA requires PNG icons. You have two options:
 
 OPTION 1: Use the HTML generator (Recommended for quick setup)
-1. Open: frontend/public/icons/generate-icons.html in a browser
+1. Open locally: frontend/public/icons/generate-icons.html in a browser
 2. Click each "Download" button to save the icons
 3. Icons will be saved with correct names
+
+Note: debug tooling pages are excluded from production bundles by default.
 
 OPTION 2: Create custom icons
 1. Design your KARGA CONNECT logo

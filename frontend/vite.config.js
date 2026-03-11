@@ -2,7 +2,29 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'fs'
 import path from 'path'
+
+function excludeDebugPagesInProd() {
+  const includeDebugPages = process.env.VITE_INCLUDE_DEBUG_PAGES === 'true'
+  const excludedDebugAssets = new Set(['verify-contracts.html', 'icons/generate-icons.html'])
+
+  return {
+    name: 'exclude-debug-pages-in-prod',
+    apply: 'build',
+    closeBundle() {
+      if (includeDebugPages) return
+
+      const outDir = path.resolve(process.cwd(), 'dist')
+      for (const relativePath of excludedDebugAssets) {
+        const absolutePath = path.resolve(outDir, relativePath)
+        if (fs.existsSync(absolutePath)) {
+          fs.rmSync(absolutePath, { force: true })
+        }
+      }
+    },
+  }
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -10,6 +32,7 @@ export default defineConfig({
     __APP_BUILD_ID__: JSON.stringify(new Date().toISOString()),
   },
   plugins: [
+    excludeDebugPagesInProd(),
     react(),
     tailwindcss(),
     VitePWA({

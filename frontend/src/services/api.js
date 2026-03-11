@@ -86,6 +86,7 @@ const api = {
   auth: {
     switchRole: (role) => callFunction('switchUserRole', { role }),
     registerBroker: () => callFunction('brokerRegister', {}),
+    requestEmailMagicLinkSignInV2: (data) => callFunction('authRequestEmailMagicLinkSignInV2', data || {}),
     getRecoveryStatus: () => callFunction('authGetRecoveryStatus', {}),
     generateRecoveryCodes: () => callFunction('authGenerateRecoveryCodes', {}),
     recoverySignIn: (data) => callFunction('authRecoverySignIn', data || {}),

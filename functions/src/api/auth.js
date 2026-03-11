@@ -14,6 +14,11 @@ const GENERIC_MAGIC_LINK_MESSAGE = 'If an eligible account exists, a sign-in lin
 const EMAIL_LINK_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const EMAIL_LINK_RATE_LIMIT_MAX_ATTEMPTS = 5;
 const EMAIL_LINK_RATE_LIMIT_BLOCK_MS = 30 * 60 * 1000;
+const EMAIL_MAGIC_LINK_RESPONSE_FLOOR_DEFAULT_MS = 650;
+const EMAIL_MAGIC_LINK_RESPONSE_FLOOR_MIN_MS = 200;
+const EMAIL_MAGIC_LINK_RESPONSE_FLOOR_MAX_MS = 5000;
+const EMAIL_SIGNIN_OOB_ENDPOINT = 'https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode';
+const warnedEmailLinkConfig = new Set();
 
 function checkAppToken(context) {
   assertAppCheckGen1(context, { allowAuthFallback: true });
@@ -24,6 +29,94 @@ function isEmailMagicLinkEnabled() {
   if (configured === 'true') return true;
   if (configured === 'false') return false;
   return String(process.env.FUNCTIONS_EMULATOR || '').toLowerCase() === 'true';
+}
+
+function isEmailMagicLinkV2Enabled() {
+  return String(process.env.EMAIL_MAGIC_LINK_V2_ENABLED || '').trim().toLowerCase() === 'true';
+}
+
+function getEmailMagicLinkResponseFloorMs() {
+  const parsed = Number(process.env.EMAIL_MAGIC_LINK_RESPONSE_FLOOR_MS || EMAIL_MAGIC_LINK_RESPONSE_FLOOR_DEFAULT_MS);
+  if (!Number.isFinite(parsed)) return EMAIL_MAGIC_LINK_RESPONSE_FLOOR_DEFAULT_MS;
+  return Math.min(
+    EMAIL_MAGIC_LINK_RESPONSE_FLOOR_MAX_MS,
+    Math.max(EMAIL_MAGIC_LINK_RESPONSE_FLOOR_MIN_MS, Math.floor(parsed))
+  );
+}
+
+function wait(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildMagicLinkRequestId() {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return hashValue(`${Date.now()}-${Math.random().toString(36).slice(2)}`).slice(0, 24);
+}
+
+function warnMissingEmailLinkConfigOnce(name) {
+  if (warnedEmailLinkConfig.has(name)) return;
+  warnedEmailLinkConfig.add(name);
+  console.warn(`[auth] Email magic-link v2 dispatch config missing: ${name}`);
+}
+
+function getEmailMagicLinkContinueUrl() {
+  const configuredUrl = String(process.env.EMAIL_MAGIC_LINK_CONTINUE_URL || '').trim();
+  if (!configuredUrl) {
+    warnMissingEmailLinkConfigOnce('EMAIL_MAGIC_LINK_CONTINUE_URL');
+    return null;
+  }
+
+  try {
+    const url = new URL(configuredUrl);
+    // Force explicit mode marker used by frontend completion flow.
+    url.searchParams.set('emailLinkMode', 'signin');
+    return url.toString();
+  } catch (error) {
+    warnMissingEmailLinkConfigOnce('EMAIL_MAGIC_LINK_CONTINUE_URL (invalid URL)');
+    return null;
+  }
+}
+
+function getEmailMagicLinkApiKey() {
+  const apiKey = String(process.env.EMAIL_MAGIC_LINK_API_KEY || '').trim();
+  if (!apiKey) {
+    warnMissingEmailLinkConfigOnce('EMAIL_MAGIC_LINK_API_KEY');
+    return null;
+  }
+  return apiKey;
+}
+
+async function dispatchSignInLinkWithIdentityToolkit(email) {
+  const apiKey = getEmailMagicLinkApiKey();
+  const continueUrl = getEmailMagicLinkContinueUrl();
+  if (!apiKey || !continueUrl) {
+    return false;
+  }
+
+  const payload = {
+    requestType: 'EMAIL_SIGNIN',
+    email,
+    continueUrl,
+    canHandleCodeInApp: true,
+  };
+
+  const response = await fetch(`${EMAIL_SIGNIN_OOB_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const responseBody = await response.text().catch(() => '');
+    throw new Error(`Identity Toolkit sendOobCode failed (${response.status}): ${responseBody.slice(0, 300)}`);
+  }
+
+  return true;
 }
 
 function normalizeEmail(value) {
@@ -126,6 +219,71 @@ async function resolveEligibleEmailSignInUser(db, normalizedEmail) {
   };
 }
 
+exports.authRequestEmailMagicLinkSignInV2 = functions.region(REGION).https.onCall(async (data, context) => {
+  checkAppToken(context);
+
+  const normalizedEmail = normalizeEmail(data?.email);
+  if (!normalizedEmail) {
+    throw new functions.https.HttpsError('invalid-argument', 'email is required');
+  }
+
+  const requestId = buildMagicLinkRequestId();
+  const responseFloorMs = getEmailMagicLinkResponseFloorMs();
+  const startedAtMs = Date.now();
+  const finalizeResponse = async (payload = {}) => {
+    const remainingMs = responseFloorMs - (Date.now() - startedAtMs);
+    if (remainingMs > 0) {
+      await wait(remainingMs);
+    }
+    return {
+      accepted: true,
+      message: GENERIC_MAGIC_LINK_MESSAGE,
+      requestId,
+      ...payload,
+    };
+  };
+
+  if (!isEmailMagicLinkEnabled() || !isEmailMagicLinkV2Enabled()) {
+    return finalizeResponse();
+  }
+
+  const db = admin.firestore();
+  const ipAddress = getClientIp(context);
+  const rateLimitRef = db.collection('authEmailLinkRateLimits').doc(rateLimitDocId(normalizedEmail, ipAddress));
+  const nowMs = Date.now();
+
+  const rateLimitState = await consumeEmailPrepareRateLimit(rateLimitRef, nowMs);
+  if (rateLimitState.limited) {
+    return finalizeResponse({
+      retryAfterSeconds: rateLimitState.retryAfterSeconds,
+    });
+  }
+
+  try {
+    const eligibleUser = await resolveEligibleEmailSignInUser(db, normalizedEmail);
+    if (eligibleUser) {
+      try {
+        await dispatchSignInLinkWithIdentityToolkit(normalizedEmail);
+      } catch (error) {
+        // Keep response generic; only log server-side for triage.
+        console.error('[auth] authRequestEmailMagicLinkSignInV2 dispatch failed:', {
+          requestId,
+          error: error?.message || String(error),
+        });
+      }
+    }
+  } catch (error) {
+    // Keep response generic; only log server-side for triage.
+    console.error('[auth] authRequestEmailMagicLinkSignInV2 eligibility check failed:', {
+      requestId,
+      error: error?.message || String(error),
+    });
+  }
+
+  return finalizeResponse();
+});
+
+// Legacy endpoint retained for backward compatibility during staged migration.
 exports.authPrepareEmailMagicLinkSignIn = functions.region(REGION).https.onCall(async (data, context) => {
   checkAppToken(context);
 
