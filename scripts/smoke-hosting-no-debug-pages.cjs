@@ -57,7 +57,7 @@ async function run() {
       markers: [
         'GetGo Icon Generator',
         'downloadAll()',
-        'icon-512x512.png',
+        'Preview updated.',
       ],
     },
   ];
