@@ -1,0 +1,40 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+jobs:
+  audit-runtime-dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm install
+
+      - name: Install functions dependencies
+        working-directory: ./functions
+        run: npm install
+
+      - name: Audit frontend runtime dependencies (high+)
+        working-directory: ./frontend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Audit functions runtime dependencies (high+)
+        working-directory: ./functions
+        run: npm run audit:prod

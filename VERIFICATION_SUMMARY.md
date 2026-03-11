@@ -24,7 +24,7 @@ When you click "Approve" on a **Platform Fee** payment:
 
 ### **Option 1: Use the Web Tool (Easiest)**
 
-1. Navigate to: `http://localhost:3000/verify-contracts.html`
+1. Navigate locally to: `http://localhost:3000/verify-contracts.html`
 2. Click **"Run Verification Check"**
 3. See instant results showing:
    - ✅ Contracts successfully created
@@ -60,7 +60,7 @@ When you click "Approve" on a **Platform Fee** payment:
    - 🐛 Troubleshooting guide with all possible failure points
    - 📊 Flow diagrams and validation logic
 
-### 2. **verify-contracts.html**
+### 2. **verify-contracts.html** (local/internal only)
    - 🌐 Browser-based verification tool
    - 🚀 Instantly checks your Firestore data
    - 📊 Shows visual results with statistics

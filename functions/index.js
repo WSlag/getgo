@@ -1420,6 +1420,7 @@ exports.authRecoverySignIn = recoveryFunctions.authRecoverySignIn;
 // =============================================================================
 
 const authFunctions = require('./src/api/auth');
+exports.authRequestEmailMagicLinkSignInV2 = authFunctions.authRequestEmailMagicLinkSignInV2;
 exports.authPrepareEmailMagicLinkSignIn = authFunctions.authPrepareEmailMagicLinkSignIn;
 exports.authFinalizeEmailLinking = authFunctions.authFinalizeEmailLinking;
 exports.authDisableEmailMagicLink = authFunctions.authDisableEmailMagicLink;

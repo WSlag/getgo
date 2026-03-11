@@ -134,6 +134,13 @@ All tests run against Firebase Emulators (zero production impact).
 
 Environment settings are managed via Firebase function env files (`functions/.env*`) and frontend env files (`frontend/.env*`).
 
+## Security Rollout Gates
+
+Use the staged security rollout runbook when deploying auth/CSP/security hardening updates:
+
+- [SECURITY_ROLLOUT_RUNBOOK.md](SECURITY_ROLLOUT_RUNBOOK.md)
+- Baseline gate command: `npm run security:gate:baseline`
+
 ## Platform Fee Structure
 
 - **Platform Fee**: 3% of agreed price

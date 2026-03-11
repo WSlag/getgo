@@ -21,6 +21,7 @@ const RECAPTCHA_CONTAINER_ID = 'firebase-auth-recaptcha-container';
 const EMAIL_MAGIC_LINK_FEATURE_ENABLED =
   import.meta.env.VITE_ENABLE_EMAIL_MAGIC_LINK === 'true'
   || Boolean(import.meta.env.DEV);
+const EMAIL_MAGIC_LINK_V2_ENABLED = import.meta.env.VITE_EMAIL_MAGIC_LINK_V2_ENABLED === 'true';
 const EMAIL_LINK_STORAGE_KEY = 'karga_email_link_state_v1';
 const REFERRAL_CODE_STORAGE_KEY = 'karga_referral_code';
 const REFERRAL_ERROR_STORAGE_KEY = 'karga_referral_attribution_last_error';
@@ -140,6 +141,15 @@ function resolveEmailLinkModeFromUrl(rawUrl) {
   } catch {
     return null;
   }
+}
+
+function shouldFallbackToLegacyMagicLinkRequest(error) {
+  const code = String(error?.code || '').toLowerCase();
+  return (
+    code.includes('not-found')
+    || code.includes('unimplemented')
+    || code.includes('failed-precondition')
+  );
 }
 
 function readPendingEmailLinkState() {
@@ -537,6 +547,33 @@ export function AuthProvider({ children }) {
     try {
       setAuthError(null);
       await waitForAppCheckInitialization();
+
+      if (EMAIL_MAGIC_LINK_V2_ENABLED) {
+        writePendingEmailLinkState({ email: normalizedEmail, mode: 'signin' });
+        try {
+          const v2Response = await api.auth.requestEmailMagicLinkSignInV2({ email: normalizedEmail });
+          if (v2Response?.retryAfterSeconds) {
+            clearPendingEmailLinkState();
+            return {
+              success: false,
+              error: `Too many attempts. Please wait ${v2Response.retryAfterSeconds}s and try again.`,
+            };
+          }
+
+          return {
+            success: true,
+            message: v2Response?.message || EMAIL_LINK_GENERIC_MESSAGE,
+          };
+        } catch (error) {
+          if (!shouldFallbackToLegacyMagicLinkRequest(error)) {
+            throw error;
+          }
+          if (import.meta.env.DEV) {
+            console.warn('[auth] Falling back to legacy magic-link request endpoint:', error?.code || error?.message);
+          }
+        }
+      }
+
       const response = await api.auth.prepareEmailMagicLinkSignIn({ email: normalizedEmail });
 
       if (response?.retryAfterSeconds) {
