@@ -1,7 +1,5 @@
-import React from 'react';
 import { cn } from '@/lib/utils';
 import { TrendingUp, TrendingDown } from 'lucide-react';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export function StatCard({
   title,
@@ -14,37 +12,35 @@ export function StatCard({
   onClick,
   className,
 }) {
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const Wrapper = onClick ? 'button' : 'div';
 
   return (
     <Wrapper
       onClick={onClick}
       className={cn(
-        'rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm',
-        'text-left w-full',
-        onClick && 'hover:shadow-md hover:border-orange-300 dark:hover:border-orange-700 cursor-pointer transition-all duration-300 hover:scale-[1.01] active:scale-[0.99]',
+        'w-full rounded-[14px] border border-slate-200 bg-white p-4 text-left shadow-[0_1px_3px_rgba(0,0,0,0.08)]',
+        'dark:border-slate-800 dark:bg-slate-900',
+        onClick && 'cursor-pointer transition-all duration-200 hover:border-orange-300 hover:shadow-md active:scale-[0.99] dark:hover:border-orange-700',
         className
       )}
-      style={{ padding: isDesktop ? '20px 24px' : '16px 20px' }}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             {title}
           </p>
-          <p className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white truncate">
+          <p className="truncate text-2xl font-bold text-slate-900 dark:text-white lg:text-3xl">
             {value}
           </p>
           {subtitle && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {subtitle}
             </p>
           )}
           {trend !== undefined && (
-            <div className="flex items-center gap-1 mt-2">
+            <div className="mt-2 flex items-center gap-1">
               {trend >= 0 ? (
-                <TrendingUp className="size-4 text-green-500" />
+                <TrendingUp className="size-4 text-emerald-500" />
               ) : (
                 <TrendingDown className="size-4 text-red-500" />
               )}
@@ -57,7 +53,7 @@ export function StatCard({
                 {trend >= 0 ? '+' : ''}{trend}%
               </span>
               {trendLabel && (
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
                   {trendLabel}
                 </span>
               )}
@@ -66,7 +62,7 @@ export function StatCard({
         </div>
         {Icon && (
           <div className={cn(
-            'size-10 rounded-lg flex items-center justify-center shadow-lg flex-shrink-0',
+            'size-10 shrink-0 rounded-[10px] shadow-[0_6px_12px_rgba(0,0,0,0.10)] flex items-center justify-center',
             iconColor
           )}>
             <Icon className="size-5 text-white" />
@@ -81,19 +77,19 @@ export function StatCardSkeleton({ className }) {
   return (
     <div
       className={cn(
-        'rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm',
+        'w-full rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.08)]',
+        'dark:border-slate-800 dark:bg-slate-900',
         'animate-pulse',
         className
       )}
-      style={{ padding: '16px 20px' }}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
-          <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded mb-3" />
-          <div className="h-8 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
-          <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="mb-3 h-3 w-20 rounded bg-slate-200 dark:bg-slate-700" />
+          <div className="mb-2 h-8 w-32 rounded bg-slate-200 dark:bg-slate-700" />
+          <div className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700" />
         </div>
-        <div className="size-10 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+        <div className="size-10 rounded-[10px] bg-slate-200 dark:bg-slate-700" />
       </div>
     </div>
   );
