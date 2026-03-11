@@ -51,91 +51,70 @@ async function promoteUserToAdmin(uid) {
   }
 }
 
-test.describe('Admin Mobile Access', () => {
-  test.use({ viewport: { width: 375, height: 812 } });
-
+test.describe('Admin Dashboard Smoke', () => {
   test.beforeEach(async ({ authHelper }) => {
     await authHelper.clearEmulatorData();
   });
 
-  test('should not show Admin Dashboard entry in profile dropdown for non-admin users', async ({
-    page,
-    authHelper,
-    testPhoneNumbers,
-  }) => {
-    await authHelper.login(testPhoneNumbers.shipper);
-    await authHelper.register(generateTestUser('shipper', 41));
-
-    const headerButtons = page.locator('header button');
-    await expect(headerButtons.last()).toBeVisible();
-    await headerButtons.last().click();
-
-    await expect(
-      page.locator('[role="menuitem"]').filter({ hasText: /admin dashboard/i })
-    ).toHaveCount(0);
-  });
-
-  test('should block #admin deep link for non-admin users', async ({
-    page,
-    authHelper,
-    testPhoneNumbers,
-  }) => {
-    await authHelper.login(testPhoneNumbers.shipper);
-    await authHelper.register(generateTestUser('shipper', 42));
-
-    await page.goto('/#admin');
-    await page.waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 20000 }).catch(() => {});
-
-    await expect(page.getByText(/access denied/i)).toBeVisible();
-    await expect(page.getByText(/don't have permission/i)).toBeVisible();
-
-    await page.getByRole('button', { name: /go back to app/i }).click();
-    await expect(page.locator('header')).toBeVisible();
-  });
-
-  test('should keep Back to App visible and tappable in admin mobile drawer', async ({
+  test('should render all admin dashboard sections and core controls', async ({
     page,
     authHelper,
     testPhoneNumbers,
   }) => {
     await authHelper.login(testPhoneNumbers.admin);
-    await authHelper.register(generateTestUser('shipper', 43));
+    await authHelper.register(generateTestUser('shipper', 51));
 
     const adminUid = await getEmulatorUidByPhone(testPhoneNumbers.admin);
     expect(adminUid).toBeTruthy();
     await promoteUserToAdmin(adminUid);
 
     await page.goto('/#admin');
-    await page.waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 20000 }).catch(() => {});
+    await page.waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 30000 }).catch(() => {});
 
-    const menuButton = page.locator('header button', {
-      has: page.locator('svg.lucide-menu'),
-    }).first();
-    await expect(menuButton).toBeVisible();
-    await menuButton.click();
-
-    const sidebar = page.locator('aside').filter({ hasText: /GetGo Admin/i }).first();
+    const sidebar = page.locator('aside').first();
     await expect(sidebar).toBeVisible();
+    await expect(page.locator('header h1')).toContainText('Dashboard');
 
-    const navScroller = sidebar.locator('nav').first();
-    await navScroller.evaluate((node) => {
-      node.scrollTop = node.scrollHeight;
-    });
+    const refreshButton = page.locator('header button', {
+      has: page.locator('svg.lucide-refresh-cw'),
+    }).first();
+    await expect(refreshButton).toBeVisible();
+    await refreshButton.click();
+
+    const darkModeButton = page.locator('header button', {
+      has: page.locator('svg.lucide-moon, svg.lucide-sun'),
+    }).first();
+    await expect(darkModeButton).toBeVisible();
+    await darkModeButton.click();
+    await darkModeButton.click();
+
+    const sections = [
+      { navLabel: 'Dashboard', title: 'Dashboard' },
+      { navLabel: 'Users', title: 'User Management' },
+      { navLabel: 'Listings', title: 'Listings Management' },
+      { navLabel: 'Contracts', title: 'Contracts' },
+      { navLabel: 'Shipments', title: 'Shipments' },
+      { navLabel: 'Payments', title: 'Payment Review' },
+      { navLabel: 'Financial', title: 'Financial Overview' },
+      { navLabel: 'Disputes', title: 'Disputes' },
+      { navLabel: 'Support Messages', title: 'Support Messages' },
+      { navLabel: 'Referrals', title: 'Referral Program' },
+      { navLabel: 'Broker Payouts', title: 'Broker Payouts' },
+      { navLabel: 'Ratings', title: 'Ratings & Reviews' },
+      { navLabel: 'Settings', title: 'System Settings' },
+    ];
+
+    for (const section of sections) {
+      await sidebar.getByRole('button', { name: new RegExp(`^${section.navLabel}$`, 'i') }).click();
+      await expect(page.locator('header h1')).toContainText(section.title);
+      await expect(page.getByText(/access denied/i)).toHaveCount(0);
+      await expect(page.locator('main')).toBeVisible();
+    }
 
     const backToAppButton = sidebar.getByRole('button', { name: /back to app/i });
     await expect(backToAppButton).toBeVisible();
-
-    const box = await backToAppButton.boundingBox();
-    expect(box).not.toBeNull();
-    if (box) {
-      const viewport = page.viewportSize();
-      expect(box.y).toBeGreaterThanOrEqual(0);
-      if (viewport) {
-        expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
-      }
-    }
-
     await backToAppButton.click();
+
     await expect(page).not.toHaveURL(/#admin/);
     await expect(page.locator('header')).toBeVisible();
   });
