@@ -146,8 +146,8 @@ export function BrokerOnboardingGuideModal({
     setActivating(true);
     setActivationError('');
     try {
-      await api.broker.register();
-      onActivated?.();
+      const registerResult = await api.broker.register();
+      onActivated?.(registerResult);
       setStep(1);
     } catch (error) {
       console.error('Broker activation error:', error);

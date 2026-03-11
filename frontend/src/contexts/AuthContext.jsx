@@ -1139,7 +1139,7 @@ export function AuthProvider({ children }) {
     // Computed values
     isAuthenticated: !!authUser && !!userProfile,
     currentRole: userProfile?.role || 'shipper',
-    isBroker: !!brokerProfile,
+    isBroker: !!brokerProfile || userProfile?.isBroker === true,
     isAdmin: !!userProfile?.isAdmin || userProfile?.role === 'admin',
     emailMagicLinkEnabled: EMAIL_MAGIC_LINK_FEATURE_ENABLED,
     emailAuthStatus: {

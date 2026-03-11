@@ -71,8 +71,8 @@ export function BrokerView({
   const [referralsLoading, setReferralsLoading] = useState(false);
   const [referralsHasMore, setReferralsHasMore] = useState(false);
 
-  const fetchDashboard = async () => {
-    if (!authUser || !isBroker) return;
+  const fetchDashboard = async ({ force = false } = {}) => {
+    if (!authUser || (!isBroker && !force)) return;
     setLoading(true);
     setError('');
     try {
@@ -85,8 +85,8 @@ export function BrokerView({
     }
   };
 
-  const fetchListingReferrals = async ({ append = false, cursorValue = null } = {}) => {
-    if (!authUser || !isBroker) return;
+  const fetchListingReferrals = async ({ append = false, cursorValue = null, force = false } = {}) => {
+    if (!authUser || (!isBroker && !force)) return;
     setReferralsLoading(true);
     try {
       const data = await api.broker.getListingReferrals({
@@ -138,15 +138,18 @@ export function BrokerView({
     setRegistering(true);
     setError('');
     try {
-      await api.broker.register();
-      onBrokerRegistered?.();
+      const registerResult = await api.broker.register();
+      const alreadyRegistered = registerResult?.alreadyRegistered === true;
+      onBrokerRegistered?.(registerResult);
       onToast?.({
         type: 'success',
-        title: 'Broker Activated',
-        message: 'Your broker profile is now active.',
+        title: alreadyRegistered ? 'Broker Already Active' : 'Broker Activated',
+        message: alreadyRegistered
+          ? 'Your broker profile is already active.'
+          : 'Your broker profile is now active.',
       });
-      await fetchDashboard();
-      await fetchListingReferrals();
+      await fetchDashboard({ force: true });
+      await fetchListingReferrals({ force: true });
     } catch (registerError) {
       setError(registerError.message || 'Failed to register as broker');
     } finally {
@@ -860,7 +863,7 @@ export function BrokerView({
       onClose={() => setShowOnboarding(false)}
       onDismiss={() => setShowOnboarding(false)}
       onComplete={() => setShowOnboarding(false)}
-      onActivated={() => { onBrokerRegistered?.(); }}
+      onActivated={(registerResult) => { onBrokerRegistered?.(registerResult); }}
       userRole={brokerProfile?.sourceRole || 'shipper'}
       userName={authUser?.displayName || ''}
       isBroker={isBroker}

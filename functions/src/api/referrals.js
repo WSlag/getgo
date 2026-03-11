@@ -348,6 +348,75 @@ async function generateUniqueReferralCode(db, role) {
   throw new functions.https.HttpsError('resource-exhausted', 'Failed to generate unique referral code');
 }
 
+function normalizeBrokerTier(input) {
+  const tier = String(input || 'STARTER').trim().toUpperCase();
+  return ALLOWED_TIERS.includes(tier) ? tier : 'STARTER';
+}
+
+function normalizeBrokerStatus(input) {
+  const status = String(input || 'active').trim().toLowerCase();
+  return status === 'inactive' ? 'inactive' : 'active';
+}
+
+function normalizeSourceRole(...candidates) {
+  for (const candidate of candidates) {
+    const normalized = String(candidate || '').trim().toLowerCase();
+    if (normalized === 'shipper' || normalized === 'trucker') {
+      return normalized;
+    }
+  }
+  return null;
+}
+
+function toRoundedAmount(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return roundToCents(parsed);
+}
+
+function toCount(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.floor(parsed);
+}
+
+async function assertReferralCodeAvailable(db, referralCode, brokerId) {
+  const snap = await db.collection('brokers').where('referralCode', '==', referralCode).limit(2).get();
+  const hasConflict = snap.docs.some((doc) => doc.id !== brokerId);
+  if (hasConflict) {
+    throw new functions.https.HttpsError('already-exists', 'Referral code already in use');
+  }
+}
+
+function buildNormalizedBrokerProfile({
+  userId,
+  sourceRole,
+  referralCode,
+  canonicalBroker = {},
+  mirrorBroker = {},
+  now,
+}) {
+  const merged = {
+    ...(mirrorBroker || {}),
+    ...(canonicalBroker || {}),
+  };
+
+  return {
+    userId,
+    sourceRole,
+    referralCode,
+    tier: normalizeBrokerTier(merged.tier),
+    status: normalizeBrokerStatus(merged.status),
+    totalEarnings: toRoundedAmount(merged.totalEarnings),
+    pendingEarnings: toRoundedAmount(merged.pendingEarnings),
+    availableBalance: toRoundedAmount(merged.availableBalance),
+    totalReferrals: toCount(merged.totalReferrals),
+    totalTransactions: toCount(merged.totalTransactions),
+    createdAt: merged.createdAt || now,
+    updatedAt: now,
+  };
+}
+
 async function notifyAllAdmins(db, payload) {
   const [adminsByRole, adminsByFlag] = await Promise.all([
     db.collection('users').where('role', '==', 'admin').limit(50).get(),
@@ -397,60 +466,67 @@ exports.brokerRegister = functions.region(REGION).https.onCall(async (data, cont
   if (!userDoc.exists) {
     throw new functions.https.HttpsError('not-found', 'User profile not found');
   }
-  if (brokerDoc.exists || brokerProfileDoc.exists) {
-    throw new functions.https.HttpsError('already-exists', 'Already registered as broker');
-  }
 
   const user = userDoc.data() || {};
+  const canonicalBroker = brokerDoc.data() || {};
+  const mirrorBroker = brokerProfileDoc.data() || {};
+  const hasExistingBroker = brokerDoc.exists || brokerProfileDoc.exists;
   const requestedCode = normalizeReferralCode(data?.referralCode);
-  let referralCode = requestedCode;
+  if (requestedCode && !/^[A-Z0-9]{6,12}$/.test(requestedCode)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Referral code format is invalid');
+  }
+
+  const sourceRole = normalizeSourceRole(
+    canonicalBroker.sourceRole,
+    mirrorBroker.sourceRole,
+    user.brokerSourceRole,
+    user.role
+  );
+  let referralCode = normalizeReferralCode(canonicalBroker.referralCode || mirrorBroker.referralCode);
 
   if (referralCode) {
-    if (!/^[A-Z0-9]{6,12}$/.test(referralCode)) {
-      throw new functions.https.HttpsError('invalid-argument', 'Referral code format is invalid');
-    }
-    const existingCode = await db.collection('brokers').where('referralCode', '==', referralCode).limit(1).get();
-    if (!existingCode.empty) {
-      throw new functions.https.HttpsError('already-exists', 'Referral code already in use');
-    }
+    await assertReferralCodeAvailable(db, referralCode, userId);
+  } else if (requestedCode) {
+    await assertReferralCodeAvailable(db, requestedCode, userId);
+    referralCode = requestedCode;
   } else {
-    referralCode = await generateUniqueReferralCode(db, user.role);
+    referralCode = await generateUniqueReferralCode(db, sourceRole || user.role);
   }
 
   const now = FieldValue.serverTimestamp();
-  const profile = {
+  const profile = buildNormalizedBrokerProfile({
     userId,
-    sourceRole: user.role || null,
     referralCode,
-    tier: 'STARTER',
-    status: 'active',
-    totalEarnings: 0,
-    pendingEarnings: 0,
-    availableBalance: 0,
-    totalReferrals: 0,
-    totalTransactions: 0,
-    createdAt: now,
-    updatedAt: now,
-  };
+    sourceRole,
+    canonicalBroker,
+    mirrorBroker,
+    now,
+  });
+
+  const brokerRegisteredAt = user.brokerRegisteredAt
+    || canonicalBroker.createdAt
+    || mirrorBroker.createdAt
+    || now;
 
   await db.runTransaction(async (tx) => {
-    tx.set(brokerRef, profile);
-    tx.set(brokerProfileRef, profile);
-    tx.update(userRef, {
+    tx.set(brokerRef, profile, { merge: true });
+    tx.set(brokerProfileRef, profile, { merge: true });
+    tx.set(userRef, {
       isBroker: true,
-      brokerSourceRole: user.role || null,
-      brokerRegisteredAt: now,
+      brokerSourceRole: sourceRole,
+      brokerRegisteredAt,
       updatedAt: now,
-    });
+    }, { merge: true });
   });
 
   return {
     success: true,
+    alreadyRegistered: hasExistingBroker,
     broker: {
       userId,
       referralCode,
-      tier: 'STARTER',
-      status: 'active',
+      tier: profile.tier,
+      status: profile.status,
     },
   };
 });
