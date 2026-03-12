@@ -7,12 +7,18 @@ import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/
 
 const isRead = (notification) => notification?.isRead === true || notification?.read === true;
 
-export function useNotifications(userId, maxResults = 50) {
+export function useNotifications(userId, maxResults = 50, enabled = true) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     if (!userId) {
       setNotifications([]);
       setLoading(false);
@@ -54,7 +60,7 @@ export function useNotifications(userId, maxResults = 50) {
     );
 
     return () => unsubscribe();
-  }, [userId, maxResults]);
+  }, [userId, maxResults, enabled]);
 
   const unreadCount = useMemo(() => {
     return notifications.filter((n) => !isRead(n)).length;

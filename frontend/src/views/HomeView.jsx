@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, useId } from 'react';
 import { Filter, X, Route, ChevronRight, AlertCircle, BookmarkPlus, Bookmark, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CargoCard } from '@/components/cargo/CargoCard';
@@ -66,6 +66,7 @@ export function HomeView({
 
   const scrollContainerRef = useRef(null);
   const stickyControlsRef = useRef(null);
+  const searchInputId = useId();
 
   // Detect mobile screen for compact cards
   const isMobile = useMediaQuery('(max-width: 1023px)');
@@ -241,8 +242,12 @@ export function HomeView({
 
         {/* Search Bar */}
         <div className="relative" style={{ marginBottom: isMobile ? '0' : '24px' }}>
+          <label htmlFor={searchInputId} className="sr-only">
+            Search marketplace listings
+          </label>
           <div className="relative">
             <input
+              id={searchInputId}
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange?.(e.target.value)}
@@ -262,8 +267,10 @@ export function HomeView({
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => onSearchChange?.('')}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                aria-label="Clear search text"
               >
                 <X className="size-5" />
               </button>

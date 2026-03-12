@@ -11,6 +11,7 @@ export function useCargoListings(options = {}) {
     userId = null,
     maxResults = 50,
     authUser = undefined, // pass authUser to gate subscription on authentication
+    enabled = true,
   } = options;
 
   const [listings, setListings] = useState([]);
@@ -18,6 +19,12 @@ export function useCargoListings(options = {}) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     // If authUser is explicitly provided and is null/falsy, skip subscription
     // (undefined means caller didn't pass it, so we proceed as before)
     if (authUser === null) {
@@ -104,7 +111,7 @@ export function useCargoListings(options = {}) {
     );
 
     return () => unsubscribe();
-  }, [status, userId, maxResults, authUser]);
+  }, [status, userId, maxResults, authUser, enabled]);
 
   return { listings, loading, error };
 }

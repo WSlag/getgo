@@ -74,12 +74,18 @@ const ActivityView = lazy(() => import('@/views/ActivityView'));
 const HelpSupportView = lazy(() => import('@/views/HelpSupportView'));
 
 // Modal Components
-import { PostModal, BidModal, CargoDetailsModal, TruckDetailsModal, ChatModal, MyBidsModal, RatingModal } from '@/components/modals';
+const PostModal = lazy(() => import('@/components/modals/PostModal'));
+const BidModal = lazy(() => import('@/components/modals/BidModal'));
+const CargoDetailsModal = lazy(() => import('@/components/modals/CargoDetailsModal'));
+const TruckDetailsModal = lazy(() => import('@/components/modals/TruckDetailsModal'));
+const ChatModal = lazy(() => import('@/components/modals/ChatModal'));
+const MyBidsModal = lazy(() => import('@/components/modals/MyBidsModal'));
+const RatingModal = lazy(() => import('@/components/modals/RatingModal'));
 const GCashPaymentModal = lazy(() => import('@/components/modals/GCashPaymentModal'));
 const RouteOptimizerModal = lazy(() => import('@/components/modals/RouteOptimizerModal'));
 const ContractModal = lazy(() => import('@/components/modals/ContractModal'));
 import ReferListingModal from '@/components/broker/ReferListingModal';
-import { FullMapModal } from '@/components/maps';
+const FullMapModal = lazy(() => import('@/components/maps/FullMapModal'));
 import AuthModal from '@/components/auth/AuthModal';
 import { OnboardingGuideModal } from '@/components/modals/OnboardingGuideModal';
 import { BrokerOnboardingGuideModal } from '@/components/broker/BrokerOnboardingGuideModal';
@@ -136,20 +142,6 @@ export default function GetGoApp() {
   const activeUserId = canSubscribeUserData ? authUser.uid : null;
   const authUserForDataHooks = canSubscribeUserData ? authUser : null;
 
-  // Firebase Data Hooks - fetch ALL listings, filter in view layer
-  // Pass authUser so hooks only subscribe when authenticated (avoids permission errors)
-  const { listings: firebaseCargoListings } = useCargoListings({ authUser: authUserForDataHooks });
-  const { listings: firebaseTruckListings } = useTruckListings({ authUser: authUserForDataHooks });
-  const { notifications: firebaseNotifications } = useNotifications(activeUserId);
-  const { bids: myBids } = useMyBids(activeUserId);
-  const { conversations, loading: conversationsLoading } = useConversations(activeUserId);
-  // Wallet removed - using direct GCash payment for platform fees
-  const {
-    shipments: firebaseShipments,
-    activeShipments: firebaseActiveShipments,
-    deliveredShipments: firebaseDeliveredShipments,
-  } = useShipments(activeUserId);
-
   // Custom Hooks for UI State
   const { darkMode, toggleDarkMode } = useTheme();
   const {
@@ -165,6 +157,60 @@ export default function GetGoApp() {
     setSearchQuery,
   } = useMarketplace('home', 'cargo', normalizeWorkspaceRole(currentRole || 'shipper'));
   const { modals, openModal, closeModal, getModalData } = useModals();
+  const bidModalData = getModalData('bid');
+  const mapModalData = getModalData('map');
+  const cargoDetailsData = getModalData('cargoDetails');
+  const truckDetailsData = getModalData('truckDetails');
+  const chatModalData = getModalData('chat');
+  const routeOptimizerData = getModalData('routeOptimizer');
+  const referListingData = getModalData('referListing');
+  const platformFeeData = getModalData('platformFee');
+  const contractModalData = getModalData('contract');
+  const editCargoData = getModalData('editCargo');
+  const editTruckData = getModalData('editTruck');
+
+  const shouldSubscribeListings = activeTab === 'home' || activeTab === 'activity' || activeTab === 'broker';
+  const shouldSubscribeNotifications = activeTab === 'notifications';
+  const shouldSubscribeBids = activeTab === 'bids' || modals.bid || modals.cargoDetails || modals.truckDetails || modals.myBids;
+  const shouldSubscribeConversations = activeTab === 'messages' || modals.chat;
+  const shouldSubscribeShipments = activeTab === 'tracking' || activeTab === 'contracts' || activeTab === 'activity';
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.debug('[listener-gating]', {
+      activeTab,
+      listings: shouldSubscribeListings,
+      notifications: shouldSubscribeNotifications,
+      bids: shouldSubscribeBids,
+      conversations: shouldSubscribeConversations,
+      shipments: shouldSubscribeShipments,
+    });
+  }, [
+    activeTab,
+    shouldSubscribeListings,
+    shouldSubscribeNotifications,
+    shouldSubscribeBids,
+    shouldSubscribeConversations,
+    shouldSubscribeShipments,
+  ]);
+
+  // Firebase Data Hooks - tab-scoped listener gating to protect first-interaction speed.
+  const { listings: firebaseCargoListings } = useCargoListings({
+    authUser: authUserForDataHooks,
+    enabled: shouldSubscribeListings,
+  });
+  const { listings: firebaseTruckListings } = useTruckListings({
+    authUser: authUserForDataHooks,
+    enabled: shouldSubscribeListings,
+  });
+  const { notifications: firebaseNotifications } = useNotifications(activeUserId, 50, shouldSubscribeNotifications);
+  const { bids: myBids } = useMyBids(activeUserId, shouldSubscribeBids);
+  const { conversations, loading: conversationsLoading } = useConversations(activeUserId, shouldSubscribeConversations);
+  const {
+    shipments: firebaseShipments,
+    activeShipments: firebaseActiveShipments,
+    deliveredShipments: firebaseDeliveredShipments,
+  } = useShipments(activeUserId, shouldSubscribeShipments);
 
   // Socket.io for instant notifications
   const {
@@ -2495,6 +2541,8 @@ export default function GetGoApp() {
 
       {/* Modals */}
       <ErrorBoundary>
+      <Suspense fallback={null}>
+      {modals.post && (
       <PostModal
         open={modals.post}
         onClose={() => closeModal('post')}
@@ -2565,17 +2613,19 @@ export default function GetGoApp() {
           }
         }}
       />
+      )}
 
+      {modals.bid && bidModalData && (
       <BidModal
         open={modals.bid}
         onClose={() => closeModal('bid')}
-        listing={getModalData('bid')}
+        listing={bidModalData}
         currentRole={interactionRole}
         isSuspended={isAccountSuspended}
         outstandingFees={Number(currentUser?.outstandingPlatformFees || currentUser?.outstandingFees || 0)}
         loading={bidLoading}
         onSubmit={async (data) => {
-          const listing = getModalData('bid');
+          const listing = bidModalData;
           if (!authUser?.uid || !userProfile || !listing) {
             console.error('Missing required data for bid');
             return;
@@ -2680,23 +2730,25 @@ export default function GetGoApp() {
           }
         }}
       />
+      )}
 
       {/* Map Modal */}
-      {modals.map && getModalData('map') && (
+      {modals.map && mapModalData && (
         <FullMapModal
-          listing={getModalData('map')}
+          listing={mapModalData}
           darkMode={darkMode}
           onClose={() => closeModal('map')}
         />
       )}
 
       {/* Cargo Details Modal */}
+      {modals.cargoDetails && cargoDetailsData && (
       <CargoDetailsModal
         open={modals.cargoDetails}
         onClose={() => closeModal('cargoDetails')}
-        cargo={getModalData('cargoDetails')}
+        cargo={cargoDetailsData}
         currentRole={interactionRole}
-        isOwner={getModalData('cargoDetails') && isCargoOwner(getModalData('cargoDetails'))}
+        isOwner={isCargoOwner(cargoDetailsData)}
         isBroker={isBroker}
         onEdit={handleEditCargo}
         onBid={(cargo) => {
@@ -2709,9 +2761,9 @@ export default function GetGoApp() {
         }}
         canRefer={Boolean(
           isBroker
-          && getModalData('cargoDetails')
-          && !isCargoOwner(getModalData('cargoDetails'))
-          && canBidCargoStatus(getModalData('cargoDetails')?.status)
+          && cargoDetailsData
+          && !isCargoOwner(cargoDetailsData)
+          && canBidCargoStatus(cargoDetailsData?.status)
         )}
         onOpenChat={(bid, listing) => {
           closeModal('cargoDetails');
@@ -2726,7 +2778,7 @@ export default function GetGoApp() {
         }}
         onOpenContract={handleOpenContract}
         userBidId={(() => {
-          const cargo = getModalData('cargoDetails');
+          const cargo = cargoDetailsData;
           if (!cargo || !authUser || interactionRole !== 'trucker') return null;
           // Find user's bid for this cargo from myBids
           const userBid = myBids.find(bid => bid.cargoListingId === cargo.id);
@@ -2734,14 +2786,16 @@ export default function GetGoApp() {
         })()}
         darkMode={darkMode}
       />
+      )}
 
       {/* Truck Details Modal */}
+      {modals.truckDetails && truckDetailsData && (
       <TruckDetailsModal
         open={modals.truckDetails}
         onClose={() => closeModal('truckDetails')}
-        truck={getModalData('truckDetails')}
+        truck={truckDetailsData}
         currentRole={interactionRole}
-        isOwner={getModalData('truckDetails') && isTruckOwner(getModalData('truckDetails'))}
+        isOwner={isTruckOwner(truckDetailsData)}
         isBroker={isBroker}
         onEdit={handleEditTruck}
         onBook={(truck) => {
@@ -2754,9 +2808,9 @@ export default function GetGoApp() {
         }}
         canRefer={Boolean(
           isBroker
-          && getModalData('truckDetails')
-          && !isTruckOwner(getModalData('truckDetails'))
-          && canBookTruckStatus(getModalData('truckDetails')?.status)
+          && truckDetailsData
+          && !isTruckOwner(truckDetailsData)
+          && canBookTruckStatus(truckDetailsData?.status)
         )}
         onOpenChat={(bid, listing) => {
           closeModal('truckDetails');
@@ -2772,39 +2826,47 @@ export default function GetGoApp() {
         onOpenContract={handleOpenContract}
         darkMode={darkMode}
       />
+      )}
 
+      {modals.referListing && referListingData && (
       <ReferListingModal
         open={modals.referListing}
         onClose={() => closeModal('referListing')}
-        listing={getModalData('referListing')?.listing || null}
-        listingType={getModalData('referListing')?.listingType || 'cargo'}
+        listing={referListingData?.listing || null}
+        listingType={referListingData?.listingType || 'cargo'}
         onToast={showToast}
       />
+      )}
 
       {/* Chat Modal */}
+      {modals.chat && chatModalData && (
       <ChatModal
         open={modals.chat}
         onClose={() => closeModal('chat')}
-        data={getModalData('chat')}
+        data={chatModalData}
         currentUser={authUser}
         onOpenContract={handleOpenContract}
       />
+      )}
 
       {/* Route Optimizer Modal */}
+      {modals.routeOptimizer && (
       <Suspense fallback={null}>
         <RouteOptimizerModal
           open={modals.routeOptimizer}
           onClose={() => closeModal('routeOptimizer')}
-          initialOrigin={getModalData('routeOptimizer')?.origin}
-          initialDestination={getModalData('routeOptimizer')?.destination}
+          initialOrigin={routeOptimizerData?.origin}
+          initialDestination={routeOptimizerData?.destination}
           savedRoutes={savedRoutes}
           onSaveRoute={handleSaveRoute}
           onApplySavedRoute={handleApplySavedRoute}
           onDeleteSavedRoute={handleDeleteSavedRoute}
         />
       </Suspense>
+      )}
 
       {/* My Bids Modal */}
+      {modals.myBids && (
       <MyBidsModal
         open={modals.myBids}
         onClose={() => closeModal('myBids')}
@@ -2815,8 +2877,10 @@ export default function GetGoApp() {
           openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
         }}
       />
+      )}
 
       {/* GCash Payment Modal (replaces PlatformFeeModal) */}
+      {modals.platformFee && platformFeeData && (
       <Suspense fallback={null}>
         <GCashPaymentModal
           open={modals.platformFee}
@@ -2824,17 +2888,19 @@ export default function GetGoApp() {
             closeModal('platformFee');
             setPendingContractData(null);
           }}
-          data={getModalData('platformFee')}
+          data={platformFeeData}
           onContractCreated={handleContractCreated}
         />
       </Suspense>
+      )}
 
       {/* Contract Modal */}
+      {modals.contract && contractModalData && (
       <Suspense fallback={null}>
         <ContractModal
           open={modals.contract}
           onClose={() => closeModal('contract')}
-          contract={getModalData('contract')}
+          contract={contractModalData}
           currentUser={{ id: authUser?.uid, ...userProfile }}
           truckerProfile={truckerProfile}
           truckerCompliance={truckerCompliance}
@@ -2846,7 +2912,9 @@ export default function GetGoApp() {
           loading={contractLoading}
         />
       </Suspense>
+      )}
 
+      {ratingTarget && (
       <RatingModal
         open={!!ratingTarget}
         onClose={() => setRatingTarget(null)}
@@ -2855,16 +2923,18 @@ export default function GetGoApp() {
         onSubmit={handleSubmitRating}
         loading={ratingLoading}
       />
+      )}
 
       {/* Wallet Modal removed - using direct GCash payment */}
 
       {/* Edit Cargo Modal (uses PostModal in edit mode) */}
+      {modals.editCargo && editCargoData && (
       <PostModal
         open={modals.editCargo}
         onClose={() => closeModal('editCargo')}
         currentRole="shipper"
         editMode={true}
-        existingData={getModalData('editCargo')}
+        existingData={editCargoData}
         loading={postLoading}
         onSubmit={async (data) => {
           if (!data.id) {
@@ -2910,14 +2980,16 @@ export default function GetGoApp() {
           }
         }}
       />
+      )}
 
       {/* Edit Truck Modal (uses PostModal in edit mode) */}
+      {modals.editTruck && editTruckData && (
       <PostModal
         open={modals.editTruck}
         onClose={() => closeModal('editTruck')}
         currentRole="trucker"
         editMode={true}
-        existingData={getModalData('editTruck')}
+        existingData={editTruckData}
         loading={postLoading}
         onSubmit={async (data) => {
           if (!data.id) {
@@ -2962,6 +3034,8 @@ export default function GetGoApp() {
           }
         }}
       />
+      )}
+      </Suspense>
 
       </ErrorBoundary>
 

@@ -1,12 +1,39 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+ï»¿import { useState, useEffect, useRef, useCallback } from 'react';
 
-// GöÇGöÇGöÇ Slide data GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+const HERO_IMAGE_WIDTHS = [480, 768, 1200];
+
+const HERO_IMAGES = {
+  truckers: {
+    alt: 'Driver in truck cab using GetGo app',
+    base: '/assets/hero/truckers',
+  },
+  cargo: {
+    alt: 'Warehouse manager checking cargo bookings on phone',
+    base: '/assets/hero/cargo',
+  },
+  network: {
+    alt: 'Truck on highway at sunset representing nationwide coverage',
+    base: '/assets/hero/network',
+  },
+  manage: {
+    alt: 'Logistics manager coordinating shipments',
+    base: '/assets/hero/manage',
+  },
+  solution: {
+    alt: 'Logistics workflow managed in one app',
+    base: '/assets/hero/solution',
+  },
+  broker: {
+    alt: 'Broker referral booking workflow',
+    base: '/assets/hero/broker',
+  },
+};
 
 const SLIDES = [
   {
     id: 'truckers',
     isImage: true,
-    image: '/assets/trucker-phone-cab.png',
+    imageKey: 'truckers',
     placeholderGradient: 'linear-gradient(135deg, rgba(251, 146, 60, 0.3) 0%, rgba(249, 115, 22, 0.3) 100%)',
     overlayGradient: 'linear-gradient(90deg, rgba(10,14,23,0.82) 0%, rgba(10,14,23,0.62) 38%, rgba(10,14,23,0.18) 68%, rgba(10,14,23,0.06) 100%)',
     iconBg: 'rgba(255,255,255,0.18)',
@@ -20,7 +47,7 @@ const SLIDES = [
   {
     id: 'cargo',
     isImage: true,
-    image: '/assets/warehouse-worker-phone.png',
+    imageKey: 'cargo',
     placeholderGradient: 'linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%)',
     overlayGradient: 'linear-gradient(90deg, rgba(10,14,23,0.82) 0%, rgba(10,14,23,0.62) 38%, rgba(10,14,23,0.18) 68%, rgba(10,14,23,0.06) 100%)',
     iconBg: 'rgba(255,255,255,0.18)',
@@ -34,7 +61,7 @@ const SLIDES = [
   {
     id: 'network',
     isImage: true,
-    image: '/assets/highway-sunset-truck.png',
+    imageKey: 'network',
     placeholderGradient: 'linear-gradient(135deg, rgba(36, 99, 235, 0.3) 0%, rgba(6, 182, 212, 0.3) 100%)',
     overlayGradient: 'linear-gradient(90deg, rgba(10,14,23,0.82) 0%, rgba(10,14,23,0.62) 38%, rgba(10,14,23,0.18) 68%, rgba(10,14,23,0.06) 100%)',
     iconBg: 'rgba(255,255,255,0.18)',
@@ -48,7 +75,7 @@ const SLIDES = [
   {
     id: 'manage',
     isImage: true,
-    image: '/assets/problem-logistics-manager.png',
+    imageKey: 'manage',
     placeholderGradient: 'linear-gradient(135deg, rgba(249, 115, 22, 0.3) 0%, rgba(59, 130, 246, 0.3) 100%)',
     overlayGradient: 'linear-gradient(90deg, rgba(10,14,23,0.82) 0%, rgba(10,14,23,0.62) 38%, rgba(10,14,23,0.18) 68%, rgba(10,14,23,0.06) 100%)',
     iconBg: 'rgba(255,255,255,0.18)',
@@ -62,7 +89,7 @@ const SLIDES = [
   {
     id: 'solution',
     isImage: true,
-    image: '/assets/warehouse-worker-phone.png',
+    imageKey: 'solution',
     placeholderGradient: 'linear-gradient(135deg, rgba(147, 51, 234, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%)',
     overlayGradient: 'linear-gradient(90deg, rgba(14,23,42,0.84) 0%, rgba(14,23,42,0.64) 40%, rgba(14,23,42,0.16) 70%, rgba(14,23,42,0.05) 100%)',
     iconBg: 'rgba(255,255,255,0.18)',
@@ -76,7 +103,7 @@ const SLIDES = [
   {
     id: 'broker',
     isImage: true,
-    image: '/assets/broker-booking.png',
+    imageKey: 'broker',
     placeholderGradient: 'linear-gradient(135deg, rgba(124, 58, 237, 0.3) 0%, rgba(8, 145, 178, 0.3) 100%)',
     overlayGradient: 'linear-gradient(90deg, rgba(10,14,23,0.82) 0%, rgba(10,14,23,0.62) 38%, rgba(10,14,23,0.18) 68%, rgba(10,14,23,0.06) 100%)',
     iconBg: 'rgba(255,255,255,0.18)',
@@ -90,7 +117,9 @@ const SLIDES = [
   },
 ];
 
-// GöÇGöÇGöÇ Component GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
+function buildSrcSet(base, ext) {
+  return HERO_IMAGE_WIDTHS.map((width) => `${base}-${width}.${ext} ${width}w`).join(', ');
+}
 
 export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
   const [current, setCurrent] = useState(0);
@@ -121,7 +150,10 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
 
   useEffect(() => () => clearTimeout(pauseTimer.current), []);
 
-  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
   const handleTouchEnd = (e) => {
     if (touchStartX.current === null) return;
     const delta = e.changedTouches[0].clientX - touchStartX.current;
@@ -139,10 +171,9 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
         margin: isMobile ? '0 0 12px' : '0 0 16px',
         userSelect: 'none',
         flexShrink: 0,
-              marginTop: '2px',
+        marginTop: '2px',
       }}
     >
-      {/* Card */}
       <div
         style={{
           position: 'relative',
@@ -155,7 +186,6 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Slides track */}
         <div
           style={{
             display: 'flex',
@@ -166,18 +196,19 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
             willChange: 'transform',
           }}
         >
-          {SLIDES.map((slide) => (
+          {SLIDES.map((slide, index) => (
             <Slide
               key={slide.id}
               slide={slide}
               total={total}
               isMobile={isMobile}
+              isActive={index === current}
+              isPriority={index === 0}
               onCtaClick={slide.isBrokerCta ? onEarnAsBrokerClick : undefined}
             />
           ))}
         </div>
 
-        {/* Dot indicators */}
         <div
           style={{
             position: 'absolute',
@@ -211,7 +242,6 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
           ))}
         </div>
 
-        {/* Nav arrows GÇö always inside card */}
         <NavArrow direction="left" onClick={prev} isMobile={isMobile} />
         <NavArrow direction="right" onClick={next} isMobile={isMobile} />
       </div>
@@ -219,50 +249,27 @@ export function HeroCarousel({ isMobile = false, onEarnAsBrokerClick }) {
   );
 }
 
-// GöÇGöÇGöÇ Individual Slide GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
-
-function Slide({ slide, total, isMobile, onCtaClick }) {
-  const { bg, orbColor, orbColor2, isImage, image, placeholderGradient, overlayGradient, iconBg, iconBorder, iconPath, iconViewBox, headline, sub, pills } = slide;
-  const imageRef = useRef(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
-
-  // Lazy-load images with Intersection Observer
-  useEffect(() => {
-    if (!isImage || !image) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !imageLoaded) {
-            // Preload the image
-            const img = new Image();
-            img.onload = () => {
-              setImageLoaded(true);
-              if (imageRef.current) {
-                imageRef.current.style.backgroundImage = `url(${image})`;
-              }
-            };
-            img.src = image;
-          }
-        });
-      },
-      { rootMargin: '100px' }
-    );
-
-    if (imageRef.current) {
-      observer.observe(imageRef.current);
-    }
-
-    return () => {
-      if (imageRef.current) {
-        observer.unobserve(imageRef.current);
-      }
-    };
-  }, [isImage, image, imageLoaded]);
+function Slide({ slide, total, isMobile, isActive, isPriority, onCtaClick }) {
+  const {
+    bg,
+    orbColor,
+    orbColor2,
+    isImage,
+    imageKey,
+    placeholderGradient,
+    overlayGradient,
+    iconBg,
+    iconBorder,
+    iconPath,
+    iconViewBox,
+    headline,
+    sub,
+    pills,
+  } = slide;
 
   const visiblePills = pills || [];
+  const imageMeta = isImage ? HERO_IMAGES[imageKey] : null;
 
-  // Determine background style
   const backgroundStyle = isImage
     ? {
         background: placeholderGradient,
@@ -275,7 +282,6 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
 
   return (
     <div
-      ref={imageRef}
       style={{
         width: `${100 / total}%`,
         height: '100%',
@@ -285,7 +291,40 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
         ...backgroundStyle,
       }}
     >
-      {/* Image overlay gradient for text readability */}
+      {isImage && imageMeta ? (
+        <picture>
+          <source
+            type="image/avif"
+            srcSet={buildSrcSet(imageMeta.base, 'avif')}
+            sizes="(max-width: 640px) 100vw, 1200px"
+          />
+          <source
+            type="image/webp"
+            srcSet={buildSrcSet(imageMeta.base, 'webp')}
+            sizes="(max-width: 640px) 100vw, 1200px"
+          />
+          <img
+            src={`${imageMeta.base}-1200.jpg`}
+            srcSet={buildSrcSet(imageMeta.base, 'jpg')}
+            sizes="(max-width: 640px) 100vw, 1200px"
+            width="1200"
+            height="630"
+            alt={imageMeta.alt}
+            loading={isPriority || isActive ? 'eager' : 'lazy'}
+            decoding={isPriority ? 'sync' : 'async'}
+            fetchPriority={isPriority ? 'high' : 'low'}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: isMobile ? '68% center' : 'center',
+            }}
+          />
+        </picture>
+      ) : null}
+
       {isImage && (
         <div
           style={{
@@ -298,7 +337,6 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
         />
       )}
 
-      {/* Decorative orbs GÇö gradient slides only */}
       {!isImage && orbColor && (
         <>
           <div
@@ -343,7 +381,6 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
         </>
       )}
 
-      {/* Content */}
       <div
         style={{
           position: 'relative',
@@ -361,7 +398,6 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           textAlign: 'left',
         }}
       >
-        {/* Icon + Text column wrapper */}
         <div
           style={{
             display: 'flex',
@@ -371,12 +407,11 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
             width: '100%',
           }}
         >
-          {/* Icon tile - left (hidden on mobile) */}
-{!isMobile && (
+          {!isMobile && (
             <div
               style={{
-                width: isMobile ? '38px' : '56px',
-                height: isMobile ? '38px' : '56px',
+                width: '56px',
+                height: '56px',
                 borderRadius: '12px',
                 background: iconBg,
                 border: `1px solid ${iconBorder}`,
@@ -389,8 +424,8 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
               }}
             >
               <svg
-                width={isMobile ? '19' : '28'}
-                height={isMobile ? '19' : '28'}
+                width="28"
+                height="28"
                 viewBox={iconViewBox}
                 fill="none"
                 stroke="white"
@@ -402,9 +437,8 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
                 <path d={iconPath} />
               </svg>
             </div>
-)}
+          )}
 
-          {/* Text column - headline and subtext stacked */}
           <div
             style={{
               flex: 1,
@@ -413,7 +447,6 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
               gap: isMobile ? '10px' : '12px',
             }}
           >
-            {/* Headline */}
             <h2
               style={{
                 margin: 0,
@@ -428,7 +461,6 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
               {headline}
             </h2>
 
-            {/* Subtext */}
             <p
               style={{
                 margin: 0,
@@ -443,7 +475,6 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           </div>
         </div>
 
-        {/* Pill badges */}{/* Pill badges */}
         {visiblePills.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '5px' : '8px', justifyContent: 'flex-start' }}>
             {visiblePills.map((p) => (
@@ -469,7 +500,6 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
           </div>
         )}
 
-        {/* CTA button GÇö broker slide only */}
         {onCtaClick && (
           <button
             type="button"
@@ -505,8 +535,6 @@ function Slide({ slide, total, isMobile, onCtaClick }) {
   );
 }
 
-// GöÇGöÇGöÇ Nav Arrow Button GöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇGöÇ
-
 function NavArrow({ direction, onClick, isMobile }) {
   const isLeft = direction === 'left';
   const size = isMobile ? '28px' : '36px';
@@ -536,8 +564,12 @@ function NavArrow({ direction, onClick, isMobile }) {
         transition: 'background 200ms ease',
         padding: 0,
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.32)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'rgba(255,255,255,0.32)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+      }}
     >
       <svg
         width="12"
@@ -550,10 +582,7 @@ function NavArrow({ direction, onClick, isMobile }) {
         strokeLinejoin="round"
         aria-hidden="true"
       >
-        {isLeft
-          ? <polyline points="9,2 4,7 9,12" />
-          : <polyline points="5,2 10,7 5,12" />
-        }
+        {isLeft ? <polyline points="9,2 4,7 9,12" /> : <polyline points="5,2 10,7 5,12" />}
       </svg>
     </button>
   );

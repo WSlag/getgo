@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { Package, Truck, Camera, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import AddressSearch from '../maps/AddressSearch';
+import { useLiveRegion } from '@/contexts/LiveRegionContext';
 
 const VEHICLE_TYPES = [
   '4W Elf/Canter (1-2 tons)',
@@ -67,6 +68,9 @@ export function PostModal({
 
   const [formData, setFormData] = useState(getInitialFormData());
   const isMobile = useMediaQuery('(max-width: 1023px)');
+  const fieldIdPrefix = useId();
+  const originStreetInputId = `${fieldIdPrefix}-origin-street-address`;
+  const destinationStreetInputId = `${fieldIdPrefix}-destination-street-address`;
 
   // Pre-populate form when editing
   useEffect(() => {
@@ -96,6 +100,14 @@ export function PostModal({
   }, [editMode, existingData, open]);
 
   const [errors, setErrors] = useState({});
+  const { announceAssertive } = useLiveRegion();
+
+  useEffect(() => {
+    const firstError = Object.values(errors).find(Boolean);
+    if (firstError) {
+      announceAssertive(firstError);
+    }
+  }, [errors, announceAssertive]);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -172,7 +184,7 @@ export function PostModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto backdrop-blur-sm">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto backdrop-blur-sm" aria-busy={loading}>
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className={cn(
@@ -221,11 +233,12 @@ export function PostModal({
 
               {/* Pickup Street Address */}
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                <label htmlFor={originStreetInputId} className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
                   Pickup Street Address
                   <span className="text-xs text-gray-500 ml-2">(Optional but recommended)</span>
                 </label>
                 <Input
+                  id={originStreetInputId}
                   type="text"
                   placeholder="e.g., 123 Main St, Barangay Central, Building Name"
                   value={formData.originStreetAddress}
@@ -252,11 +265,12 @@ export function PostModal({
 
               {/* Delivery Street Address */}
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                <label htmlFor={destinationStreetInputId} className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
                   Delivery Street Address
                   <span className="text-xs text-gray-500 ml-2">(Optional but recommended)</span>
                 </label>
                 <Input
+                  id={destinationStreetInputId}
                   type="text"
                   placeholder="e.g., 456 Commerce Ave, Warehouse 3, Gate B"
                   value={formData.destinationStreetAddress}

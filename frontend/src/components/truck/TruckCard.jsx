@@ -2,7 +2,6 @@ import React from 'react';
 import { MapPin, Clock, Navigation, Star, Calendar, Users, Truck as TruckIcon, Eye, MessageSquare, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { RouteMap } from '@/components/maps';
 
 export function TruckCard({
   id,
@@ -100,12 +99,14 @@ export function TruckCard({
   // Compact card variant for mobile - ~100px height
   if (compact) {
     return (
-      <div
+      <button
+        type="button"
         className={cn(
           "group relative bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] border border-gray-200/50 dark:border-gray-800/50 cursor-pointer",
           className
         )}
         onClick={onViewDetails}
+        aria-label={`View truck route from ${origin} to ${destination}`}
       >
         {/* Gradient Accent Bar */}
         <div className={cn("h-1", currentGradient)} />
@@ -165,7 +166,7 @@ export function TruckCard({
             </div>
           </div>
         </div>
-      </div>
+      </button>
     );
   }
 
@@ -301,14 +302,18 @@ export function TruckCard({
         {truckPhotos.length > 0 && (
           <div className="flex" style={{ gap: '8px', marginBottom: '16px' }}>
             {truckPhotos.slice(0, 4).map((photo, idx) => (
-              <div
+              <button
+                type="button"
                 key={idx}
                 className="relative size-16 rounded-xl overflow-hidden group/img border-2 border-gray-200 dark:border-gray-700 hover:border-purple-400 transition-all duration-300 cursor-pointer"
                 onClick={() => onViewDetails?.()}
+                aria-label={`Open truck image ${idx + 1}`}
               >
                 <img
                   src={photo}
                   alt={`Truck ${idx + 1}`}
+                  loading="lazy"
+                  decoding="async"
                   className="size-full object-cover group-hover/img:scale-110 transition-transform duration-300"
                   onError={(e) => {
                     e.target.style.display = 'none';
@@ -319,7 +324,7 @@ export function TruckCard({
                   <TruckIcon className="size-6 text-gray-400" />
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity duration-300" />
-              </div>
+              </button>
             ))}
             {truckPhotos.length > 4 && (
               <div className="size-16 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 text-xs font-medium border-2 border-gray-200 dark:border-gray-700">
@@ -329,38 +334,31 @@ export function TruckCard({
           </div>
         )}
 
-        {/* Map Preview - Interactive RouteMap */}
-        {originCoords && destCoords ? (
-          <div style={{ marginBottom: '16px' }}>
-            <RouteMap
-              origin={origin}
-              destination={destination}
-              originCoords={originCoords}
-              destCoords={destCoords}
-              darkMode={darkMode}
-              onClick={onViewMap}
-              height="140px"
-            />
-          </div>
-        ) : (
-          <div
-            className="relative rounded-xl overflow-hidden bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 cursor-pointer"
-            style={{ height: '140px', marginBottom: '16px' }}
-            onClick={onViewMap}
-          >
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <MapPin className="size-12 text-blue-400 mx-auto mb-2 animate-bounce" />
-                <p className="text-sm text-gray-600 dark:text-gray-400">Interactive Map</p>
-              </div>
-            </div>
-            <div className="absolute bottom-4 right-4">
-              <button className="px-4 py-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 hover:scale-105">
-                View Map
-              </button>
+        {/* Deferred Map Preview */}
+        <button
+          type="button"
+          className="relative w-full rounded-xl overflow-hidden bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 text-left"
+          style={{ height: '140px', marginBottom: '16px' }}
+          onClick={onViewMap}
+          aria-label={`View route map from ${origin} to ${destination}`}
+        >
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <MapPin className="size-12 text-blue-400 mx-auto mb-2 animate-bounce" />
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {originCoords && destCoords ? 'Open Interactive Route' : 'Map Preview Unavailable'}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                {origin} to {destination}
+              </p>
             </div>
           </div>
-        )}
+          <div className="absolute bottom-4 right-4">
+            <span className="px-4 py-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg text-sm font-medium text-blue-600 dark:text-blue-400">
+              View Map
+            </span>
+          </div>
+        </button>
 
         {/* Action Buttons - Role-based rendering */}
         <div className="flex" style={{ gap: '12px' }}>

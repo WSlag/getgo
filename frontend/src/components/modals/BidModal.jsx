@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, MapPin, Package, Truck, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { useLiveRegion } from '@/contexts/LiveRegionContext';
 
 export function BidModal({
   open,
@@ -30,6 +31,14 @@ export function BidModal({
   const [cargoWeight, setCargoWeight] = useState('');
   const [errors, setErrors] = useState({});
   const isMobile = useMediaQuery('(max-width: 1023px)');
+  const { announceAssertive } = useLiveRegion();
+
+  useEffect(() => {
+    const firstError = Object.values(errors).find(Boolean);
+    if (firstError) {
+      announceAssertive(firstError);
+    }
+  }, [errors, announceAssertive]);
 
   const isCargo = listing?.type === 'cargo' || !listing?.trucker;
   const isShipper = currentRole === 'shipper';
@@ -82,7 +91,7 @@ export function BidModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogBottomSheet className="max-w-md backdrop-blur-sm">
+      <DialogBottomSheet className="max-w-md backdrop-blur-sm" aria-busy={loading}>
         <div style={{ padding: isMobile ? '16px' : '24px', paddingBottom: 0 }}>
           <DialogHeader>
             <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px' }}>

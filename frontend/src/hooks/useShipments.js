@@ -6,12 +6,18 @@ import { formatTimeAgo } from '../utils/dateFormatting';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 
-export function useShipments(userId) {
+export function useShipments(userId, enabled = true) {
   const [shipments, setShipments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     if (!userId) {
       setShipments([]);
       setLoading(false);
@@ -115,7 +121,7 @@ export function useShipments(userId) {
     );
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, enabled]);
 
   // Separate active and delivered shipments
   const activeShipments = shipments.filter(s => s.status !== 'delivered');

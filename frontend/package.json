@@ -5,10 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run generate:hero-assets && vite build && npm run prerender:public && npm run verify:prerender && npm run generate:sitemap && npm run check:perf-budgets",
     "lint": "eslint src",
     "test": "npm run lint && npm run build",
     "preview": "vite preview",
+    "check:perf-budgets": "node scripts/check-perf-budgets.js",
+    "prerender:public": "node scripts/prerender-public-routes.js",
+    "verify:prerender": "node scripts/verify-prerender-output.js",
+    "generate:sitemap": "node scripts/generate-sitemap.js",
+    "generate:hero-assets": "node scripts/generate-hero-assets.js",
     "generate-icons": "node scripts/generate-icons.js",
     "generate:og": "node scripts/generate-og-image.js"
   },

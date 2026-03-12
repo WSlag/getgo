@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import { MapPin, Loader2, X } from 'lucide-react';
 import { autocomplete, isGeocodingAvailable } from '../../services/geocodingService';
 import { philippineCities, getCoordinates } from '../../utils/cityCoordinates';
@@ -25,6 +25,8 @@ export default function AddressSearch({
   const [useDropdown, setUseDropdown] = useState(!isGeocodingAvailable());
   const inputRef = useRef(null);
   const containerRef = useRef(null);
+  const inputId = useId();
+  const errorId = error ? `${inputId}-error` : undefined;
 
   // Debounce timer
   const debounceRef = useRef(null);
@@ -142,7 +144,7 @@ export default function AddressSearch({
     return (
       <div ref={containerRef} className={`relative ${className}`}>
         {label && (
-          <label className={`block text-sm font-medium mb-1.5 ${theme.text}`}>
+          <label htmlFor={inputId} className={`block text-sm font-medium mb-1.5 ${theme.text}`}>
             {label}
             {required && <span className="text-red-500 ml-1">*</span>}
           </label>
@@ -150,12 +152,15 @@ export default function AddressSearch({
 
         <div className="relative">
           <input
+            id={inputId}
             ref={inputRef}
             type="text"
             value={query}
             onChange={handleInputChange}
             onFocus={() => setIsOpen(true)}
             placeholder={placeholder}
+            aria-invalid={Boolean(error)}
+            aria-describedby={errorId}
             className={`w-full h-10 px-4 pr-10 py-2 rounded-xl border ${theme.border} ${theme.input} focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200`}
           />
           {query && (
@@ -163,6 +168,7 @@ export default function AddressSearch({
               type="button"
               onClick={handleClear}
               className={`absolute right-3 top-1/2 -translate-y-1/2 ${theme.textSecondary} hover:text-gray-700`}
+              aria-label={`Clear ${label || 'address'} field`}
             >
               <X className="w-4 h-4" />
             </button>
@@ -170,7 +176,7 @@ export default function AddressSearch({
         </div>
 
         {error && (
-          <p className="text-red-500 text-xs mt-1">{error}</p>
+          <p id={errorId} className="text-red-500 text-xs mt-1">{error}</p>
         )}
 
         {isOpen && filteredCities.length > 0 && (
@@ -196,7 +202,7 @@ export default function AddressSearch({
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       {label && (
-        <label className={`block text-sm font-medium mb-1.5 ${theme.text}`}>
+        <label htmlFor={inputId} className={`block text-sm font-medium mb-1.5 ${theme.text}`}>
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -204,12 +210,15 @@ export default function AddressSearch({
 
       <div className="relative">
         <input
+          id={inputId}
           ref={inputRef}
           type="text"
           value={query}
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
+          aria-invalid={Boolean(error)}
+          aria-describedby={errorId}
           className={`w-full h-10 px-4 pr-10 py-2 rounded-xl border ${theme.border} ${theme.input} focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200`}
         />
         {loading ? (
@@ -219,6 +228,7 @@ export default function AddressSearch({
             type="button"
             onClick={handleClear}
             className={`absolute right-3 top-1/2 -translate-y-1/2 ${theme.textSecondary} hover:text-gray-700`}
+            aria-label={`Clear ${label || 'address'} field`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -226,7 +236,7 @@ export default function AddressSearch({
       </div>
 
       {error && (
-        <p className="text-red-500 text-xs mt-1">{error}</p>
+        <p id={errorId} className="text-red-500 text-xs mt-1">{error}</p>
       )}
 
       {isOpen && suggestions.length > 0 && (

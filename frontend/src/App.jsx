@@ -8,9 +8,12 @@ import { NotFoundView } from '@/components/shared/NotFoundView';
 import { PWAUpdateNotification } from '@/components/shared/PWAUpdateNotification';
 import ErrorBoundary from '@/components/shared/ErrorBoundary';
 import { ToastProvider } from './contexts/ToastContext';
+import { LiveRegionProvider } from './contexts/LiveRegionContext';
+import { getPublicRouteByPath } from '@/config/publicRouteManifest';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 function isValidAppPath(pathname) {
-  if (pathname === '/') {
+  if (getPublicRouteByPath(pathname)) {
     return true;
   }
 
@@ -22,6 +25,7 @@ function AppContent() {
   const { loading, isNewUser, authUser } = useAuth();
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
   const isPathValid = isValidAppPath(pathname);
+  usePageMeta(pathname);
 
   // Capture broker referral code from deep links for registration attribution.
   useEffect(() => {
@@ -88,10 +92,12 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <ToastProvider>
-          <AppContent />
-          <PWAUpdateNotification />
-        </ToastProvider>
+        <LiveRegionProvider>
+          <ToastProvider>
+            <AppContent />
+            <PWAUpdateNotification />
+          </ToastProvider>
+        </LiveRegionProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

@@ -11,12 +11,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RouteMap } from '@/components/maps';
 import { useBidsForListing } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { canBookTruckStatus, toTruckUiStatus } from '@/utils/listingStatus';
 import api from '@/services/api';
+
+const LazyRouteMap = React.lazy(() => import('@/components/maps/RouteMap'));
 
 export function TruckDetailsModal({
   open,
@@ -42,6 +43,7 @@ export function TruckDetailsModal({
   const [processingAction, setProcessingAction] = React.useState(null);
   const [bidContracts, setBidContracts] = React.useState({});
   const [confirmAction, setConfirmAction] = React.useState(null);
+  const [showRouteMap, setShowRouteMap] = React.useState(false);
 
   const handleAcceptBid = async (bid) => {
     if (!onAcceptBid) return;
@@ -117,6 +119,12 @@ export function TruckDetailsModal({
 
     fetchAcceptedBidContracts();
   }, [open, isOwner, fetchedBids]);
+
+  React.useEffect(() => {
+    if (!open) {
+      setShowRouteMap(false);
+    }
+  }, [open, truck?.id]);
 
   if (!truck) return null;
   const displayStatus = truck.uiStatus || toTruckUiStatus(truck.status);
@@ -458,14 +466,38 @@ export function TruckDetailsModal({
         {truck.originCoords && truck.destCoords && (
           <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Route Map</h4>
-            <RouteMap
-              origin={truck.origin}
-              destination={truck.destination}
-              originCoords={truck.originCoords}
-              destCoords={truck.destCoords}
-              darkMode={darkMode}
-              height={isMobile ? '160px' : '200px'}
-            />
+            {!showRouteMap ? (
+              <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40" style={{ padding: isMobile ? '12px' : '16px' }}>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Interactive map loads on demand.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setShowRouteMap(true)}
+                >
+                  View Route Map
+                </Button>
+              </div>
+            ) : (
+              <React.Suspense fallback={
+                <div className="rounded-xl bg-gray-100 dark:bg-gray-800/60 flex items-center justify-center" style={{ height: isMobile ? '160px' : '200px' }}>
+                  <Loader2 className="size-5 animate-spin text-orange-500" />
+                  <span className="ml-2 text-sm text-gray-600 dark:text-gray-300">Loading map...</span>
+                </div>
+              }>
+                <LazyRouteMap
+                  origin={truck.origin}
+                  destination={truck.destination}
+                  originCoords={truck.originCoords}
+                  destCoords={truck.destCoords}
+                  darkMode={darkMode}
+                  height={isMobile ? '160px' : '200px'}
+                />
+              </React.Suspense>
+            )}
           </div>
         )}
 
