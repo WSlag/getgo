@@ -61,13 +61,19 @@ export function useBidsForListing(listingId, listingType, listingOwnerId = null)
 }
 
 // Hook to get bids placed by a specific user
-export function useMyBids(userId) {
+export function useMyBids(userId, enabled = true) {
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const deniedListingReadsRef = useRef(new Set());
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     if (!userId) {
       setBids([]);
       setLoading(false);
@@ -167,7 +173,7 @@ export function useMyBids(userId) {
     );
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, enabled]);
 
   return { bids, loading, error };
 }

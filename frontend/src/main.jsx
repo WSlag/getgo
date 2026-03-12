@@ -1,18 +1,16 @@
 import React from 'react'
-import ReactDOM from 'react-dom/client'
+import { createRoot, hydrateRoot } from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
-import { registerSW } from 'virtual:pwa-register'
-import { initSentry } from './services/sentryService'
 /* global __APP_BUILD_ID__ */
-
-initSentry();
 
 const APP_BUILD_ID = typeof __APP_BUILD_ID__ === 'string' ? __APP_BUILD_ID__ : 'dev';
 const CHUNK_RELOAD_WINDOW_MS = 30000;
 const CHUNK_RELOAD_KEY = 'karga_chunk_reload_ts';
 const BUILD_ID_STORAGE_KEY = 'getgo_build_id';
 const BUILD_REFRESH_GUARD_KEY = 'getgo_build_refresh_guard';
+const STARTUP_DEFER_MS = 3000;
+const SENTRY_INIT_KEY = 'getgo_sentry_initialized';
 
 function isLeafletTarget(target) {
   return target instanceof Element && Boolean(target.closest('.leaflet-container'));
@@ -117,23 +115,80 @@ if (typeof window !== 'undefined') {
   });
 }
 
-const updateSW = registerSW({
-  immediate: true,
-  onNeedRefresh() {
-    updateSW(true);
-    window.dispatchEvent(new CustomEvent('sw-update-available', {
-      detail: { updateSW }
-    }));
-  },
-  onOfflineReady() {},
-  onRegistered() {},
-  onRegisterError(error) {
-    console.error('Service worker registration failed:', error);
+function scheduleIdleTask(task) {
+  if (typeof window === 'undefined') return;
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(task, { timeout: STARTUP_DEFER_MS });
+    return;
   }
-});
+  window.setTimeout(task, STARTUP_DEFER_MS);
+}
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+function bootstrapSentryWhenIdle() {
+  if (typeof window === 'undefined') return;
+  if (window.sessionStorage.getItem(SENTRY_INIT_KEY) === '1') return;
+
+  scheduleIdleTask(async () => {
+    try {
+      const sentryModule = await import('./services/sentryService');
+      sentryModule.initSentry();
+      window.sessionStorage.setItem(SENTRY_INIT_KEY, '1');
+    } catch (error) {
+      console.error('[app] Deferred Sentry initialization failed:', error);
+    }
+  });
+}
+
+function registerServiceWorkerWhenIdle() {
+  if (typeof window === 'undefined') return;
+
+  const doRegister = () => {
+    scheduleIdleTask(async () => {
+      try {
+        const { registerSW } = await import('virtual:pwa-register');
+        const updateSW = registerSW({
+          immediate: false,
+          onNeedRefresh() {
+            updateSW(true);
+            window.dispatchEvent(new CustomEvent('sw-update-available', {
+              detail: { updateSW }
+            }));
+          },
+          onOfflineReady() {},
+          onRegistered() {},
+          onRegisterError(error) {
+            console.error('Service worker registration failed:', error);
+          }
+        });
+      } catch (error) {
+        console.error('[app] Deferred service worker registration failed:', error);
+      }
+    });
+  };
+
+  if (document.readyState === 'complete') {
+    doRegister();
+  } else {
+    window.addEventListener('load', doRegister, { once: true });
+  }
+}
+
+const rootElement = document.getElementById('root');
+const prerenderFallback = document.getElementById('prerender-public-content');
+if (prerenderFallback) {
+  prerenderFallback.remove();
+}
+const appTree = (
   <React.StrictMode>
     <App />
-  </React.StrictMode>,
-)
+  </React.StrictMode>
+);
+
+if (rootElement?.hasChildNodes()) {
+  hydrateRoot(rootElement, appTree);
+} else if (rootElement) {
+  createRoot(rootElement).render(appTree);
+}
+
+bootstrapSentryWhenIdle();
+registerServiceWorkerWhenIdle();

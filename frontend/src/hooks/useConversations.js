@@ -10,12 +10,18 @@ import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/
  * - The bidder (trucker bidding on cargo, or shipper booking truck)
  * - The listing owner (receiving bids)
  */
-export function useConversations(userId) {
+export function useConversations(userId, enabled = true) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     if (!userId) {
       setConversations([]);
       setLoading(false);
@@ -237,7 +243,7 @@ export function useConversations(userId) {
       bidMap.clear();
       messagesByBid.clear();
     };
-  }, [userId]);
+  }, [userId, enabled]);
 
   return { conversations, loading, error };
 }

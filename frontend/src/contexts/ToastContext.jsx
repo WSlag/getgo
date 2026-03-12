@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Check, MessageSquare, Package, Star, AlertCircle, Banknote, X } from 'lucide-react';
+import { useLiveRegion } from './LiveRegionContext';
 
 const ToastContext = createContext(null);
 
@@ -28,6 +29,7 @@ const COLOR_MAP = {
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const timersRef = useRef(new Map());
+  const { announcePolite, announceAssertive } = useLiveRegion();
 
   useEffect(() => {
     return () => {
@@ -39,12 +41,20 @@ export function ToastProvider({ children }) {
   const showToast = useCallback((toast) => {
     const id = `${Date.now()}-${Math.random()}`;
     setToasts((prev) => [...prev, { id, ...toast }]);
+    const announcement = [toast?.title, toast?.message].filter(Boolean).join('. ').trim();
+    if (announcement) {
+      if (toast?.type === 'error') {
+        announceAssertive(announcement);
+      } else {
+        announcePolite(announcement);
+      }
+    }
     const timerId = setTimeout(() => {
       timersRef.current.delete(id);
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 5000);
     timersRef.current.set(id, timerId);
-  }, []);
+  }, [announceAssertive, announcePolite]);
 
   const dismissToast = useCallback((id) => {
     const timerId = timersRef.current.get(id);
@@ -90,6 +100,7 @@ export function ToastProvider({ children }) {
               <button
                 onClick={() => dismissToast(toast.id)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0"
+                aria-label="Dismiss notification"
               >
                 <X className="size-4" />
               </button>

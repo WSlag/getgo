@@ -7,7 +7,16 @@ import path from 'path'
 
 function excludeDebugPagesInProd() {
   const includeDebugPages = process.env.VITE_INCLUDE_DEBUG_PAGES === 'true'
-  const excludedDebugAssets = new Set(['verify-contracts.html', 'icons/generate-icons.html'])
+  const excludedDebugAssets = new Set([
+    'verify-contracts.html',
+    'icons/generate-icons.html',
+    // Hero source PNGs are only used to generate optimized variants during build.
+    'assets/trucker-phone-cab.png',
+    'assets/warehouse-worker-phone.png',
+    'assets/highway-sunset-truck.png',
+    'assets/problem-logistics-manager.png',
+    'assets/broker-booking.png',
+  ])
 
   return {
     name: 'exclude-debug-pages-in-prod',
