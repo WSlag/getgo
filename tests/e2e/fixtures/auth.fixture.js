@@ -235,7 +235,7 @@ async function dismissBlockingDialogs(page, maxAttempts = 6) {
  * - testPhoneNumbers: Pre-configured test phone numbers
  * - authHelper: Reusable authentication methods
  *
- * NOTE: The Karga app shows the marketplace to all users (guests + authenticated).
+ * NOTE: The GetGo app shows the marketplace to all users (guests + authenticated).
  * Login is handled via an AuthModal overlay, which is triggered when a user
  * attempts a protected action (like posting a listing). The phone input is
  * INSIDE this modal, not on a standalone login page.

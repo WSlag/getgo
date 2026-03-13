@@ -30,7 +30,7 @@ npm run deploy:hosting:prod
 Manual check only:
 
 ```bash
-npm run test:smoke:hosting:no-debug-pages -- --base-url https://getgoph.web.app
+npm run test:smoke:hosting:no-debug-pages -- --base-url https://getgoph.com
 ```
 
 Local/internal tooling pages are still kept in source under `frontend/public`.
@@ -42,7 +42,7 @@ They are removed from production build output unless `VITE_INCLUDE_DEBUG_PAGES=t
 - `EMAIL_MAGIC_LINK_ENABLED=true`
 - `EMAIL_MAGIC_LINK_V2_ENABLED=true`
 - `EMAIL_MAGIC_LINK_API_KEY=<Firebase Web API key for Identity Toolkit sendOobCode>`
-- `EMAIL_MAGIC_LINK_CONTINUE_URL=<canonical callback URL, e.g. https://getgoph.web.app>`
+- `EMAIL_MAGIC_LINK_CONTINUE_URL=<canonical callback URL, e.g. https://getgoph.com>`
 
 Optional:
 - `EMAIL_MAGIC_LINK_RESPONSE_FLOOR_MS=650`

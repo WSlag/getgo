@@ -1,5 +1,5 @@
 /**
- * Karga GCash Payment Verification Cloud Functions
+ * GetGo GCash Payment Verification Cloud Functions
  *
  * Main entry point for Firebase Cloud Functions that handle
  * payment screenshot verification using OCR and fraud detection.
@@ -53,8 +53,8 @@ function safeErrorMessage(error) {
 }
 
 function getAllowedOrigins() {
-  const rawOrigins = process.env.ALLOWED_ORIGIN
-    || 'https://getgoph.web.app,https://getgoph-a09bb.web.app,https://getgoph-a09bb.firebaseapp.com,https://karga.ph,https://www.karga.ph,https://karga-ph.web.app,https://karga-ph.firebaseapp.com';
+const rawOrigins = process.env.ALLOWED_ORIGIN
+    || 'https://getgoph.com,https://www.getgoph.com,https://getgoph.web.app,https://getgoph-a09bb.web.app,https://getgoph-a09bb.firebaseapp.com,https://karga.ph,https://www.karga.ph,https://karga-ph.web.app,https://karga-ph.firebaseapp.com';
   return rawOrigins
     .split(',')
     .map((origin) => origin.trim())
@@ -64,7 +64,7 @@ function getAllowedOrigins() {
 function applyCors(req, res, options = {}) {
   const allowedOrigins = getAllowedOrigins();
   const requestOrigin = req.headers.origin || '';
-  const defaultOrigin = allowedOrigins[0] || 'https://getgoph.web.app';
+  const defaultOrigin = allowedOrigins[0] || 'https://getgoph.com';
   const originToSet = allowedOrigins.includes(requestOrigin) ? requestOrigin : defaultOrigin;
 
   res.set('Access-Control-Allow-Origin', originToSet);

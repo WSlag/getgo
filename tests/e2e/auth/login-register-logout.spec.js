@@ -12,7 +12,7 @@ import { EMULATOR_PROJECT_ID, generateTestUser } from '../utils/test-data.js';
  *
  * All tests run against Firebase Auth Emulator (no production impact)
  *
- * IMPORTANT: The Karga app does NOT have a standalone login page.
+ * IMPORTANT: The GetGo app does NOT have a standalone login page.
  * Authentication is handled via an AuthModal overlay triggered by
  * protected actions (e.g., clicking Notifications, Post, Profile, etc.)
  */

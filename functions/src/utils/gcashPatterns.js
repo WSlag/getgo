@@ -83,16 +83,16 @@ const GCASH_PATTERNS = {
   // RECEIVER NAME PATTERNS
   // ===========================================
   RECEIVER: [
-    // Pattern: "To: Karga Connect"
+    // Pattern: "To: GetGo PH"
     /To:?\s*([A-Za-z\s\.]+?)(?:\n|$|Phone)/i,
 
-    // Pattern: "Received by: Karga Connect"
+    // Pattern: "Received by: GetGo PH"
     /Received\s+by:?\s*([A-Za-z\s\.]+?)(?:\n|$)/i,
 
-    // Pattern: "Recipient: Karga Connect"
+    // Pattern: "Recipient: GetGo PH"
     /Recipient:?\s*([A-Za-z\s\.]+?)(?:\n|$)/i,
 
-    // Pattern: "Send Money to: Karga Connect"
+    // Pattern: "Send Money to: GetGo PH"
     /Send\s+Money\s+to:?\s*([A-Za-z\s\.]+?)(?:\n|$)/i,
 
     // Pattern: "To" on one line, name on next

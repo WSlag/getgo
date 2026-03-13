@@ -282,7 +282,7 @@ export function ContractModal({
             <div>
               <DialogTitle style={{ fontSize: isMobile ? '16px' : '20px' }}>Contract #{contract.contractNumber}</DialogTitle>
               <DialogDescription style={{ fontSize: isMobile ? '11px' : '14px' }}>
-                Karga Freight Transportation Agreement
+                GetGo PH Freight Transportation Agreement
               </DialogDescription>
             </div>
           </div>
@@ -481,7 +481,7 @@ export function ContractModal({
           <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800" style={{ marginTop: isMobile ? '8px' : '12px', padding: isMobile ? '8px' : '12px' }}>
             <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#1d4ed8' }} className="flex items-center gap-1">
               <Info style={{ width: '12px', height: '12px', flexShrink: 0 }} />
-              <span><strong>Karga</strong> is a technology platform facilitating this connection. Karga is NOT a party to this contract.</span>
+              <span><strong>GetGo PH</strong> is a technology platform facilitating this connection. GetGo PH is NOT a party to this contract.</span>
             </p>
           </div>
         </div>

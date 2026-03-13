@@ -5,7 +5,7 @@ import { getPrerenderPublicRoutes } from '../src/config/publicRouteManifest.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '../dist');
-const siteUrl = (process.env.VITE_SITE_URL || 'https://karga.ph').replace(/\/$/, '');
+const siteUrl = (process.env.VITE_SITE_URL || 'https://getgoph.com').replace(/\/$/, '');
 
 function outputFilePath(routePath) {
   if (routePath === '/') return path.join(distDir, 'index.html');

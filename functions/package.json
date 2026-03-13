@@ -1,6 +1,6 @@
 {
   "name": "karga-functions",
-  "description": "Cloud Functions for Karga payment verification",
+  "description": "Cloud Functions for GetGo payment verification",
   "scripts": {
     "lint": "eslint .",
     "audit:prod": "npm audit --omit=dev --audit-level=high",

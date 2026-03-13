@@ -81,6 +81,6 @@ export const PRIVACY_POLICY_SECTIONS = [
     id: 'contact',
     title: '13. Contact Us',
     content:
-      'For privacy questions, requests, or complaints, contact:\n\n• Company/Entity Name: GetGo\n• Email: support@getgo.ph\n\nIf required under applicable law, you may also contact the National Privacy Commission (Philippines) regarding data privacy concerns.',
+      'For privacy questions, requests, or complaints, contact:\n\n• Company/Entity Name: GetGo PH\n• Email: support@getgoph.com\n\nIf required under applicable law, you may also contact the National Privacy Commission (Philippines) regarding data privacy concerns.',
   },
 ];

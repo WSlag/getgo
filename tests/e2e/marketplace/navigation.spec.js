@@ -24,7 +24,7 @@ test.describe('Marketplace Navigation', () => {
       pageContent.includes('truck') ||
       pageContent.includes('shipper') ||
       pageContent.includes('marketplace') ||
-      pageContent.includes('Karga')
+      pageContent.includes('GetGo')
     ).toBe(true);
   });
 

@@ -1,4 +1,4 @@
-# KARGA CONNECT
+# GETGO PH
 
 Philippine Trucking Backload Marketplace - A two-way marketplace connecting shippers with cargo to truckers with available space.
 
@@ -187,4 +187,4 @@ For issues and questions, please open an issue on GitHub.
 
 ---
 
-**KARGA CONNECT** - Connecting Filipino Truckers and Shippers
+**GETGO PH** - Connecting Filipino Truckers and Shippers

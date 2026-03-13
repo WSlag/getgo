@@ -1,6 +1,6 @@
-# Karga E2E Testing Guide
+# GetGo E2E Testing Guide
 
-This directory contains end-to-end (E2E) tests for the Karga trucking marketplace using Playwright and Firebase Emulators.
+This directory contains end-to-end (E2E) tests for the GetGo trucking marketplace using Playwright and Firebase Emulators.
 
 ## 🚀 Quick Start
 
