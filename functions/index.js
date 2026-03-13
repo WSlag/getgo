@@ -1459,6 +1459,16 @@ exports.getPopularRoutes = listingFunctions.getPopularRoutes;
 exports.requestListingChat = listingFunctions.requestListingChat;
 
 // =============================================================================
+// LISTING WRITE CALLABLES (Phase 2 gated)
+// =============================================================================
+
+const listingWriteFunctions = require('./src/api/listingWrites');
+exports.createCargoListing = listingWriteFunctions.createCargoListing;
+exports.updateCargoListing = listingWriteFunctions.updateCargoListing;
+exports.createTruckListing = listingWriteFunctions.createTruckListing;
+exports.updateTruckListing = listingWriteFunctions.updateTruckListing;
+
+// =============================================================================
 // FIRESTORE TRIGGERS
 // =============================================================================
 
@@ -1483,6 +1493,10 @@ exports.onCargoListingUpdatedForReferrals = listingReferralTriggers.onCargoListi
 exports.onTruckListingUpdatedForReferrals = listingReferralTriggers.onTruckListingUpdatedForReferrals;
 exports.onCargoListingDeletedForReferrals = listingReferralTriggers.onCargoListingDeletedForReferrals;
 exports.onTruckListingDeletedForReferrals = listingReferralTriggers.onTruckListingDeletedForReferrals;
+
+const listingDistanceTriggers = require('./src/triggers/listingDistanceTriggers');
+exports.onCargoListingRouteNormalized = listingDistanceTriggers.onCargoListingRouteNormalized;
+exports.onTruckListingRouteNormalized = listingDistanceTriggers.onTruckListingRouteNormalized;
 
 const chatTriggers = require('./src/triggers/chatTriggers');
 exports.onChatMessageCreated = chatTriggers.onChatMessageCreated;

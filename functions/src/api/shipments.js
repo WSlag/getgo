@@ -5,52 +5,37 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-
-// Haversine formula to calculate distance between two coordinates (in km)
-function calculateDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-// Philippine city coordinates for lookup
-const cityCoordinates = {
-  'Davao City': { lat: 7.0707, lng: 125.6087 },
-  'Cebu City': { lat: 10.3157, lng: 123.8854 },
-  'General Santos': { lat: 6.1164, lng: 125.1716 },
-  'Cagayan de Oro': { lat: 8.4542, lng: 124.6319 },
-  'Manila': { lat: 14.5995, lng: 120.9842 },
-  'Zamboanga City': { lat: 6.9214, lng: 122.0790 },
-  'Butuan City': { lat: 8.9475, lng: 125.5406 },
-  'Tagum City': { lat: 7.4478, lng: 125.8037 },
-  'Digos City': { lat: 6.7496, lng: 125.3572 },
-  'Cotabato City': { lat: 7.2236, lng: 124.2464 },
-  'Iligan City': { lat: 8.2280, lng: 124.2452 },
-  'Tacloban City': { lat: 11.2543, lng: 124.9634 },
-  'Iloilo City': { lat: 10.7202, lng: 122.5621 },
-  'Bacolod City': { lat: 10.6407, lng: 122.9688 },
-};
-
-function getCoordinates(cityName) {
-  if (!cityName) return { lat: 7.5, lng: 124.5 };
-  const normalized = Object.keys(cityCoordinates).find(
-    key => key.toLowerCase().includes(cityName.toLowerCase()) ||
-      cityName.toLowerCase().includes(key.toLowerCase().split(' ')[0])
-  );
-  return cityCoordinates[normalized] || { lat: 7.5, lng: 124.5 };
-}
+const {
+  DEFAULT_COORDS,
+  resolveCoordinatePair,
+  calculateHaversineDistanceKm,
+  computeProgressTowardDestination,
+  toWholeKm,
+} = require('../utils/geo');
 
 function resolveShipmentActors(contract, shipment) {
   const isCargo = contract.listingType === 'cargo';
   const shipperId = shipment.shipperId || (isCargo ? contract.listingOwnerId : contract.bidderId);
   const truckerId = shipment.truckerId || (isCargo ? contract.bidderId : contract.listingOwnerId);
   return { shipperId, truckerId };
+}
+
+function resolveRouteCoordinates(shipment, contract) {
+  const origin = resolveCoordinatePair({
+    lat: shipment.originLat ?? contract.pickupLat,
+    lng: shipment.originLng ?? contract.pickupLng,
+    name: shipment.origin || contract.pickupCity || contract.pickupAddress || null,
+    fallback: DEFAULT_COORDS,
+  });
+
+  const destination = resolveCoordinatePair({
+    lat: shipment.destLat ?? contract.deliveryLat,
+    lng: shipment.destLng ?? contract.deliveryLng,
+    name: shipment.destination || contract.deliveryCity || contract.deliveryAddress || null,
+    fallback: DEFAULT_COORDS,
+  });
+
+  return { origin, destination };
 }
 
 /**
@@ -114,22 +99,21 @@ exports.updateShipmentLocation = functions.region('asia-southeast1').https.onCal
       throw new functions.https.HttpsError('failed-precondition', 'Pickup must be confirmed before location updates');
     }
 
-    const originCoords = getCoordinates(shipment.origin || contract.pickupAddress);
-    const destCoords = getCoordinates(shipment.destination || contract.deliveryAddress);
-
-    const distanceFromOrigin = calculateDistance(
-      originCoords.lat, originCoords.lng,
-      currentLat, currentLng
+    const { origin, destination } = resolveRouteCoordinates(shipment, contract);
+    const progress = computeProgressTowardDestination({
+      origin,
+      destination,
+      current: { lat: currentLat, lng: currentLng },
+      previousProgress: Number(shipment.progress || 0),
+    });
+    const remainingDistanceKm = toWholeKm(
+      calculateHaversineDistanceKm(
+        currentLat,
+        currentLng,
+        destination.lat,
+        destination.lng
+      )
     );
-    const totalDistance = calculateDistance(
-      originCoords.lat, originCoords.lng,
-      destCoords.lat, destCoords.lng
-    );
-
-    let progress = Number(shipment.progress || 0);
-    if (totalDistance > 0) {
-      progress = Math.min(100, Math.round((distanceFromOrigin / totalDistance) * 100));
-    }
 
     let nextStatus = currentStatus;
     if (nextStatus === 'picked_up' && progress > 0) {
@@ -141,6 +125,7 @@ exports.updateShipmentLocation = functions.region('asia-southeast1').https.onCal
       currentLng,
       currentLocation: currentLocation || shipment.currentLocation || 'Unknown',
       progress,
+      remainingDistanceKm,
       status: nextStatus,
       shipperId,
       truckerId,
@@ -157,6 +142,7 @@ exports.updateShipmentLocation = functions.region('asia-southeast1').https.onCal
       currentLng,
       currentLocation: updateData.currentLocation,
       progress,
+      remainingDistanceKm,
       status: nextStatus,
       shipperId,
       truckerId,

@@ -211,6 +211,11 @@ function composeFullAddress(city, streetAddress) {
   return `${streetAddress}, ${city}`;
 }
 
+function toCoordinateOrNull(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function shouldCountContractAsOutstandingFee(contract = {}) {
   if (contract.platformFeePaid === true) return false;
   if (Number(contract.platformFee || 0) <= 0) return false;
@@ -493,9 +498,13 @@ By signing, both parties agree to these terms.
     pickupAddress: composeFullAddress(listing.origin, listing.originStreetAddress),
     pickupCity: listing.origin,
     pickupStreetAddress: listing.originStreetAddress || '',
+    pickupLat: toCoordinateOrNull(listing.originLat),
+    pickupLng: toCoordinateOrNull(listing.originLng),
     deliveryAddress: composeFullAddress(listing.destination, listing.destinationStreetAddress),
     deliveryCity: listing.destination,
     deliveryStreetAddress: listing.destinationStreetAddress || '',
+    deliveryLat: toCoordinateOrNull(listing.destLat),
+    deliveryLng: toCoordinateOrNull(listing.destLng),
     expectedDeliveryDate: expectedDeliveryDate || null,
     cargoType: isCargo ? listing.cargoType : (bid.cargoType || 'General'),
     cargoWeight: isCargo ? listing.weight : (bid.cargoWeight || 0),
@@ -891,6 +900,10 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       truckerName: isCargo2 ? (contract.bidderName || '') : (contract.listingOwnerName || ''),
       origin: contract.pickupAddress,
       destination: contract.deliveryAddress,
+      originLat: toCoordinateOrNull(contract.pickupLat),
+      originLng: toCoordinateOrNull(contract.pickupLng),
+      destLat: toCoordinateOrNull(contract.deliveryLat),
+      destLng: toCoordinateOrNull(contract.deliveryLng),
       pickupDate: contract.pickupDate || null,
       expectedDeliveryDate: contract.expectedDeliveryDate || null,
       vehiclePlateNumber: contract.vehiclePlateNumber || '',

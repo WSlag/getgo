@@ -3115,7 +3115,7 @@ export default function KargaMarketplace() {
               {userRole === 'trucker' && selectedListing.type === 'cargo' && bidAmount && (
                 <div className={`${darkMode ? 'bg-amber-900/20 border-amber-800' : 'bg-amber-50 border-amber-200'} border rounded-xl p-3`}>
                   <div className="flex justify-between items-center mb-2">
-                    <span className={`text-sm ${theme.textSecondary}`}>Platform Fee (3%)</span>
+                    <span className={`text-sm ${theme.textSecondary}`}>Platform Fee ({Math.round(PLATFORM_FEE_RATE * 100)}%)</span>
                     <span className={`font-bold text-amber-600`}>₱{Math.round(parseFloat(bidAmount) * PLATFORM_FEE_RATE).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center mb-2">
