@@ -508,7 +508,14 @@ exports.brokerRegister = functions.region(REGION).https.onCall(async (data, cont
     || mirrorBroker.createdAt
     || now;
 
+  const lockRef = db.collection('brokerReferralCodeLocks').doc(referralCode);
+
   await db.runTransaction(async (tx) => {
+    const lockDoc = await tx.get(lockRef);
+    if (lockDoc.exists && lockDoc.data()?.ownerId !== userId) {
+      throw new functions.https.HttpsError('already-exists', 'Referral code was just taken. Please try again.');
+    }
+    tx.set(lockRef, { ownerId: userId, claimedAt: now }, { merge: false });
     tx.set(brokerRef, profile, { merge: true });
     tx.set(brokerProfileRef, profile, { merge: true });
     tx.set(userRef, {
@@ -623,7 +630,7 @@ exports.brokerApplyReferralCode = functions.region(REGION).https.onCall(async (d
 
   const referredUserDoc = await referredUserRef.get();
   const referredUser = referredUserDoc.exists ? referredUserDoc.data() || {} : {};
-  const referredName = referredUser.name || referredUser.phone || 'A new user';
+  const referredName = maskDisplayName(referredUser.name, referredUser.phone);
 
   await db.collection('users').doc(brokerId).collection('notifications').add({
     type: 'BROKER_NEW_REFERRAL',
@@ -1494,6 +1501,11 @@ exports.brokerRequestPayout = functions.region(REGION).https.onCall(async (data,
     );
   }
 
+  const accountNumber = String(data?.payoutDetails?.accountNumber || '').trim();
+  if (!accountNumber) {
+    throw new functions.https.HttpsError('invalid-argument', 'Account number is required for payout');
+  }
+
   const brokerRef = db.collection('brokers').doc(brokerId);
   const brokerProfileRef = db.collection('users').doc(brokerId).collection('brokerProfile').doc('profile');
   const payoutRef = db.collection('brokerPayoutRequests').doc();
@@ -1527,14 +1539,14 @@ exports.brokerRequestPayout = functions.region(REGION).https.onCall(async (data,
     });
 
     tx.update(brokerRef, {
-      availableBalance: roundToCents(availableBalance - amount),
-      pendingEarnings: roundToCents(Number(broker.pendingEarnings || 0) + amount),
+      availableBalance: FieldValue.increment(-amount),
+      pendingEarnings: FieldValue.increment(amount),
       updatedAt: now,
     });
 
     tx.set(brokerProfileRef, {
-      availableBalance: roundToCents(availableBalance - amount),
-      pendingEarnings: roundToCents(Number(broker.pendingEarnings || 0) + amount),
+      availableBalance: FieldValue.increment(-amount),
+      pendingEarnings: FieldValue.increment(amount),
       updatedAt: now,
     }, { merge: true });
   });
