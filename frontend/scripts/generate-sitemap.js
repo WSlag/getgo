@@ -6,7 +6,7 @@ import { getIndexablePublicRoutes } from '../src/config/publicRouteManifest.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '../public');
 const distDir = path.join(__dirname, '../dist');
-const siteUrl = (process.env.VITE_SITE_URL || 'https://karga.ph').replace(/\/$/, '');
+const siteUrl = (process.env.VITE_SITE_URL || 'https://getgoph.com').replace(/\/$/, '');
 
 function absoluteUrl(routePath) {
   if (!routePath || routePath === '/') return `${siteUrl}/`;

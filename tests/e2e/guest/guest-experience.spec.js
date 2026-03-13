@@ -49,10 +49,9 @@ test.describe('Guest User Experience', () => {
     const header = page.locator('header, [role="banner"]').first();
     await expect(header).toBeVisible();
 
-    // Should contain Karga branding
+    // Should contain GetGo branding
     const headerText = await header.textContent();
     expect(
-      headerText.toLowerCase().includes('karga') ||
       headerText.toLowerCase().includes('getgo')
     ).toBe(true);
   });

@@ -1045,8 +1045,8 @@ export default function KargaMarketplace() {
   const EarningsModal = () => {
     const currentTier = brokerTiers[brokerTier] || brokerTiers.STARTER;
     const TierIcon = currentTier.icon;
-    const siteOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://karga.ph';
-    const siteHost = typeof window !== 'undefined' ? window.location.host : 'karga.ph';
+    const siteOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://getgoph.com';
+    const siteHost = typeof window !== 'undefined' ? window.location.host : 'getgoph.com';
     
     const copyReferralLink = () => {
       const link = `${siteOrigin}/r/${referralCode}`;
@@ -1056,7 +1056,7 @@ export default function KargaMarketplace() {
     
     const shareToSocial = (platform) => {
       const link = `${siteOrigin}/r/${referralCode}`;
-      const text = `Join KARGA CONNECT - the two-way trucking marketplace! Use my referral code ${referralCode}. ${link}`;
+      const text = `Join GetGo PH - the two-way trucking marketplace! Use my referral code ${referralCode}. ${link}`;
       const urls = {
         facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`,
         messenger: `fb-messenger://share/?link=${encodeURIComponent(link)}`,
@@ -1116,7 +1116,7 @@ export default function KargaMarketplace() {
                   <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
                     <Users size={36} className="text-white" />
                   </div>
-                  <h3 className={`text-2xl font-bold ${theme.text}`}>Earn as a KARGA Partner!</h3>
+                  <h3 className={`text-2xl font-bold ${theme.text}`}>Earn as a GetGo Partner!</h3>
                   <p className={`${theme.textMuted} mt-2`}>Refer shippers & truckers, earn commission on every deal</p>
                 </div>
                 
@@ -1151,7 +1151,7 @@ export default function KargaMarketplace() {
                       <div className="w-7 h-7 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">2</div>
                       <div>
                         <p className={`font-medium ${theme.text}`}>Share Your Code</p>
-                        <p className={`text-sm ${theme.textMuted}`}>Invite shippers and truckers to join KARGA</p>
+                        <p className={`text-sm ${theme.textMuted}`}>Invite shippers and truckers to join GetGo</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
@@ -1521,7 +1521,7 @@ export default function KargaMarketplace() {
                         <p className={`font-semibold ${theme.text} mb-3`}>🎬 Training Videos</p>
                         <div className="space-y-2">
                           {[
-                            { title: 'How KARGA Connect Works', duration: '3 min', icon: '🚛' },
+                            { title: 'How GetGo PH Works', duration: '3 min', icon: '🚛' },
                             { title: 'Commission Structure Explained', duration: '2 min', icon: '💰' },
                             { title: 'How to Invite Shippers', duration: '4 min', icon: '📦' },
                             { title: 'How to Recruit Truckers', duration: '4 min', icon: '🚚' },
@@ -1573,11 +1573,11 @@ export default function KargaMarketplace() {
                         <div className="space-y-3">
                           <div className={`${theme.bgCard} border ${theme.border} rounded-xl p-3`}>
                             <p className={`text-xs font-medium text-blue-500 mb-1`}>FOR SHIPPERS:</p>
-                            <p className={`text-sm ${theme.textSecondary}`}>"Boss, may app na pwede mo ma-save sa trucking costs. KARGA Connect - direct ka sa truckers, no middleman fees. Try mo, libre lang mag-signup!"</p>
+                            <p className={`text-sm ${theme.textSecondary}`}>"Boss, may app na pwede mo ma-save sa trucking costs. GetGo PH - direct ka sa truckers, no middleman fees. Try mo, libre lang mag-signup!"</p>
                           </div>
                           <div className={`${theme.bgCard} border ${theme.border} rounded-xl p-3`}>
                             <p className={`text-xs font-medium text-purple-500 mb-1`}>FOR TRUCKERS:</p>
-                            <p className={`text-sm ${theme.textSecondary}`}>"Pre, gusto mo wala nang deadheading? Sa KARGA Connect may backload listings. Pag balik mo may karga ka na, hindi ka empty. Download mo na!"</p>
+                            <p className={`text-sm ${theme.textSecondary}`}>"Pre, gusto mo wala nang deadheading? Sa GetGo PH may backload listings. Pag balik mo may karga ka na, hindi ka empty. Download mo na!"</p>
                           </div>
                         </div>
                       </div>
@@ -1600,15 +1600,15 @@ export default function KargaMarketplace() {
                         <div className="space-y-2">
                           <a href="tel:+639171234567" className={`w-full ${theme.bgCard} border ${theme.border} rounded-xl p-3 flex items-center gap-3 hover:opacity-80 transition`}>
                             <Phone size={18} className="text-green-500" />
-                            <span className={theme.text}>Hotline: 0917-KARGA-PH</span>
+                            <span className={theme.text}>Hotline: 0917-GETGO-PH</span>
                           </a>
-                          <a href="mailto:partners@karga.ph" className={`w-full ${theme.bgCard} border ${theme.border} rounded-xl p-3 flex items-center gap-3 hover:opacity-80 transition`}>
+                          <a href="mailto:partners@getgoph.com" className={`w-full ${theme.bgCard} border ${theme.border} rounded-xl p-3 flex items-center gap-3 hover:opacity-80 transition`}>
                             <Mail size={18} className="text-blue-500" />
-                            <span className={theme.text}>partners@karga.ph</span>
+                            <span className={theme.text}>partners@getgoph.com</span>
                           </a>
                           <a href="https://facebook.com/groups/kargapartnersph" target="_blank" rel="noopener noreferrer" className={`w-full ${theme.bgCard} border ${theme.border} rounded-xl p-3 flex items-center gap-3 hover:opacity-80 transition`}>
                             <MessageSquare size={18} className="text-purple-500" />
-                            <span className={theme.text}>FB Group: KARGA Partners PH</span>
+                            <span className={theme.text}>FB Group: GetGo Partners PH</span>
                           </a>
                         </div>
                       </div>
@@ -1849,12 +1849,12 @@ export default function KargaMarketplace() {
             <div className={`space-y-4 text-sm ${theme.textSecondary}`}>
               <section>
                 <h3 className={`font-bold ${theme.text} mb-2`}>1. Acceptance of Terms</h3>
-                <p>By accessing and using KARGA Connect, you accept and agree to be bound by these Terms and Conditions. If you do not agree, please do not use our platform.</p>
+                <p>By accessing and using GetGo PH, you accept and agree to be bound by these Terms and Conditions. If you do not agree, please do not use our platform.</p>
               </section>
 
               <section>
                 <h3 className={`font-bold ${theme.text} mb-2`}>2. Platform Description</h3>
-                <p>KARGA Connect is a two-way marketplace connecting cargo shippers with truckers in the Philippines. We facilitate connections but are not party to the actual shipping contracts between users.</p>
+                <p>GetGo PH is a two-way marketplace connecting cargo shippers with truckers in the Philippines. We facilitate connections but are not party to the actual shipping contracts between users.</p>
               </section>
 
               <section>
@@ -1870,7 +1870,7 @@ export default function KargaMarketplace() {
 
               <section>
                 <h3 className={`font-bold ${theme.text} mb-2`}>4. Platform Fees</h3>
-                <p>KARGA Connect charges a platform fee of 5% on completed transactions. This fee is paid via GCash when creating the contract.</p>
+                <p>GetGo PH charges a platform fee of 5% on completed transactions. This fee is paid via GCash when creating the contract.</p>
               </section>
 
               <section>
@@ -1880,7 +1880,7 @@ export default function KargaMarketplace() {
 
               <section>
                 <h3 className={`font-bold ${theme.text} mb-2`}>6. Liability Disclaimer</h3>
-                <p>KARGA Connect is not liable for damages, losses, or disputes arising from transactions between users. We recommend securing appropriate cargo insurance.</p>
+                <p>GetGo PH is not liable for damages, losses, or disputes arising from transactions between users. We recommend securing appropriate cargo insurance.</p>
               </section>
 
               <section>
@@ -1891,8 +1891,8 @@ export default function KargaMarketplace() {
               <section>
                 <h3 className={`font-bold ${theme.text} mb-2`}>8. Contact Us</h3>
                 <p>For questions or concerns, contact us at:</p>
-                <p className="mt-1">Email: support@karga.ph</p>
-                <p>Hotline: 0917-KARGA-PH</p>
+                <p className="mt-1">Email: support@getgoph.com</p>
+                <p>Hotline: 0917-GETGO-PH</p>
               </section>
             </div>
           </div>
@@ -2563,7 +2563,7 @@ export default function KargaMarketplace() {
                 <Truck className="text-white" size={20} />
               </div>
               <div>
-                <h1 className={`font-bold text-lg ${theme.text}`}>KARGA CONNECT</h1>
+                <h1 className={`font-bold text-lg ${theme.text}`}>GETGO PH</h1>
                 <p className={`text-xs ${theme.textMuted}`}>Two-Way Marketplace</p>
               </div>
             </div>
@@ -3196,7 +3196,7 @@ export default function KargaMarketplace() {
             <div className="p-4">
               <div className={`${theme.bgSecondary} rounded-xl p-6 space-y-4 text-sm border ${theme.border}`}>
                 <div className={`text-center border-b ${theme.borderLight} pb-4`}>
-                  <h3 className="text-xl font-bold text-amber-500">KARGA CONNECT</h3>
+                  <h3 className="text-xl font-bold text-amber-500">GETGO PH</h3>
                   <p className={theme.textMuted}>Contract No: KC-{Date.now().toString().slice(-8)}</p>
                 </div>
 

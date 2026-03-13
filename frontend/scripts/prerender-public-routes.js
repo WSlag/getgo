@@ -6,7 +6,7 @@ import { getPrerenderPublicRoutes } from '../src/config/publicRouteManifest.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '../dist');
 const indexFile = path.join(distDir, 'index.html');
-const siteUrl = (process.env.VITE_SITE_URL || 'https://karga.ph').replace(/\/$/, '');
+const siteUrl = (process.env.VITE_SITE_URL || 'https://getgoph.com').replace(/\/$/, '');
 
 function ensureExists(filePath) {
   if (!fs.existsSync(filePath)) {

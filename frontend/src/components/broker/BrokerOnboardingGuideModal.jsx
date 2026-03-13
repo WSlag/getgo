@@ -36,7 +36,7 @@ const GUIDE_STEPS = [
     highlights: [
       { icon: Copy, label: 'Copy your code with one tap', color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20', borderColor: '#f97316' },
       { icon: Share2, label: 'Share via SMS, Messenger, or social', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', borderColor: '#3b82f6' },
-      { icon: Link2, label: 'Your unique link: getgo.ph/r/YOURCODE', color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20', borderColor: '#22c55e' },
+      { icon: Link2, label: 'Your unique link: getgoph.com/r/YOURCODE', color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20', borderColor: '#22c55e' },
     ],
     tip: 'Go to the Broker Dashboard and tap your referral code to copy or share it instantly.',
   },

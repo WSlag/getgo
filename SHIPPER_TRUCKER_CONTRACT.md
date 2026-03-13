@@ -1,4 +1,4 @@
-# KARGA FREIGHT TRANSPORTATION CONTRACT
+﻿# GETGO PH FREIGHT TRANSPORTATION CONTRACT
 
 ## SHIPPER-TRUCKER SERVICE AGREEMENT
 
@@ -23,7 +23,7 @@
 - Vehicle Plate Number: [PLATE_NUMBER]
 
 **PLATFORM FACILITATOR (Not a Party to this Contract)**
-- Karga Technologies
+- GetGo PH Technologies
 - Role: Technology platform facilitating connection between Shipper and Trucker
 
 ---
@@ -34,7 +34,7 @@ WHEREAS, the Shipper requires transportation services for cargo from origin to d
 
 WHEREAS, the Trucker is engaged in the business of transporting goods and possesses the necessary permits, licenses, and equipment;
 
-WHEREAS, both parties have agreed to enter into this Contract through the Karga platform;
+WHEREAS, both parties have agreed to enter into this Contract through the GetGo PH platform;
 
 NOW, THEREFORE, for and in consideration of the foregoing premises and the mutual covenants herein contained, the parties agree as follows:
 
@@ -79,10 +79,10 @@ NOW, THEREFORE, for and in consideration of the foregoing premises and the mutua
 | **Net Trucker Retains After Platform Fee** | **[NET_AMOUNT]** |
 
 ### 3.2 Payment Terms
-1. **Platform Fee Payment**: Trucker shall pay the Platform Service Fee to Karga via GCash before contract activation/signing completion.
+1. **Platform Fee Payment**: Trucker shall pay the Platform Service Fee to GetGo PH via GCash before contract activation/signing completion.
 2. **Freight Payment Method**: Shipper shall pay the Agreed Freight Rate directly to the Trucker via GCash or another mutually agreed direct method.
 3. **Freight Payment Schedule**: The parties shall agree in writing whether payment is COD, advance, or partial.
-4. **No Platform Fund Custody**: The parties acknowledge that Karga does not hold freight funds for this transaction.
+4. **No Platform Fund Custody**: The parties acknowledge that GetGo PH does not hold freight funds for this transaction.
 5. **Proof of Payment**: Each party shall retain reference numbers, screenshots, and timestamps for all payments.
 
 ### 3.3 Additional Charges
@@ -195,27 +195,27 @@ The Shipper shall indemnify and hold harmless the Trucker from any claims arisin
 
 ## ARTICLE VII: PLATFORM DISCLAIMER
 
-### 7.1 Karga's Role
+### 7.1 GetGo PH's Role
 The parties acknowledge and agree that:
 
-1. **Karga is a Technology Platform**: Karga provides a digital marketplace connecting Shippers and Truckers. Karga is NOT a common carrier, freight broker, freight forwarder, or transportation company.
+1. **GetGo PH is a Technology Platform**: GetGo PH provides a digital marketplace connecting Shippers and Truckers. GetGo PH is NOT a common carrier, freight broker, freight forwarder, or transportation company.
 
-2. **Not a Party**: Karga is NOT a party to this Contract. This Contract is solely between the Shipper and Trucker.
+2. **Not a Party**: GetGo PH is NOT a party to this Contract. This Contract is solely between the Shipper and Trucker.
 
-3. **No Liability**: Karga shall have NO liability for:
+3. **No Liability**: GetGo PH shall have NO liability for:
    - Cargo loss, damage, delay, or destruction
    - Actions or omissions of either Shipper or Trucker
    - Breach of this Contract by either party
    - Disputes between Shipper and Trucker
    - Payment disputes between the parties
 
-4. **Verification Disclaimer**: While Karga verifies user documents, Karga does NOT guarantee the authenticity, accuracy, or completeness of information provided by users.
+4. **Verification Disclaimer**: While GetGo PH verifies user documents, GetGo PH does NOT guarantee the authenticity, accuracy, or completeness of information provided by users.
 
 ### 7.2 Indemnification of Platform
 Both Shipper and Trucker agree to:
-1. Indemnify, defend, and hold harmless Karga from any claims arising from this transaction
-2. Not join Karga as a party in any legal proceeding between Shipper and Trucker
-3. Release Karga from any liability related to this Contract
+1. Indemnify, defend, and hold harmless GetGo PH from any claims arising from this transaction
+2. Not join GetGo PH as a party in any legal proceeding between Shipper and Trucker
+3. Release GetGo PH from any liability related to this Contract
 
 ---
 
@@ -226,7 +226,7 @@ In case of any dispute, the parties shall first attempt to resolve the matter th
 
 ### 8.2 Mediation
 If negotiation fails, either party may request mediation through:
-1. Karga's dispute resolution service (optional, non-binding)
+1. GetGo PH's dispute resolution service (optional, non-binding)
 2. A mutually agreed mediator
 3. The Office for Alternative Dispute Resolution (OADR)
 
@@ -266,7 +266,7 @@ Both parties shall keep confidential all information obtained through this trans
 This Contract constitutes the entire agreement between the parties regarding this shipment and supersedes all prior negotiations, representations, or agreements.
 
 ### 10.2 Amendment
-This Contract may only be amended by mutual written agreement of both parties through the Karga platform.
+This Contract may only be amended by mutual written agreement of both parties through the GetGo PH platform.
 
 ### 10.3 Severability
 If any provision of this Contract is found invalid or unenforceable, the remaining provisions shall continue in full force and effect.
@@ -282,7 +282,7 @@ This Contract shall be governed by and construed in accordance with the laws of 
 Failure to enforce any provision of this Contract shall not constitute a waiver of the right to enforce such provision in the future.
 
 ### 10.6 Notices
-All notices shall be sent through the Karga platform messaging system or to the contact details provided in this Contract.
+All notices shall be sent through the GetGo PH platform messaging system or to the contact details provided in this Contract.
 
 ---
 
@@ -374,9 +374,9 @@ Signature ID: [TRUCKER_SIG_ID]
 
 ---
 
-## APPENDIX C: KARGA PLATFORM TERMS OF SERVICE
+## APPENDIX C: GETGO PH PLATFORM TERMS OF SERVICE
 
-By using the Karga platform, both parties acknowledge they have read and agreed to the Karga Terms of Service, which are incorporated herein by reference.
+By using the GetGo PH platform, both parties acknowledge they have read and agreed to the GetGo PH Terms of Service, which are incorporated herein by reference.
 
 Key provisions include:
 1. Platform is a technology facilitator only
@@ -395,7 +395,7 @@ Key provisions include:
 | Term | Details |
 |------|---------|
 | Contract Number | [CONTRACT_NUMBER] |
-| Route | [ORIGIN] → [DESTINATION] |
+| Route | [ORIGIN] â†’ [DESTINATION] |
 | Cargo | [CARGO_TYPE], [WEIGHT] |
 | Declared Value | PHP [DECLARED_VALUE] |
 | Agreed Price | PHP [AGREED_PRICE] |
@@ -403,9 +403,10 @@ Key provisions include:
 | Trucker Receives | PHP [NET_AMOUNT] |
 | Max Liability | PHP [DECLARED_VALUE] or 100,000 (default) |
 | Payment | Direct shipper-to-trucker payment (GCash or agreed method); platform fee paid by trucker via GCash |
-| Dispute Resolution | Negotiation → Mediation → Arbitration |
+| Dispute Resolution | Negotiation â†’ Mediation â†’ Arbitration |
 | Governing Law | Republic of the Philippines |
 
 ---
 
-*This contract template is designed for the Karga freight marketplace application operating in the Philippines. It incorporates provisions from Philippine law including the Civil Code, Electronic Commerce Act, Data Privacy Act, and Alternative Dispute Resolution Act.*
+*This contract template is designed for the GetGo PH freight marketplace application operating in the Philippines. It incorporates provisions from Philippine law including the Civil Code, Electronic Commerce Act, Data Privacy Act, and Alternative Dispute Resolution Act.*
+

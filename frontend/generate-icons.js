@@ -42,7 +42,7 @@ OPTION 1: Use the HTML generator (Recommended for quick setup)
 Note: debug tooling pages are excluded from production bundles by default.
 
 OPTION 2: Create custom icons
-1. Design your KARGA CONNECT logo
+1. Design your GETGO PH logo
 2. Export as PNG in these sizes: ${sizes.join(', ')}
 3. Name them: icon-72x72.png, icon-96x96.png, etc.
 4. Place in: frontend/public/icons/

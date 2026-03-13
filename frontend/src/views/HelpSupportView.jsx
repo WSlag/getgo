@@ -383,7 +383,7 @@ function ContactSection({ onBack }) {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs text-gray-500 dark:text-gray-400">Email Support</p>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">support@getgo.ph</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">support@getgoph.com</p>
             </div>
           </div>
 

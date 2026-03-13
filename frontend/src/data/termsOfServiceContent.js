@@ -105,6 +105,6 @@ export const TERMS_OF_SERVICE_SECTIONS = [
     id: 'contact',
     title: '17. Contact Us',
     content:
-      'For questions about these Terms of Service, contact:\n\n• Company/Entity Name: GetGo\n• Email: support@getgo.ph\n\nFor disputes or complaints, you may also seek assistance from the appropriate Philippine government agency.',
+      'For questions about these Terms of Service, contact:\n\n• Company/Entity Name: GetGo PH\n• Email: support@getgoph.com\n\nFor disputes or complaints, you may also seek assistance from the appropriate Philippine government agency.',
   },
 ];

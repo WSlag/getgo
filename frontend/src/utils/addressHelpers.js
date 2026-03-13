@@ -1,5 +1,5 @@
 /**
- * Address formatting utilities for Karga platform
+ * Address formatting utilities for GetGo platform
  * Handles composition and parsing of pickup/delivery addresses
  * with backwards compatibility for city-only listings
  */

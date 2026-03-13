@@ -7,7 +7,7 @@ function getArgValue(flag, defaultValue = '') {
 }
 
 function normalizeBaseUrl(rawUrl) {
-  const fallback = 'https://getgoph.web.app';
+  const fallback = 'https://getgoph.com';
   const value = String(rawUrl || fallback).trim() || fallback;
   try {
     const parsed = new URL(value);
@@ -41,7 +41,7 @@ function hasDiagnosticPayload(body, markers) {
 }
 
 async function run() {
-  const baseUrl = normalizeBaseUrl(getArgValue('--base-url', 'https://getgoph.web.app'));
+  const baseUrl = normalizeBaseUrl(getArgValue('--base-url', 'https://getgoph.com'));
 
   const checks = [
     {

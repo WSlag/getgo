@@ -437,9 +437,9 @@ exports.createContract = functions.region('asia-southeast1').https.onCall(async 
 
   // Build default terms
   const defaultTerms = `
-KARGA FREIGHT TRANSPORTATION CONTRACT
+GETGO PH FREIGHT TRANSPORTATION CONTRACT
 
-This Contract is entered into between the Shipper and Trucker through the Karga platform.
+This Contract is entered into between the Shipper and Trucker through the GetGo PH platform.
 
 1. TRANSPORTATION SERVICES
 The Trucker agrees to transport cargo from:
@@ -466,8 +466,8 @@ Trucker: Safe transport, communication, timely delivery
 Negotiation (7 days) → Mediation (14 days) → Arbitration per RA 9285
 
 6. PLATFORM DISCLAIMER
-Karga is a technology platform only, NOT a party to this contract.
-Karga has no liability for cargo loss, damage, payment disputes, or other issues between parties.
+GetGo PH is a technology platform only, NOT a party to this contract.
+GetGo PH has no liability for cargo loss, damage, payment disputes, or other issues between parties.
 
 7. GOVERNING LAW
 Republic of the Philippines
@@ -1510,4 +1510,3 @@ exports.getContractByBid = functions.region('asia-southeast1').https.onCall(asyn
 
   return { contract };
 });
-
