@@ -274,7 +274,6 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError] = useState(null);
   const [referralAttributionEvent, setReferralAttributionEvent] = useState(null);
   const recaptchaVerifierRef = useRef(null);
-  const referralRetryAttemptedRef = useRef(new Set());
 
   const clearRecaptchaVerifier = useCallback(() => {
     if (recaptchaVerifierRef.current) {
@@ -408,9 +407,9 @@ export function AuthProvider({ children }) {
     const storedCode = normalizeReferralCodeForStorage(window.localStorage.getItem(REFERRAL_CODE_STORAGE_KEY));
     if (!storedCode) return;
 
-    const retryKey = `${authUser.uid}:${storedCode}`;
-    if (referralRetryAttemptedRef.current.has(retryKey)) return;
-    referralRetryAttemptedRef.current.add(retryKey);
+    const retryKey = `karga_referral_retry_attempted_${authUser.uid}:${storedCode}`;
+    if (typeof window !== 'undefined' && window.sessionStorage.getItem(retryKey)) return;
+    if (typeof window !== 'undefined') window.sessionStorage.setItem(retryKey, '1');
 
     let cancelled = false;
 

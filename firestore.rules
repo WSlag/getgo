@@ -568,6 +568,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Referral code uniqueness locks (Cloud Functions only — no client access)
+    match /brokerReferralCodeLocks/{code} {
+      allow read, write: if false;
+    }
+
+    // Broker activity access audit log (Cloud Functions only — no client access)
+    match /brokerAccessLogs/{logId} {
+      allow read, write: if false;
+    }
+
     // ============================================================
     // SUPPORT MESSAGES (User to Admin Chat)
     // ============================================================

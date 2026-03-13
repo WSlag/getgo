@@ -112,7 +112,7 @@ export function ReferralManagement() {
         total: brokersData.length,
         totalReferrals: brokersData.reduce((sum, broker) => sum + broker.totalReferrals, 0),
         totalEarnings: brokersData.reduce((sum, broker) => sum + broker.totalEarnings, 0),
-        activeBrokers: brokersData.filter((broker) => broker.totalReferrals > 0).length,
+        activeBrokers: brokersData.filter((broker) => broker.status === 'active').length,
       });
 
       setReferralReport({

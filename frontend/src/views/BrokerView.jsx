@@ -284,6 +284,7 @@ export function BrokerView({
       setPayoutAmount('');
       setAccountName('');
       setAccountNumber('');
+      setPayoutMethod('gcash');
       onToast?.({
         type: 'success',
         title: 'Payout Requested',
@@ -518,7 +519,7 @@ export function BrokerView({
             <p className="text-lg font-bold text-gray-900 dark:text-white">{currency(broker?.totalEarnings)}</p>
           </div>
           <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700" style={{ padding: isMobile ? '14px' : '16px' }}>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Active Referrals</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Total Referrals</p>
             <p className="text-lg font-bold text-gray-900 dark:text-white">{Number(broker?.totalReferrals || 0)}</p>
           </div>
         </div>
