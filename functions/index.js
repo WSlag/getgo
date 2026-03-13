@@ -10,11 +10,19 @@ const { onCall } = require('firebase-functions/v2/https');
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
-const { FieldValue } = require('firebase-admin/firestore');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const axios = require('axios');
 
 // Initialize Firebase Admin
 admin.initializeApp();
+
+// Compatibility bridge: some runtimes expose FieldValue/Timestamp only from firebase-admin/firestore.
+if (!admin.firestore.FieldValue) {
+  admin.firestore.FieldValue = FieldValue;
+}
+if (!admin.firestore.Timestamp) {
+  admin.firestore.Timestamp = Timestamp;
+}
 
 // Import services
 const { processScreenshot, validateExtractedData } = require('./src/services/ocr');

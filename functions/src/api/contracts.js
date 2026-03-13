@@ -1,10 +1,14 @@
-/**
+﻿/**
  * Contract Management Cloud Functions
  * Handles contract creation, signing, and completion
  */
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const {
+  FieldValue: AdminFieldValue,
+  Timestamp: AdminTimestamp,
+} = require('firebase-admin/firestore');
 const {
   loadPlatformSettings,
   calculatePlatformFeeAmount,
@@ -23,6 +27,8 @@ const PLATFORM_FEE_DEBT_CAP = Number(process.env.PLATFORM_FEE_DEBT_CAP || 15000)
 const TRUCKER_CANCELLATION_THRESHOLD = 5;
 const TRUCKER_CANCELLATION_WINDOW_DAYS = 30;
 const TRUCKER_CANCELLATION_BLOCK_DAYS = 7;
+const FirestoreFieldValue = admin.firestore?.FieldValue || AdminFieldValue;
+const FirestoreTimestamp = admin.firestore?.Timestamp || AdminTimestamp;
 
 const TRUCKER_CANCELLATION_REASON_LABELS = {
   vehicle_breakdown: 'Vehicle breakdown',
@@ -72,7 +78,7 @@ function isFirestoreMissingIndexError(error) {
 }
 
 async function countTruckerCancellationsInWindow(db, truckerId, baselineDate) {
-  const baselineTs = admin.firestore.Timestamp.fromDate(baselineDate);
+  const baselineTs = FirestoreTimestamp.fromDate(baselineDate);
   try {
     const cancellationCountSnap = await db.collection('contracts')
       .where('truckerId', '==', truckerId)
@@ -257,14 +263,14 @@ async function reconcilePlatformFeePayerAccount(db, feePayerId) {
   const payerUpdates = {
     outstandingPlatformFees: recalculatedOutstanding,
     outstandingFeeContracts: outstandingContractIds,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FirestoreFieldValue.serverTimestamp(),
   };
 
   if (shouldUnsuspend) {
     payerUpdates.accountStatus = 'active';
     payerUpdates.suspensionReason = null;
     payerUpdates.suspendedAt = null;
-    payerUpdates.unsuspendedAt = admin.firestore.FieldValue.serverTimestamp();
+    payerUpdates.unsuspendedAt = FirestoreFieldValue.serverTimestamp();
   }
 
   await db.collection('users').doc(feePayerId).update(payerUpdates);
@@ -349,7 +355,7 @@ async function recordTruckBookingContractActivity(db, contractId, contract, phas
     status: resolveContractActivityStatus(phase),
     statusBucket: resolveContractActivityStatus(phase),
     typeBucket: mapListingTypeToTypeBucket(listingType),
-    activityAt: admin.firestore.FieldValue.serverTimestamp(),
+    activityAt: FirestoreFieldValue.serverTimestamp(),
     referredUserMasked: maskDisplayName(referredDoc.exists ? referredDoc.data().name : null, referredDoc.exists ? referredDoc.data().phone : null),
     counterpartyMasked: maskDisplayName(counterpartyDoc?.exists ? counterpartyDoc.data().name : contract.listingOwnerName, counterpartyDoc?.exists ? counterpartyDoc.data().phone : null),
     source: 'trigger',
@@ -468,7 +474,7 @@ Shipper: Accurate cargo info, proper packaging, timely payment to Trucker
 Trucker: Safe transport, communication, timely delivery
 
 5. DISPUTE RESOLUTION
-Negotiation (7 days) → Mediation (14 days) → Arbitration per RA 9285
+Negotiation (7 days) â†’ Mediation (14 days) â†’ Arbitration per RA 9285
 
 6. PLATFORM DISCLAIMER
 GetGo PH is a technology platform only, NOT a party to this contract.
@@ -536,8 +542,8 @@ By signing, both parties agree to these terms.
     shipperSignedAt: null,
     truckerSignedAt: null,
     signedAt: null,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FirestoreFieldValue.serverTimestamp(),
+    updatedAt: FirestoreFieldValue.serverTimestamp(),
   };
 
   await contractRef.set(contractData);
@@ -546,13 +552,13 @@ By signing, both parties agree to these terms.
   const listingCollection = isCargo ? 'cargoListings' : 'truckListings';
   await db.collection(listingCollection).doc(listing.id).update({
     status: 'contracted',
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FirestoreFieldValue.serverTimestamp(),
   });
 
   // Update bid status
   await db.collection('bids').doc(bidId).update({
     status: 'contracted',
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FirestoreFieldValue.serverTimestamp(),
   });
 
   // Create notifications for both parties
@@ -562,7 +568,7 @@ By signing, both parties agree to these terms.
     message: `Contract #${contractNumber} is ready for your review. Please sign to activate. Platform fee of PHP ${platformFee.toLocaleString()} will be due 3 days after delivery confirmation.`,
     data: { contractId: contractRef.id, bidId },
     isRead: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FirestoreFieldValue.serverTimestamp(),
   });
 
   await db.collection(`users/${listingOwnerId}/notifications`).doc().set({
@@ -571,7 +577,7 @@ By signing, both parties agree to these terms.
     message: `Contract #${contractNumber} is ready for your review. Please sign to proceed.`,
     data: { contractId: contractRef.id, bidId },
     isRead: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FirestoreFieldValue.serverTimestamp(),
   });
 
   try {
@@ -687,7 +693,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
     };
   }
 
-  const updates = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+  const updates = { updatedAt: FirestoreFieldValue.serverTimestamp() };
 
   if (isTrucker) {
     // Use authenticated trucker UID for compliance/doc checks to avoid stale contract.truckerId issues.
@@ -721,14 +727,14 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
         cancellationBlockUntil: null,
         cancellationBlockedAt: null,
         cancellationBlockReason: null,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FirestoreFieldValue.serverTimestamp(),
       }, { merge: true });
 
       await db.collection('adminLogs').add({
         action: 'SYSTEM_TRUCKER_CANCELLATION_BLOCK_CLEARED',
         targetUserId: complianceTruckerId,
         performedBy: 'system',
-        performedAt: admin.firestore.FieldValue.serverTimestamp(),
+        performedAt: FirestoreFieldValue.serverTimestamp(),
         previousBlockUntil: blockUntilDate.toISOString(),
       });
     }
@@ -775,13 +781,13 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       blockUntil.setDate(blockUntil.getDate() + TRUCKER_CANCELLATION_BLOCK_DAYS);
 
       await complianceRef.set({
-        cancellationBlockUntil: admin.firestore.Timestamp.fromDate(blockUntil),
-        cancellationBlockedAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancellationBlockUntil: FirestoreTimestamp.fromDate(blockUntil),
+        cancellationBlockedAt: FirestoreFieldValue.serverTimestamp(),
         cancellationBlockReason: 'trucker-cancellation-limit-reached',
         cancellationBlockCountAtTrigger: cancellationCount,
         cancellationBlockThreshold: TRUCKER_CANCELLATION_THRESHOLD,
         cancellationBlockWindowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FirestoreFieldValue.serverTimestamp(),
       }, { merge: true });
 
       await db.collection(`users/${complianceTruckerId}/notifications`).doc().set({
@@ -796,7 +802,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
           windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
         },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FirestoreFieldValue.serverTimestamp(),
       });
 
       const adminIds = await getAdminUserIds(db);
@@ -812,14 +818,14 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
           threshold: TRUCKER_CANCELLATION_THRESHOLD,
         },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FirestoreFieldValue.serverTimestamp(),
       })));
 
       await db.collection('adminLogs').add({
         action: 'TRUCKER_CANCELLATION_THRESHOLD_BLOCKED',
         targetUserId: complianceTruckerId,
         performedBy: 'system',
-        performedAt: admin.firestore.FieldValue.serverTimestamp(),
+        performedAt: FirestoreFieldValue.serverTimestamp(),
         count: cancellationCount,
         threshold: TRUCKER_CANCELLATION_THRESHOLD,
         windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
@@ -910,8 +916,8 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       agreedPrice: contract.agreedPrice || 0,
       cargoDescription: contract.cargoType || contract.cargoDescription || '',
       listingType: contract.listingType || 'cargo',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FirestoreFieldValue.serverTimestamp(),
+      updatedAt: FirestoreFieldValue.serverTimestamp(),
     });
 
     // Platform fee due window starts at delivery confirmation, not at signing.
@@ -930,7 +936,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
     if (contract.listingId) {
       await db.collection(listingCollection).doc(contract.listingId).update({
         status: 'in_transit',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FirestoreFieldValue.serverTimestamp(),
       });
     }
 
@@ -942,7 +948,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       message: `Contract #${contract.contractNumber} is now active. Tracking: ${trackingNumber}`,
       data: { contractId, shipmentId: shipmentRef.id, trackingNumber },
       isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FirestoreFieldValue.serverTimestamp(),
     });
 
     try {
@@ -959,7 +965,7 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       message: `Contract #${contract.contractNumber} needs your signature`,
       data: { contractId },
       isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FirestoreFieldValue.serverTimestamp(),
     });
   }
 
@@ -1034,16 +1040,16 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
   const completionTime = new Date();
   const completionUpdates = {
     status: 'completed',
-    completedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    completedAt: FirestoreFieldValue.serverTimestamp(),
+    updatedAt: FirestoreFieldValue.serverTimestamp(),
   };
 
   if (contract.platformFee > 0 && !contract.platformFeePaid) {
     deliveryDueDate = new Date(completionTime);
     deliveryDueDate.setDate(deliveryDueDate.getDate() + 3);
     completionUpdates.platformFeeStatus = 'outstanding';
-    completionUpdates.platformFeeDueDate = admin.firestore.Timestamp.fromDate(deliveryDueDate);
-    completionUpdates.platformFeeBillingStartedAt = admin.firestore.Timestamp.fromDate(completionTime);
+    completionUpdates.platformFeeDueDate = FirestoreTimestamp.fromDate(deliveryDueDate);
+    completionUpdates.platformFeeBillingStartedAt = FirestoreTimestamp.fromDate(completionTime);
     completionUpdates.platformFeeReminders = ['due_initial'];
     completionUpdates.overdueAt = null;
   }
@@ -1065,7 +1071,7 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
           reminderStage: 'due_initial',
         },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FirestoreFieldValue.serverTimestamp(),
       }, { merge: true });
     }
   }
@@ -1080,7 +1086,7 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
     updatedBy: userId,
     updatedByRole: 'shipper',
     deliveredAt: new Date(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FirestoreFieldValue.serverTimestamp(),
   });
 
   // Update listing status
@@ -1089,20 +1095,20 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
   if (contract.listingId) {
     await db.collection(listingCollection).doc(contract.listingId).update({
       status: listingStatus,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FirestoreFieldValue.serverTimestamp(),
     });
   }
 
   // Maintain trucker completion stats for profile surfaces (dropdown/profile cards).
   await db.collection('users').doc(truckerId).collection('truckerProfile').doc('profile').set({
-    totalTrips: admin.firestore.FieldValue.increment(1),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    totalTrips: FirestoreFieldValue.increment(1),
+    updatedAt: FirestoreFieldValue.serverTimestamp(),
   }, { merge: true });
 
   // Maintain shipper completion stats used by profile transaction cards.
   await db.collection('users').doc(shipperId).collection('shipperProfile').doc('profile').set({
-    totalTransactions: admin.firestore.FieldValue.increment(1),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    totalTransactions: FirestoreFieldValue.increment(1),
+    updatedAt: FirestoreFieldValue.serverTimestamp(),
   }, { merge: true });
 
   // Notify both parties to rate
@@ -1113,7 +1119,7 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
       message: `Please rate your experience for contract #${contract.contractNumber}`,
       data: { contractId },
       isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FirestoreFieldValue.serverTimestamp(),
     });
   }
 
@@ -1225,14 +1231,14 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
   // Cancel the contract
   const cancellationUpdates = {
     status: 'cancelled',
-    cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+    cancelledAt: FirestoreFieldValue.serverTimestamp(),
     cancelledBy: userId,
     cancelledByRole,
     shipperId,
     truckerId,
     cancellationReasonCode: cancelledByRole === 'trucker' ? normalizedReasonCode : null,
     cancellationReason: resolvedReason,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FirestoreFieldValue.serverTimestamp(),
   };
 
   // If platform fee was unpaid, clear billing dates (waive fee for cancelled contracts)
@@ -1258,7 +1264,7 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
         message: 'Your account has been reactivated. No outstanding platform fees remain.',
         data: { contractId },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FirestoreFieldValue.serverTimestamp(),
       });
     }
   }
@@ -1268,7 +1274,7 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
     const listingCollection = contract.listingType === 'cargo' ? 'cargoListings' : 'truckListings';
     await db.collection(listingCollection).doc(contract.listingId).update({
       status: 'available',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FirestoreFieldValue.serverTimestamp(),
     });
   }
 
@@ -1285,7 +1291,7 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
         cancelledByRole,
       },
       isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FirestoreFieldValue.serverTimestamp(),
     });
   });
 
@@ -1306,7 +1312,7 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
     const countSnap = await db.collection('contracts')
       .where('truckerId', '==', truckerId)
       .where('cancelledByRole', '==', 'trucker')
-      .where('cancelledAt', '>=', admin.firestore.Timestamp.fromDate(baselineDate))
+      .where('cancelledAt', '>=', FirestoreTimestamp.fromDate(baselineDate))
       .count()
       .get();
     const cancellationCount = Number(countSnap?.data()?.count || 0);
@@ -1316,13 +1322,13 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
       blockUntil.setDate(blockUntil.getDate() + TRUCKER_CANCELLATION_BLOCK_DAYS);
 
       await complianceRef.set({
-        cancellationBlockUntil: admin.firestore.Timestamp.fromDate(blockUntil),
-        cancellationBlockedAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancellationBlockUntil: FirestoreTimestamp.fromDate(blockUntil),
+        cancellationBlockedAt: FirestoreFieldValue.serverTimestamp(),
         cancellationBlockReason: 'trucker-cancellation-limit-reached',
         cancellationBlockCountAtTrigger: cancellationCount,
         cancellationBlockThreshold: TRUCKER_CANCELLATION_THRESHOLD,
         cancellationBlockWindowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FirestoreFieldValue.serverTimestamp(),
       }, { merge: true });
 
       await db.collection(`users/${truckerId}/notifications`).doc().set({
@@ -1337,7 +1343,7 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
           windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
         },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FirestoreFieldValue.serverTimestamp(),
       });
 
       const adminIds = await getAdminUserIds(db);
@@ -1353,7 +1359,7 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
           threshold: TRUCKER_CANCELLATION_THRESHOLD,
         },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FirestoreFieldValue.serverTimestamp(),
       })));
 
       await db.collection('adminLogs').add({
@@ -1361,7 +1367,7 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
         targetUserId: truckerId,
         relatedContractId: contractId,
         performedBy: 'system',
-        performedAt: admin.firestore.FieldValue.serverTimestamp(),
+        performedAt: FirestoreFieldValue.serverTimestamp(),
         count: cancellationCount,
         threshold: TRUCKER_CANCELLATION_THRESHOLD,
         windowDays: TRUCKER_CANCELLATION_WINDOW_DAYS,
@@ -1523,3 +1529,4 @@ exports.getContractByBid = functions.region('asia-southeast1').https.onCall(asyn
 
   return { contract };
 });
+

@@ -1,10 +1,11 @@
-/**
+﻿/**
  * Shipment Triggers
  * Sends notifications on shipment status changes and location updates
  */
 
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
+const { FieldValue: AdminFieldValue } = require('firebase-admin/firestore');
 const {
   ACTIVITY_TYPES,
   getBrokerReferralForUser,
@@ -13,6 +14,8 @@ const {
   maskDisplayName,
   upsertBrokerMarketplaceActivity,
 } = require('../services/brokerListingReferralService');
+
+const FirestoreFieldValue = admin.firestore?.FieldValue || AdminFieldValue;
 
 async function resolveParticipantIds(db, shipment) {
   let shipperId = shipment.shipperId || null;
@@ -90,7 +93,7 @@ async function recordBrokerShipmentActivity(db, shipmentId, shipment, contract, 
     status: statusBucket,
     statusBucket,
     shipmentStatus: normalizedShipmentStatus,
-    activityAt: shipment.updatedAt || shipment.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+    activityAt: shipment.updatedAt || shipment.createdAt || FirestoreFieldValue.serverTimestamp(),
     referredUserMasked: maskDisplayName(
       referredDoc.exists ? referredDoc.data().name : null,
       referredDoc.exists ? referredDoc.data().phone : null
@@ -182,7 +185,7 @@ exports.onShipmentLocationUpdate = onDocumentUpdated(
         currentLng: after.currentLng,
       },
       isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FirestoreFieldValue.serverTimestamp(),
     });
 
     return null;
@@ -237,7 +240,7 @@ exports.onShipmentStatusChanged = onDocumentUpdated(
           status: after.status,
         },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FirestoreFieldValue.serverTimestamp(),
       });
     }
 
@@ -254,7 +257,7 @@ exports.onShipmentStatusChanged = onDocumentUpdated(
           status: after.status,
         },
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FirestoreFieldValue.serverTimestamp(),
       });
     }
 
@@ -278,3 +281,4 @@ exports.onShipmentStatusChanged = onDocumentUpdated(
     return null;
   }
 );
+
