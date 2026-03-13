@@ -547,6 +547,23 @@ async function approvePayment(submission, order, submissionId) {
       updatedAt: FieldValue.serverTimestamp()
     });
 
+    // Write platformFees atomically with the order status update so that a
+    // crash between the two can never leave the order verified but fee missing.
+    // Uses orderId as deterministic key for idempotency (merge:true on retry).
+    if (order.type === 'platform_fee') {
+      const platformFeeRef = db.collection('platformFees').doc(order.orderId);
+      tx.set(platformFeeRef, {
+        bidId: order.bidId,
+        userId: submission.userId,
+        amount: order.amount,
+        status: 'completed',
+        submissionId,
+        orderId: order.orderId,
+        contractId: order.contractId || null,
+        createdAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+
     return { state: 'applied' };
   });
 
@@ -557,16 +574,7 @@ async function approvePayment(submission, order, submissionId) {
   // Check if this is a platform fee payment or wallet top-up
   if (order.type === 'platform_fee') {
 
-    // Record platform fee exactly once using orderId as deterministic key.
-    await db.collection('platformFees').doc(order.orderId).set({
-      bidId: order.bidId,
-      userId: submission.userId,
-      amount: order.amount,
-      status: 'completed',
-      submissionId,
-      orderId: order.orderId,
-      createdAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+    // platformFees doc was written atomically inside the transaction above.
 
     // Update contract to mark platform fee as paid.
     // Keep lifecycle state for deferred-fee contracts (e.g. signed/completed),
@@ -607,7 +615,7 @@ async function approvePayment(submission, order, submissionId) {
             if (
               userData.accountStatus === 'suspended' &&
               userData.suspensionReason === 'unpaid_platform_fees' &&
-              (userData.outstandingPlatformFees - order.amount) <= 0
+              userData.outstandingPlatformFees <= 0
             ) {
               // Unsuspend automatically
               await db.collection('users').doc(platformFeePayerId).update({
