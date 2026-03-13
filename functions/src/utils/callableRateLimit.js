@@ -72,7 +72,8 @@ async function enforceUserRateLimit({
       maxAttempts: normalizedAttempts,
       windowMs: normalizedWindowMs,
       windowStartedAtMs,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      // Use Date for broad compatibility across firebase-admin/runtime combinations.
+      updatedAt: new Date(nowMs),
     }, { merge: true });
   });
 

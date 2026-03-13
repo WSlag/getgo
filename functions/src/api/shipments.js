@@ -1,10 +1,11 @@
-/**
+﻿/**
  * Shipment Management Cloud Functions
  * Handles shipment tracking and location updates
  */
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { FieldValue: AdminFieldValue } = require('firebase-admin/firestore');
 const {
   DEFAULT_COORDS,
   resolveCoordinatePair,
@@ -12,6 +13,7 @@ const {
   computeProgressTowardDestination,
   toWholeKm,
 } = require('../utils/geo');
+const FirestoreFieldValue = admin.firestore?.FieldValue || AdminFieldValue;
 
 function resolveShipmentActors(contract, shipment) {
   const isCargo = contract.listingType === 'cargo';
@@ -131,7 +133,7 @@ exports.updateShipmentLocation = functions.region('asia-southeast1').https.onCal
       truckerId,
       updatedBy: userId,
       updatedByRole: 'trucker',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FirestoreFieldValue.serverTimestamp(),
     };
 
     tx.update(shipmentRef, updateData);
@@ -243,7 +245,7 @@ exports.updateShipmentStatus = functions.region('asia-southeast1').https.onCall(
       truckerId,
       updatedBy: userId,
       updatedByRole: 'trucker',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FirestoreFieldValue.serverTimestamp(),
     };
 
     if (status === 'in_transit') {
@@ -268,3 +270,4 @@ exports.updateShipmentStatus = functions.region('asia-southeast1').https.onCall(
     shipment: result,
   };
 });
+
