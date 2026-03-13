@@ -27,11 +27,32 @@ const TRUCKER_DOC_FIELD_BY_TYPE = {
 const ALLOWED_TRUCKER_DOC_TYPES = new Set(Object.keys(TRUCKER_DOC_FIELD_BY_TYPE));
 const ALLOWED_TRUCKER_DOC_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_TRUCKER_DOC_SIZE_BYTES = 5 * 1024 * 1024;
+const USE_LISTING_WRITE_CALLABLES = import.meta.env.VITE_USE_LISTING_WRITE_CALLABLES === 'true';
 
 function sanitizeStorageFileName(fileName = 'document') {
   return String(fileName)
     .replace(/[^a-zA-Z0-9._-]/g, '_')
     .slice(0, 120);
+}
+
+function resolveCoordsWithFallback(inputCoords, cityName) {
+  const lat = Number(inputCoords?.lat);
+  const lng = Number(inputCoords?.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return { lat, lng };
+  }
+  return getCoordinates(cityName);
+}
+
+function isCallableMissingError(error) {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    code.includes('unimplemented') ||
+    code.includes('not-found') ||
+    message.includes('function not found') ||
+    message.includes('does not exist')
+  );
 }
 
 
@@ -149,8 +170,28 @@ export const createCargoListing = async (userId, userProfile, data) => {
     throw new Error('Only shipper accounts can create cargo listings');
   }
 
-  const originCoords = getCoordinates(data.origin);
-  const destCoords = getCoordinates(data.destination);
+  const originCoords = resolveCoordsWithFallback(data.originCoords, data.origin);
+  const destCoords = resolveCoordsWithFallback(data.destCoords, data.destination);
+
+  if (USE_LISTING_WRITE_CALLABLES) {
+    try {
+      const createCargoListingCallable = httpsCallable(functions, 'createCargoListing');
+      const result = await createCargoListingCallable({
+        ...data,
+        origin: data.origin,
+        destination: data.destination,
+        originCoords,
+        destCoords,
+        vehicleNeeded: data.vehicleNeeded || data.vehicleType,
+        weightUnit: data.weightUnit || data.unit || 'tons',
+      });
+      return result?.data || { id: null };
+    } catch (error) {
+      if (!isCallableMissingError(error)) {
+        throw error;
+      }
+    }
+  }
 
   const listingData = {
     userId,
@@ -183,6 +224,18 @@ export const createCargoListing = async (userId, userProfile, data) => {
 };
 
 export const updateCargoListing = async (listingId, data) => {
+  if (USE_LISTING_WRITE_CALLABLES) {
+    try {
+      const updateCargoListingCallable = httpsCallable(functions, 'updateCargoListing');
+      await updateCargoListingCallable({ listingId, ...data });
+      return;
+    } catch (error) {
+      if (!isCallableMissingError(error)) {
+        throw error;
+      }
+    }
+  }
+
   const listingRef = doc(db, 'cargoListings', listingId);
   await updateDoc(listingRef, {
     ...data,
@@ -205,8 +258,29 @@ export const createTruckListing = async (userId, userProfile, truckerProfile, da
     throw new Error('Only trucker accounts can create truck listings');
   }
 
-  const originCoords = getCoordinates(data.origin);
-  const destCoords = getCoordinates(data.destination);
+  const originCoords = resolveCoordsWithFallback(data.originCoords, data.origin);
+  const destCoords = resolveCoordsWithFallback(data.destCoords, data.destination);
+
+  if (USE_LISTING_WRITE_CALLABLES) {
+    try {
+      const createTruckListingCallable = httpsCallable(functions, 'createTruckListing');
+      const result = await createTruckListingCallable({
+        ...data,
+        origin: data.origin,
+        destination: data.destination,
+        originCoords,
+        destCoords,
+        capacity: data.capacity || data.weight || 0,
+        capacityUnit: data.capacityUnit || data.unit || 'tons',
+        availableDate: data.availableDate || data.pickupDate || null,
+      });
+      return result?.data || { id: null };
+    } catch (error) {
+      if (!isCallableMissingError(error)) {
+        throw error;
+      }
+    }
+  }
 
   const listingData = {
     userId,
@@ -241,6 +315,18 @@ export const createTruckListing = async (userId, userProfile, truckerProfile, da
 };
 
 export const updateTruckListing = async (listingId, data) => {
+  if (USE_LISTING_WRITE_CALLABLES) {
+    try {
+      const updateTruckListingCallable = httpsCallable(functions, 'updateTruckListing');
+      await updateTruckListingCallable({ listingId, ...data });
+      return;
+    } catch (error) {
+      if (!isCallableMissingError(error)) {
+        throw error;
+      }
+    }
+  }
+
   const listingRef = doc(db, 'truckListings', listingId);
   await updateDoc(listingRef, {
     ...data,

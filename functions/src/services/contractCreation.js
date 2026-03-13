@@ -17,6 +17,11 @@ const {
 } = require('./brokerListingReferralService');
 const STANDARD_OUTSTANDING_CAP = Number(process.env.PLATFORM_FEE_DEBT_CAP || 15000);
 
+function toCoordinateOrNull(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function resolveOutstandingCap(userData = {}) {
   const isVerified = userData.isVerified === true;
   return {
@@ -212,7 +217,15 @@ By signing, both parties agree to these terms.
     declaredCargoValue,
     pickupDate: options.pickupDate || listing.pickupDate || listing.availableDate || null,
     pickupAddress: listing.origin,
+    pickupCity: listing.origin,
+    pickupStreetAddress: listing.originStreetAddress || '',
+    pickupLat: toCoordinateOrNull(listing.originLat),
+    pickupLng: toCoordinateOrNull(listing.originLng),
     deliveryAddress: listing.destination,
+    deliveryCity: listing.destination,
+    deliveryStreetAddress: listing.destinationStreetAddress || '',
+    deliveryLat: toCoordinateOrNull(listing.destLat),
+    deliveryLng: toCoordinateOrNull(listing.destLng),
     expectedDeliveryDate: options.expectedDeliveryDate || null,
     cargoType: isCargo ? listing.cargoType : (bid.cargoType || 'General'),
     cargoWeight: isCargo ? listing.weight : (bid.cargoWeight || 0),

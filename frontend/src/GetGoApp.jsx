@@ -2567,6 +2567,10 @@ export default function GetGoApp() {
               const listingData = {
                 origin: data.origin,
                 destination: data.destination,
+                originCoords: data.originCoords || null,
+                destCoords: data.destCoords || null,
+                originStreetAddress: data.originStreetAddress || '',
+                destinationStreetAddress: data.destinationStreetAddress || '',
                 cargoType: data.cargoType,
                 weight: data.weight,
                 weightUnit: data.unit || 'tons',
@@ -2585,6 +2589,10 @@ export default function GetGoApp() {
               const listingData = {
                 origin: data.origin,
                 destination: data.destination,
+                originCoords: data.originCoords || null,
+                destCoords: data.destCoords || null,
+                originStreetAddress: data.originStreetAddress || '',
+                destinationStreetAddress: data.destinationStreetAddress || '',
                 vehicleType: data.vehicleType,
                 capacity: data.weight || 0,
                 capacityUnit: data.unit || 'tons',
@@ -2947,6 +2955,8 @@ export default function GetGoApp() {
             const updateData = {
               origin: data.origin,
               destination: data.destination,
+              originStreetAddress: data.originStreetAddress || '',
+              destinationStreetAddress: data.destinationStreetAddress || '',
               cargoType: data.cargoType,
               weight: parseFloat(data.weight) || 0,
               weightUnit: data.unit || 'tons',
@@ -3002,6 +3012,8 @@ export default function GetGoApp() {
             const updateData = {
               origin: data.origin,
               destination: data.destination,
+              originStreetAddress: data.originStreetAddress || '',
+              destinationStreetAddress: data.destinationStreetAddress || '',
               vehicleType: data.vehicleType,
               capacity: parseFloat(data.weight) || 0,
               capacityUnit: data.unit || 'tons',

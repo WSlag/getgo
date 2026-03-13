@@ -58,9 +58,16 @@ export function useCargoListings(options = {}) {
           const createdAt = parseTimestampSafely(docData.createdAt);
           const updatedAt = parseTimestampSafely(docData.updatedAt);
 
-          // Calculate distance if coordinates exist
-          let distance = null;
-          if (docData.originLat && docData.originLng && docData.destLat && docData.destLng) {
+          // Prefer server-authoritative route distance, fallback to local coordinate math.
+          let distance = Number.isFinite(Number(docData.routeDistanceKm))
+            ? Math.max(0, Math.round(Number(docData.routeDistanceKm)))
+            : null;
+          const hasCoords =
+            Number.isFinite(Number(docData.originLat)) &&
+            Number.isFinite(Number(docData.originLng)) &&
+            Number.isFinite(Number(docData.destLat)) &&
+            Number.isFinite(Number(docData.destLng));
+          if (distance === null && hasCoords) {
             const R = 6371; // Earth's radius in km
             const dLat = (docData.destLat - docData.originLat) * Math.PI / 180;
             const dLng = (docData.destLng - docData.originLng) * Math.PI / 180;

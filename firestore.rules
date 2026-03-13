@@ -197,6 +197,30 @@ service cloud.firestore {
       return oldData.status != 'accepted' && newData.status == 'accepted';
     }
 
+    function hasValidListingRouteBounds(data) {
+      return (!('originLat' in data) || data.originLat == null || (data.originLat is number && data.originLat >= -90 && data.originLat <= 90))
+        && (!('originLng' in data) || data.originLng == null || (data.originLng is number && data.originLng >= -180 && data.originLng <= 180))
+        && (!('destLat' in data) || data.destLat == null || (data.destLat is number && data.destLat >= -90 && data.destLat <= 90))
+        && (!('destLng' in data) || data.destLng == null || (data.destLng is number && data.destLng >= -180 && data.destLng <= 180))
+        && (!('routeDistanceKm' in data) || data.routeDistanceKm == null || (data.routeDistanceKm is number && data.routeDistanceKm >= 0));
+    }
+
+    function isRouteFieldWriteLockEnabled() {
+      return exists(/databases/$(database)/documents/settings/platform)
+        && get(/databases/$(database)/documents/settings/platform).data.get('features', {}).get('routeFieldWriteLockEnabled', false) == true;
+    }
+
+    function listingRouteFieldsUnchanged(newData, oldData) {
+      return newData.origin == oldData.origin
+        && newData.destination == oldData.destination
+        && newData.originLat == oldData.originLat
+        && newData.originLng == oldData.originLng
+        && newData.destLat == oldData.destLat
+        && newData.destLng == oldData.destLng
+        && newData.routeDistanceKm == oldData.routeDistanceKm
+        && newData.routeDistanceUpdatedAt == oldData.routeDistanceUpdatedAt;
+    }
+
     // Users collection
     match /users/{uid} {
       // Only owners/admins can read full user documents (contains sensitive fields)
@@ -329,8 +353,15 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isAuth()
         && request.resource.data.userId == request.auth.uid
-        && effectivePostingRole(request.auth.uid) == 'shipper';
-      allow update: if isAuth() && resource.data.userId == request.auth.uid;
+        && effectivePostingRole(request.auth.uid) == 'shipper'
+        && hasValidListingRouteBounds(request.resource.data);
+      allow update: if isAuth()
+        && resource.data.userId == request.auth.uid
+        && hasValidListingRouteBounds(request.resource.data)
+        && (
+          !isRouteFieldWriteLockEnabled()
+          || listingRouteFieldsUnchanged(request.resource.data, resource.data)
+        );
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
 
@@ -339,8 +370,15 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isAuth()
         && request.resource.data.userId == request.auth.uid
-        && effectivePostingRole(request.auth.uid) == 'trucker';
-      allow update: if isAuth() && resource.data.userId == request.auth.uid;
+        && effectivePostingRole(request.auth.uid) == 'trucker'
+        && hasValidListingRouteBounds(request.resource.data);
+      allow update: if isAuth()
+        && resource.data.userId == request.auth.uid
+        && hasValidListingRouteBounds(request.resource.data)
+        && (
+          !isRouteFieldWriteLockEnabled()
+          || listingRouteFieldsUnchanged(request.resource.data, resource.data)
+        );
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
 

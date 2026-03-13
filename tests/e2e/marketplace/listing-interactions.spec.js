@@ -1,5 +1,45 @@
 import { test, expect } from '../fixtures/auth.fixture.js';
-import { generateTestUser, generateCargoListing } from '../utils/test-data.js';
+import { generateTestUser, EMULATOR_PROJECT_ID } from '../utils/test-data.js';
+
+const FIRESTORE_EMULATOR = 'http://127.0.0.1:8080';
+
+function firestoreValueToJs(value) {
+  if (!value || typeof value !== 'object') return null;
+  if ('stringValue' in value) return value.stringValue;
+  if ('integerValue' in value) return Number(value.integerValue);
+  if ('doubleValue' in value) return Number(value.doubleValue);
+  if ('booleanValue' in value) return Boolean(value.booleanValue);
+  if ('nullValue' in value) return null;
+  if ('mapValue' in value) {
+    const fields = value.mapValue?.fields || {};
+    return Object.fromEntries(
+      Object.entries(fields).map(([k, v]) => [k, firestoreValueToJs(v)])
+    );
+  }
+  if ('arrayValue' in value) {
+    const values = value.arrayValue?.values || [];
+    return values.map((entry) => firestoreValueToJs(entry));
+  }
+  return null;
+}
+
+async function fetchCargoListingsFromEmulator() {
+  const url = `${FIRESTORE_EMULATOR}/v1/projects/${EMULATOR_PROJECT_ID}/databases/(default)/documents/cargoListings?pageSize=50`;
+  const response = await fetch(url, {
+    headers: { Authorization: 'Bearer owner' },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch cargo listings from emulator: ${response.status}`);
+  }
+  const payload = await response.json();
+  const docs = payload.documents || [];
+  return docs.map((doc) => ({
+    id: doc.name?.split('/').pop() || null,
+    ...Object.fromEntries(
+      Object.entries(doc.fields || {}).map(([k, v]) => [k, firestoreValueToJs(v)])
+    ),
+  }));
+}
 
 /**
  * Marketplace Listing Interaction Tests
@@ -269,5 +309,75 @@ test.describe('Marketplace Listing Interactions', () => {
       // Not strictly required — might navigate inline
       expect(modal >= 0).toBe(true); // no crash
     }
+  });
+
+  test('should persist server route distance after submitting cargo listing', async ({
+    page,
+    authHelper,
+    testPhoneNumbers,
+  }) => {
+    await authHelper.login(testPhoneNumbers.shipper);
+    const userData = generateTestUser('shipper', 6);
+    await authHelper.register(userData);
+
+    const postButton = page.locator('aside button').filter({
+      hasText: /post cargo/i,
+    }).first();
+
+    const isVisible = await postButton.count() > 0
+      ? await postButton.isVisible().catch(() => false)
+      : false;
+    if (!isVisible) {
+      test.skip();
+      return;
+    }
+
+    await postButton.click();
+    await page.waitForTimeout(900);
+
+    const modal = page.locator('[role="dialog"]').first();
+    await expect(modal).toBeVisible();
+
+    await modal.locator('input[placeholder*="origin"], input[placeholder*="From"]').first().fill('Manila');
+    await modal.locator('input[placeholder*="destination"], input[placeholder*="Search destination"], input[placeholder*="To"]').first().fill('Cebu City');
+
+    // Fill required select fields (cargo type + vehicle needed)
+    const selects = modal.locator('select');
+    const selectCount = await selects.count();
+    if (selectCount >= 2) {
+      await selects.nth(0).selectOption({ index: 1 });
+      await selects.nth(1).selectOption({ index: 1 });
+    }
+
+    const numberInputs = modal.locator('input[type="number"]');
+    const numberCount = await numberInputs.count();
+    if (numberCount < 2) {
+      test.skip();
+      return;
+    }
+    await numberInputs.nth(0).fill('8');
+    await numberInputs.nth(1).fill('12000');
+
+    const submitButton = modal.locator('button').filter({ hasText: /post cargo/i }).first();
+    await submitButton.click();
+
+    const found = await (async () => {
+      const timeoutMs = 90000;
+      const intervalMs = 1200;
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < timeoutMs) {
+        const docs = await fetchCargoListingsFromEmulator();
+        const match = docs.find((item) =>
+          item.userName === userData.name &&
+          typeof item.routeDistanceKm === 'number'
+        );
+        if (match) return match;
+        await page.waitForTimeout(intervalMs);
+      }
+      return null;
+    })();
+
+    expect(found).not.toBeNull();
+    expect(Number(found.routeDistanceKm)).toBeGreaterThan(0);
   });
 });
