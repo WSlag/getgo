@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -103,6 +104,7 @@ function UserDetailModal({
             </div>
             <div>
               <DialogTitle className="text-xl">{user.name || 'Unknown User'}</DialogTitle>
+              <DialogDescription className="sr-only">User account details and management actions</DialogDescription>
               <div className="flex items-center gap-2 mt-1">
                 <RoleBadge role={user.role} />
                 <StatusBadge isActive={user.isActive !== false} isVerified={user.isVerified} />
@@ -581,6 +583,7 @@ export function UserManagement() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Reset Trucker Cancellation Block</DialogTitle>
+            <DialogDescription className="sr-only">Confirm cancellation block reset</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">

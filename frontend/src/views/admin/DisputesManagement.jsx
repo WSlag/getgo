@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -65,6 +66,7 @@ function DisputeDetailModal({ open, onClose, dispute, onResolve, loading }) {
             </div>
             <div>
               <DialogTitle className="text-xl">Dispute Details</DialogTitle>
+              <DialogDescription className="sr-only">Dispute details and resolution</DialogDescription>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Contract: {dispute.contractNumber || dispute.contractId?.slice(0, 8)}
               </p>
