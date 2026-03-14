@@ -221,7 +221,7 @@ const isLocalRuntimeHost =
   currentRuntimeHost === 'localhost' || currentRuntimeHost === '127.0.0.1';
 const appCheckAllowedOnLocalhost = import.meta.env.VITE_ENABLE_APPCHECK_ON_LOCALHOST === 'true';
 const appCheckDisabledForLocalhost = isLocalRuntimeHost && !appCheckAllowedOnLocalhost;
-const shouldInitializeAppCheck =
+export const shouldInitializeAppCheck =
   !useEmulator &&
   appCheckEnabled &&
   !appCheckProviderOff &&
