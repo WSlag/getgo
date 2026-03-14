@@ -456,16 +456,16 @@ export function AuthProvider({ children }) {
 
     let disposed = false;
     const userRef = doc(db, 'users', authUser.uid);
-    const applyProfileSnapshot = (snap) => {
+    const applyProfileResolution = ({ exists, profile }) => {
       clearProfileRetryTimer();
       profileRetryAttemptRef.current = 0;
       setProfileLoadError(null);
       setAuthError(null);
 
-      if (snap.exists()) {
-        const profile = { id: snap.id, ...snap.data() };
-        lastKnownGoodProfileRef.current.set(authUser.uid, profile);
-        setUserProfile(profile);
+      if (exists && profile) {
+        const nextProfile = profile.id ? profile : { id: authUser.uid, ...profile };
+        lastKnownGoodProfileRef.current.set(authUser.uid, nextProfile);
+        setUserProfile(nextProfile);
         setIsNewUser(false);
       } else {
         // User authenticated but no profile yet - new user
@@ -476,6 +476,14 @@ export function AuthProvider({ children }) {
 
       setProfileLoadStatus('ready');
       setLoading(false);
+    };
+
+    const applyProfileSnapshot = (snap) => {
+      applyProfileResolution(
+        snap.exists()
+          ? { exists: true, profile: { id: snap.id, ...snap.data() } }
+          : { exists: false, profile: null }
+      );
     };
 
     const logTerminalProfileFailure = (profileError, attempts) => {
@@ -509,7 +517,7 @@ export function AuthProvider({ children }) {
       logTerminalProfileFailure(profileError, attempts);
     };
 
-    const recoverProfileWithServerRead = async () => {
+    const recoverProfileWithFallback = async () => {
       try {
         await waitForAppCheckInitialization();
         await authUser.getIdToken(true);
@@ -519,13 +527,33 @@ export function AuthProvider({ children }) {
 
       try {
         const serverSnap = await getDocFromServer(userRef);
-        if (disposed) return true;
+        if (disposed) {
+          return { recovered: false, source: null };
+        }
         applyProfileSnapshot(serverSnap);
-        return true;
+        return { recovered: true, source: 'server' };
       } catch (recoveryError) {
         reportFirestoreListenerError('user profile recovery', recoveryError);
-        return false;
       }
+
+      try {
+        const fallbackResult = await api.auth.getCurrentUserProfile();
+        if (disposed) {
+          return { recovered: false, source: null };
+        }
+        const exists = fallbackResult?.exists === true;
+        const profile = exists ? (fallbackResult.profile || null) : null;
+        applyProfileResolution({ exists, profile });
+        console.warn('[auth-profile] recovered_profile_via_callable_fallback', {
+          uid: authUser.uid,
+          source: 'authGetCurrentUserProfile',
+        });
+        return { recovered: true, source: 'callable' };
+      } catch (callableError) {
+        console.error('[auth-profile] callable profile fallback failed:', callableError);
+      }
+
+      return { recovered: false, source: null };
     };
 
     const scheduleRetry = (profileError) => {
@@ -565,13 +593,14 @@ export function AuthProvider({ children }) {
         reportFirestoreListenerError('user profile', error);
         const profileError = toProfileLoadError(error);
 
-        const recovered = await recoverProfileWithServerRead();
+        const recoveryResult = await recoverProfileWithFallback();
         if (disposed) return;
-        if (recovered) {
+        if (recoveryResult.recovered && recoveryResult.source === 'server') {
           // Restore a realtime listener after one-shot recovery.
           setProfileRetryNonce((prev) => prev + 1);
           return;
         }
+        if (recoveryResult.recovered) return;
 
         scheduleRetry(profileError);
       }
