@@ -96,7 +96,8 @@ function prerenderRoute(template, route) {
   html = setCanonical(html, canonicalUrl);
 
   html = html.replace(/<meta\s+http-equiv=["']refresh["'][^>]*>\s*/gi, '');
-  html = html.replace(/<script>[\s\S]*?window\.location\.replace\([\s\S]*?<\/script>\s*/gi, '');
+  // Strip unconditional redirect scripts (but preserve hostname-conditional domain redirect)
+  html = html.replace(/<script>(?![\s\S]*?window\.location\.hostname)[\s\S]*?window\.location\.replace\([\s\S]*?<\/script>\s*/gi, '');
 
   const fallbackContent = buildFallbackContent(route);
   if (fallbackContent) {

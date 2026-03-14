@@ -36,7 +36,9 @@ function verifyRoute(route) {
   assert(html.includes(`<title>${route.title}</title>`), `Incorrect title in ${filePath}`);
   assert(html.includes(`rel="canonical" href="${expectedCanonical}"`), `Incorrect canonical in ${filePath}`);
   assert(!/http-equiv=["']refresh["']/i.test(html), `Meta refresh still present in ${filePath}`);
-  assert(!/window\.location\.replace\(/i.test(html), `Redirect script still present in ${filePath}`);
+  // Allow hostname-conditional domain redirect (getgoph.web.app → getgoph.com), block unconditional redirects
+  const hasUnconditionalRedirect = /<script>(?![\s\S]*?window\.location\.hostname)[\s\S]*?window\.location\.replace\(/i.test(html);
+  assert(!hasUnconditionalRedirect, `Unconditional redirect script present in ${filePath}`);
 
   if (route.path !== '/') {
     assert(html.includes('id="prerender-public-content"'), `Missing fallback content in ${filePath}`);
