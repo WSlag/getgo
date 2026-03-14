@@ -1,6 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <script>
+      (function () {
+        var h = window.location.hostname;
+        if (h === 'getgoph.web.app' || h === 'getgoph.firebaseapp.com') {
+          window.location.replace(
+            'https://getgoph.com' +
+            window.location.pathname +
+            window.location.search +
+            window.location.hash
+          );
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icons/getgo-logo.svg?v=20260303" />
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png?v=20260303" />
