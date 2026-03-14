@@ -159,13 +159,10 @@ let appCheckResolutionNote = '';
 if (appCheckProviderName === 'auto') {
   if (appCheckSiteKeyEnterprise && appCheckSiteKeyV3) {
     if (appCheckSiteKeyEnterprise === appCheckSiteKeyV3) {
-      // Shared legacy key values are ambiguous; prefer v3 first and fallback to enterprise.
-      appCheckCandidates.push(
-        { provider: 'v3', siteKey: appCheckSiteKeyV3 },
-        { provider: 'enterprise', siteKey: appCheckSiteKeyEnterprise }
-      );
+      // Same key in both vars — treat as enterprise only; do NOT try v3 with an enterprise key.
+      appCheckCandidates.push({ provider: 'enterprise', siteKey: appCheckSiteKeyEnterprise });
       appCheckResolutionNote =
-        'VITE_APPCHECK_SITE_KEY and VITE_RECAPTCHA_ENTERPRISE_KEY are identical. Trying v3 first, then enterprise.';
+        'VITE_APPCHECK_SITE_KEY and VITE_RECAPTCHA_ENTERPRISE_KEY are identical. Using enterprise provider only.';
     } else {
       appCheckCandidates.push(
         { provider: 'enterprise', siteKey: appCheckSiteKeyEnterprise },
@@ -180,12 +177,12 @@ if (appCheckProviderName === 'auto') {
 } else if (appCheckProviderName === 'enterprise') {
   if (appCheckSiteKeyEnterprise) {
     appCheckCandidates.push({ provider: 'enterprise', siteKey: appCheckSiteKeyEnterprise });
-    const v3FallbackKey = appCheckSiteKeyV3 || appCheckSiteKeyEnterprise;
-    if (v3FallbackKey) {
-      appCheckCandidates.push({ provider: 'v3', siteKey: v3FallbackKey });
-      appCheckResolutionNote = appCheckSiteKeyV3
-        ? 'VITE_APPCHECK_PROVIDER=enterprise configured; v3 fallback enabled if enterprise initialization fails.'
-        : 'VITE_APPCHECK_PROVIDER=enterprise configured with only enterprise key; v3 fallback enabled as a resilience path.';
+    // Only add v3 fallback if a separate, distinct v3 key is configured.
+    // Using an Enterprise key with the v3 provider causes a 403 + 24h throttle.
+    const hasDistinctV3Key = appCheckSiteKeyV3 && appCheckSiteKeyV3 !== appCheckSiteKeyEnterprise;
+    if (hasDistinctV3Key) {
+      appCheckCandidates.push({ provider: 'v3', siteKey: appCheckSiteKeyV3 });
+      appCheckResolutionNote = 'VITE_APPCHECK_PROVIDER=enterprise configured; distinct v3 fallback enabled if enterprise initialization fails.';
     }
   } else if (appCheckSiteKeyV3) {
     appCheckCandidates.push({ provider: 'v3', siteKey: appCheckSiteKeyV3 });
