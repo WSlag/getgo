@@ -200,6 +200,31 @@ async function signInWithTestPhone(page, phone, otp) {
   );
 }
 
+async function assertProfileHydratedAfterAuth(page, baseUrl, timeoutMs) {
+  const profileUrl = new URL(baseUrl);
+  profileUrl.hash = 'profile';
+
+  await page.goto(profileUrl.toString(), { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+  await waitForSpinnerToClear(page, timeoutMs).catch(() => {});
+  await dismissBlockingDialogs(page);
+
+  const profilePage = page.locator('[data-testid="profile-page"]').first();
+  await profilePage.waitFor({ state: 'visible', timeout: timeoutMs });
+
+  const fallbackNameVisible = await profilePage
+    .locator('h1')
+    .filter({ hasText: /^User$/ })
+    .count();
+  const fallbackPhoneVisible = await profilePage
+    .locator('p')
+    .filter({ hasText: /^No phone number$/ })
+    .count();
+
+  if (fallbackNameVisible > 0 || fallbackPhoneVisible > 0) {
+    throw new Error('Authenticated profile rendered fallback placeholders (User/No phone number).');
+  }
+}
+
 function shouldTrackPermissionSignal(text) {
   const value = String(text || '').toLowerCase();
   return (
@@ -259,6 +284,8 @@ async function run() {
       await signInWithTestPhone(page, phone, otp);
       await waitForSpinnerToClear(page, timeoutMs).catch(() => {});
       await dismissBlockingDialogs(page);
+      console.log('[smoke] Validating authenticated profile hydration');
+      await assertProfileHydratedAfterAuth(page, url, timeoutMs);
     } else {
       console.log('[smoke] Skipping auth flow (--skip-auth) and validating guest-mode listeners');
     }

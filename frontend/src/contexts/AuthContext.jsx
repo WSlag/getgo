@@ -11,7 +11,7 @@ import {
   EmailAuthProvider,
   linkWithCredential,
 } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, getDocFromServer, serverTimestamp } from 'firebase/firestore';
 import { auth, db, waitForAppCheckInitialization } from '../firebase';
 import api from '../services/api';
 import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
@@ -26,6 +26,61 @@ const EMAIL_LINK_STORAGE_KEY = 'karga_email_link_state_v1';
 const REFERRAL_CODE_STORAGE_KEY = 'karga_referral_code';
 const REFERRAL_ERROR_STORAGE_KEY = 'karga_referral_attribution_last_error';
 const EMAIL_LINK_GENERIC_MESSAGE = 'If an eligible account exists, a sign-in link will be sent.';
+const PROFILE_LISTENER_MAX_RETRIES = 4;
+const PROFILE_LISTENER_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
+const loggedTerminalProfileFailures = new Set();
+
+function classifyProfileLoadError(error) {
+  if (isPermissionDeniedError(error)) return 'permission-denied';
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+  if (
+    code.includes('unauthenticated')
+    || code.includes('requires-recent-login')
+    || message.includes('unauthenticated')
+    || message.includes('auth')
+    || message.includes('token')
+  ) {
+    return 'unauthenticated';
+  }
+  if (
+    code.includes('unavailable')
+    || code.includes('deadline-exceeded')
+    || code.includes('resource-exhausted')
+    || message.includes('network')
+    || message.includes('timeout')
+    || message.includes('offline')
+  ) {
+    return 'network';
+  }
+  return 'unknown';
+}
+
+function toProfileLoadError(error) {
+  const code = String(error?.code || 'unknown');
+  const message = String(error?.message || 'Failed to load profile.');
+  const classification = classifyProfileLoadError(error);
+  return {
+    code,
+    message,
+    classification,
+    retryable: true,
+  };
+}
+
+function getProfileLoadUserMessage(profileError) {
+  const classification = profileError?.classification || 'unknown';
+  if (classification === 'permission-denied') {
+    return 'We could not load your profile due to permissions. Please retry or sign in again.';
+  }
+  if (classification === 'unauthenticated') {
+    return 'Your session needs to be refreshed. Please retry. If it keeps failing, sign in again.';
+  }
+  if (classification === 'network') {
+    return 'Temporary network issue while loading your profile. Retrying now.';
+  }
+  return 'We could not load your profile right now. Please retry.';
+}
 
 function normalizeEmail(value) {
   const email = String(value || '').trim().toLowerCase();
@@ -270,10 +325,23 @@ export function AuthProvider({ children }) {
   const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
+  const [profileLoadStatus, setProfileLoadStatus] = useState('idle');
+  const [profileLoadError, setProfileLoadError] = useState(null);
+  const [profileRetryNonce, setProfileRetryNonce] = useState(0);
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [referralAttributionEvent, setReferralAttributionEvent] = useState(null);
   const recaptchaVerifierRef = useRef(null);
+  const profileRetryAttemptRef = useRef(0);
+  const profileRetryTimerRef = useRef(null);
+  const lastKnownGoodProfileRef = useRef(new Map());
+
+  const clearProfileRetryTimer = useCallback(() => {
+    if (profileRetryTimerRef.current) {
+      clearTimeout(profileRetryTimerRef.current);
+      profileRetryTimerRef.current = null;
+    }
+  }, []);
 
   const clearRecaptchaVerifier = useCallback(() => {
     if (recaptchaVerifierRef.current) {
@@ -324,11 +392,30 @@ export function AuthProvider({ children }) {
     };
   }, [clearRecaptchaVerifier]);
 
+  useEffect(() => {
+    return () => {
+      clearProfileRetryTimer();
+    };
+  }, [clearProfileRetryTimer]);
+
+  const retryProfileLoad = useCallback(async () => {
+    if (!authUser?.uid) return;
+    clearProfileRetryTimer();
+    profileRetryAttemptRef.current = 0;
+    setProfileLoadError(null);
+    setProfileLoadStatus('loading');
+    setLoading(true);
+    setProfileRetryNonce((prev) => prev + 1);
+  }, [authUser?.uid, clearProfileRetryTimer]);
+
   // Listen to auth state changes
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
       if (!user) {
+        clearProfileRetryTimer();
+        profileRetryAttemptRef.current = 0;
+        lastKnownGoodProfileRef.current.clear();
         setUserProfile(null);
         setShipperProfile(null);
         setTruckerProfile(null);
@@ -336,51 +423,166 @@ export function AuthProvider({ children }) {
         setBrokerProfile(null);
         setWallet(null);
         setIsNewUser(false);
+        setProfileLoadStatus('idle');
+        setProfileLoadError(null);
         setReferralAttributionEvent(null);
+        setAuthError(null);
         setLoading(false);
       } else {
         // Keep app in loading state until profile listener resolves new/existing user.
         // This avoids guest-shell flicker right after OTP verification.
+        clearProfileRetryTimer();
+        profileRetryAttemptRef.current = 0;
+        const lastKnownProfile = lastKnownGoodProfileRef.current.get(user.uid) || null;
         setLoading(true);
-        setUserProfile(null);
+        setUserProfile(lastKnownProfile);
         setShipperProfile(null);
         setTruckerProfile(null);
         setTruckerCompliance(null);
         setBrokerProfile(null);
         setWallet(null);
         setIsNewUser(false);
+        setProfileLoadStatus('loading');
+        setProfileLoadError(null);
+        setAuthError(null);
       }
     });
     return unsubAuth;
-  }, []);
+  }, [clearProfileRetryTimer]);
 
   // Listen to user profile changes
   useEffect(() => {
     if (!authUser) return;
 
+    let disposed = false;
     const userRef = doc(db, 'users', authUser.uid);
-    const unsubProfile = onSnapshot(userRef, (snap) => {
+    const applyProfileSnapshot = (snap) => {
+      clearProfileRetryTimer();
+      profileRetryAttemptRef.current = 0;
+      setProfileLoadError(null);
+      setAuthError(null);
+
       if (snap.exists()) {
-        setUserProfile({ id: snap.id, ...snap.data() });
+        const profile = { id: snap.id, ...snap.data() };
+        lastKnownGoodProfileRef.current.set(authUser.uid, profile);
+        setUserProfile(profile);
         setIsNewUser(false);
       } else {
         // User authenticated but no profile yet - new user
+        lastKnownGoodProfileRef.current.delete(authUser.uid);
         setUserProfile(null);
         setIsNewUser(true);
       }
-      setLoading(false);
-    }, (error) => {
-      reportFirestoreListenerError('user profile', error);
-      setUserProfile(null);
-      setIsNewUser(false);
-      if (isPermissionDeniedError(error)) {
-        setAuthError('Unable to load your profile due to insufficient permissions. Please sign in again.');
-      }
-      setLoading(false);
-    });
 
-    return unsubProfile;
-  }, [authUser]);
+      setProfileLoadStatus('ready');
+      setLoading(false);
+    };
+
+    const logTerminalProfileFailure = (profileError, attempts) => {
+      const fingerprint = `${authUser.uid}:${profileError.code}:${profileError.classification}`;
+      if (loggedTerminalProfileFailures.has(fingerprint)) return;
+      loggedTerminalProfileFailures.add(fingerprint);
+      console.error('[auth-profile] terminal_profile_load_failure', {
+        uid: authUser.uid,
+        code: profileError.code,
+        classification: profileError.classification,
+        attempts,
+      });
+    };
+
+    const failProfileLoad = (profileError, attempts) => {
+      const userMessage = getProfileLoadUserMessage(profileError);
+      setProfileLoadError({
+        ...profileError,
+        attempts,
+        userMessage,
+      });
+      setProfileLoadStatus('failed');
+      setLoading(false);
+
+      if (profileError.classification === 'permission-denied') {
+        setAuthError('Unable to load your profile due to insufficient permissions. Please sign in again.');
+      } else if (profileError.classification === 'unauthenticated') {
+        setAuthError('Your session expired while loading profile data. Please sign in again if retry fails.');
+      }
+
+      logTerminalProfileFailure(profileError, attempts);
+    };
+
+    const recoverProfileWithServerRead = async () => {
+      try {
+        await waitForAppCheckInitialization();
+        await authUser.getIdToken(true);
+      } catch {
+        // Continue to server read attempt.
+      }
+
+      try {
+        const serverSnap = await getDocFromServer(userRef);
+        if (disposed) return true;
+        applyProfileSnapshot(serverSnap);
+        return true;
+      } catch (recoveryError) {
+        reportFirestoreListenerError('user profile recovery', recoveryError);
+        return false;
+      }
+    };
+
+    const scheduleRetry = (profileError) => {
+      clearProfileRetryTimer();
+      const nextAttempt = profileRetryAttemptRef.current + 1;
+      profileRetryAttemptRef.current = nextAttempt;
+
+      if (nextAttempt > PROFILE_LISTENER_MAX_RETRIES) {
+        failProfileLoad(profileError, nextAttempt - 1);
+        return;
+      }
+
+      const retryDelayMs =
+        PROFILE_LISTENER_RETRY_DELAYS_MS[Math.min(nextAttempt - 1, PROFILE_LISTENER_RETRY_DELAYS_MS.length - 1)];
+
+      setProfileLoadError({
+        ...profileError,
+        attempts: nextAttempt,
+        retryInMs: retryDelayMs,
+        userMessage: getProfileLoadUserMessage(profileError),
+      });
+      setProfileLoadStatus('retrying');
+      setLoading(true);
+
+      profileRetryTimerRef.current = setTimeout(() => {
+        if (disposed) return;
+        setProfileRetryNonce((prev) => prev + 1);
+      }, retryDelayMs);
+    };
+
+    const unsubProfile = onSnapshot(
+      userRef,
+      (snap) => {
+        applyProfileSnapshot(snap);
+      },
+      async (error) => {
+        reportFirestoreListenerError('user profile', error);
+        const profileError = toProfileLoadError(error);
+
+        const recovered = await recoverProfileWithServerRead();
+        if (disposed) return;
+        if (recovered) {
+          // Restore a realtime listener after one-shot recovery.
+          setProfileRetryNonce((prev) => prev + 1);
+          return;
+        }
+
+        scheduleRetry(profileError);
+      }
+    );
+
+    return () => {
+      disposed = true;
+      clearProfileRetryTimer();
+      unsubProfile();
+    };
+  }, [authUser, clearProfileRetryTimer, profileRetryNonce]);
 
   // Listen to shipper profile
   useEffect(() => {
@@ -1118,6 +1320,8 @@ export function AuthProvider({ children }) {
     wallet,
     loading,
     isNewUser,
+    profileLoadStatus,
+    profileLoadError,
     authError,
     sendOtp,
     verifyOtp,
@@ -1133,6 +1337,7 @@ export function AuthProvider({ children }) {
     getIdToken,
     getRecoveryStatus,
     generateRecoveryCodes,
+    retryProfileLoad,
     referralAttributionEvent,
     clearReferralAttributionEvent,
     // Computed values
