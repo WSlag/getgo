@@ -1,5 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, RefreshCw, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/cn';
 import api from '@/services/api';
 import { dedupeAndSortNewest } from '@/utils/activitySorting';
 
@@ -110,10 +112,6 @@ export function BrokerActivityView({
   const activeStatusFilter = statusFilter || internalStatusFilter;
   const setTypeFilter = onTypeFilterChange || setInternalTypeFilter;
   const setStatusFilter = onStatusFilterChange || setInternalStatusFilter;
-  const filterChipBaseClass = 'inline-flex items-center justify-center rounded-full text-[13px] font-semibold leading-none transition-all duration-200 active:scale-95';
-  const activeFilterChipClass = 'text-white';
-  const inactiveFilterChipClass = 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-orange-300 hover:text-orange-500 dark:hover:border-orange-700 dark:hover:text-orange-400';
-  const filterChipStyle = { padding: '8px 14px', minHeight: '34px', lineHeight: 1.1 };
 
   const typeFilters = useMemo(() => ([
     { id: 'all', label: 'All' },
@@ -254,53 +252,39 @@ export function BrokerActivityView({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Filter Panel */}
-      <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-3.5" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-        <div className="flex flex-col gap-2.5">
-          <div className="flex flex-wrap gap-1.5">
+      {/* Filters */}
+      <div className="flex items-center gap-3">
+        <Select value={activeTypeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className={cn("h-10 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent className="rounded-[8px]">
             {typeFilters.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setTypeFilter(filter.id)}
-                style={activeTypeFilter === filter.id
-                  ? { ...filterChipStyle, background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)', boxShadow: '0 2px 8px rgba(249,115,22,0.35)' }
-                  : filterChipStyle}
-                className={`${filterChipBaseClass} ${activeTypeFilter === filter.id ? activeFilterChipClass : inactiveFilterChipClass}`}
-              >
-                {filter.label}
-              </button>
+              <SelectItem key={filter.id} value={filter.id}>{filter.label}</SelectItem>
             ))}
-          </div>
+          </SelectContent>
+        </Select>
 
-          <div className="h-px bg-gray-100 dark:bg-gray-800" />
-
-          <div className="flex flex-wrap items-center gap-1.5">
+        <Select value={activeStatusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className={cn("h-10 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent className="rounded-[8px]">
             {statusFilters.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setStatusFilter(filter.id)}
-                style={activeStatusFilter === filter.id
-                  ? { ...filterChipStyle, background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)', boxShadow: '0 2px 8px rgba(249,115,22,0.35)' }
-                  : filterChipStyle}
-                className={`${filterChipBaseClass} ${activeStatusFilter === filter.id ? activeFilterChipClass : inactiveFilterChipClass}`}
-              >
-                {filter.label}
-              </button>
+              <SelectItem key={filter.id} value={filter.id}>{filter.label}</SelectItem>
             ))}
-            <button
-              type="button"
-              onClick={handleBackfill}
-              disabled={backfilling}
-              style={filterChipStyle}
-              className="ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-full text-[13px] font-semibold leading-none border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-orange-300 hover:text-orange-500 transition-all duration-200 active:scale-95 disabled:opacity-50"
-            >
-              {backfilling ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-              Backfill
-            </button>
-          </div>
-        </div>
+          </SelectContent>
+        </Select>
+
+        <button
+          type="button"
+          onClick={handleBackfill}
+          disabled={backfilling}
+          className="shrink-0 h-10 px-3 inline-flex items-center gap-1.5 rounded-[8px] text-[13px] font-semibold border border-gray-200 bg-white text-gray-600 hover:border-orange-300 hover:text-orange-500 transition-all duration-200 active:scale-95 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+        >
+          {backfilling ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+          Backfill
+        </button>
       </div>
 
       {/* Stats Grid */}

@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Loader2, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/cn';
 import { useBidsOnMyListings, useMyBids } from '@/hooks/useBids';
 import { useContracts } from '@/hooks/useContracts';
 import { useCargoListings } from '@/hooks/useCargoListings';
@@ -366,12 +368,6 @@ export function ShipperActivityView({
     };
   }, [normalizedItems, activeTypeFilter, activeStatusFilter]);
 
-  const filterChipBase = 'inline-flex items-center justify-center rounded-full text-[13px] font-semibold leading-none transition-all duration-200 active:scale-95';
-  const filterChipActive = 'text-white shadow-sm';
-  const filterChipInactive = 'bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:text-orange-600 dark:hover:text-orange-400';
-  const filterChipStyle = { padding: '7px 14px', minHeight: '32px', lineHeight: 1.1 };
-  const filterChipActiveStyle = { background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' };
-
   const statCards = [
     { label: 'Total', value: summary.total, iconEl: <TrendingUp className="size-3.5 text-orange-500" />, iconBg: 'bg-orange-100 dark:bg-orange-950/40' },
     { label: 'Cargo', value: summary.cargo, iconEl: <Package className="size-3.5 text-blue-500" />, iconBg: 'bg-blue-100 dark:bg-blue-950/40' },
@@ -383,41 +379,29 @@ export function ShipperActivityView({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Filter panel */}
-      <div
-        className="rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700/60 p-4 relative overflow-hidden"
-        style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
-      >
-        <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: 'linear-gradient(180deg, #FF9A56 0%, #FF6B35 100%)' }} />
-        <div className="pl-2 flex flex-col gap-2.5">
-          <div className="flex flex-wrap gap-1.5">
+      {/* Filters */}
+      <div className="flex items-center gap-3">
+        <Select value={activeTypeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className={cn("h-10 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent className="rounded-[8px]">
             {typeFilters.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setTypeFilter(f.id)}
-                style={{ ...filterChipStyle, ...(activeTypeFilter === f.id ? filterChipActiveStyle : {}) }}
-                className={`${filterChipBase} ${activeTypeFilter === f.id ? filterChipActive : filterChipInactive}`}
-              >
-                {f.label}
-              </button>
+              <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
             ))}
-          </div>
-          <div className="h-px bg-gray-100 dark:bg-gray-700/60" />
-          <div className="flex flex-wrap gap-1.5">
+          </SelectContent>
+        </Select>
+
+        <Select value={activeStatusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className={cn("h-10 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent className="rounded-[8px]">
             {statusFilters.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setStatusFilter(f.id)}
-                style={{ ...filterChipStyle, ...(activeStatusFilter === f.id ? filterChipActiveStyle : {}) }}
-                className={`${filterChipBase} ${activeStatusFilter === f.id ? filterChipActive : filterChipInactive}`}
-              >
-                {f.label}
-              </button>
+              <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
             ))}
-          </div>
-        </div>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Stats grid — 6 cards, 3 cols = 2 clean rows */}
