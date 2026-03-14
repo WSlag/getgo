@@ -54,6 +54,15 @@ function normalizeContractStatus(status) {
   return 'pending';
 }
 
+function normalizeShipmentStatus(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'picked_up' || normalized === 'in_transit') return 'accepted';
+  if (normalized === 'delivered') return 'completed';
+  if (normalized === 'cancelled') return 'cancelled';
+  if (normalized === 'pending' || normalized === 'pending_pickup') return 'pending';
+  return 'pending';
+}
+
 function getCounterpartyName(contract, userId) {
   if (!contract) return null;
   const isListingOwner = contract.listingOwnerId === userId;
@@ -90,12 +99,14 @@ function dedupeByStableKey(items = []) {
 function typeLabel(item) {
   if (item.source === 'cargo_bid') return 'Cargo Bid';
   if (item.source === 'truck_booking') return 'Truck Booking';
+  if (item.source === 'shipment') return 'Delivery';
   return item.typeBuckets.includes('delivery') ? 'Delivery Contract' : 'Contract';
 }
 
 function typeIcon(item) {
   if (item.source === 'cargo_bid') return <Package className="size-3.5" />;
   if (item.source === 'truck_booking') return <Truck className="size-3.5" />;
+  if (item.source === 'shipment') return <Truck className="size-3.5" />;
   if (item.typeBuckets.includes('delivery')) return <Truck className="size-3.5" />;
   return <FileText className="size-3.5" />;
 }
@@ -130,6 +141,7 @@ function matchesStatusFilter(item, activeStatusFilter) {
 
 export function TruckerActivityView({
   currentUser,
+  shipments = [],
   onOpenChat,
   onOpenContract,
   onBrowseMarketplace,
@@ -261,15 +273,11 @@ export function TruckerActivityView({
     const contractItems = truckerContracts.map((contract) => {
       const activityAt = getActivityTimestamp(contract, ['completedAt', 'signedAt', 'createdAt']);
       const contractStatus = String(contract.status || '').toLowerCase();
-      const typeBuckets = ['contracts'];
-      if (['in_transit', 'completed'].includes(contractStatus)) {
-        typeBuckets.push('delivery');
-      }
       return {
         id: `contract:${contract.id}`,
         stableKey: `contract:${contract.id}`,
         source: 'contract',
-        typeBuckets,
+        typeBuckets: ['contracts'],
         status: normalizeContractStatus(contract.status),
         rawStatus: contractStatus,
         activityAt,
@@ -285,9 +293,32 @@ export function TruckerActivityView({
       };
     });
 
-    const deduped = dedupeByStableKey([...bidItems, ...bookingItems, ...contractItems]);
+    const deliveryItems = (shipments || []).map((shipment) => {
+      const activityAt = getActivityTimestamp(shipment, ['deliveredAt', 'updatedAt', 'createdAt']);
+      const rawStatus = String(shipment.status || '').toLowerCase();
+      return {
+        id: `shipment:${shipment.id}`,
+        stableKey: `shipment:${shipment.id}`,
+        source: 'shipment',
+        typeBuckets: ['delivery'],
+        status: normalizeShipmentStatus(shipment.status),
+        rawStatus,
+        activityAt,
+        createdAt: activityAt,
+        updatedAt: activityAt,
+        origin: shipment.origin || null,
+        destination: shipment.destination || null,
+        amount: Number(shipment.agreedPrice || shipment.contractValue || shipment.price || 0),
+        counterpartyName: shipment.shipperName || shipment.shipper || 'Shipper',
+        contractId: shipment.contractId || null,
+        shipmentId: shipment.id,
+        rawEntity: shipment,
+      };
+    });
+
+    const deduped = dedupeByStableKey([...bidItems, ...bookingItems, ...contractItems, ...deliveryItems]);
     return sortEntitiesNewestFirst(deduped, { fallbackKeys: ['activityAt'] });
-  }, [truckerPlacedCargoBids, truckerReceivedBookings, truckerContracts, userId]);
+  }, [truckerPlacedCargoBids, truckerReceivedBookings, truckerContracts, shipments, userId]);
 
   const filteredItems = useMemo(
     () => normalizedItems.filter(

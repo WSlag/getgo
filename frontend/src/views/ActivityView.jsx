@@ -20,6 +20,7 @@ export default function ActivityView({
   onOpenListing,
   onToast,
   onNavigateToContracts,
+  shipments = [],
   bidsCount: _bidsCount = 0,
   contractsCount: _contractsCount = 0,
   isBroker = false,
@@ -91,6 +92,7 @@ export default function ActivityView({
         ) : isTruckerWorkspace ? (
           <TruckerActivityView
             currentUser={currentUser}
+            shipments={shipments}
             onOpenChat={onOpenChat}
             onOpenContract={onOpenContract}
             onBrowseMarketplace={onBrowseMarketplace}
@@ -105,6 +107,7 @@ export default function ActivityView({
         ) : (
           <ShipperActivityView
             currentUser={currentUser}
+            shipments={shipments}
             onOpenChat={onOpenChat}
             onOpenContract={onOpenContract}
             onOpenListing={onOpenListing}

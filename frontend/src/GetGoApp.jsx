@@ -1035,6 +1035,12 @@ export default function GetGoApp() {
     ),
     [deliveredShipments, activeWorkspace, matchWorkspaceForShipment]
   );
+  const workspaceShipments = useMemo(
+    () => sortEntitiesNewestFirst(
+      allShipments.filter((shipment) => matchWorkspaceForShipment(shipment, activeWorkspace))
+    ),
+    [allShipments, activeWorkspace, matchWorkspaceForShipment]
+  );
 
   // Counts for sidebar
   const openCargoCount = roleScopedCargoListings.filter((cargo) => canBidCargoStatus(cargo.status)).length;
@@ -2322,6 +2328,7 @@ export default function GetGoApp() {
                 setContractFilter(filter || 'all');
                 setActiveTab('contracts');
               }}
+              shipments={workspaceShipments}
               bidsCount={activityBidsCount}
               contractsCount={activityContractsCount}
               isBroker={isBroker}
