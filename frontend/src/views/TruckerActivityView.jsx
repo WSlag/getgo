@@ -453,7 +453,7 @@ export function TruckerActivityView({
                     </span>
                   )}
                 </div>
-                <p className="text-xl font-black text-gray-900 dark:text-white leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                <p className="text-[18px] font-black text-gray-900 dark:text-white leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
                   PHP {duePaymentSummary.totalDue.toLocaleString()}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
