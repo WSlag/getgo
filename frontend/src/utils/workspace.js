@@ -55,7 +55,7 @@ export function inferContractPerspectiveRole(contract, userId) {
 
 export function inferBidPerspectiveRole(bid, userId) {
   if (!bid || !userId) return null;
-  const listingType = String(bid.listingType || '').toLowerCase();
+  const listingType = resolveBidListingType(bid);
   const isListingOwner = bid.listingOwnerId === userId;
   const isBidder = bid.bidderId === userId;
 
@@ -70,6 +70,26 @@ export function inferBidPerspectiveRole(bid, userId) {
     if (isBidder) return 'shipper';
     return null;
   }
+
+  return null;
+}
+
+export function resolveBidListingType(bid) {
+  if (!bid) return null;
+
+  const explicitType = String(bid.listingType || '').trim().toLowerCase();
+  if (explicitType === 'cargo' || explicitType === 'truck') {
+    return explicitType;
+  }
+
+  const cargoListingId = typeof bid.cargoListingId === 'string' ? bid.cargoListingId.trim() : '';
+  const truckListingId = typeof bid.truckListingId === 'string' ? bid.truckListingId.trim() : '';
+  if (cargoListingId && !truckListingId) return 'cargo';
+  if (truckListingId && !cargoListingId) return 'truck';
+
+  const bidderType = String(bid.bidderType || '').trim().toLowerCase();
+  if (bidderType === 'trucker') return 'cargo';
+  if (bidderType === 'shipper') return 'truck';
 
   return null;
 }

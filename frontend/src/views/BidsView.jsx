@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useMyBids } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
-import { inferBidPerspectiveRole, getWorkspaceLabel } from '@/utils/workspace';
+import { inferBidPerspectiveRole, getWorkspaceLabel, resolveBidListingType } from '@/utils/workspace';
 
 export function BidsView({
   currentUser,
@@ -135,7 +135,8 @@ export function BidsView({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
           {scopedBids.map((bid) => {
-            const Icon = bid.listingType === 'cargo' ? Package : Truck;
+            const listingType = resolveBidListingType(bid) || 'cargo';
+            const Icon = listingType === 'cargo' ? Package : Truck;
 
             return (
               <div
@@ -149,7 +150,7 @@ export function BidsView({
                       width: isMobile ? '36px' : '40px',
                       height: isMobile ? '36px' : '40px',
                       borderRadius: '50%',
-                      background: bid.listingType === 'cargo'
+                      background: listingType === 'cargo'
                         ? 'linear-gradient(to bottom right, #fb923c, #ea580c)'
                         : 'linear-gradient(to bottom right, #3b82f6, #2563eb)',
                       display: 'flex',
@@ -221,7 +222,7 @@ export function BidsView({
                     onClick={() => {
                       const listingData = {
                         id: bid.listingId,
-                        listingType: bid.listingType,
+                        listingType,
                         origin: bid.origin,
                         destination: bid.destination,
                         userId: bid.listingOwnerId,

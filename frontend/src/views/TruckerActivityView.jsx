@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Loader2, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar, AlertTriangle } from 'lucide-react';
 import { useMyBids, useBidsOnMyListings } from '@/hooks/useBids';
 import { useContracts } from '@/hooks/useContracts';
-import { inferBidPerspectiveRole, inferContractPerspectiveRole } from '@/utils/workspace';
+import { inferBidPerspectiveRole, inferContractPerspectiveRole, resolveBidListingType } from '@/utils/workspace';
 import { getCanonicalTimestamp, sortEntitiesNewestFirst } from '@/utils/activitySorting';
 
 function toDate(value) {
@@ -189,7 +189,7 @@ export function TruckerActivityView({
   const truckerPlacedCargoBids = useMemo(
     () => (myBids || []).filter((bid) => (
       inferBidPerspectiveRole(bid, userId) === 'trucker'
-      && String(bid.listingType || '').toLowerCase() === 'cargo'
+      && resolveBidListingType(bid) === 'cargo'
     )),
     [myBids, userId]
   );
@@ -197,7 +197,7 @@ export function TruckerActivityView({
   const truckerReceivedBookings = useMemo(
     () => (bidsOnMyListings || []).filter((bid) => (
       inferBidPerspectiveRole(bid, userId) === 'trucker'
-      && String(bid.listingType || '').toLowerCase() === 'truck'
+      && resolveBidListingType(bid) === 'truck'
     )),
     [bidsOnMyListings, userId]
   );
@@ -226,7 +226,7 @@ export function TruckerActivityView({
         counterpartyName: bid.listingOwnerName || 'Shipper',
         bidId: bid.id,
         listingId: bid.cargoListingId || bid.listingId || null,
-        listingType: bid.listingType || 'cargo',
+        listingType: resolveBidListingType(bid) || 'cargo',
         listingOwnerId: bid.listingOwnerId || null,
         listingOwnerName: bid.listingOwnerName || null,
         rawEntity: bid,
@@ -251,7 +251,7 @@ export function TruckerActivityView({
         counterpartyName: bid.bidderName || 'Shipper',
         bidId: bid.id,
         listingId: bid.truckListingId || bid.listingId || null,
-        listingType: bid.listingType || 'truck',
+        listingType: resolveBidListingType(bid) || 'truck',
         listingOwnerId: bid.listingOwnerId || null,
         listingOwnerName: bid.listingOwnerName || null,
         rawEntity: bid,

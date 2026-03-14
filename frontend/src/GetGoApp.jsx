@@ -36,6 +36,7 @@ import { useTruckListings } from './hooks/useTruckListings';
 import { useNotifications } from './hooks/useNotifications';
 import { useMyBids } from './hooks/useBids';
 import { useConversations } from './hooks/useConversations';
+import { useUnreadMessageCounts } from './hooks/useUnreadMessageCounts';
 // Wallet removed - using direct GCash payment
 import { useShipments } from './hooks/useShipments';
 import { useTheme } from './hooks/useTheme';
@@ -106,6 +107,7 @@ import {
   inferConversationPerspectiveRole,
   inferContractPerspectiveRole,
   inferNotificationWorkspaceRole,
+  resolveBidListingType,
 } from '@/utils/workspace';
 
 const SAVED_SEARCHES_KEY_PREFIX = 'karga.savedSearches.v1';
@@ -206,6 +208,7 @@ export default function GetGoApp() {
   const { notifications: firebaseNotifications } = useNotifications(activeUserId, 50, shouldSubscribeNotifications);
   const { bids: myBids } = useMyBids(activeUserId, shouldSubscribeBids);
   const { conversations, loading: conversationsLoading } = useConversations(activeUserId, shouldSubscribeConversations);
+  const { unreadByWorkspace } = useUnreadMessageCounts(activeUserId, Boolean(activeUserId));
   const {
     shipments: firebaseShipments,
     activeShipments: firebaseActiveShipments,
@@ -906,8 +909,11 @@ export default function GetGoApp() {
     [workspaceNotifications]
   );
   const unreadMessages = useMemo(
-    () => workspaceConversations.reduce((total, conversation) => total + Number(conversation.unreadCount || 0), 0),
-    [workspaceConversations]
+    () => {
+      if (activeWorkspace === 'broker') return 0;
+      return Number(unreadByWorkspace?.[activeWorkspace] || 0);
+    },
+    [activeWorkspace, unreadByWorkspace]
   );
   const unreadBids = useMemo(
     () =>
@@ -1984,7 +1990,9 @@ export default function GetGoApp() {
     }
 
     const bid = { id: bidDoc.id, ...bidDoc.data() };
-    const listingType = bid.listingType || notificationData.listingType || (bid.cargoListingId ? 'cargo' : 'truck');
+    const listingType = resolveBidListingType(bid)
+      || String(notificationData.listingType || '').toLowerCase()
+      || (bid.cargoListingId ? 'cargo' : 'truck');
     const listingId = bid.cargoListingId || bid.truckListingId || bid.listingId || notificationData.listingId;
     const listingCollection = listingType === 'cargo' ? 'cargoListings' : 'truckListings';
 
@@ -2300,7 +2308,7 @@ export default function GetGoApp() {
               onWorkspaceChange={setWorkspaceRole}
               darkMode={darkMode}
               onOpenChat={(bid, listing) => {
-                openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
+                openModal('chat', { bid, listing, type: resolveBidListingType(bid) || 'cargo', bidId: bid.id });
               }}
               onOpenContract={handleOpenContract}
               onBrowseMarketplace={() => {
@@ -2413,7 +2421,7 @@ export default function GetGoApp() {
               currentRole={activeWorkspace}
               workspaceRole={activeWorkspace}
               onOpenChat={(bid, listing) => {
-                openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
+                openModal('chat', { bid, listing, type: resolveBidListingType(bid) || 'cargo', bidId: bid.id });
               }}
               onBrowseMarketplace={() => {
                 setActiveMarket(activeWorkspace === 'trucker' ? 'cargo' : 'trucks');
@@ -2671,7 +2679,10 @@ export default function GetGoApp() {
             }
 
             // Determine listing type based on presence of trucker field
-            const listingType = listing.trucker ? 'truck' : 'cargo';
+            const normalizedListingType = String(listing.type || listing.listingType || '').toLowerCase();
+            const listingType = ['cargo', 'truck'].includes(normalizedListingType)
+              ? normalizedListingType
+              : ((listing.trucker || listing.vehicleType || listing.capacity) ? 'truck' : 'cargo');
 
             // Ensure listing has required fields
             if (!listing.userId && !listing.shipperId && !listing.truckerId) {
@@ -2882,7 +2893,7 @@ export default function GetGoApp() {
         currentRole={interactionRole}
         onOpenChat={(bid, listing) => {
           closeModal('myBids');
-          openModal('chat', { bid, listing, type: bid.listingType, bidId: bid.id });
+          openModal('chat', { bid, listing, type: resolveBidListingType(bid) || 'cargo', bidId: bid.id });
         }}
       />
       )}
