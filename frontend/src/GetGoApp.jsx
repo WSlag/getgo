@@ -27,7 +27,7 @@ import {
 
 // Firebase
 import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, waitForAppCheckInitialization, shouldInitializeAppCheck } from './firebase';
 
 // Hooks
 import { useAuth } from './contexts/AuthContext';
@@ -141,7 +141,15 @@ export default function GetGoApp() {
 
   const canSubscribeUserData = Boolean(authUser?.uid && userProfile);
   const activeUserId = canSubscribeUserData ? authUser.uid : null;
-  const authUserForDataHooks = canSubscribeUserData ? authUser : null;
+
+  const [appCheckReady, setAppCheckReady] = React.useState(!shouldInitializeAppCheck);
+  useEffect(() => {
+    if (shouldInitializeAppCheck) {
+      waitForAppCheckInitialization(4000).then(() => setAppCheckReady(true));
+    }
+  }, []);
+
+  const authUserForDataHooks = canSubscribeUserData && appCheckReady ? authUser : null;
 
   // Custom Hooks for UI State
   const { darkMode, toggleDarkMode } = useTheme();
@@ -170,11 +178,11 @@ export default function GetGoApp() {
   const editCargoData = getModalData('editCargo');
   const editTruckData = getModalData('editTruck');
 
-  const shouldSubscribeListings = activeTab === 'home' || activeTab === 'activity' || activeTab === 'broker';
-  const shouldSubscribeNotifications = activeTab === 'notifications';
-  const shouldSubscribeBids = activeTab === 'bids' || modals.bid || modals.cargoDetails || modals.truckDetails || modals.myBids;
-  const shouldSubscribeConversations = Boolean(activeUserId);
-  const shouldSubscribeShipments = activeTab === 'tracking' || activeTab === 'contracts' || activeTab === 'activity';
+  const shouldSubscribeListings = appCheckReady && (activeTab === 'home' || activeTab === 'activity' || activeTab === 'broker');
+  const shouldSubscribeNotifications = appCheckReady && activeTab === 'notifications';
+  const shouldSubscribeBids = appCheckReady && (activeTab === 'bids' || modals.bid || modals.cargoDetails || modals.truckDetails || modals.myBids);
+  const shouldSubscribeConversations = appCheckReady && Boolean(activeUserId);
+  const shouldSubscribeShipments = appCheckReady && (activeTab === 'tracking' || activeTab === 'contracts' || activeTab === 'activity');
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
