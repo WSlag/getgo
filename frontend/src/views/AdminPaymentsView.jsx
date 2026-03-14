@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -162,6 +163,7 @@ function PaymentDetailModal({ open, onClose, submission, onApprove, onReject, lo
             </div>
             <div>
               <DialogTitle className="text-xl">Payment Submission Review</DialogTitle>
+              <DialogDescription className="sr-only">Payment submission details</DialogDescription>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Order: {submission.orderId?.slice(0, 8)}...
               </p>

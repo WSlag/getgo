@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -707,6 +708,7 @@ export function SupportMessagesView() {
         <DialogContent className="rounded-sm sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Resolve Conversation</DialogTitle>
+            <DialogDescription className="sr-only">Confirm conversation resolution</DialogDescription>
           </DialogHeader>
           <div className="mt-3 space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-300">

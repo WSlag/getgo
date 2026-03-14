@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -81,6 +82,7 @@ function ListingDetailModal({ open, onClose, listing, onDeactivate, loading }) {
             <Eye className="size-5 text-orange-500" />
             Listing Details
           </DialogTitle>
+          <DialogDescription className="sr-only">Listing details and management</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
