@@ -791,13 +791,13 @@ export default function GetGoApp() {
     if (!authUser) return [normalizeWorkspaceRole(userRole, 'shipper')];
 
     const next = [];
-    if (shipperProfile || userRole === 'shipper') next.push('shipper');
-    if (truckerProfile || userRole === 'trucker') next.push('trucker');
+    if (userRole === 'shipper') next.push('shipper');
+    if (userRole === 'trucker') next.push('trucker');
     if (isBroker) next.push('broker');
 
     const unique = Array.from(new Set(next.filter((role) => WORKSPACE_ROLES.includes(role))));
     return unique.length > 0 ? unique : [normalizeWorkspaceRole(userRole, 'shipper')];
-  }, [authUser, shipperProfile, truckerProfile, userRole, isBroker]);
+  }, [authUser, userRole, isBroker]);
   const activeWorkspace = availableWorkspaces.includes(workspaceRole)
     ? workspaceRole
     : availableWorkspaces[0];
@@ -806,7 +806,6 @@ export default function GetGoApp() {
     ? primaryWorkspace
     : availableWorkspaces[0];
   const activityPrimaryWorkspace = useMemo(() => {
-    if (availableWorkspaces.includes('trucker')) return 'trucker';
     if (availableWorkspaces.includes(primaryWorkspace)) return primaryWorkspace;
     return availableWorkspaces[0];
   }, [availableWorkspaces, primaryWorkspace]);
