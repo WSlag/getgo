@@ -3,7 +3,7 @@ import { Loader2, Package, Truck, FileText, TrendingUp, ArrowRight, Calendar } f
 import { useBidsOnMyListings, useMyBids } from '@/hooks/useBids';
 import { useContracts } from '@/hooks/useContracts';
 import { useCargoListings } from '@/hooks/useCargoListings';
-import { inferBidPerspectiveRole, inferContractPerspectiveRole } from '@/utils/workspace';
+import { inferBidPerspectiveRole, inferContractPerspectiveRole, resolveBidListingType } from '@/utils/workspace';
 import { getCanonicalTimestamp, sortEntitiesNewestFirst } from '@/utils/activitySorting';
 
 function toDate(value) {
@@ -197,7 +197,7 @@ export function ShipperActivityView({
   const shipperIncomingCargoBids = useMemo(
     () => (bidsOnMyListings || []).filter((bid) => (
       inferBidPerspectiveRole(bid, userId) === 'shipper'
-      && String(bid.listingType || '').toLowerCase() === 'cargo'
+      && resolveBidListingType(bid) === 'cargo'
     )),
     [bidsOnMyListings, userId]
   );
@@ -210,7 +210,7 @@ export function ShipperActivityView({
   );
 
   const shipperTruckBookings = useMemo(
-    () => (myBids || []).filter((bid) => String(bid.listingType || '').toLowerCase() === 'truck'),
+    () => (myBids || []).filter((bid) => resolveBidListingType(bid) === 'truck'),
     [myBids]
   );
 
@@ -256,7 +256,7 @@ export function ShipperActivityView({
         counterpartyName: bid.bidderName || 'Trucker',
         bidId: bid.id,
         listingId: bid.cargoListingId || bid.listingId || null,
-        listingType: bid.listingType || 'cargo',
+        listingType: resolveBidListingType(bid) || 'cargo',
         listingOwnerId: bid.listingOwnerId || null,
         listingOwnerName: bid.listingOwnerName || null,
         rawEntity: bid,

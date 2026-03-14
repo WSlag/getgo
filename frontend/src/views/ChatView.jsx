@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useConversations } from '@/hooks/useConversations';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
-import { inferConversationPerspectiveRole, getWorkspaceLabel } from '@/utils/workspace';
+import { inferConversationPerspectiveRole, getWorkspaceLabel, resolveBidListingType } from '@/utils/workspace';
 
 export function ChatView({
   currentUser,
@@ -71,6 +71,7 @@ export function ChatView({
   };
 
   const handleConversationClick = (conversation) => {
+    const listingType = resolveBidListingType(conversation) || 'cargo';
     // Reconstruct the listing object from bid data
     const listing = {
       id: conversation.cargoListingId || conversation.truckListingId,
@@ -92,7 +93,7 @@ export function ChatView({
     };
 
     // Add shipper/trucker field based on listing type
-    if (conversation.listingType === 'cargo') {
+    if (listingType === 'cargo') {
       listing.shipper = conversation.listingOwnerName;
     } else {
       listing.trucker = conversation.listingOwnerName;
@@ -107,7 +108,7 @@ export function ChatView({
       createdAt: conversation.createdAt,
     };
 
-    onOpenChat?.(bid, listing, conversation.listingType);
+    onOpenChat?.(bid, listing, listingType);
   };
 
   return (
@@ -168,8 +169,9 @@ export function ChatView({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
           {scopedConversations.map((conversation) => {
-            const Icon = conversation.listingType === 'cargo' ? Package : Truck;
-            const isCargo = conversation.listingType === 'cargo';
+            const listingType = resolveBidListingType(conversation) || 'cargo';
+            const Icon = listingType === 'cargo' ? Package : Truck;
+            const isCargo = listingType === 'cargo';
             const hasUnread = conversation.unreadCount > 0;
 
             return (
