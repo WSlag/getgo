@@ -29,6 +29,7 @@ const EMAIL_LINK_GENERIC_MESSAGE = 'If an eligible account exists, a sign-in lin
 const PROFILE_LISTENER_MAX_RETRIES = 4;
 const PROFILE_LISTENER_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
 const loggedTerminalProfileFailures = new Set();
+const AUTH_LOADING_TIMEOUT_MS = 8000;
 
 function classifyProfileLoadError(error) {
   if (isPermissionDeniedError(error)) return 'permission-denied';
@@ -335,6 +336,7 @@ export function AuthProvider({ children }) {
   const profileRetryAttemptRef = useRef(0);
   const profileRetryTimerRef = useRef(null);
   const lastKnownGoodProfileRef = useRef(new Map());
+  const authLoadingTimeoutRef = useRef(null);
 
   const clearProfileRetryTimer = useCallback(() => {
     if (profileRetryTimerRef.current) {
@@ -411,6 +413,10 @@ export function AuthProvider({ children }) {
   // Listen to auth state changes
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
+      if (authLoadingTimeoutRef.current) {
+        clearTimeout(authLoadingTimeoutRef.current);
+        authLoadingTimeoutRef.current = null;
+      }
       setAuthUser(user);
       if (!user) {
         clearProfileRetryTimer();
@@ -447,7 +453,24 @@ export function AuthProvider({ children }) {
         setAuthError(null);
       }
     });
-    return unsubAuth;
+
+    authLoadingTimeoutRef.current = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) {
+          console.warn('[auth] onAuthStateChanged did not resolve within timeout; unblocking as guest.');
+          return false;
+        }
+        return prev;
+      });
+    }, AUTH_LOADING_TIMEOUT_MS);
+
+    return () => {
+      unsubAuth();
+      if (authLoadingTimeoutRef.current) {
+        clearTimeout(authLoadingTimeoutRef.current);
+        authLoadingTimeoutRef.current = null;
+      }
+    };
   }, [clearProfileRetryTimer]);
 
   // Listen to user profile changes
