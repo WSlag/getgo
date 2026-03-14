@@ -36,7 +36,6 @@ import { useTruckListings } from './hooks/useTruckListings';
 import { useNotifications } from './hooks/useNotifications';
 import { useMyBids } from './hooks/useBids';
 import { useConversations } from './hooks/useConversations';
-import { useUnreadMessageCounts } from './hooks/useUnreadMessageCounts';
 // Wallet removed - using direct GCash payment
 import { useShipments } from './hooks/useShipments';
 import { useTheme } from './hooks/useTheme';
@@ -174,7 +173,7 @@ export default function GetGoApp() {
   const shouldSubscribeListings = activeTab === 'home' || activeTab === 'activity' || activeTab === 'broker';
   const shouldSubscribeNotifications = activeTab === 'notifications';
   const shouldSubscribeBids = activeTab === 'bids' || modals.bid || modals.cargoDetails || modals.truckDetails || modals.myBids;
-  const shouldSubscribeConversations = activeTab === 'messages' || modals.chat;
+  const shouldSubscribeConversations = Boolean(activeUserId);
   const shouldSubscribeShipments = activeTab === 'tracking' || activeTab === 'contracts' || activeTab === 'activity';
 
   useEffect(() => {
@@ -208,7 +207,6 @@ export default function GetGoApp() {
   const { notifications: firebaseNotifications } = useNotifications(activeUserId, 50, shouldSubscribeNotifications);
   const { bids: myBids } = useMyBids(activeUserId, shouldSubscribeBids);
   const { conversations, loading: conversationsLoading } = useConversations(activeUserId, shouldSubscribeConversations);
-  const { unreadByWorkspace } = useUnreadMessageCounts(activeUserId, Boolean(activeUserId));
   const {
     shipments: firebaseShipments,
     activeShipments: firebaseActiveShipments,
@@ -909,11 +907,8 @@ export default function GetGoApp() {
     [workspaceNotifications]
   );
   const unreadMessages = useMemo(
-    () => {
-      if (activeWorkspace === 'broker') return 0;
-      return Number(unreadByWorkspace?.[activeWorkspace] || 0);
-    },
-    [activeWorkspace, unreadByWorkspace]
+    () => workspaceConversations.reduce((total, conversation) => total + Number(conversation.unreadCount || 0), 0),
+    [workspaceConversations]
   );
   const unreadBids = useMemo(
     () =>
