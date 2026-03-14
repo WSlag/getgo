@@ -54,6 +54,28 @@ test.describe('Profile View', () => {
     expect(nameVisible).toBe(true);
   });
 
+  test('should not show fallback profile placeholders for authenticated users', async ({
+    page,
+    authHelper,
+    testPhoneNumbers,
+  }) => {
+    await authHelper.login(testPhoneNumbers.shipper);
+    const userData = generateTestUser('shipper', 5);
+    await authHelper.register(userData);
+
+    await authHelper.navigateTo('profile');
+
+    const profileRoot = page.locator('[data-testid="profile-page"]').first();
+    await expect(profileRoot).toBeVisible();
+
+    const profileName = profileRoot.locator('h1').first();
+    await expect(profileName).not.toHaveText(/^User$/);
+    await expect(profileName).toContainText(userData.name);
+
+    const noPhoneFallback = profileRoot.locator('p').filter({ hasText: /^No phone number$/ });
+    await expect(noPhoneFallback).toHaveCount(0);
+  });
+
   test('should show trucker badge/rating for trucker profile', async ({
     page,
     authHelper,
