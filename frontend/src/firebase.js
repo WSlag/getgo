@@ -180,6 +180,13 @@ if (appCheckProviderName === 'auto') {
 } else if (appCheckProviderName === 'enterprise') {
   if (appCheckSiteKeyEnterprise) {
     appCheckCandidates.push({ provider: 'enterprise', siteKey: appCheckSiteKeyEnterprise });
+    const v3FallbackKey = appCheckSiteKeyV3 || appCheckSiteKeyEnterprise;
+    if (v3FallbackKey) {
+      appCheckCandidates.push({ provider: 'v3', siteKey: v3FallbackKey });
+      appCheckResolutionNote = appCheckSiteKeyV3
+        ? 'VITE_APPCHECK_PROVIDER=enterprise configured; v3 fallback enabled if enterprise initialization fails.'
+        : 'VITE_APPCHECK_PROVIDER=enterprise configured with only enterprise key; v3 fallback enabled as a resilience path.';
+    }
   } else if (appCheckSiteKeyV3) {
     appCheckCandidates.push({ provider: 'v3', siteKey: appCheckSiteKeyV3 });
     appCheckResolutionNote =

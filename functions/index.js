@@ -1440,6 +1440,7 @@ exports.authRequestEmailMagicLinkSignInV2 = authFunctions.authRequestEmailMagicL
 exports.authPrepareEmailMagicLinkSignIn = authFunctions.authPrepareEmailMagicLinkSignIn;
 exports.authFinalizeEmailLinking = authFunctions.authFinalizeEmailLinking;
 exports.authDisableEmailMagicLink = authFunctions.authDisableEmailMagicLink;
+exports.authGetCurrentUserProfile = authFunctions.authGetCurrentUserProfile;
 exports.switchUserRole = authFunctions.switchUserRole;
 
 // =============================================================================

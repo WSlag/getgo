@@ -415,6 +415,33 @@ exports.authDisableEmailMagicLink = functions.region(REGION).https.onCall(async 
   return { success: true };
 });
 
+// Server-authoritative profile read for resilience when client Firestore reads are blocked
+// (for example by temporary App Check or rules rollout mismatches).
+exports.authGetCurrentUserProfile = functions.region(REGION).https.onCall(async (_data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const uid = context.auth.uid;
+  const userRef = admin.firestore().collection('users').doc(uid);
+  const userSnap = await userRef.get();
+
+  if (!userSnap.exists) {
+    return {
+      exists: false,
+      profile: null,
+    };
+  }
+
+  return {
+    exists: true,
+    profile: {
+      id: userSnap.id,
+      ...userSnap.data(),
+    },
+  };
+});
+
 /**
  * Switch the authenticated user's role.
  * Creates a role-specific profile subcollection if it doesn't exist yet.

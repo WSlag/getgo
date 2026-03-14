@@ -93,6 +93,7 @@ const api = {
     prepareEmailMagicLinkSignIn: (data) => callFunction('authPrepareEmailMagicLinkSignIn', data || {}),
     finalizeEmailLinking: (data) => callFunction('authFinalizeEmailLinking', data || {}),
     disableEmailMagicLink: () => callFunction('authDisableEmailMagicLink', {}),
+    getCurrentUserProfile: () => callFunction('authGetCurrentUserProfile', {}),
   },
 
   optimize: {
