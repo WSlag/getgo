@@ -63,6 +63,7 @@ export function ContractModal({
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [showFullTerms, setShowFullTerms] = useState(false);
   const [acknowledgedLiability, setAcknowledgedLiability] = useState(false);
+  const [shakeAck, setShakeAck] = useState(false);
   const [cancelReasonCode, setCancelReasonCode] = useState('');
   const [cancelError, setCancelError] = useState('');
   const [truckPlateNumber, setTruckPlateNumber] = useState('');
@@ -189,12 +190,24 @@ export function ContractModal({
     cancelled: 'bg-gray-100 text-gray-700 dark:bg-gray-900/40 dark:text-gray-300',
   };
 
+  const triggerShakeAck = () => {
+    setShakeAck(true);
+    setTimeout(() => setShakeAck(false), 600);
+  };
+
   const handleSign = () => {
     if (!confirmSign) {
       setConfirmSign(true);
+      // Scroll trucker to their missing docs/plate section right away
+      if (isTrucker && (missingRequiredDocs.length > 0 || requiresPlateInput)) {
+        setTimeout(() => {
+          document.getElementById('trucker-docs-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
       return;
     }
     if (!acknowledgedLiability && contract.status === 'draft') {
+      triggerShakeAck();
       return;
     }
     const signPayload = {};
@@ -698,7 +711,7 @@ export function ContractModal({
         )}
 
         {isTrucker && (
-          <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+          <div id="trucker-docs-section" className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '10px' }} className="flex items-center gap-1.5">
               <FileText style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px' }} />
               Trucker Documents
@@ -863,17 +876,29 @@ export function ContractModal({
                   </div>
                 )}
 
-                <label className="flex items-start cursor-pointer" style={{ gap: isMobile ? '6px' : '8px', marginTop: isMobile ? '8px' : '12px' }}>
+                <label
+                  id="ack-checkbox-label"
+                  className={cn(
+                    "flex items-start cursor-pointer rounded-lg transition-all",
+                    shakeAck && "animate-shake border border-red-400 bg-red-50 dark:bg-red-950/30 px-2 py-1"
+                  )}
+                  style={{ gap: isMobile ? '6px' : '8px', marginTop: isMobile ? '8px' : '12px' }}
+                >
                   <input
                     type="checkbox"
                     checked={acknowledgedLiability}
                     onChange={(e) => setAcknowledgedLiability(e.target.checked)}
-                    className="mt-1 rounded border-yellow-400"
+                    className={cn("mt-1 rounded", shakeAck ? "border-red-500 accent-red-500" : "border-yellow-400")}
                   />
-                  <span style={{ fontSize: isMobile ? '11px' : '12px', color: '#92400e' }}>
+                  <span style={{ fontSize: isMobile ? '11px' : '12px', color: shakeAck ? '#dc2626' : '#92400e' }}>
                     I acknowledge that maximum liability is based on <strong>{liabilityCapLabel}</strong>, with exceptions for gross negligence, willful misconduct, fraud, theft, and illegal acts.
                   </span>
                 </label>
+                {shakeAck && (
+                  <p className="text-xs font-medium text-red-500 mt-1 ml-1">
+                    Please check the acknowledgment to continue.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -888,11 +913,21 @@ export function ContractModal({
               variant={confirmSign ? "destructive" : "gradient"}
               size={isMobile ? "default" : "lg"}
               onClick={handleSign}
-              disabled={loading || (confirmSign && (!acknowledgedLiability || (requiresPlateInput && !truckPlateNumber.trim())))}
+              disabled={
+                loading ||
+                (isTrucker && missingRequiredDocs.length > 0) ||
+                (confirmSign && (!acknowledgedLiability || (requiresPlateInput && !truckPlateNumber.trim())))
+              }
               className="gap-2 w-full"
             >
               <PenTool className="size-4" />
-              {loading ? 'Signing...' : confirmSign ? 'Confirm & Sign Contract' : 'Sign Contract'}
+              {loading
+                ? 'Signing...'
+                : isTrucker && missingRequiredDocs.length > 0
+                  ? 'Upload Required Docs First'
+                  : confirmSign
+                    ? 'Confirm & Sign Contract'
+                    : 'Sign Contract'}
             </Button>
           )}
 
