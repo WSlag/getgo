@@ -71,7 +71,7 @@ export function ProfileDropdown({
   const config = roleConfig[displayRole] || roleConfig.shipper;
   const RoleIcon = config.icon;
 
-  const menuItemClass = 'w-full rounded-xl px-3 py-2.5 cursor-pointer transition-colors hover:bg-orange-50 dark:hover:bg-gray-800 focus:bg-orange-50 dark:focus:bg-gray-800';
+  const menuItemClass = 'w-full rounded-xl px-3 py-3 cursor-pointer transition-colors hover:bg-orange-50 dark:hover:bg-gray-800 focus:bg-orange-50 dark:focus:bg-gray-800';
 
   return (
     <DropdownMenu>
@@ -242,7 +242,7 @@ export function ProfileDropdown({
           <div className="mt-1 pt-1 border-t border-gray-100 dark:border-gray-800">
             <DropdownMenuItem
               onSelect={onLogout}
-              className="w-full rounded-xl px-3 py-2.5 cursor-pointer transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 focus:bg-red-50 dark:focus:bg-red-950/30"
+              className="w-full rounded-xl px-3 py-3 cursor-pointer transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 focus:bg-red-50 dark:focus:bg-red-950/30"
             >
               <div className="flex w-full min-w-0 items-center gap-3">
                 <div className="size-8 shrink-0 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
