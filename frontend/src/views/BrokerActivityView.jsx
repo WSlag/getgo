@@ -255,7 +255,7 @@ export function BrokerActivityView({
       {/* Filters */}
       <div className="flex items-center gap-3">
         <Select value={activeTypeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className={cn("h-10 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
+          <SelectTrigger className={cn("h-12 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent className="rounded-[8px]">
@@ -266,7 +266,7 @@ export function BrokerActivityView({
         </Select>
 
         <Select value={activeStatusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className={cn("h-10 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
+          <SelectTrigger className={cn("h-12 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent className="rounded-[8px]">
@@ -280,7 +280,7 @@ export function BrokerActivityView({
           type="button"
           onClick={handleBackfill}
           disabled={backfilling}
-          className="shrink-0 h-10 px-3 inline-flex items-center gap-1.5 rounded-[8px] text-[13px] font-semibold border border-gray-200 bg-white text-gray-600 hover:border-orange-300 hover:text-orange-500 transition-all duration-200 active:scale-95 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+          className="shrink-0 h-12 px-3 inline-flex items-center gap-1.5 rounded-[8px] text-[13px] font-semibold border border-gray-200 bg-white text-gray-600 hover:border-orange-300 hover:text-orange-500 transition-all duration-200 active:scale-95 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
         >
           {backfilling ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
           Backfill
