@@ -382,7 +382,7 @@ export function ShipperActivityView({
       {/* Filters */}
       <div className="flex items-center gap-3">
         <Select value={activeTypeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className={cn("h-10 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
+          <SelectTrigger className={cn("h-12 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent className="rounded-[8px]">
@@ -393,7 +393,7 @@ export function ShipperActivityView({
         </Select>
 
         <Select value={activeStatusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className={cn("h-10 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
+          <SelectTrigger className={cn("h-12 flex-1 rounded-[8px] border-gray-200 bg-white text-sm font-semibold dark:border-gray-700 dark:bg-gray-800")}>
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent className="rounded-[8px]">
