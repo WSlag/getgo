@@ -179,7 +179,7 @@ export default function GetGoApp() {
   const editTruckData = getModalData('editTruck');
 
   const shouldSubscribeListings = appCheckReady && (activeTab === 'home' || activeTab === 'activity' || activeTab === 'broker');
-  const shouldSubscribeNotifications = appCheckReady && activeTab === 'notifications';
+  const shouldSubscribeNotifications = appCheckReady && Boolean(activeUserId);
   const shouldSubscribeBids = appCheckReady && (activeTab === 'bids' || modals.bid || modals.cargoDetails || modals.truckDetails || modals.myBids);
   const shouldSubscribeConversations = appCheckReady && Boolean(activeUserId);
   const shouldSubscribeShipments = appCheckReady && (activeTab === 'tracking' || activeTab === 'contracts' || activeTab === 'activity');
@@ -2230,6 +2230,7 @@ export default function GetGoApp() {
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
         unreadNotifications={unreadNotifications}
+        unreadMessages={unreadMessages}
         userInitial={userInitial}
         currentRole={userRole}
         workspaceRole={activeWorkspace}
