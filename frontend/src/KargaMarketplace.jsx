@@ -15,7 +15,7 @@ import * as firestoreService from './services/firestoreService';
 import api from './services/api';
 import { getCoordinates, cityCoordinates } from './utils/cityCoordinates';
 import { maskContact, calculateDistance, estimateFuelCost, optimizeRoute, findBackloadMatches, calculateFuelSavings, estimateDuration, calculateRouteEfficiency } from './utils/calculations';
-import { PLATFORM_FEE_RATE, MINIMUM_WALLET_BALANCE, paymentMethods, shipperTiers, getShipperTier, getTruckerBadge, brokerTiers, notificationTypes } from './utils/constants';
+import { PLATFORM_FEE_RATE, MINIMUM_WALLET_BALANCE, paymentMethods, shipperTiers, getShipperTier, getTruckerBadge, brokerTiers, notificationTypes, vehicleTypes } from './utils/constants';
 import { RouteMap, FullMapModal, TrackingMap } from './components/maps';
 
 // Removed duplicate utilities - now imported from ./utils/
@@ -443,62 +443,6 @@ export default function KargaMarketplace() {
   const [backloadMatches, setBackloadMatches] = useState([]);
 
   const cities = Object.keys(cityCoordinates);
-  const vehicleTypes = [
-    // Light Commercial Vehicles (LCV) - Up to 2 tons
-    'Multicab (500kg-1ton)',
-    'L300 FB Van (1 ton)',
-    'H100/Porter (1-1.5 tons)',
-    'Kia Bongo (1-1.5 tons)',
-    'Toyota Hiace (1 ton)',
-    'Hyundai Starex (1 ton)',
-    
-    // Light Trucks - 4 Wheeler (2-4 tons)
-    '4W Closed Van (2-3 tons)',
-    '4W Aluminum Van (2-3 tons)',
-    '4W Elf/Canter (2-4 tons)',
-    '4W Dropside (2-4 tons)',
-    '4W Flatbed (2-4 tons)',
-    '4W Refrigerated Van (2-3 tons)',
-    
-    // Medium Trucks - 6 Wheeler (4-7 tons)
-    '6W Closed Van (4-6 tons)',
-    '6W Aluminum Van (4-6 tons)',
-    '6W Forward/Fighter (5-7 tons)',
-    '6W Dropside (4-6 tons)',
-    '6W Flatbed (4-6 tons)',
-    '6W Dump Truck (5-7 tons)',
-    '6W Refrigerated Van (4-6 tons)',
-    '6W Tanker (5,000-8,000L)',
-    
-    // Heavy Trucks - 10 Wheeler (10-15 tons)
-    '10W Wing Van (12-15 tons)',
-    '10W Closed Van (12-15 tons)',
-    '10W Aluminum Van (12-15 tons)',
-    '10W Dropside (12-15 tons)',
-    '10W Flatbed (12-15 tons)',
-    '10W Dump Truck (12-15 tons)',
-    '10W Refrigerated Van (12-15 tons)',
-    '10W Tanker (10,000-15,000L)',
-    '10W Boom Truck (10-12 tons)',
-    '10W Car Carrier (4-6 cars)',
-    
-    // Extra Heavy - 12 Wheeler (15-20 tons)
-    '12W Wing Van (15-20 tons)',
-    '12W Flatbed (15-20 tons)',
-    '12W Dump Truck (15-20 tons)',
-    '12W Lowbed (15-20 tons)',
-    
-    // Trailer Trucks - Prime Mover + Trailer (20-40 tons)
-    '10W Prime Mover + 40ft Container',
-    '10W Prime Mover + 20ft Container',
-    '12W Prime Mover + 40ft Container',
-    '12W Prime Mover + 45ft Wing Van',
-    '12W Prime Mover + Flatbed Trailer',
-    '12W Prime Mover + Lowbed Trailer',
-    '12W Prime Mover + Tanker Trailer',
-    '12W Prime Mover + Car Carrier Trailer',
-    '12W Prime Mover + Refrigerated Container',
-  ];
   const cargoTypes = ['General Merchandise', 'Fruits & Vegetables', 'Frozen Goods', 'Construction Materials', 'Electronics', 'Furniture', 'Agricultural Products', 'Others'];
 
   // Theme classes
