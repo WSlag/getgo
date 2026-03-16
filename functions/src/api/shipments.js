@@ -229,6 +229,9 @@ exports.updateShipmentStatus = functions.region('asia-southeast1').https.onCall(
         deliveredAt: shipment.deliveredAt || null,
         shipperId,
         truckerId,
+        contractId: shipment.contractId,
+        contractNumber: contract.contractNumber || '',
+        noChange: true,
       };
     }
 
@@ -262,8 +265,30 @@ exports.updateShipmentStatus = functions.region('asia-southeast1').https.onCall(
       deliveredAt: shipment.deliveredAt || null,
       shipperId,
       truckerId,
+      contractId: shipment.contractId,
+      contractNumber: contract.contractNumber || '',
     };
   });
+
+  // Notify the shipper of the status change
+  const statusTitles = {
+    picked_up: 'Cargo Picked Up',
+    in_transit: 'Cargo In Transit',
+  };
+  const statusMessages = {
+    picked_up: `Your cargo for contract #${result.contractNumber} has been picked up. You can monitor the delivery in the Tracking page.`,
+    in_transit: `Your cargo for contract #${result.contractNumber} is now in transit. You can monitor the delivery in the Tracking page.`,
+  };
+  if (result.shipperId && statusTitles[result.status] && !result.noChange) {
+    await db.collection(`users/${result.shipperId}/notifications`).doc().set({
+      type: 'SHIPMENT_UPDATE',
+      title: statusTitles[result.status],
+      message: statusMessages[result.status],
+      data: { shipmentId, contractId: result.contractId },
+      isRead: false,
+      createdAt: FirestoreFieldValue.serverTimestamp(),
+    });
+  }
 
   return {
     message: 'Status updated',
