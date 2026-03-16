@@ -256,20 +256,42 @@ export function CargoDetailsModal({
         </DialogHeader>
 
         {/* Status and Price Header */}
-        <div className="flex items-start justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px', marginTop: isMobile ? '12px' : '16px' }}>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center" style={{ gap: isMobile ? '6px' : '12px' }}>
-            <Badge className={cn("shrink-0 uppercase tracking-wide", statusStyles[cargo.status])} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
-              {cargo.status}
-            </Badge>
-            {cargo.cargoType && (
-              <Badge className="shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
-                {cargo.cargoType}
-              </Badge>
-            )}
-          </div>
-          <div className={cn("shrink-0 ml-3 rounded-xl shadow-lg", currentGradient)} style={{ padding: isMobile ? '8px 16px' : '12px 20px' }}>
-            <p style={{ fontSize: isMobile ? '18px' : '24px', fontWeight: 'bold', color: '#fff' }}>{formatPrice(displayPrice)}</p>
-          </div>
+        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px', marginTop: isMobile ? '12px' : '16px' }}>
+          {isMobile ? (
+            <>
+              <div className="flex flex-wrap items-center" style={{ gap: '6px', marginBottom: '10px' }}>
+                <Badge className={cn("uppercase tracking-wide", statusStyles[cargo.status])} style={{ padding: '4px 10px', fontSize: '11px' }}>
+                  {cargo.status}
+                </Badge>
+                {cargo.cargoType && (
+                  <Badge className="!whitespace-normal bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '4px 10px', fontSize: '11px' }}>
+                    {cargo.cargoType}
+                  </Badge>
+                )}
+              </div>
+              <div className="flex justify-end">
+                <div className={cn("rounded-xl shadow-lg", currentGradient)} style={{ padding: '8px 16px' }}>
+                  <p style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff' }}>{formatPrice(displayPrice)}</p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-start justify-between">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center" style={{ gap: '12px' }}>
+                <Badge className={cn("shrink-0 uppercase tracking-wide", statusStyles[cargo.status])} style={{ padding: '6px 12px', fontSize: '12px' }}>
+                  {cargo.status}
+                </Badge>
+                {cargo.cargoType && (
+                  <Badge className="shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '6px 12px', fontSize: '12px' }}>
+                    {cargo.cargoType}
+                  </Badge>
+                )}
+              </div>
+              <div className={cn("shrink-0 ml-3 rounded-xl shadow-lg", currentGradient)} style={{ padding: '12px 20px' }}>
+                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>{formatPrice(displayPrice)}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Shipper Info */}

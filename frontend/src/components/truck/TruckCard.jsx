@@ -121,7 +121,7 @@ export function TruckCard({
                     {statusLabels[displayStatus] || 'AVAILABLE'}
                   </Badge>
               {vehicleType && (
-                <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase text-[10px] px-2 py-0.5">
+                <Badge className="!whitespace-normal bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase text-[10px] px-2 py-0.5">
                   {vehicleType}
                 </Badge>
               )}
@@ -189,7 +189,7 @@ export function TruckCard({
               <Badge className={cn("shrink-0 uppercase tracking-wide", statusStyles[displayStatus] || statusStyles.available)} style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {statusLabels[displayStatus] || 'AVAILABLE'}
               </Badge>
-              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
+              <Badge className="!whitespace-normal bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {vehicleType || 'TRUCK'}
               </Badge>
               <span className="text-xs text-gray-500">{formatTimeAgo(postedAt)}</span>
