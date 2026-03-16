@@ -36,6 +36,8 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallApp
     disableEmailFallback,
     emailMagicLinkEnabled,
     emailAuthStatus,
+    emailLinkError,
+    clearEmailLinkError,
     getRecoveryStatus,
     generateRecoveryCodes
   } = useAuth();
@@ -86,9 +88,16 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallApp
     setEditLoading(true);
     try {
       if (updateProfile) {
-        await updateProfile(editForm);
+        const result = await updateProfile(editForm);
+        if (result?.success === false) {
+          return;
+        }
       }
       setShowEditModal(false);
+      // Auto-trigger install prompt after successful profile save
+      if (showInstallAppButton && onInstallApp) {
+        onInstallApp();
+      }
     } catch (error) {
       console.error('Error updating profile:', error);
     } finally {
@@ -176,6 +185,12 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallApp
   useEffect(() => {
     setEmailAuthInput(userProfile?.email || '');
   }, [userProfile?.email]);
+
+  useEffect(() => {
+    if (!emailLinkError) return;
+    setEmailAuthError(emailLinkError);
+    clearEmailLinkError?.();
+  }, [emailLinkError, clearEmailLinkError]);
 
   const handleSendEmailMagicLink = async () => {
     if (!startEmailLinking) return;
