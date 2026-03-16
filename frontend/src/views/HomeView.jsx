@@ -224,7 +224,7 @@ export function HomeView({
             )}
             style={{ padding: '12px 16px' }}
           >
-            {activeWorkspace === 'shipper' && !isBroker ? 'My Cargo' : 'Cargo'}
+            {currentRole === 'shipper' && !isBroker ? 'My Cargo' : 'Cargo'}
           </button>
           <button
             onClick={() => onMarketChange?.('trucks')}
@@ -236,7 +236,7 @@ export function HomeView({
             )}
             style={{ padding: '12px 16px' }}
           >
-            {activeWorkspace === 'trucker' && !isBroker ? 'My Trucks' : 'Trucks'}
+            {currentRole === 'trucker' && !isBroker ? 'My Trucks' : 'Trucks'}
           </button>
         </div>
 
