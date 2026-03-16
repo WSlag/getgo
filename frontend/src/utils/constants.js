@@ -14,19 +14,67 @@ export const paymentMethods = {
   cebuana: { name: 'Cebuana', icon: '📮', color: 'from-yellow-500 to-yellow-600', fee: 25 },
 };
 
-// Vehicle types
-export const vehicleTypes = [
-  'Multicab (500 kg - 1 ton)',
-  'L300/H100 (1-2 tons)',
-  '4W Elf/Canter (2-4 tons)',
-  '6W Forward/Fighter (5-7 tons)',
-  '6W Dropside (4-6 tons)',
-  '10W Wing Van (12-15 tons)',
-  '10W Flatbed (12-15 tons)',
-  '10W Container Van (12-15 tons)',
-  '12W Trailer (18-20 tons)',
-  'Prime Mover + Trailer (20-40 tons)',
+// Vehicle types grouped by category
+export const VEHICLE_TYPE_GROUPS = [
+  { label: 'Light Commercial Vehicles (up to 2 tons)', types: [
+    'Multicab (500kg-1ton)',
+    'L300 FB Van (1 ton)',
+    'H100/Porter (1-1.5 tons)',
+    'Kia Bongo (1-1.5 tons)',
+    'Toyota Hiace (1 ton)',
+    'Hyundai Starex (1 ton)',
+  ]},
+  { label: '4-Wheeler Light Trucks (2-4 tons)', types: [
+    '4W Closed Van (2-3 tons)',
+    '4W Aluminum Van (2-3 tons)',
+    '4W Elf/Canter (2-4 tons)',
+    '4W Dropside (2-4 tons)',
+    '4W Flatbed (2-4 tons)',
+    '4W Refrigerated Van (2-3 tons)',
+  ]},
+  { label: '6-Wheeler Medium Trucks (4-7 tons)', types: [
+    '6W Closed Van (4-6 tons)',
+    '6W Aluminum Van (4-6 tons)',
+    '6W Forward/Fighter (5-7 tons)',
+    '6W Dropside (4-6 tons)',
+    '6W Flatbed (4-6 tons)',
+    '6W Dump Truck (5-7 tons)',
+    '6W Refrigerated Van (4-6 tons)',
+    '6W Tanker (5,000-8,000L)',
+  ]},
+  { label: '10-Wheeler Heavy Trucks (10-15 tons)', types: [
+    '10W Wing Van (12-15 tons)',
+    '10W Closed Van (12-15 tons)',
+    '10W Aluminum Van (12-15 tons)',
+    '10W Dropside (12-15 tons)',
+    '10W Flatbed (12-15 tons)',
+    '10W Dump Truck (12-15 tons)',
+    '10W Refrigerated Van (12-15 tons)',
+    '10W Tanker (10,000-15,000L)',
+    '10W Boom Truck (10-12 tons)',
+    '10W Car Carrier (4-6 cars)',
+  ]},
+  { label: '12-Wheeler Extra Heavy (15-20 tons)', types: [
+    '12W Wing Van (15-20 tons)',
+    '12W Flatbed (15-20 tons)',
+    '12W Dump Truck (15-20 tons)',
+    '12W Lowbed (15-20 tons)',
+  ]},
+  { label: 'Prime Mover + Trailer (20-40 tons)', types: [
+    '10W Prime Mover + 40ft Container',
+    '10W Prime Mover + 20ft Container',
+    '12W Prime Mover + 40ft Container',
+    '12W Prime Mover + 45ft Wing Van',
+    '12W Prime Mover + Flatbed Trailer',
+    '12W Prime Mover + Lowbed Trailer',
+    '12W Prime Mover + Tanker Trailer',
+    '12W Prime Mover + Car Carrier Trailer',
+    '12W Prime Mover + Refrigerated Container',
+  ]},
 ];
+
+// Flat array for backward compatibility
+export const vehicleTypes = VEHICLE_TYPE_GROUPS.flatMap(g => g.types);
 
 // Cargo types
 export const cargoTypes = [

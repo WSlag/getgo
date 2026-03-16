@@ -15,16 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import AddressSearch from '../maps/AddressSearch';
 import { useLiveRegion } from '@/contexts/LiveRegionContext';
-
-const VEHICLE_TYPES = [
-  '4W Elf/Canter (1-2 tons)',
-  '6W Forward/Fighter (5-7 tons)',
-  '6W Dropside (4-6 tons)',
-  '10W Wing Van (12-15 tons)',
-  '10W Flatbed (12-15 tons)',
-  '10W Refrigerated Van',
-  'Trailer (20-30 tons)',
-];
+import { VehicleTypeSelect } from './VehicleTypeSelect';
 
 const CARGO_TYPES = [
   'General Merchandise',
@@ -335,19 +326,11 @@ export function PostModal({
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
               {isShipper ? 'Vehicle Needed' : 'Vehicle Type'}
             </label>
-            <select
+            <VehicleTypeSelect
               value={formData.vehicleType}
-              onChange={(e) => handleChange('vehicleType', e.target.value)}
-              className={cn(
-                "w-full h-10 px-4 rounded-xl border bg-input-background text-sm focus:ring-2 focus:ring-ring focus:ring-offset-2 outline-none",
-                errors.vehicleType ? "border-red-500" : "border-border"
-              )}
-            >
-              <option value="">Select vehicle</option>
-              {VEHICLE_TYPES.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
+              onChange={(val) => handleChange('vehicleType', val)}
+              error={errors.vehicleType}
+            />
             {errors.vehicleType && <p className="text-xs text-red-500 mt-1">{errors.vehicleType}</p>}
           </div>
 
