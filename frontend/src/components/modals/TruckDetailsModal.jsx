@@ -249,18 +249,18 @@ export function TruckDetailsModal({
         </DialogHeader>
 
         {/* Status and Price Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
-          <div className="flex items-center" style={{ gap: isMobile ? '6px' : '12px' }}>
-            <Badge className={cn("uppercase tracking-wide", statusStyles[displayStatus] || statusStyles.available)} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
+        <div className="flex items-start justify-between border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center" style={{ gap: isMobile ? '6px' : '12px' }}>
+            <Badge className={cn("shrink-0 uppercase tracking-wide", statusStyles[displayStatus] || statusStyles.available)} style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
               {statusLabels[displayStatus] || 'AVAILABLE'}
             </Badge>
             {truck.vehicleType && (
-              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
+              <Badge className="shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: isMobile ? '4px 10px' : '6px 12px', fontSize: isMobile ? '11px' : '12px' }}>
                 {truck.vehicleType}
               </Badge>
             )}
           </div>
-          <div className={cn("rounded-xl shadow-lg", currentGradient)} style={{ padding: isMobile ? '8px 16px' : '12px 20px' }}>
+          <div className={cn("shrink-0 ml-3 rounded-xl shadow-lg", currentGradient)} style={{ padding: isMobile ? '8px 16px' : '12px 20px' }}>
             <p style={{ fontSize: isMobile ? '18px' : '24px', fontWeight: 'bold', color: '#fff' }}>{formatPrice(truck.askingRate)}</p>
           </div>
         </div>
