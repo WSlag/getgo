@@ -6,20 +6,42 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { VEHICLE_TYPE_GROUPS } from '@/utils/constants';
 
 function SearchInput({ value, onChange, inputRef, mobile }) {
+  if (mobile) {
+    return (
+      <div className="sticky top-0 z-10 bg-popover px-3 py-2">
+        <div className="flex h-12 items-center gap-2 rounded-xl border border-border bg-input-background px-4">
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Search vehicle type..."
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+          />
+          {value && (
+            <button type="button" onClick={() => onChange('')} className="rounded-md p-0.5">
+              <X className="size-5 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-popover px-3 py-2.5">
-      <Search className={cn('shrink-0 text-muted-foreground', mobile ? 'size-5' : 'size-4')} />
+      <Search className="size-4 shrink-0 text-muted-foreground" />
       <input
         ref={inputRef}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search vehicle type..."
-        className={cn('flex-1 bg-transparent outline-none placeholder:text-muted-foreground', mobile ? 'text-base' : 'text-sm')}
+        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />
       {value && (
         <button type="button" onClick={() => onChange('')} className="rounded-md p-0.5 hover:bg-muted">
-          <X className={cn('text-muted-foreground', mobile ? 'size-5' : 'size-4')} />
+          <X className="size-4 text-muted-foreground" />
         </button>
       )}
     </div>
@@ -31,11 +53,11 @@ function OptionsList({ groups, selected, onSelect, mobile }) {
     return <p className="py-6 text-center text-sm text-muted-foreground">No vehicle found</p>;
   }
 
-  return groups.map((group) => (
-    <div key={group.label} className="py-1">
+  return groups.map((group, i) => (
+    <div key={group.label} className={cn('py-1', mobile && i > 0 && 'border-t border-border/50')}>
       <p className={cn(
         'sticky top-0 z-[1] bg-popover/95 backdrop-blur-sm px-3 font-semibold uppercase tracking-wider text-muted-foreground',
-        mobile ? 'py-2 text-xs' : 'py-1.5 text-[11px]'
+        mobile ? 'py-2 text-[10px]' : 'py-1.5 text-[11px]'
       )}>
         {group.label}
       </p>
