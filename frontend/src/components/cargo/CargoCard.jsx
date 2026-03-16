@@ -176,12 +176,12 @@ export function CargoCard({
       <div style={{ padding: '24px' }}>
         {/* Header Row - Status badges and Price */}
         <div className="flex items-start justify-between" style={{ marginBottom: '16px' }}>
-          <div className="flex-1">
-            <div className="flex items-center" style={{ gap: '8px', marginBottom: '8px' }}>
-              <Badge className={cn("uppercase tracking-wide", statusStyles[status])} style={{ padding: '5px 10px', fontSize: '10px' }}>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center" style={{ gap: '8px', marginBottom: '8px' }}>
+              <Badge className={cn("shrink-0 uppercase tracking-wide", statusStyles[status])} style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {status}
               </Badge>
-              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
+              <Badge className="truncate bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {category}
               </Badge>
               <span className="text-xs text-gray-500">{displayTimeAgo}</span>
@@ -189,7 +189,7 @@ export function CargoCard({
             <h3 className="font-bold text-gray-900 dark:text-white text-base" style={{ marginBottom: '4px' }}>{displayCompany}</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400">{displayWeight}</p>
           </div>
-          <div className={cn("rounded-xl shadow-lg", currentGradient)} style={{ padding: '10px 15px' }}>
+          <div className={cn("shrink-0 rounded-xl shadow-lg", currentGradient)} style={{ padding: '10px 15px' }}>
             <p className="text-2xl font-bold text-white">{formatPrice(displayPrice)}</p>
           </div>
         </div>
