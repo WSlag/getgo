@@ -7,8 +7,9 @@ import {
 } from '../utils/browserDetect';
 import { trackAnalyticsEvent } from '../services/analyticsService';
 
-const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const MODAL_COOLDOWN_MS = 1 * 60 * 60 * 1000; // 1 hour
+const BANNER_COOLDOWN_MS = 1 * 60 * 60 * 1000;      // 1 hour
+const IOS_COOLDOWN_MS    = 7 * 24 * 60 * 60 * 1000; // 7 days
+const MODAL_COOLDOWN_MS  = 1 * 60 * 60 * 1000;      // 1 hour
 
 const KEYS = {
   installDismissedAt: 'karga.pwa.installDismissedAt',
@@ -20,10 +21,10 @@ const KEYS = {
   installModalPending: 'karga.pwa.installModalPending',
 };
 
-function isWithinCooldown(key) {
+function isWithinCooldown(key, durationMs) {
   const val = localStorage.getItem(key);
   if (!val) return false;
-  return Date.now() - Date.parse(val) < COOLDOWN_MS;
+  return Date.now() - Date.parse(val) < durationMs;
 }
 
 export function usePWAInstall() {
@@ -44,10 +45,10 @@ export function usePWAInstall() {
     () => localStorage.getItem(KEYS.installAccepted) === 'true'
   );
   const [installDismissedRecently, setInstallDismissedRecently] = useState(
-    () => isWithinCooldown(KEYS.installDismissedAt)
+    () => isWithinCooldown(KEYS.installDismissedAt, BANNER_COOLDOWN_MS)
   );
   const [iosDismissedRecently, setIosDismissedRecently] = useState(
-    () => isWithinCooldown(KEYS.iosDismissedAt)
+    () => isWithinCooldown(KEYS.iosDismissedAt, IOS_COOLDOWN_MS)
   );
   const [manualIOSInstallOpen, setManualIOSInstallOpen] = useState(false);
   const [installModalDismissedRecently, setInstallModalDismissedRecently] = useState(
@@ -111,26 +112,29 @@ export function usePWAInstall() {
   const dismissInstallBanner = useCallback(() => {
     localStorage.setItem(KEYS.installDismissedAt, new Date().toISOString());
     setInstallDismissedRecently(true);
-  }, []);
+    trackAnalyticsEvent('install_dismissed', { source: 'install_banner', platform });
+  }, [platform]);
 
   const dismissIOSInstall = useCallback(() => {
     setManualIOSInstallOpen(false);
     localStorage.setItem(KEYS.iosDismissedAt, new Date().toISOString());
     setIosDismissedRecently(true);
-  }, []);
+    trackAnalyticsEvent('install_dismissed', { source: 'ios_sheet', platform });
+  }, [platform]);
 
   const openInstallModal = useCallback(() => {
-    if (standalone || installAccepted || installModalDismissedRecently) return;
+    if (standalone || installAccepted || installModalDismissedRecently || !engagementReached) return;
     localStorage.setItem(KEYS.installModalPending, 'true');
     setShowInstallModal(true);
-  }, [standalone, installAccepted, installModalDismissedRecently]);
+  }, [standalone, installAccepted, installModalDismissedRecently, engagementReached]);
 
   const dismissInstallModal = useCallback(() => {
     localStorage.removeItem(KEYS.installModalPending);
     localStorage.setItem(KEYS.installModalDismissedAt, new Date().toISOString());
     setShowInstallModal(false);
     setInstallModalDismissedRecently(true);
-  }, []);
+    trackAnalyticsEvent('install_dismissed', { source: 'install_modal', platform });
+  }, [platform]);
 
   const promptInstall = useCallback(async (source = 'unknown') => {
     const prompt = deferredPrompt.current;
@@ -144,16 +148,22 @@ export function usePWAInstall() {
       setShowInstallModal(false);
       trackAnalyticsEvent('install_success', { source, platform });
     } else {
-      dismissInstallBanner();
+      // Dismiss the originating surface only
+      if (source === 'install_banner') {
+        dismissInstallBanner();
+      } else {
+        dismissInstallModal();
+      }
     }
     deferredPrompt.current = null;
     setCanPrompt(false);
     return true;
-  }, [dismissInstallBanner, platform]);
+  }, [dismissInstallBanner, dismissInstallModal, platform]);
 
   const triggerInstall = useCallback(async () => {
+    trackAnalyticsEvent('install_clicked', { source: 'install_banner', platform });
     await promptInstall('install_banner');
-  }, [promptInstall]);
+  }, [promptInstall, platform]);
 
   const waitForInstallPrompt = useCallback((timeoutMs) => {
     return new Promise((resolve) => {

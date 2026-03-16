@@ -537,6 +537,15 @@ export default function GetGoApp() {
         dismissInstallModal();
         return;
       }
+      if (status === 'in_app_browser') {
+        dismissInstallModal();
+        showInstallStatusToast(
+          'in_app_browser',
+          'Open in browser',
+          'Open this page in Safari or Chrome to install GetGo.'
+        );
+        return;
+      }
       if (status === 'already_installed') {
         dismissInstallModal();
         showInstallStatusToast('already_installed', 'Already installed', 'GetGo is already installed on this device.');
