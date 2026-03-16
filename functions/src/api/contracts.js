@@ -940,16 +940,20 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
       });
     }
 
-    // Notify other party
+    // Notify both parties that contract is fully signed and tracking is active
     const otherUserId = isShipper ? bidderId : listingOwnerId;
-    await db.collection(`users/${otherUserId}/notifications`).doc().set({
+    const notificationPayload = {
       type: 'SHIPMENT_UPDATE',
       title: 'Contract Fully Signed!',
-      message: `Contract #${contract.contractNumber} is now active. Tracking: ${trackingNumber}`,
+      message: `Contract #${contract.contractNumber} is now active. You can now monitor your shipment in the Tracking page. Tracking: ${trackingNumber}`,
       data: { contractId, shipmentId: shipmentRef.id, trackingNumber },
       isRead: false,
       createdAt: FirestoreFieldValue.serverTimestamp(),
-    });
+    };
+    await Promise.all([
+      db.collection(`users/${userId}/notifications`).doc().set(notificationPayload),
+      db.collection(`users/${otherUserId}/notifications`).doc().set(notificationPayload),
+    ]);
 
     try {
       await recordTruckBookingContractActivity(db, contractId, { ...updatedContract, status: 'signed' }, 'signed');
@@ -1110,6 +1114,26 @@ exports.completeContract = functions.region('asia-southeast1').https.onCall(asyn
     totalTransactions: FirestoreFieldValue.increment(1),
     updatedAt: FirestoreFieldValue.serverTimestamp(),
   }, { merge: true });
+
+  // Notify trucker that delivery has been confirmed
+  await db.collection(`users/${truckerId}/notifications`).doc().set({
+    type: 'SHIPMENT_UPDATE',
+    title: 'Delivery Confirmed',
+    message: `Contract #${contract.contractNumber} has been marked as delivered by the shipper. Great job!`,
+    data: { contractId },
+    isRead: false,
+    createdAt: FirestoreFieldValue.serverTimestamp(),
+  });
+
+  // Notify shipper that delivery is complete
+  await db.collection(`users/${shipperId}/notifications`).doc().set({
+    type: 'SHIPMENT_UPDATE',
+    title: 'Delivery Complete',
+    message: `Your cargo for contract #${contract.contractNumber} has been successfully delivered. Thank you for using GetGo!`,
+    data: { contractId },
+    isRead: false,
+    createdAt: FirestoreFieldValue.serverTimestamp(),
+  });
 
   // Notify both parties to rate
   for (const notifyUserId of [contract.bidderId, contract.listingOwnerId]) {
