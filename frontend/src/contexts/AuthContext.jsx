@@ -331,6 +331,8 @@ export function AuthProvider({ children }) {
   const [profileRetryNonce, setProfileRetryNonce] = useState(0);
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [authError, setAuthError] = useState(null);
+  const [authInitialized, setAuthInitialized] = useState(false);
+  const [emailLinkError, setEmailLinkError] = useState(null);
   const [referralAttributionEvent, setReferralAttributionEvent] = useState(null);
   const recaptchaVerifierRef = useRef(null);
   const profileRetryAttemptRef = useRef(0);
@@ -418,6 +420,7 @@ export function AuthProvider({ children }) {
         authLoadingTimeoutRef.current = null;
       }
       setAuthUser(user);
+      setAuthInitialized(true);
       if (!user) {
         clearProfileRetryTimer();
         profileRetryAttemptRef.current = 0;
@@ -955,6 +958,8 @@ export function AuthProvider({ children }) {
         await api.auth.finalizeEmailLinking({ email: normalizedEmail });
         clearPendingEmailLinkState();
         cleanupEmailLinkUrl();
+        // Force immediate profile refresh so UI reflects emailAuthEnabled without a page reload
+        setProfileRetryNonce((prev) => prev + 1);
         return { success: true, mode: 'link' };
       }
 
@@ -1006,6 +1011,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    if (!authInitialized) return;
+
     let cancelled = false;
 
     const maybeCompleteEmailLink = async () => {
@@ -1019,6 +1026,7 @@ export function AuthProvider({ children }) {
       if (cancelled) return;
       if (!result.success) {
         setAuthError(result.error || 'Email sign-in failed. Request a new link.');
+        setEmailLinkError(result.error || 'Email sign-in failed. Request a new link.');
       }
 
       if (!(result.success && result.mode === 'signin')) {
@@ -1031,7 +1039,7 @@ export function AuthProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [completeEmailLinkFromUrl]);
+  }, [completeEmailLinkFromUrl, authInitialized]);
 
   // Send OTP to phone number
   // reCAPTCHA Enterprise verification is handled automatically by Firebase Auth
@@ -1375,6 +1383,8 @@ export function AuthProvider({ children }) {
     profileLoadStatus,
     profileLoadError,
     authError,
+    emailLinkError,
+    clearEmailLinkError: () => setEmailLinkError(null),
     sendOtp,
     verifyOtp,
     requestEmailMagicLink,

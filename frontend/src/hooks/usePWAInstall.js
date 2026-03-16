@@ -118,6 +118,33 @@ export function usePWAInstall() {
     await promptInstall('install_banner');
   }, [promptInstall]);
 
+  const waitForInstallPrompt = useCallback((timeoutMs) => {
+    return new Promise((resolve) => {
+      if (deferredPrompt.current) {
+        resolve(true);
+        return;
+      }
+      let settled = false;
+      const onPrompt = (e) => {
+        if (settled) return;
+        settled = true;
+        e.preventDefault();
+        deferredPrompt.current = e;
+        setCanPrompt(true);
+        clearTimeout(timer);
+        window.removeEventListener('beforeinstallprompt', onPrompt);
+        resolve(true);
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('beforeinstallprompt', onPrompt);
+        resolve(false);
+      }, timeoutMs);
+      window.addEventListener('beforeinstallprompt', onPrompt);
+    });
+  }, []);
+
   const launchInstallFromProfile = useCallback(async () => {
     if (standalone || installAccepted) return 'already_installed';
     if (inApp.isInAppBrowser) return 'in_app_browser';
@@ -129,8 +156,16 @@ export function usePWAInstall() {
 
     const didPrompt = await promptInstall('profile_button');
     if (didPrompt) return 'prompt_shown';
+
+    // SW may still be registering — wait for beforeinstallprompt
+    const arrived = await waitForInstallPrompt(5000);
+    if (arrived) {
+      const retry = await promptInstall('profile_button');
+      if (retry) return 'prompt_shown';
+    }
+
     return 'not_available';
-  }, [standalone, installAccepted, inApp.isInAppBrowser, iosSafari, promptInstall]);
+  }, [standalone, installAccepted, inApp.isInAppBrowser, iosSafari, promptInstall, waitForInstallPrompt]);
 
   // --- Computed booleans ---
   const showInAppOverlay = inApp.isInAppBrowser;

@@ -56,24 +56,6 @@ export default defineConfig({
    * Playwright will wait for all servers to be ready before executing tests
    */
   webServer: [
-    // Backend API server
-    {
-      command: 'cd backend && npm run start',
-      url: 'http://127.0.0.1:3001/api/health',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
-      env: {
-        PORT: '3001',
-        NODE_ENV: 'test',
-        FIREBASE_PROJECT_ID: 'karga-ph',
-        GCLOUD_PROJECT: 'karga-ph',
-        FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080',
-        FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099',
-      },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-
     // Frontend dev server (Vite)
     {
       command: 'cd frontend && npm run dev',
