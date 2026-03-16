@@ -113,20 +113,20 @@ export function TruckCard({
 
         <div style={{ padding: '16px 20px' }}>
           {/* Row 1: Status Badge + Vehicle Type + Rate */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                   <Badge
                     className={cn("shrink-0 uppercase tracking-wide text-[10px] font-semibold px-2 py-0.5", compactStatusStyles[displayStatus] || compactStatusStyles.available)}
                   >
                     {statusLabels[displayStatus] || 'AVAILABLE'}
                   </Badge>
               {vehicleType && (
-                <Badge className="truncate bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase text-[10px] px-2 py-0.5">
+                <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase text-[10px] px-2 py-0.5">
                   {vehicleType}
                 </Badge>
               )}
             </div>
-            <div className={cn("shrink-0 rounded-lg", currentGradient)} style={{ padding: '4px 14px' }}>
+            <div className={cn("shrink-0 ml-2 rounded-lg", currentGradient)} style={{ padding: '4px 14px' }}>
               <span className="text-sm font-bold text-white">{formatPrice(askingRate)}</span>
             </div>
           </div>
@@ -189,7 +189,7 @@ export function TruckCard({
               <Badge className={cn("shrink-0 uppercase tracking-wide", statusStyles[displayStatus] || statusStyles.available)} style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {statusLabels[displayStatus] || 'AVAILABLE'}
               </Badge>
-              <Badge className="truncate bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
+              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {vehicleType || 'TRUCK'}
               </Badge>
               <span className="text-xs text-gray-500">{formatTimeAgo(postedAt)}</span>

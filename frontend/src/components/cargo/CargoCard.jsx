@@ -124,7 +124,7 @@ export function CargoCard({
             >
               {status === 'negotiating' ? 'NEGOTIATING' : status.toUpperCase()}
             </Badge>
-            <div className={cn("rounded-lg", currentGradient)} style={{ padding: '4px 14px' }}>
+            <div className={cn("shrink-0 rounded-lg", currentGradient)} style={{ padding: '4px 14px' }}>
               <span className="text-sm font-bold text-white">{formatPrice(displayPrice)}</span>
             </div>
           </div>
@@ -181,7 +181,7 @@ export function CargoCard({
               <Badge className={cn("shrink-0 uppercase tracking-wide", statusStyles[status])} style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {status}
               </Badge>
-              <Badge className="truncate bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
+              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {category}
               </Badge>
               <span className="text-xs text-gray-500">{displayTimeAgo}</span>
