@@ -94,10 +94,6 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallApp
         }
       }
       setShowEditModal(false);
-      // Auto-trigger install prompt after successful profile save
-      if (showInstallAppButton && onInstallApp) {
-        onInstallApp();
-      }
     } catch (error) {
       console.error('Error updating profile:', error);
     } finally {

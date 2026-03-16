@@ -8,6 +8,7 @@ import {
 import { trackAnalyticsEvent } from '../services/analyticsService';
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const MODAL_COOLDOWN_MS = 1 * 60 * 60 * 1000; // 1 hour
 
 const KEYS = {
   installDismissedAt: 'karga.pwa.installDismissedAt',
@@ -15,6 +16,8 @@ const KEYS = {
   iosDismissedAt: 'karga.pwa.iosDismissedAt',
   visitCount: 'karga.pwa.visitCount',
   engagementReached: 'karga.pwa.engagementReached',
+  installModalDismissedAt: 'karga.pwa.installModalDismissedAt',
+  installModalPending: 'karga.pwa.installModalPending',
 };
 
 function isWithinCooldown(key) {
@@ -47,6 +50,25 @@ export function usePWAInstall() {
     () => isWithinCooldown(KEYS.iosDismissedAt)
   );
   const [manualIOSInstallOpen, setManualIOSInstallOpen] = useState(false);
+  const [installModalDismissedRecently, setInstallModalDismissedRecently] = useState(
+    () => {
+      const val = localStorage.getItem(KEYS.installModalDismissedAt);
+      if (!val) return false;
+      return Date.now() - Date.parse(val) < MODAL_COOLDOWN_MS;
+    }
+  );
+  const [showInstallModal, setShowInstallModal] = useState(
+    () => {
+      const pending = localStorage.getItem(KEYS.installModalPending) === 'true';
+      const accepted = localStorage.getItem(KEYS.installAccepted) === 'true';
+      const dismissed = (() => {
+        const val = localStorage.getItem(KEYS.installModalDismissedAt);
+        if (!val) return false;
+        return Date.now() - Date.parse(val) < MODAL_COOLDOWN_MS;
+      })();
+      return pending && !accepted && !dismissed;
+    }
+  );
 
   const deferredPrompt = useRef(null);
 
@@ -97,6 +119,19 @@ export function usePWAInstall() {
     setIosDismissedRecently(true);
   }, []);
 
+  const openInstallModal = useCallback(() => {
+    if (standalone || installAccepted || installModalDismissedRecently) return;
+    localStorage.setItem(KEYS.installModalPending, 'true');
+    setShowInstallModal(true);
+  }, [standalone, installAccepted, installModalDismissedRecently]);
+
+  const dismissInstallModal = useCallback(() => {
+    localStorage.removeItem(KEYS.installModalPending);
+    localStorage.setItem(KEYS.installModalDismissedAt, new Date().toISOString());
+    setShowInstallModal(false);
+    setInstallModalDismissedRecently(true);
+  }, []);
+
   const promptInstall = useCallback(async (source = 'unknown') => {
     const prompt = deferredPrompt.current;
     if (!prompt) return false;
@@ -105,6 +140,8 @@ export function usePWAInstall() {
     if (outcome === 'accepted') {
       localStorage.setItem(KEYS.installAccepted, 'true');
       setInstallAccepted(true);
+      localStorage.removeItem(KEYS.installModalPending);
+      setShowInstallModal(false);
       trackAnalyticsEvent('install_success', { source, platform });
     } else {
       dismissInstallBanner();
@@ -158,7 +195,7 @@ export function usePWAInstall() {
     if (didPrompt) return 'prompt_shown';
 
     // SW may still be registering — wait for beforeinstallprompt
-    const arrived = await waitForInstallPrompt(5000);
+    const arrived = await waitForInstallPrompt(15000);
     if (arrived) {
       const retry = await promptInstall('profile_button');
       if (retry) return 'prompt_shown';
@@ -210,6 +247,11 @@ export function usePWAInstall() {
     showIOSInstall,
     dismissIOSInstall,
     launchInstallFromProfile,
+
+    // Persistent install modal
+    showInstallModal,
+    openInstallModal,
+    dismissInstallModal,
 
     // General
     isStandalone: standalone,

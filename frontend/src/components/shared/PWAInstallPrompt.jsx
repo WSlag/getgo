@@ -144,6 +144,66 @@ function IOSInstallSheet({ open, onDismiss }) {
   );
 }
 
+// --- Persistent install modal (shown after onboarding) ---
+function InstallModal({ open, onInstall, onDismiss, installing }) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onDismiss()}>
+      <DialogBottomSheet>
+        <div className="px-6 pb-6 pt-2">
+          {/* Header */}
+          <div className="mb-5 flex flex-col items-center text-center">
+            <div className="mb-4">
+              <AppLogo size={56} className="drop-shadow-lg" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">
+              Install GetGo
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Get the full app experience on your device
+            </DialogDescription>
+          </div>
+
+          {/* Benefits */}
+          <div className="mb-6 space-y-3">
+            {[
+              { icon: '\u26A1', text: 'Faster loading & instant access' },
+              { icon: '\uD83D\uDD14', text: 'Real-time push notifications' },
+              { icon: '\uD83D\uDCF1', text: 'Works like a native app' },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-xl bg-orange-50 dark:bg-orange-900/20 px-4 py-2.5">
+                <span className="text-lg">{item.icon}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{item.text}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Install Button */}
+          <button
+            onClick={onInstall}
+            disabled={installing}
+            className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold text-white border-none transition-all active:scale-[0.98] hover:opacity-90 disabled:opacity-70"
+            style={{
+              background: 'linear-gradient(135deg, #FF9A56 0%, #FF6B35 100%)',
+              boxShadow: '0 4px 14px rgba(249,115,22,0.4)',
+            }}
+          >
+            <Download className="size-4" />
+            {installing ? 'Installing...' : 'Install Now'}
+          </button>
+
+          {/* Dismiss */}
+          <button
+            onClick={onDismiss}
+            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800"
+          >
+            Maybe Later
+          </button>
+        </div>
+      </DialogBottomSheet>
+    </Dialog>
+  );
+}
+
 // --- Main export ---
 export function PWAInstallPrompt({
   showInstallBanner,
@@ -151,6 +211,10 @@ export function PWAInstallPrompt({
   dismissInstallBanner,
   showIOSInstall,
   dismissIOSInstall,
+  showInstallModal,
+  onInstallModalInstall,
+  onInstallModalDismiss,
+  installModalInstalling,
 }) {
   return (
     <>
@@ -161,6 +225,14 @@ export function PWAInstallPrompt({
 
       {/* iOS Safari instructions */}
       <IOSInstallSheet open={showIOSInstall} onDismiss={dismissIOSInstall} />
+
+      {/* Persistent install modal */}
+      <InstallModal
+        open={showInstallModal}
+        onInstall={onInstallModalInstall}
+        onDismiss={onInstallModalDismiss}
+        installing={installModalInstalling}
+      />
     </>
   );
 }

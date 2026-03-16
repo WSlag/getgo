@@ -415,6 +415,9 @@ export default function GetGoApp() {
     showIOSInstall,
     dismissIOSInstall,
     launchInstallFromProfile,
+    showInstallModal,
+    openInstallModal,
+    dismissInstallModal,
     isInstallAlreadySatisfied,
     isInstallEngagementReached,
     markEngagement,
@@ -520,6 +523,32 @@ export default function GetGoApp() {
       );
     }
   }, [launchInstallFromProfile, showInstallStatusToast]);
+
+  const [installModalInstalling, setInstallModalInstalling] = useState(false);
+
+  const handleInstallModalInstall = useCallback(async () => {
+    setInstallModalInstalling(true);
+    try {
+      const status = await launchInstallFromProfile();
+      if (status === 'prompt_shown') {
+        return;
+      }
+      if (status === 'ios_sheet_opened') {
+        dismissInstallModal();
+        return;
+      }
+      if (status === 'already_installed') {
+        dismissInstallModal();
+        showInstallStatusToast('already_installed', 'Already installed', 'GetGo is already installed on this device.');
+        return;
+      }
+      if (status === 'not_available') {
+        showInstallStatusToast('not_available', 'Install not available', 'Your browser may not support app installation. Try Chrome.');
+      }
+    } finally {
+      setInstallModalInstalling(false);
+    }
+  }, [launchInstallFromProfile, dismissInstallModal, showInstallStatusToast]);
 
 
   const getUserErrorMessage = (error, fallback) => {
@@ -1475,6 +1504,7 @@ export default function GetGoApp() {
 
   const handleOnboardingDismiss = async () => {
     setShowOnboardingGuide(false);
+    openInstallModal();
     if (authUser?.uid) {
       markOnboardingDismissedLocally();
       if (userProfile?.onboardingComplete !== true) {
@@ -1494,6 +1524,7 @@ export default function GetGoApp() {
 
   const handleOnboardingComplete = async () => {
     setShowOnboardingGuide(false);
+    openInstallModal();
     if (authUser?.uid) {
       markOnboardingDismissedLocally();
 
@@ -3160,6 +3191,10 @@ export default function GetGoApp() {
         dismissInstallBanner={dismissInstallBanner}
         showIOSInstall={showIOSInstall}
         dismissIOSInstall={dismissIOSInstall}
+        showInstallModal={showInstallModal}
+        onInstallModalInstall={handleInstallModalInstall}
+        onInstallModalDismiss={dismissInstallModal}
+        installModalInstalling={installModalInstalling}
       />
     </div>
   );
