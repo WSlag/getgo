@@ -147,7 +147,7 @@ function registerServiceWorkerWhenIdle() {
       try {
         const { registerSW } = await import('virtual:pwa-register');
         const updateSW = registerSW({
-          immediate: false,
+          immediate: true,
           onNeedRefresh() {
             updateSW(true);
             window.dispatchEvent(new CustomEvent('sw-update-available', {
