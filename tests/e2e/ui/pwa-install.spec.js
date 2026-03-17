@@ -49,7 +49,6 @@ test.describe('PWA Install UX', () => {
     await authHelper.register(userData);
 
     await page.evaluate(() => {
-      localStorage.setItem('karga.pwa.engagementReached', 'true');
       localStorage.removeItem('karga.pwa.installAccepted');
     });
     await page.reload();
