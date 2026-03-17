@@ -7,9 +7,16 @@ import {
 } from '../utils/browserDetect';
 import { trackAnalyticsEvent } from '../services/analyticsService';
 
-const BANNER_COOLDOWN_MS = 1 * 60 * 60 * 1000;      // 1 hour
 const IOS_COOLDOWN_MS    = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MODAL_COOLDOWN_MS  = 1 * 60 * 60 * 1000;      // 1 hour
+
+// Progressive cooldown: escalates with each banner dismiss
+const BANNER_COOLDOWN_TIERS = [
+  1 * 24 * 60 * 60 * 1000,  // 1 day after 1st dismiss
+  3 * 24 * 60 * 60 * 1000,  // 3 days after 2nd dismiss
+  7 * 24 * 60 * 60 * 1000,  // 7 days after 3rd dismiss
+];
+const MAX_AUTO_DISMISSES = 4; // stop auto-prompting after 4th dismiss
 
 const KEYS = {
   installDismissedAt: 'karga.pwa.installDismissedAt',
@@ -19,12 +26,20 @@ const KEYS = {
   engagementReached: 'karga.pwa.engagementReached',
   installModalDismissedAt: 'karga.pwa.installModalDismissedAt',
   installModalPending: 'karga.pwa.installModalPending',
+  dismissCount: 'karga.pwa.dismissCount',
 };
 
 function isWithinCooldown(key, durationMs) {
   const val = localStorage.getItem(key);
   if (!val) return false;
   return Date.now() - Date.parse(val) < durationMs;
+}
+
+function getBannerCooldownMs() {
+  const count = parseInt(localStorage.getItem(KEYS.dismissCount) || '0', 10);
+  if (count >= MAX_AUTO_DISMISSES) return Infinity;  // 4+ → never
+  if (count === 0) return BANNER_COOLDOWN_TIERS[0];  // no dismiss yet
+  return BANNER_COOLDOWN_TIERS[Math.min(count - 1, BANNER_COOLDOWN_TIERS.length - 1)];
 }
 
 export function usePWAInstall() {
@@ -45,7 +60,7 @@ export function usePWAInstall() {
     () => localStorage.getItem(KEYS.installAccepted) === 'true'
   );
   const [installDismissedRecently, setInstallDismissedRecently] = useState(
-    () => isWithinCooldown(KEYS.installDismissedAt, BANNER_COOLDOWN_MS)
+    () => isWithinCooldown(KEYS.installDismissedAt, getBannerCooldownMs())
   );
   const [iosDismissedRecently, setIosDismissedRecently] = useState(
     () => isWithinCooldown(KEYS.iosDismissedAt, IOS_COOLDOWN_MS)
@@ -79,16 +94,6 @@ export function usePWAInstall() {
     return () => clearTimeout(t);
   }, []);
 
-  // --- Visit count & auto-engagement ---
-  useEffect(() => {
-    const count = parseInt(localStorage.getItem(KEYS.visitCount) || '0', 10) + 1;
-    localStorage.setItem(KEYS.visitCount, String(count));
-    if (count >= 1 && !engagementReached) {
-      localStorage.setItem(KEYS.engagementReached, 'true');
-      setEngagementReached(true);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // --- Capture beforeinstallprompt ---
   useEffect(() => {
     if (standalone) return;
@@ -96,6 +101,12 @@ export function usePWAInstall() {
       e.preventDefault();
       deferredPrompt.current = e;
       setCanPrompt(true);
+      // Browser fires this only when app is NOT installed.
+      // Clear stale installAccepted flag from a previous install (user uninstalled).
+      if (localStorage.getItem(KEYS.installAccepted) === 'true') {
+        localStorage.removeItem(KEYS.installAccepted);
+        setInstallAccepted(false);
+      }
     };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
@@ -110,9 +121,15 @@ export function usePWAInstall() {
   }, [engagementReached]);
 
   const dismissInstallBanner = useCallback(() => {
+    const currentCount = parseInt(localStorage.getItem(KEYS.dismissCount) || '0', 10);
+    localStorage.setItem(KEYS.dismissCount, String(currentCount + 1));
     localStorage.setItem(KEYS.installDismissedAt, new Date().toISOString());
     setInstallDismissedRecently(true);
-    trackAnalyticsEvent('install_dismissed', { source: 'install_banner', platform });
+    trackAnalyticsEvent('install_dismissed', {
+      source: 'install_banner',
+      platform,
+      dismiss_count: currentCount + 1,
+    });
   }, [platform]);
 
   const dismissIOSInstall = useCallback(() => {
@@ -214,8 +231,20 @@ export function usePWAInstall() {
     return 'not_available';
   }, [standalone, installAccepted, inApp.isInAppBrowser, iosSafari, promptInstall, waitForInstallPrompt]);
 
+  const resetInstallCooldownOnMilestone = useCallback(() => {
+    if (standalone || installAccepted) return;
+    const count = parseInt(localStorage.getItem(KEYS.dismissCount) || '0', 10);
+    if (count >= MAX_AUTO_DISMISSES) return; // respect user who dismissed 4+ times
+    const dismissedAt = localStorage.getItem(KEYS.installDismissedAt);
+    if (!dismissedAt) return; // nothing to reset
+    localStorage.removeItem(KEYS.installDismissedAt);
+    setInstallDismissedRecently(false);
+    trackAnalyticsEvent('install_cooldown_reset', { platform });
+  }, [standalone, installAccepted, platform]);
+
   // --- Computed booleans ---
   const showInAppOverlay = inApp.isInAppBrowser;
+  const maxDismissesReached = parseInt(localStorage.getItem(KEYS.dismissCount) || '0', 10) >= MAX_AUTO_DISMISSES;
 
   const showInstallBanner =
     !showInAppOverlay &&
@@ -224,7 +253,8 @@ export function usePWAInstall() {
     !standalone &&
     engagementReached &&
     !installAccepted &&
-    !installDismissedRecently;
+    !installDismissedRecently &&
+    !maxDismissesReached;
 
   const showIOSInstall =
     !showInAppOverlay &&
@@ -268,5 +298,6 @@ export function usePWAInstall() {
     isInstallAlreadySatisfied,
     isInstallEngagementReached: engagementReached,
     markEngagement,
+    resetInstallCooldownOnMilestone,
   };
 }

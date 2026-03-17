@@ -50,7 +50,7 @@ export default defineConfig({
       manifest: {
         name: 'GetGo',
         short_name: 'GetGo',
-        description: 'Your Cargo Marketplace',
+        description: 'Book trusted trucks across Mindanao. Direct shippers to truckers — no middlemen.',
         theme_color: '#f97316',
         background_color: '#ffffff',
         display: 'standalone',
