@@ -301,9 +301,10 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallApp
               </div>
               <button
                 onClick={openEditModal}
-                className="absolute -bottom-1 -right-1 size-8 rounded-full bg-white dark:bg-gray-800 shadow-md flex items-center justify-center hover:scale-105 transition-transform border border-gray-200 dark:border-gray-700"
+                className="absolute -bottom-1 -right-1 size-9 rounded-full bg-orange-500 flex items-center justify-center shadow-md shadow-orange-500/40 hover:bg-orange-600 hover:scale-110 active:scale-95 transition-all duration-200 border-2 border-white dark:border-gray-900"
+                aria-label="Edit profile"
               >
-                <Edit3 className="size-4 text-gray-600 dark:text-gray-400" />
+                <Edit3 className="size-4 text-white" />
               </button>
             </div>
 
@@ -318,6 +319,13 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallApp
               <p className="text-sm text-gray-400 dark:text-gray-500" style={{ marginTop: '4px' }}>
                 Member since {formatDate(userProfile?.createdAt)}
               </p>
+              <button
+                onClick={openEditModal}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-500 hover:text-orange-600 transition-colors mt-2"
+              >
+                <Edit3 className="size-3" />
+                Edit Profile
+              </button>
 
               {/* Role Switcher */}
               <div style={{ marginTop: '16px' }} className="inline-flex items-center p-1 rounded-xl bg-gray-100 dark:bg-gray-800">
