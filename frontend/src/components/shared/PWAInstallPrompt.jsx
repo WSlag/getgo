@@ -1,4 +1,4 @@
-import { Download, X, PlusSquare, Smartphone } from 'lucide-react';
+import { Download, PlusSquare, Smartphone } from 'lucide-react';
 import {
   Dialog,
   DialogBottomSheet,
@@ -23,10 +23,10 @@ function InstallBanner({ onInstall, onDismiss }) {
           <AppLogo size={42} className="shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="mb-0 text-sm font-bold text-gray-900 dark:text-white leading-tight">
-              Install GetGo
+              E-install ang GetGo
             </p>
             <p className="m-0 text-xs text-gray-500 dark:text-gray-400">
-              Fast access, works offline
+              Mabilis mag-book kahit mabagal ang signal
             </p>
           </div>
           <button
@@ -42,10 +42,9 @@ function InstallBanner({ onInstall, onDismiss }) {
           </button>
           <button
             onClick={onDismiss}
-            className="shrink-0 bg-transparent border-none p-1.5 rounded-lg text-gray-400 transition-colors hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-200 cursor-pointer"
-            aria-label="Dismiss install prompt"
+            className="shrink-0 bg-transparent border-none px-2 py-1.5 rounded-lg text-xs font-medium text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
           >
-            <X className="size-4" />
+            Later
           </button>
         </div>
       </div>
@@ -105,7 +104,7 @@ function IOSInstallSheet({ open, onDismiss }) {
               Install GetGo on your phone
             </DialogTitle>
             <DialogDescription className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Get the full app experience — fast, offline-ready
+              Libre ito — E-save sa home screen para mabilis mag-book
             </DialogDescription>
           </div>
 
@@ -136,7 +135,7 @@ function IOSInstallSheet({ open, onDismiss }) {
             onClick={onDismiss}
             className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800"
           >
-            Maybe Later
+            Later
           </button>
         </div>
       </DialogBottomSheet>
@@ -159,16 +158,16 @@ function InstallModal({ open, onInstall, onDismiss, installing }) {
               Install GetGo
             </DialogTitle>
             <DialogDescription className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Get the full app experience on your device
+              E-install para mas mabilis at mas maganda ang experience
             </DialogDescription>
           </div>
 
           {/* Benefits */}
           <div className="mb-6 space-y-3">
             {[
-              { icon: '\u26A1', text: 'Faster loading & instant access' },
-              { icon: '\uD83D\uDD14', text: 'Real-time push notifications' },
-              { icon: '\uD83D\uDCF1', text: 'Works like a native app' },
+              { icon: '\u26A1', text: 'Mas mabilis mag-load, instant access' },
+              { icon: '\uD83D\uDD14', text: 'Real-time na notifications sa bids at cargo' },
+              { icon: '\uD83D\uDCF1', text: 'Parang native app sa phone mo' },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3 rounded-xl bg-orange-50 dark:bg-orange-900/20 px-4 py-2.5">
                 <span className="text-lg">{item.icon}</span>
@@ -188,7 +187,7 @@ function InstallModal({ open, onInstall, onDismiss, installing }) {
             }}
           >
             <Download className="size-4" />
-            {installing ? 'Installing...' : 'Install Now'}
+            {installing ? 'Ini-install...' : 'E-install \u2014 Libre, 1 tap lang'}
           </button>
 
           {/* Dismiss */}
@@ -196,7 +195,7 @@ function InstallModal({ open, onInstall, onDismiss, installing }) {
             onClick={onDismiss}
             className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800"
           >
-            Maybe Later
+            Later
           </button>
         </div>
       </DialogBottomSheet>

@@ -421,6 +421,7 @@ export default function GetGoApp() {
     isInstallAlreadySatisfied,
     isInstallEngagementReached,
     markEngagement,
+    resetInstallCooldownOnMilestone,
   } = usePWAInstall();
 
   // Loading states for form submissions
@@ -558,6 +559,14 @@ export default function GetGoApp() {
       setInstallModalInstalling(false);
     }
   }, [launchInstallFromProfile, dismissInstallModal, showInstallStatusToast]);
+
+  const handleDismissInstallBanner = useCallback(() => {
+    dismissInstallBanner();
+    showToast({
+      title: 'Tip',
+      message: 'I-tap ang profile mo para ma-install anytime.',
+    });
+  }, [dismissInstallBanner, showToast]);
 
 
   const getUserErrorMessage = (error, fallback) => {
@@ -2666,6 +2675,7 @@ export default function GetGoApp() {
               listing_type: postingRole === 'shipper' ? 'cargo' : 'truck',
             });
             markEngagement();
+            resetInstallCooldownOnMilestone();
             closeModal('post');
           } catch (error) {
             console.error('Error creating listing:', error);
@@ -2771,6 +2781,7 @@ export default function GetGoApp() {
               listing_type: listingType,
             });
             markEngagement();
+            resetInstallCooldownOnMilestone();
             closeModal('bid');
             showToast({
               type: 'success',
@@ -3198,7 +3209,7 @@ export default function GetGoApp() {
       <PWAInstallPrompt
         showInstallBanner={showInstallBanner}
         triggerInstall={triggerInstall}
-        dismissInstallBanner={dismissInstallBanner}
+        dismissInstallBanner={handleDismissInstallBanner}
         showIOSInstall={showIOSInstall}
         dismissIOSInstall={dismissIOSInstall}
         showInstallModal={showInstallModal}

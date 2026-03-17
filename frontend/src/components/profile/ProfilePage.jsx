@@ -433,8 +433,8 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallApp
               <Download className="size-5 text-white" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-semibold text-white">Install App</p>
-              <p className="text-xs text-white/85">Add GetGo to your home screen</p>
+              <p className="text-sm font-semibold text-white">E-install ang App</p>
+              <p className="text-xs text-white/85">Libre, 1 tap lang</p>
             </div>
           </div>
           <ChevronRight className="size-5 text-white/90 group-hover:translate-x-0.5 transition-transform" />

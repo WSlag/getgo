@@ -170,7 +170,7 @@ export function InAppBrowserOverlay({ platform, browserName, onOpenBrowser }) {
               {platform === 'android' ? 'Open in Google' : 'Open in Safari'}
             </h1>
             <p className="mt-2 break-words text-[13px] leading-relaxed text-gray-500 sm:text-sm">
-              You are viewing GetGo in {label}&apos;s built-in browser. For the best and most stable experience, continue in your phone&apos;s browser.
+              Naka-open ang GetGo sa {label}. E-open sa Chrome/Safari para ma-install ang GetGo at magamit ito kahit offline.
             </p>
 
             {/* Android primary CTA */}
