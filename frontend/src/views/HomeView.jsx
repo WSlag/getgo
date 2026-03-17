@@ -147,11 +147,11 @@ export function HomeView({
   const showSavedSearchesCard = !isMobile || savedSearches.length > 0 || hasCurrentSearchPreset;
   const mobileStickyPaddingTop = 8;
   const listingHeaderTitle = activeMarket === 'cargo'
-    ? (activeWorkspace === 'shipper' && !isBroker ? 'My Cargo Posts' : 'Available Cargo')
-    : (activeWorkspace === 'trucker' && !isBroker ? 'My Truck Posts' : 'Available Trucks');
+    ? (activeWorkspace === 'shipper' ? 'My Cargo Posts' : 'Available Cargo')
+    : (activeWorkspace === 'trucker' ? 'My Truck Posts' : 'Available Trucks');
   const listingCountLabel = activeMarket === 'cargo'
-    ? (activeWorkspace === 'shipper' && !isBroker ? 'cargo posts' : 'cargo listings')
-    : (activeWorkspace === 'trucker' && !isBroker ? 'truck posts' : 'trucks');
+    ? (activeWorkspace === 'shipper' ? 'cargo posts' : 'cargo listings')
+    : (activeWorkspace === 'trucker' ? 'truck posts' : 'trucks');
   const workspaceLabel = getWorkspaceLabel(activeWorkspace);
   const handleHomeScroll = (e) => {
     onScroll?.(e);
@@ -224,7 +224,7 @@ export function HomeView({
             )}
             style={{ padding: '12px 16px' }}
           >
-            {currentRole === 'shipper' && !isBroker ? 'My Cargo' : 'Cargo'}
+            {currentRole === 'shipper' && activeWorkspace !== 'broker' ? 'My Cargo' : 'Cargo'}
           </button>
           <button
             onClick={() => onMarketChange?.('trucks')}
@@ -236,7 +236,7 @@ export function HomeView({
             )}
             style={{ padding: '12px 16px' }}
           >
-            {currentRole === 'trucker' && !isBroker ? 'My Trucks' : 'Trucks'}
+            {currentRole === 'trucker' && activeWorkspace !== 'broker' ? 'My Trucks' : 'Trucks'}
           </button>
         </div>
 

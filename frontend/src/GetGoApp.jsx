@@ -2448,7 +2448,7 @@ export default function GetGoApp() {
           <ErrorBoundary>
             <ProfilePage
               onInstallApp={handleProfileInstallClick}
-              showInstallAppButton={isInstallEngagementReached && !isInstallAlreadySatisfied}
+              showInstallAppButton={!isInstallAlreadySatisfied}
               onNavigateToActivity={() => handleTabChange('activity')}
             />
           </ErrorBoundary>
