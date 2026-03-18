@@ -18,6 +18,7 @@ import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth, functions } from '../firebase';
 import { getCoordinates } from '../utils/cityCoordinates';
+import { sanitizeMessage } from '../utils/messageUtils';
 import { resolveEffectivePostingRole } from '@/utils/workspace';
 
 const TRUCKER_DOC_FIELD_BY_TYPE = {
@@ -348,6 +349,7 @@ export const createBid = async (bidderId, bidderProfile, listing, listingType, d
   if (!listingOwnerId) {
     throw new Error('Cannot place bid: listing owner is missing');
   }
+  const sanitizedBidMessage = sanitizeMessage(typeof data?.message === 'string' ? data.message : '') || '';
 
   const bidData = {
     bidderId,
@@ -365,7 +367,7 @@ export const createBid = async (bidderId, bidderProfile, listing, listingType, d
     origin: listing.origin,
     destination: listing.destination,
     price: parseFloat(data.price) || 0,
-    message: data.message || '',
+    message: sanitizedBidMessage,
     cargoType: data.cargoType || null,
     cargoWeight: data.cargoWeight ? parseFloat(data.cargoWeight) : null,
     status: 'pending',
@@ -586,6 +588,7 @@ export const sendChatMessage = async (bidId, senderId, senderName, message) => {
     ? senderName.trim()
     : 'User';
   const normalizedMessage = typeof message === 'string' ? message.trim() : '';
+  const sanitizedMessage = sanitizeMessage(normalizedMessage);
 
   if (!normalizedBidId || !normalizedSenderId || !normalizedMessage) {
     const err = new Error('Missing required chat message parameters');
@@ -635,7 +638,7 @@ export const sendChatMessage = async (bidId, senderId, senderName, message) => {
     senderId: normalizedSenderId,
     senderName: normalizedSenderName,
     recipientId,
-    message: normalizedMessage,
+    message: sanitizedMessage,
     read: false,
     isRead: false,
     createdAt: serverTimestamp(),

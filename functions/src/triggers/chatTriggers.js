@@ -5,6 +5,7 @@
 
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 
 function normalizeId(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -15,6 +16,54 @@ function truncateMessagePreview(message) {
   const normalized = message.trim().replace(/\s+/g, ' ');
   if (!normalized) return '';
   return normalized.length > 50 ? `${normalized.slice(0, 50)}...` : normalized;
+}
+
+const PHONE_PATTERNS = [
+  /(?:\+?63[\s.-]?|0)9\d{2}[\s.-]?\d{3}[\s.-]?\d{4}\b/g,
+  /\(0\d{1,2}\)[\s.-]?\d{3,4}[\s.-]?\d{4}\b/g,
+  /\b0\d{1,2}[\s.-]\d{3,4}[\s.-]\d{4}\b/g,
+];
+
+const SOCIAL_PATTERNS = [
+  /(?:https?:\/\/)?(?:www\.)?facebook\.com\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?(?:www\.)?fb\.com\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?(?:www\.)?m\.facebook\.com\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?fb\.me\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?(?:www\.)?messenger\.com\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?m\.me\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?(?:www\.)?instagram\.com\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?(?:www\.)?instagr\.am\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?(?:www\.)?wa\.me\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?(?:www\.)?whatsapp\.com\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?(?:www\.)?viber\.com\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?(?:www\.)?t\.me\/[^\s<>]+/gi,
+  /(?:https?:\/\/)?(?:www\.)?telegram\.me\/[^\s<>]+/gi,
+  /(?<![a-zA-Z0-9._%+-])@[a-zA-Z][a-zA-Z0-9._]{2,}/g,
+];
+
+const EMAIL_PATTERNS = [
+  /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+];
+
+function sanitizeMessageText(message) {
+  if (!message || typeof message !== 'string') return '';
+
+  let sanitized = message;
+  PHONE_PATTERNS.forEach((pattern) => {
+    sanitized = sanitized.replace(pattern, '[Contact Hidden]');
+  });
+  SOCIAL_PATTERNS.forEach((pattern) => {
+    sanitized = sanitized.replace(pattern, '[Link Hidden]');
+  });
+  EMAIL_PATTERNS.forEach((pattern) => {
+    sanitized = sanitized.replace(pattern, '[Email Hidden]');
+  });
+
+  sanitized = sanitized.replace(/(\[Contact Hidden\]\s*)+/g, '[Contact Hidden] ');
+  sanitized = sanitized.replace(/(\[Link Hidden\]\s*)+/g, '[Link Hidden] ');
+  sanitized = sanitized.replace(/(\[Email Hidden\]\s*)+/g, '[Email Hidden] ');
+
+  return sanitized.trim();
 }
 
 function resolveParticipants(bid = {}) {
@@ -105,13 +154,13 @@ exports.onChatMessageCreated = onDocumentCreated(
         {
           recipientId,
           senderName,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
       );
     }
 
-    const messagePreview = truncateMessagePreview(messageData.message);
+    const messagePreview = truncateMessagePreview(sanitizeMessageText(messageData.message));
     const notificationId = `chat_${bidId}_${messageId}`;
 
     await db.collection(`users/${recipientId}/notifications`).doc(notificationId).set({
@@ -126,10 +175,9 @@ exports.onChatMessageCreated = onDocumentCreated(
       },
       isRead: false,
       read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
     return null;
   }
 );
-
