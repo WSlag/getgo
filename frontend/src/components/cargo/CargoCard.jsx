@@ -1,7 +1,8 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Gavel, Package, Eye, MessageSquare, Share2 } from 'lucide-react';
+import { MapPin, Clock, Navigation, Gavel, Package, Eye, MessageSquare, Share2, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { formatTimeAgo } from '@/utils/dateFormatting';
 
 export function CargoCard({
   id,
@@ -66,21 +67,6 @@ export function CargoCard({
     if (!priceValue) return '---';
     if (typeof priceValue === 'string' && priceValue.startsWith('₱')) return priceValue;
     return `₱${Number(priceValue).toLocaleString()}`;
-  };
-
-  const formatTimeAgo = (timestamp) => {
-    if (!timestamp) return '';
-    if (typeof timestamp === 'string') return timestamp;
-    const now = Date.now();
-    const diff = now - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (days > 0) return `${days} days ago`;
-    if (hours > 0) return `${hours} hours ago`;
-    if (minutes > 0) return `${minutes} minutes ago`;
-    return 'Just now';
   };
 
   // Support both naming conventions
@@ -150,6 +136,7 @@ export function CargoCard({
               <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{destination}</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
+              {displayTimeAgo && <span>{displayTimeAgo}</span>}
               {distance && <span>{distance}</span>}
               {displayTime && <span>• {displayTime}</span>}
               {bidCount > 0 && (
@@ -256,6 +243,12 @@ export function CargoCard({
             <div className="flex items-center gap-1.5">
               <Clock className="size-4 text-purple-500" />
               <span>{displayTime}</span>
+            </div>
+          )}
+          {pickupDate && (
+            <div className="flex items-center gap-1.5">
+              <Calendar className="size-4 text-green-500" />
+              <span>Pickup: {pickupDate}</span>
             </div>
           )}
         </div>

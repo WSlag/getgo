@@ -2,6 +2,7 @@ import React from 'react';
 import { MapPin, Clock, Navigation, Star, Calendar, Users, Truck as TruckIcon, Eye, MessageSquare, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { formatTimeAgo } from '@/utils/dateFormatting';
 
 export function TruckCard({
   id,
@@ -34,6 +35,7 @@ export function TruckCard({
   darkMode = false,
   distance,
   estimatedTime,
+  timeAgo,
   className,
   compact = false, // New prop for condensed mobile view
 }) {
@@ -70,19 +72,7 @@ export function TruckCard({
     return `₱${Number(price).toLocaleString()}`;
   };
 
-  const formatTimeAgo = (timestamp) => {
-    if (!timestamp) return '';
-    const now = Date.now();
-    const diff = now - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (days > 0) return `${days} days ago`;
-    if (hours > 0) return `${hours} hours ago`;
-    if (minutes > 0) return `${minutes} minutes ago`;
-    return 'Just now';
-  };
+  const displayTimeAgo = timeAgo || formatTimeAgo(postedAt);
 
   // Format capacity display
   const displayCapacity = capacity ? `${capacity}` : '';
@@ -161,6 +151,7 @@ export function TruckCard({
               <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{destination}</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
+              {displayTimeAgo && <span>{displayTimeAgo}</span>}
               {distance && <span>{distance}</span>}
               {estimatedTime && <span>• {estimatedTime}</span>}
             </div>
@@ -192,7 +183,7 @@ export function TruckCard({
               <Badge className="!whitespace-normal bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase" style={{ padding: '5px 10px', fontSize: '10px' }}>
                 {vehicleType || 'TRUCK'}
               </Badge>
-              <span className="text-xs text-gray-500">{formatTimeAgo(postedAt)}</span>
+              <span className="text-xs text-gray-500">{displayTimeAgo}</span>
             </div>
             <h3 className="font-bold text-gray-900 dark:text-white text-base" style={{ marginBottom: '4px' }}>{trucker}</h3>
             <div className="flex items-center text-sm text-gray-600 dark:text-gray-400" style={{ gap: '8px' }}>
