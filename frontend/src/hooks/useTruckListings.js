@@ -102,7 +102,15 @@ export function useTruckListings(options = {}) {
             // Keep original fields
             createdAt: createdAt.date,
             updatedAt: updatedAt.date,
-            availableDate: docData.availableDate,
+            availableDate: (() => {
+              const raw = docData.availableDate;
+              if (!raw) return null;
+              if (typeof raw === 'string') return raw;
+              const parsed = parseTimestampSafely(raw);
+              return parsed.hasTimestamp
+                ? parsed.date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+                : null;
+            })(),
             originCoords: { lat: docData.originLat, lng: docData.originLng },
             destCoords: { lat: docData.destLat, lng: docData.destLng },
           };
