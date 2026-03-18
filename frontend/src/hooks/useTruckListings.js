@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { normalizeListingStatus, toTruckUiStatus } from '../utils/listingStatus';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
+import { sanitizeMessage, sanitizePublicName } from '../utils/messageUtils';
 
 export function useTruckListings(options = {}) {
   const {
@@ -89,9 +90,12 @@ export function useTruckListings(options = {}) {
             status: normalizeListingStatus(docData.status),
             uiStatus: toTruckUiStatus(docData.status),
             // Map Firebase field names to TruckCard expected names
-            trucker: docData.userName || 'Unknown Trucker',
+            trucker: sanitizePublicName(docData.userName, 'Unknown Trucker'),
             truckerRating: docData.userRating || 0,
             truckerTransactions: docData.userTrips || 0,
+            origin: sanitizeMessage(docData.origin || ''),
+            destination: sanitizeMessage(docData.destination || ''),
+            description: sanitizeMessage(docData.description || ''),
             postedAt: createdAt.timestamp,
             truckPhotos: docData.photos || [],
             capacity: docData.capacity ? `${docData.capacity} ${docData.capacityUnit || 'tons'}` : null,

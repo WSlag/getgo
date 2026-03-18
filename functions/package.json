@@ -21,6 +21,10 @@
     "test:broker-register:idempotency": "firebase emulators:exec --only auth,firestore,functions \"node scripts/broker-register-idempotency.cjs\"",
     "test:route-distance": "firebase emulators:exec --only firestore,functions \"node scripts/route-distance-smoke.cjs\"",
     "test:platform-fee-reminders": "firebase emulators:exec --only auth,firestore,functions \"node scripts/platform-fee-reminders-smoke.cjs\"",
+    "test:anti-contact:unit": "node scripts/anti-contact-unit.cjs",
+    "test:anti-contact:rules": "firebase emulators:exec --only firestore \"node scripts/anti-contact-rules.cjs\"",
+    "test:anti-contact:functions": "firebase emulators:exec --only auth,firestore,functions \"node scripts/anti-contact-functions-integration.cjs\"",
+    "test:anti-contact": "npm run test:anti-contact:unit && npm run test:anti-contact:rules && npm run test:anti-contact:functions",
     "test": "npm run lint && node scripts/smoke-test.cjs && npm run test:settings",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
@@ -41,7 +45,9 @@
     "sharp": "^0.33.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
     "eslint": "^8.57.0",
+    "firebase": "^10.14.1",
     "firebase-functions-test": "^3.2.0"
   },
   "overrides": {

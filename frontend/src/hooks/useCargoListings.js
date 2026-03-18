@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { normalizeListingStatus } from '../utils/listingStatus';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
+import { sanitizeMessage, sanitizePublicName } from '../utils/messageUtils';
 
 export function useCargoListings(options = {}) {
   const {
@@ -87,9 +88,12 @@ export function useCargoListings(options = {}) {
             ...docData,
             status: normalizeListingStatus(docData.status),
             // Map Firebase field names to CargoCard expected names
-            shipper: docData.userName || 'Unknown Shipper',
-            company: docData.userName || 'Unknown Shipper',
+            shipper: sanitizePublicName(docData.userName, 'Unknown Shipper'),
+            company: sanitizePublicName(docData.userName, 'Unknown Shipper'),
             shipperTransactions: docData.userTransactions || 0,
+            origin: sanitizeMessage(docData.origin || ''),
+            destination: sanitizeMessage(docData.destination || ''),
+            description: sanitizeMessage(docData.description || ''),
             postedAt: createdAt.timestamp,
             cargoPhotos: docData.photos || [],
             images: docData.photos || [],

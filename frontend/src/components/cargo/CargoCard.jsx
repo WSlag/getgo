@@ -1,8 +1,9 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Gavel, Package, Eye, MessageSquare, Share2, Calendar } from 'lucide-react';
+import { MapPin, Clock, Navigation, Gavel, Package, Eye, Share2, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { formatTimeAgo } from '@/utils/dateFormatting';
+import { sanitizeMessage, sanitizePublicName } from '@/utils/messageUtils';
 
 export function CargoCard({
   id,
@@ -29,7 +30,6 @@ export function CargoCard({
   bids = [],
   bidCount = 0,
   onViewDetails,
-  onContact,
   onBid,
   onViewMap,
   onRefer,
@@ -70,12 +70,15 @@ export function CargoCard({
   };
 
   // Support both naming conventions
-  const displayCompany = company || shipper;
+  const displayCompany = sanitizePublicName(company || shipper, 'Unknown');
   const displayPrice = price || askingPrice;
   const displayTimeAgo = timeAgo || formatTimeAgo(postedAt);
   const displayTime = time || estimatedTime;
   const displayImages = images.length > 0 ? images : cargoPhotos;
   const displayWeight = weight ? (unit && unit !== 'kg' ? `${weight} ${unit}` : `${weight} tons`) : '';
+  const displayOrigin = sanitizeMessage(origin || '');
+  const displayDestination = sanitizeMessage(destination || '');
+  const displayDescription = sanitizeMessage(description || '');
   const currentGradient = gradientClass || gradientColors[status] || gradientColors.open;
 
   // Compact status badge styles for mobile
@@ -97,7 +100,7 @@ export function CargoCard({
           className
         )}
         onClick={onViewDetails}
-        aria-label={`View cargo from ${origin} to ${destination}`}
+        aria-label={`View cargo from ${displayOrigin} to ${displayDestination}`}
       >
         {/* Gradient Accent Bar */}
         <div className={cn("h-1", currentGradient)} />
@@ -130,10 +133,10 @@ export function CargoCard({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <div className="size-2 rounded-full bg-green-500 flex-shrink-0" />
-              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{origin}</span>
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayOrigin}</span>
               <span className="text-orange-500 flex-shrink-0">→</span>
               <div className="size-2 rounded-full bg-red-500 flex-shrink-0" />
-              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{destination}</span>
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayDestination}</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
               {displayTimeAgo && <span>{displayTimeAgo}</span>}
@@ -211,7 +214,7 @@ export function CargoCard({
             </div>
             <div>
               <p className="text-xs text-gray-500">From</p>
-              <p className="font-medium text-sm text-gray-900 dark:text-white">{origin}</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white">{displayOrigin}</p>
             </div>
           </div>
 
@@ -226,7 +229,7 @@ export function CargoCard({
             </div>
             <div>
               <p className="text-xs text-gray-500">To</p>
-              <p className="font-medium text-sm text-gray-900 dark:text-white">{destination}</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white">{displayDestination}</p>
             </div>
           </div>
         </div>
@@ -254,8 +257,8 @@ export function CargoCard({
         </div>
 
         {/* Description */}
-        {description && (
-          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed" style={{ marginBottom: '16px' }}>{description}</p>
+        {displayDescription && (
+          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed" style={{ marginBottom: '16px' }}>{displayDescription}</p>
         )}
 
         {/* Images - Figma style larger with hover overlay */}
@@ -300,7 +303,7 @@ export function CargoCard({
           className="relative w-full rounded-xl overflow-hidden bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 text-left"
           style={{ height: '140px', marginBottom: '16px' }}
           onClick={onViewMap}
-          aria-label={`View route map from ${origin} to ${destination}`}
+          aria-label={`View route map from ${displayOrigin} to ${displayDestination}`}
         >
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
@@ -309,7 +312,7 @@ export function CargoCard({
                 {originCoords && destCoords ? 'Open Interactive Route' : 'Map Preview Unavailable'}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                {origin} to {destination}
+                {displayOrigin} to {displayDestination}
               </p>
             </div>
           </div>
@@ -393,17 +396,6 @@ export function CargoCard({
               >
                 View Details
               </button>
-              {onContact && (
-                <button
-                  onClick={onContact}
-                  className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
-                  style={{ padding: '14px 20px' }}
-                  title="Request Chat"
-                >
-                  <MessageSquare className="size-4 sm:hidden" />
-                  <span className="hidden sm:inline">Request Chat</span>
-                </button>
-              )}
               {canRefer && onRefer && (
                 <button
                   onClick={onRefer}
@@ -424,3 +416,4 @@ export function CargoCard({
 }
 
 export default CargoCard;
+

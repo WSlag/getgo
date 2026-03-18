@@ -1,17 +1,9 @@
-/**
- * Message sanitization utility
- * Auto-hides contact information (phone numbers, social media links)
- * to prevent direct contact outside the platform.
- */
-
-// Philippine phone number patterns
 const PHONE_PATTERNS = [
   /(?:\+?63[\s.-]?|0)9\d{2}[\s.-]?\d{3}[\s.-]?\d{4}\b/g,
   /\(0\d{1,2}\)[\s.-]?\d{3,4}[\s.-]?\d{4}\b/g,
   /\b0\d{1,2}[\s.-]\d{3,4}[\s.-]\d{4}\b/g,
 ];
 
-// Social media links
 const SOCIAL_LINK_PATTERNS = [
   /(?:https?:\/\/)?(?:www\.)?facebook\.com\/[^\s<>]+/gi,
   /(?:https?:\/\/)?(?:www\.)?fb\.com\/[^\s<>]+/gi,
@@ -28,26 +20,19 @@ const SOCIAL_LINK_PATTERNS = [
   /(?:https?:\/\/)?(?:www\.)?telegram\.me\/[^\s<>]+/gi,
 ];
 
-// Channel-cued handles only (avoid broad @word false positives like "@terminal")
 const CHANNEL_CUED_HANDLE_PATTERNS = [
   /\b(?:fb|facebook|messenger|ig|instagram|telegram|tg|viber|whatsapp|wa)\b[\s:=\-]{0,5}@?[a-zA-Z][a-zA-Z0-9._]{2,}\b/gi,
   /@[a-zA-Z][a-zA-Z0-9._]{2,}\b[\s,;:()\-]{0,5}(?:on|via|sa)?[\s,;:()\-]{0,5}\b(?:fb|facebook|messenger|ig|instagram|telegram|tg|viber|whatsapp|wa)\b/gi,
 ];
 
-// Email patterns
 const EMAIL_PATTERNS = [
   /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
 ];
 
 const CONTACT_TOKEN_RE = /\[(Contact|Link|Handle|Email) Hidden\]/g;
 
-/**
- * Sanitizes text by hiding contact information.
- * @param {string} message
- * @returns {string}
- */
-export function sanitizeMessage(message) {
-  if (!message || typeof message !== 'string') return message;
+function sanitizeContactText(message) {
+  if (!message || typeof message !== 'string') return '';
 
   let sanitized = message;
 
@@ -75,12 +60,7 @@ export function sanitizeMessage(message) {
   return sanitized.trim();
 }
 
-/**
- * Checks if a message contains contact information.
- * @param {string} message
- * @returns {boolean}
- */
-export function hasContactInfo(message) {
+function containsContactInfo(message) {
   if (!message || typeof message !== 'string') return false;
 
   const allPatterns = [
@@ -96,11 +76,11 @@ export function hasContactInfo(message) {
   });
 }
 
-export function sanitizePublicName(name, fallback = 'User') {
+function sanitizePublicName(name, fallback = 'User') {
   const raw = typeof name === 'string' ? name.trim() : '';
   if (!raw) return fallback;
 
-  const sanitized = sanitizeMessage(raw)
+  const sanitized = sanitizeContactText(raw)
     .replace(CONTACT_TOKEN_RE, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -108,13 +88,8 @@ export function sanitizePublicName(name, fallback = 'User') {
   return sanitized || fallback;
 }
 
-export function isChatNotificationType(type) {
-  const normalizedType = String(type || '').toLowerCase();
-  return (
-    normalizedType.includes('new_message')
-    || normalizedType.includes('message')
-    || normalizedType.includes('chat')
-  );
-}
-
-export default sanitizeMessage;
+module.exports = {
+  containsContactInfo,
+  sanitizeContactText,
+  sanitizePublicName,
+};

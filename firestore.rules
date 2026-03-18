@@ -172,10 +172,16 @@ service cloud.firestore {
       );
     }
 
-    function hasLinkOrHandleContact(text) {
+    function hasLinkContact(text) {
       return text is string && (
-        text.matches('.*((https?://)?(www\\.)?(facebook\\.com|fb\\.com|m\\.facebook\\.com|fb\\.me|messenger\\.com|m\\.me|instagram\\.com|instagr\\.am|wa\\.me|whatsapp\\.com|viber\\.com|t\\.me|telegram\\.me)/[^\\s<>]+).*') ||
-        text.matches('.*(^|[^A-Za-z0-9._%+-])@[A-Za-z][A-Za-z0-9._]{2,}.*')
+        text.matches('.*((https?://)?(www\\.)?(facebook\\.com|fb\\.com|m\\.facebook\\.com|fb\\.me|messenger\\.com|m\\.me|instagram\\.com|instagr\\.am|wa\\.me|whatsapp\\.com|viber\\.com|t\\.me|telegram\\.me)/[^\\s<>]+).*')
+      );
+    }
+
+    function hasChannelCuedHandleContact(text) {
+      return text is string && (
+        text.matches('.*\\b(fb|facebook|messenger|ig|instagram|telegram|tg|viber|whatsapp|wa)\\b[\\s:=\\-]{0,5}@?[A-Za-z][A-Za-z0-9._]{2,}.*') ||
+        text.matches('.*@[A-Za-z][A-Za-z0-9._]{2,}[\\s,;:()\\-]{0,5}(on|via|sa)?[\\s,;:()\\-]{0,5}\\b(fb|facebook|messenger|ig|instagram|telegram|tg|viber|whatsapp|wa)\\b.*')
       );
     }
 
@@ -185,7 +191,7 @@ service cloud.firestore {
     }
 
     function containsContactInfo(text) {
-      return hasPhoneContact(text) || hasLinkOrHandleContact(text) || hasEmailContact(text);
+      return hasPhoneContact(text) || hasLinkContact(text) || hasChannelCuedHandleContact(text) || hasEmailContact(text);
     }
 
     function isValidBidCreate(bidData) {
@@ -195,6 +201,8 @@ service cloud.firestore {
         && bidData.bidderId == request.auth.uid
         && bidData.bidderId != bidData.listingOwnerId
         && bidData.price > 0
+        && !containsContactInfo(bidData.bidderName)
+        && !containsContactInfo(bidData.listingOwnerName)
         && !containsContactInfo(bidData.message);
     }
 
@@ -246,6 +254,22 @@ service cloud.firestore {
         && newData.routeDistanceUpdatedAt == oldData.routeDistanceUpdatedAt;
     }
 
+    function listingTextFieldsAreContactSafe(data) {
+      return !containsContactInfo(data.get('origin', ''))
+        && !containsContactInfo(data.get('destination', ''))
+        && !containsContactInfo(data.get('originStreetAddress', ''))
+        && !containsContactInfo(data.get('destinationStreetAddress', ''))
+        && !containsContactInfo(data.get('description', ''));
+    }
+
+    function listingChangedTextFieldsAreContactSafe(newData, oldData) {
+      return (newData.get('origin', '') == oldData.get('origin', '') || !containsContactInfo(newData.get('origin', '')))
+        && (newData.get('destination', '') == oldData.get('destination', '') || !containsContactInfo(newData.get('destination', '')))
+        && (newData.get('originStreetAddress', '') == oldData.get('originStreetAddress', '') || !containsContactInfo(newData.get('originStreetAddress', '')))
+        && (newData.get('destinationStreetAddress', '') == oldData.get('destinationStreetAddress', '') || !containsContactInfo(newData.get('destinationStreetAddress', '')))
+        && (newData.get('description', '') == oldData.get('description', '') || !containsContactInfo(newData.get('description', '')));
+    }
+
     // Users collection
     match /users/{uid} {
       // Only owners/admins can read full user documents (contains sensitive fields)
@@ -257,6 +281,9 @@ service cloud.firestore {
         && request.resource.data.get('role', 'shipper') in ['shipper', 'trucker']
         && request.resource.data.phone is string
         && request.resource.data.phone.size() > 0
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && !containsContactInfo(request.resource.data.name)
         && request.resource.data.get('emailAuthEnabled', false) == false
         && request.resource.data.get('emailAuthVerified', false) == false
         && request.resource.data.get('emailLinkedAt', null) == null
@@ -296,7 +323,11 @@ service cloud.firestore {
         && request.resource.data.get('emailLinkedAt', null) == resource.data.get('emailLinkedAt', null)
         && request.resource.data.get('emailAuthUpdatedAt', null) == resource.data.get('emailAuthUpdatedAt', null)
         && request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false)
-        && request.resource.data.get('role', 'shipper') == resource.data.get('role', 'shipper');
+        && request.resource.data.get('role', 'shipper') == resource.data.get('role', 'shipper')
+        && (
+          request.resource.data.get('name', '') == resource.data.get('name', '')
+          || !containsContactInfo(request.resource.data.get('name', ''))
+        );
 
       allow delete: if false;
 
@@ -379,10 +410,12 @@ service cloud.firestore {
       allow create: if isAuth()
         && request.resource.data.userId == request.auth.uid
         && effectivePostingRole(request.auth.uid) == 'shipper'
-        && hasValidListingRouteBounds(request.resource.data);
+        && hasValidListingRouteBounds(request.resource.data)
+        && listingTextFieldsAreContactSafe(request.resource.data);
       allow update: if isAuth()
         && resource.data.userId == request.auth.uid
         && hasValidListingRouteBounds(request.resource.data)
+        && listingChangedTextFieldsAreContactSafe(request.resource.data, resource.data)
         && (
           !isRouteFieldWriteLockEnabled()
           || listingRouteFieldsUnchanged(request.resource.data, resource.data)
@@ -396,10 +429,12 @@ service cloud.firestore {
       allow create: if isAuth()
         && request.resource.data.userId == request.auth.uid
         && effectivePostingRole(request.auth.uid) == 'trucker'
-        && hasValidListingRouteBounds(request.resource.data);
+        && hasValidListingRouteBounds(request.resource.data)
+        && listingTextFieldsAreContactSafe(request.resource.data);
       allow update: if isAuth()
         && resource.data.userId == request.auth.uid
         && hasValidListingRouteBounds(request.resource.data)
+        && listingChangedTextFieldsAreContactSafe(request.resource.data, resource.data)
         && (
           !isRouteFieldWriteLockEnabled()
           || listingRouteFieldsUnchanged(request.resource.data, resource.data)
@@ -435,6 +470,14 @@ service cloud.firestore {
       && (
         request.resource.data.message == resource.data.message ||
         !containsContactInfo(request.resource.data.message)
+      )
+      && (
+        request.resource.data.bidderName == resource.data.bidderName ||
+        !containsContactInfo(request.resource.data.bidderName)
+      )
+      && (
+        request.resource.data.listingOwnerName == resource.data.listingOwnerName ||
+        !containsContactInfo(request.resource.data.listingOwnerName)
       );
       allow delete: if false;
 
@@ -443,6 +486,13 @@ service cloud.firestore {
         allow read: if isBidParticipant(bidId) || isAdmin();
         allow create: if isBidParticipant(bidId)
           && request.resource.data.senderId == request.auth.uid
+          && (
+            !('senderName' in request.resource.data)
+            || (
+              request.resource.data.senderName is string
+              && !containsContactInfo(request.resource.data.senderName)
+            )
+          )
           && !containsContactInfo(request.resource.data.message);
         allow update: if (isBidParticipant(bidId) || isAdmin()) &&
           request.resource.data.senderId == resource.data.senderId &&

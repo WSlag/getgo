@@ -99,7 +99,6 @@ const api = {
   optimize: {
     findBackload: (params) => callFunction('findBackloadOpportunities', params || {}),
     getPopularRoutes: () => callFunction('getPopularRoutes', {}),
-    requestChat: (data) => callFunction('requestListingChat', data || {}),
   },
 
   wallet: {

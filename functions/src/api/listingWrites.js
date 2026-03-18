@@ -1,11 +1,13 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 const {
   resolveCoordinatePair,
   calculateHaversineDistanceKm,
   toWholeKm,
   DEFAULT_COORDS,
 } = require('../utils/geo');
+const { containsContactInfo, sanitizePublicName } = require('../utils/contactModeration');
 
 function toTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -25,6 +27,21 @@ function resolvePostingRole(user = {}) {
     return brokerSourceRole;
   }
   return null;
+}
+
+function assertNoContact(value, fieldName) {
+  const normalized = toTrimmedString(value);
+  if (normalized && containsContactInfo(normalized)) {
+    throw new functions.https.HttpsError('invalid-argument', `${fieldName} cannot contain contact information`);
+  }
+}
+
+function assertListingTextFieldsNoContact(data = {}) {
+  assertNoContact(data.origin, 'origin');
+  assertNoContact(data.destination, 'destination');
+  assertNoContact(data.originStreetAddress, 'originStreetAddress');
+  assertNoContact(data.destinationStreetAddress, 'destinationStreetAddress');
+  assertNoContact(data.description, 'description');
 }
 
 function computeRouteFields(payload = {}) {
@@ -67,6 +84,13 @@ function validateCreateCommon(data = {}) {
   if (!origin || !destination) {
     throw new functions.https.HttpsError('invalid-argument', 'Origin and destination are required');
   }
+  assertListingTextFieldsNoContact({
+    origin,
+    destination,
+    originStreetAddress: data.originStreetAddress,
+    destinationStreetAddress: data.destinationStreetAddress,
+    description: data.description,
+  });
 
   const askingPrice = toFiniteNumber(data.askingPrice, NaN);
   if (!Number.isFinite(askingPrice) || askingPrice <= 0) {
@@ -98,12 +122,12 @@ exports.createCargoListing = functions.region('asia-southeast1').https.onCall(as
 
   const listingData = {
     userId,
-    userName: user.name || 'Unknown',
+    userName: sanitizePublicName(user.name, 'Unknown'),
     userTransactions: Number(user.shipperProfile?.totalTransactions || 0),
     origin,
     destination,
     ...route,
-    routeDistanceUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    routeDistanceUpdatedAt: FieldValue.serverTimestamp(),
     originStreetAddress: toTrimmedString(data?.originStreetAddress),
     destinationStreetAddress: toTrimmedString(data?.destinationStreetAddress),
     cargoType: toTrimmedString(data?.cargoType),
@@ -116,8 +140,8 @@ exports.createCargoListing = functions.region('asia-southeast1').https.onCall(as
     photos: Array.isArray(data?.photos) ? data.photos : [],
     status: 'open',
     bidCount: 0,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
 
   const ref = await db.collection('cargoListings').add(listingData);
@@ -147,11 +171,17 @@ exports.updateCargoListing = functions.region('asia-southeast1').https.onCall(as
   }
 
   const updates = {
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
 
   const origin = toTrimmedString(data?.origin) || listing.origin;
   const destination = toTrimmedString(data?.destination) || listing.destination;
+  if (data?.origin !== undefined && origin !== listing.origin) {
+    assertNoContact(origin, 'origin');
+  }
+  if (data?.destination !== undefined && destination !== listing.destination) {
+    assertNoContact(destination, 'destination');
+  }
   const route = computeRouteFields({ ...(listing || {}), ...(data || {}), origin, destination });
   updates.origin = origin;
   updates.destination = destination;
@@ -160,10 +190,22 @@ exports.updateCargoListing = functions.region('asia-southeast1').https.onCall(as
   updates.destLat = route.destLat;
   updates.destLng = route.destLng;
   updates.routeDistanceKm = route.routeDistanceKm;
-  updates.routeDistanceUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
+  updates.routeDistanceUpdatedAt = FieldValue.serverTimestamp();
 
-  if (data?.originStreetAddress !== undefined) updates.originStreetAddress = toTrimmedString(data.originStreetAddress);
-  if (data?.destinationStreetAddress !== undefined) updates.destinationStreetAddress = toTrimmedString(data.destinationStreetAddress);
+  if (data?.originStreetAddress !== undefined) {
+    const nextOriginStreetAddress = toTrimmedString(data.originStreetAddress);
+    if (nextOriginStreetAddress !== toTrimmedString(listing.originStreetAddress)) {
+      assertNoContact(nextOriginStreetAddress, 'originStreetAddress');
+    }
+    updates.originStreetAddress = nextOriginStreetAddress;
+  }
+  if (data?.destinationStreetAddress !== undefined) {
+    const nextDestinationStreetAddress = toTrimmedString(data.destinationStreetAddress);
+    if (nextDestinationStreetAddress !== toTrimmedString(listing.destinationStreetAddress)) {
+      assertNoContact(nextDestinationStreetAddress, 'destinationStreetAddress');
+    }
+    updates.destinationStreetAddress = nextDestinationStreetAddress;
+  }
   if (data?.cargoType !== undefined) updates.cargoType = toTrimmedString(data.cargoType);
   if (data?.weight !== undefined) updates.weight = toFiniteNumber(data.weight, 0);
   if (data?.weightUnit !== undefined) updates.weightUnit = toTrimmedString(data.weightUnit) || 'tons';
@@ -171,7 +213,13 @@ exports.updateCargoListing = functions.region('asia-southeast1').https.onCall(as
     updates.vehicleNeeded = toTrimmedString(data.vehicleNeeded || data.vehicleType);
   }
   if (data?.askingPrice !== undefined) updates.askingPrice = toFiniteNumber(data.askingPrice, 0);
-  if (data?.description !== undefined) updates.description = toTrimmedString(data.description);
+  if (data?.description !== undefined) {
+    const nextDescription = toTrimmedString(data.description);
+    if (nextDescription !== toTrimmedString(listing.description)) {
+      assertNoContact(nextDescription, 'description');
+    }
+    updates.description = nextDescription;
+  }
   if (data?.pickupDate !== undefined) updates.pickupDate = data.pickupDate || null;
   if (Array.isArray(data?.photos)) updates.photos = data.photos;
 
@@ -200,13 +248,13 @@ exports.createTruckListing = functions.region('asia-southeast1').https.onCall(as
 
   const listingData = {
     userId,
-    userName: user.name || 'Unknown',
+    userName: sanitizePublicName(user.name, 'Unknown'),
     userRating: Number(truckerProfile.rating || 0),
     userTrips: Number(truckerProfile.totalTrips || 0),
     origin,
     destination,
     ...route,
-    routeDistanceUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    routeDistanceUpdatedAt: FieldValue.serverTimestamp(),
     originStreetAddress: toTrimmedString(data?.originStreetAddress),
     destinationStreetAddress: toTrimmedString(data?.destinationStreetAddress),
     vehicleType: toTrimmedString(data?.vehicleType),
@@ -220,8 +268,8 @@ exports.createTruckListing = functions.region('asia-southeast1').https.onCall(as
     photos: Array.isArray(data?.photos) ? data.photos : [],
     status: 'open',
     bidCount: 0,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
 
   const ref = await db.collection('truckListings').add(listingData);
@@ -251,11 +299,17 @@ exports.updateTruckListing = functions.region('asia-southeast1').https.onCall(as
   }
 
   const updates = {
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
 
   const origin = toTrimmedString(data?.origin) || listing.origin;
   const destination = toTrimmedString(data?.destination) || listing.destination;
+  if (data?.origin !== undefined && origin !== listing.origin) {
+    assertNoContact(origin, 'origin');
+  }
+  if (data?.destination !== undefined && destination !== listing.destination) {
+    assertNoContact(destination, 'destination');
+  }
   const route = computeRouteFields({ ...(listing || {}), ...(data || {}), origin, destination });
   updates.origin = origin;
   updates.destination = destination;
@@ -264,10 +318,22 @@ exports.updateTruckListing = functions.region('asia-southeast1').https.onCall(as
   updates.destLat = route.destLat;
   updates.destLng = route.destLng;
   updates.routeDistanceKm = route.routeDistanceKm;
-  updates.routeDistanceUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
+  updates.routeDistanceUpdatedAt = FieldValue.serverTimestamp();
 
-  if (data?.originStreetAddress !== undefined) updates.originStreetAddress = toTrimmedString(data.originStreetAddress);
-  if (data?.destinationStreetAddress !== undefined) updates.destinationStreetAddress = toTrimmedString(data.destinationStreetAddress);
+  if (data?.originStreetAddress !== undefined) {
+    const nextOriginStreetAddress = toTrimmedString(data.originStreetAddress);
+    if (nextOriginStreetAddress !== toTrimmedString(listing.originStreetAddress)) {
+      assertNoContact(nextOriginStreetAddress, 'originStreetAddress');
+    }
+    updates.originStreetAddress = nextOriginStreetAddress;
+  }
+  if (data?.destinationStreetAddress !== undefined) {
+    const nextDestinationStreetAddress = toTrimmedString(data.destinationStreetAddress);
+    if (nextDestinationStreetAddress !== toTrimmedString(listing.destinationStreetAddress)) {
+      assertNoContact(nextDestinationStreetAddress, 'destinationStreetAddress');
+    }
+    updates.destinationStreetAddress = nextDestinationStreetAddress;
+  }
   if (data?.vehicleType !== undefined) updates.vehicleType = toTrimmedString(data.vehicleType);
   if (data?.capacity !== undefined || data?.weight !== undefined) {
     updates.capacity = toFiniteNumber(data.capacity, toFiniteNumber(data.weight, 0));
@@ -277,7 +343,13 @@ exports.updateTruckListing = functions.region('asia-southeast1').https.onCall(as
   }
   if (data?.plateNumber !== undefined) updates.plateNumber = toTrimmedString(data.plateNumber);
   if (data?.askingPrice !== undefined) updates.askingPrice = toFiniteNumber(data.askingPrice, 0);
-  if (data?.description !== undefined) updates.description = toTrimmedString(data.description);
+  if (data?.description !== undefined) {
+    const nextDescription = toTrimmedString(data.description);
+    if (nextDescription !== toTrimmedString(listing.description)) {
+      assertNoContact(nextDescription, 'description');
+    }
+    updates.description = nextDescription;
+  }
   if (data?.availableDate !== undefined || data?.pickupDate !== undefined) {
     updates.availableDate = data.availableDate || data.pickupDate || null;
   }

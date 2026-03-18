@@ -1425,45 +1425,6 @@ export default function GetGoApp() {
     openModal('editTruck', truck);
   };
 
-  const handleRequestListingChat = async (listing, listingType) => {
-    if (!listing?.id) {
-      showToast({
-        type: 'error',
-        title: 'Unable to request chat',
-        message: 'Listing information is incomplete.',
-      });
-      return;
-    }
-
-    try {
-      await api.listings.requestChat({
-        listingId: listing.id,
-        listingType,
-        note: `Interested in discussing ${listing.origin || 'origin'} -> ${listing.destination || 'destination'}.`,
-      });
-      showToast({
-        type: 'success',
-        title: 'Chat Request Sent',
-        message: 'The listing owner has been notified. You can bid anytime.',
-      });
-    } catch (error) {
-      console.error('Failed to request chat:', error);
-      showToast({
-        type: 'error',
-        title: 'Request failed',
-        message: getUserErrorMessage(error, 'Could not send chat request. Please try again.'),
-      });
-    }
-  };
-
-  const handleContactShipper = (cargo) => {
-    requireAuth(() => handleRequestListingChat(cargo, 'cargo'), 'Sign in to request chat');
-  };
-
-  const handleContactTrucker = (truck) => {
-    requireAuth(() => handleRequestListingChat(truck, 'truck'), 'Sign in to request chat');
-  };
-
   const handleViewMap = (listing) => {
     if (!authUser) {
       requireAuth(() => openModal('map', listing), 'Sign in to view full route map');
@@ -2329,8 +2290,6 @@ export default function GetGoApp() {
               onViewTruckDetails={handleViewTruckDetails}
               onBidCargo={handleBidCargo}
               onBookTruck={handleBookTruck}
-              onContactShipper={handleContactShipper}
-              onContactTrucker={handleContactTrucker}
               onViewMap={handleViewMap}
               onReferListing={handleReferListing}
               currentRole={userRole}
