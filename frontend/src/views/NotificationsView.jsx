@@ -3,6 +3,7 @@ import { Bell, Clock, FileText, MessageSquare, Package, Wallet, MapPin } from 'l
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { isChatNotificationType, sanitizeMessage } from '@/utils/messageUtils';
 import { getWorkspaceLabel } from '@/utils/workspace';
 
 function isNotificationRead(notification) {
@@ -112,6 +113,9 @@ export function NotificationsView({
             const isChatRequest = normalizedType === 'CHAT_REQUEST';
             const isBrokerListingReferral = normalizedType === 'BROKER_LISTING_REFERRAL';
             const canOpenListing = hasListing && (isChatRequest || isBrokerListingReferral);
+            const notificationMessage = isChatNotificationType(notification.type)
+              ? sanitizeMessage(notification.message || '')
+              : (notification.message || '');
 
             return (
               <div
@@ -131,7 +135,7 @@ export function NotificationsView({
                       {notification.title || 'Notification'}
                     </p>
                     <p style={{ marginTop: '4px', fontSize: isMobile ? '13px' : '14px', color: '#4b5563', lineHeight: '1.5' }}>
-                      {notification.message || ''}
+                      {notificationMessage}
                     </p>
                     <div className="flex items-center gap-1" style={{ marginTop: isMobile ? '8px' : '12px', fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>
                       <Clock className="size-3" />

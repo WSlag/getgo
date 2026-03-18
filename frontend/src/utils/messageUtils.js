@@ -6,16 +6,12 @@
 
 // Philippine phone number patterns
 const PHONE_PATTERNS = [
-  // PH mobile: +63 912 345 6789, 09123456789, +639123456789
-  /(\+?63[\s.-]?)?0?9\d{2}[\s.-]?\d{3}[\s.-]?\d{4}/g,
-  // Landline with area code: (02) 1234 5678, 02-1234-5678
-  /\(?0\d{1,2}\)?[\s.-]?\d{3,4}[\s.-]?\d{4}/g,
-  // Generic formats that look like phone numbers (7+ consecutive digits)
-  /\b\d{4}[\s.-]?\d{3}[\s.-]?\d{4}\b/g,
-  /\b\d{3}[\s.-]?\d{4}[\s.-]?\d{4}\b/g,
-  /\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b/g,
-  // Numbers written with spaces between each digit
-  /\b(?:\d\s*){10,12}\b/g,
+  // PH mobile: +639123456789, +63 912 345 6789, 0912-345-6789
+  /(?:\+?63[\s.-]?|0)9\d{2}[\s.-]?\d{3}[\s.-]?\d{4}\b/g,
+  // Landline with area code: (02) 1234 5678
+  /\(0\d{1,2}\)[\s.-]?\d{3,4}[\s.-]?\d{4}\b/g,
+  // Landline with explicit separators: 02-1234-5678, 032 123 4567
+  /\b0\d{1,2}[\s.-]\d{3,4}[\s.-]\d{4}\b/g,
 ];
 
 // Social media and contact link patterns
@@ -96,6 +92,15 @@ export function hasContactInfo(message) {
     pattern.lastIndex = 0; // Reset regex state
     return pattern.test(message);
   });
+}
+
+export function isChatNotificationType(type) {
+  const normalizedType = String(type || '').toLowerCase();
+  return (
+    normalizedType.includes('new_message')
+    || normalizedType.includes('message')
+    || normalizedType.includes('chat')
+  );
 }
 
 export default sanitizeMessage;

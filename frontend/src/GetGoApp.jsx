@@ -108,6 +108,7 @@ import {
   inferNotificationWorkspaceRole,
   resolveBidListingType,
 } from '@/utils/workspace';
+import { isChatNotificationType, sanitizeMessage } from '@/utils/messageUtils';
 
 const SAVED_SEARCHES_KEY_PREFIX = 'karga.savedSearches.v1';
 const SAVED_ROUTES_KEY_PREFIX = 'karga.savedRoutes.v1';
@@ -633,15 +634,18 @@ export default function GetGoApp() {
   useEffect(() => {
     if (socketNotifications.length > 0) {
       const latestNotification = socketNotifications[0];
+      const toastMessage = isChatNotificationType(latestNotification?.type)
+        ? sanitizeMessage(latestNotification?.message || '')
+        : latestNotification?.message;
       showToast({
         type: latestNotification.type,
         title: latestNotification.title,
-        message: latestNotification.message,
+        message: toastMessage,
       });
       // Clear the notification from socket state
       clearNotification(latestNotification.id);
     }
-  }, [socketNotifications, clearNotification]);
+  }, [socketNotifications, clearNotification, showToast]);
 
   useEffect(() => {
     if (!referralAttributionEvent) return;
@@ -2771,7 +2775,7 @@ export default function GetGoApp() {
               bidderId: authUser.uid,
               bidderName: userProfile?.name || 'Someone',
               amount: data.amount,
-              message: data.message,
+              message: bidData.message,
               cargoDescription: listing.cargoDescription || listing.cargoType,
               ownerId: listing.userId || listing.shipperId || listing.truckerId,
             });

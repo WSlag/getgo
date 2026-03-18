@@ -9,6 +9,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { isChatNotificationType, sanitizeMessage } from '@/utils/messageUtils';
 
 const notificationIcons = {
   bid: Package,
@@ -152,20 +153,21 @@ export function NotificationsModal({
   // Extract clean message from notification
   const getNotificationMessage = (notification) => {
     const msg = notification.message || notification.body || '';
+    const isChatType = isChatNotificationType(notification?.type);
 
     // If message has format "SenderName: "actual message"", extract just the message
     const match = msg.match(/^[^:]+:\s*"(.+)"$/);
     if (match) {
-      return match[1];
+      return isChatType ? sanitizeMessage(match[1]) : match[1];
     }
 
     // If message has format "User: "content"", extract just the content
     const userMatch = msg.match(/^User:\s*"(.+)"$/);
     if (userMatch) {
-      return userMatch[1];
+      return isChatType ? sanitizeMessage(userMatch[1]) : userMatch[1];
     }
 
-    return msg;
+    return isChatType ? sanitizeMessage(msg) : msg;
   };
 
   return (

@@ -164,13 +164,38 @@ service cloud.firestore {
         && bidData.updatedAt is timestamp;
     }
 
+    function hasPhoneContact(text) {
+      return text is string && (
+        text.matches('.*(\\+?63[\\s.-]?|0)9[0-9]{2}[\\s.-]?[0-9]{3}[\\s.-]?[0-9]{4}.*') ||
+        text.matches('.*\\(0[0-9]{1,2}\\)[\\s.-]?[0-9]{3,4}[\\s.-]?[0-9]{4}.*') ||
+        text.matches('.*0[0-9]{1,2}[\\s.-][0-9]{3,4}[\\s.-][0-9]{4}.*')
+      );
+    }
+
+    function hasLinkOrHandleContact(text) {
+      return text is string && (
+        text.matches('.*((https?://)?(www\\.)?(facebook\\.com|fb\\.com|m\\.facebook\\.com|fb\\.me|messenger\\.com|m\\.me|instagram\\.com|instagr\\.am|wa\\.me|whatsapp\\.com|viber\\.com|t\\.me|telegram\\.me)/[^\\s<>]+).*') ||
+        text.matches('.*(^|[^A-Za-z0-9._%+-])@[A-Za-z][A-Za-z0-9._]{2,}.*')
+      );
+    }
+
+    function hasEmailContact(text) {
+      return text is string
+        && text.matches('.*[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}.*');
+    }
+
+    function containsContactInfo(text) {
+      return hasPhoneContact(text) || hasLinkOrHandleContact(text) || hasEmailContact(text);
+    }
+
     function isValidBidCreate(bidData) {
       return hasValidBidCreateShape(bidData)
         && hasExactlyOneBidListingRef(bidData)
         && listingOwnerMatchesBidReference(bidData)
         && bidData.bidderId == request.auth.uid
         && bidData.bidderId != bidData.listingOwnerId
-        && bidData.price > 0;
+        && bidData.price > 0
+        && !containsContactInfo(bidData.message);
     }
 
     // Helper: identify which user will owe platform fee for a bid
@@ -406,13 +431,19 @@ service cloud.firestore {
             canTakePlatformFeeDebt(request.resource.data)
           )
         )
+      )
+      && (
+        request.resource.data.message == resource.data.message ||
+        !containsContactInfo(request.resource.data.message)
       );
       allow delete: if false;
 
       // Chat messages within a bid
       match /messages/{msgId} {
         allow read: if isBidParticipant(bidId) || isAdmin();
-        allow create: if isBidParticipant(bidId) && request.resource.data.senderId == request.auth.uid;
+        allow create: if isBidParticipant(bidId)
+          && request.resource.data.senderId == request.auth.uid
+          && !containsContactInfo(request.resource.data.message);
         allow update: if (isBidParticipant(bidId) || isAdmin()) &&
           request.resource.data.senderId == resource.data.senderId &&
           request.resource.data.message == resource.data.message &&
