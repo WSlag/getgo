@@ -3,6 +3,7 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { auth, db } from '../firebase';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
+import { sanitizeMessage, sanitizePublicName } from '../utils/messageUtils';
 
 // Hook to get bids for a specific listing
 export function useBidsForListing(listingId, listingType, listingOwnerId = null) {
@@ -37,6 +38,11 @@ export function useBidsForListing(listingId, listingType, listingOwnerId = null)
             return {
               id: docSnap.id,
               ...bidData,
+              bidderName: sanitizePublicName(bidData.bidderName, 'Unknown'),
+              listingOwnerName: sanitizePublicName(bidData.listingOwnerName, 'Unknown'),
+              origin: sanitizeMessage(bidData.origin || ''),
+              destination: sanitizeMessage(bidData.destination || ''),
+              message: sanitizeMessage(bidData.message || ''),
               createdAt: parseTimestampSafely(bidData.createdAt).date,
               updatedAt: parseTimestampSafely(bidData.updatedAt).date,
             };
@@ -124,9 +130,9 @@ export function useMyBids(userId, enabled = true) {
                 return {
                   ...bid,
                   // Use listing data as source of truth, fallback to bid data
-                  origin: listingData.origin || bid.origin,
-                  destination: listingData.destination || bid.destination,
-                  listingOwnerName: listingData.userName || bid.listingOwnerName,
+                  origin: sanitizeMessage(listingData.origin || bid.origin || ''),
+                  destination: sanitizeMessage(listingData.destination || bid.destination || ''),
+                  listingOwnerName: sanitizePublicName(listingData.userName || bid.listingOwnerName, 'Unknown'),
                   listingOwnerId: listingData.userId || bid.listingOwnerId,
                   // Cargo listing details
                   weight: listingData.weight || bid.weight,
@@ -202,12 +208,17 @@ export function useBidsOnMyListings(userId) {
       (snapshot) => {
         const data = snapshot.docs.map((docSnap) => {
           const bidData = docSnap.data();
-          return {
-            id: docSnap.id,
-            ...bidData,
-            createdAt: parseTimestampSafely(bidData.createdAt).date,
-            updatedAt: parseTimestampSafely(bidData.updatedAt).date,
-          };
+            return {
+              id: docSnap.id,
+              ...bidData,
+              bidderName: sanitizePublicName(bidData.bidderName, 'Unknown'),
+              listingOwnerName: sanitizePublicName(bidData.listingOwnerName, 'Unknown'),
+              origin: sanitizeMessage(bidData.origin || ''),
+              destination: sanitizeMessage(bidData.destination || ''),
+              message: sanitizeMessage(bidData.message || ''),
+              createdAt: parseTimestampSafely(bidData.createdAt).date,
+              updatedAt: parseTimestampSafely(bidData.updatedAt).date,
+            };
         });
         setBids(sortEntitiesNewestFirst(data));
         setLoading(false);

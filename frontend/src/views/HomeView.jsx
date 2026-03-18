@@ -26,8 +26,6 @@ export function HomeView({
   onViewTruckDetails,
   onBidCargo,
   onBookTruck,
-  onContactShipper,
-  onContactTrucker,
   onViewMap,
   onReferListing,
   currentRole = 'shipper',
@@ -492,7 +490,6 @@ export function HomeView({
                     compact={isMobile}
                     onViewDetails={() => onViewCargoDetails?.(cargo)}
                     onBid={() => onBidCargo?.(cargo)}
-                    onContact={() => onContactShipper?.(cargo)}
                     onViewMap={() => onViewMap?.(cargo)}
                     canBid={activeWorkspace === 'trucker' && !isAccountSuspended && canBidCargoStatus(cargo.status)}
                     isOwner={currentUserId && (cargo.shipperId === currentUserId || cargo.userId === currentUserId)}
@@ -514,7 +511,6 @@ export function HomeView({
                     compact={isMobile}
                     onViewDetails={() => onViewTruckDetails?.(truck)}
                     onBook={() => onBookTruck?.(truck)}
-                    onContact={() => onContactTrucker?.(truck)}
                     onViewMap={() => onViewMap?.(truck)}
                     canBook={activeWorkspace === 'shipper' && !isAccountSuspended && canBookTruckStatus(truck.status)}
                     isOwner={currentUserId && (truck.truckerId === currentUserId || truck.userId === currentUserId)}

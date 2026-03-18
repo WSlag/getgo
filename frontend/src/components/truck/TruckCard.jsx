@@ -1,8 +1,9 @@
 import React from 'react';
-import { MapPin, Clock, Navigation, Star, Calendar, Users, Truck as TruckIcon, Eye, MessageSquare, Share2 } from 'lucide-react';
+import { MapPin, Clock, Navigation, Star, Calendar, Users, Truck as TruckIcon, Eye, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { formatTimeAgo } from '@/utils/dateFormatting';
+import { sanitizeMessage, sanitizePublicName } from '@/utils/messageUtils';
 
 export function TruckCard({
   id,
@@ -25,7 +26,6 @@ export function TruckCard({
   truckPhotos = [],
   bidCount = 0,
   onViewDetails,
-  onContact,
   onBook,
   onViewMap,
   onRefer,
@@ -66,6 +66,10 @@ export function TruckCard({
   };
 
   const currentGradient = gradientColors[displayStatus] || gradientColors.available;
+  const displayTrucker = sanitizePublicName(trucker, 'Unknown');
+  const displayOrigin = sanitizeMessage(origin || '');
+  const displayDestination = sanitizeMessage(destination || '');
+  const displayDescription = sanitizeMessage(description || '');
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -96,7 +100,7 @@ export function TruckCard({
           className
         )}
         onClick={onViewDetails}
-        aria-label={`View truck route from ${origin} to ${destination}`}
+        aria-label={`View truck route from ${displayOrigin} to ${displayDestination}`}
       >
         {/* Gradient Accent Bar */}
         <div className={cn("h-1", currentGradient)} />
@@ -123,7 +127,7 @@ export function TruckCard({
 
           {/* Row 2: Trucker + Capacity + Rating */}
           <div className="flex items-center gap-2 mb-2">
-            <span className="font-semibold text-gray-900 dark:text-white text-sm truncate">{trucker}</span>
+            <span className="font-semibold text-gray-900 dark:text-white text-sm truncate">{displayTrucker}</span>
             {displayCapacity && (
               <>
                 <span className="text-gray-400">•</span>
@@ -145,10 +149,10 @@ export function TruckCard({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <div className="size-2 rounded-full bg-green-500 flex-shrink-0" />
-              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{origin}</span>
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayOrigin}</span>
               <span className="text-orange-500 flex-shrink-0">→</span>
               <div className="size-2 rounded-full bg-red-500 flex-shrink-0" />
-              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{destination}</span>
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayDestination}</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
               {displayTimeAgo && <span>{displayTimeAgo}</span>}
@@ -185,7 +189,7 @@ export function TruckCard({
               </Badge>
               <span className="text-xs text-gray-500">{displayTimeAgo}</span>
             </div>
-            <h3 className="font-bold text-gray-900 dark:text-white text-base" style={{ marginBottom: '4px' }}>{trucker}</h3>
+            <h3 className="font-bold text-gray-900 dark:text-white text-base" style={{ marginBottom: '4px' }}>{displayTrucker}</h3>
             <div className="flex items-center text-sm text-gray-600 dark:text-gray-400" style={{ gap: '8px' }}>
               {truckerRating > 0 && (
                 <div className="flex items-center gap-1">
@@ -242,7 +246,7 @@ export function TruckCard({
             </div>
             <div>
               <p className="text-xs text-gray-500">From</p>
-              <p className="font-medium text-sm text-gray-900 dark:text-white">{origin}</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white">{displayOrigin}</p>
             </div>
           </div>
 
@@ -257,7 +261,7 @@ export function TruckCard({
             </div>
             <div>
               <p className="text-xs text-gray-500">To</p>
-              <p className="font-medium text-sm text-gray-900 dark:text-white">{destination}</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white">{displayDestination}</p>
             </div>
           </div>
         </div>
@@ -285,8 +289,8 @@ export function TruckCard({
         </div>
 
         {/* Description */}
-        {description && (
-          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed" style={{ marginBottom: '16px' }}>{description}</p>
+        {displayDescription && (
+          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed" style={{ marginBottom: '16px' }}>{displayDescription}</p>
         )}
 
         {/* Images - Figma style larger with hover overlay */}
@@ -331,7 +335,7 @@ export function TruckCard({
           className="relative w-full rounded-xl overflow-hidden bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 text-left"
           style={{ height: '140px', marginBottom: '16px' }}
           onClick={onViewMap}
-          aria-label={`View route map from ${origin} to ${destination}`}
+          aria-label={`View route map from ${displayOrigin} to ${displayDestination}`}
         >
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
@@ -340,7 +344,7 @@ export function TruckCard({
                 {originCoords && destCoords ? 'Open Interactive Route' : 'Map Preview Unavailable'}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                {origin} to {destination}
+                {displayOrigin} to {displayDestination}
               </p>
             </div>
           </div>
@@ -412,17 +416,6 @@ export function TruckCard({
               >
                 View Details
               </button>
-              {onContact && (
-                <button
-                  onClick={onContact}
-                  className="rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all duration-300 hover:scale-105 active:scale-95 font-medium"
-                  style={{ padding: '14px 20px' }}
-                  title="Request Chat"
-                >
-                  <MessageSquare className="size-4 sm:hidden" />
-                  <span className="hidden sm:inline">Request Chat</span>
-                </button>
-              )}
               {canRefer && onRefer && (
                 <button
                   onClick={onRefer}

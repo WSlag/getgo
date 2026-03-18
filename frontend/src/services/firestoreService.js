@@ -18,7 +18,7 @@ import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth, functions } from '../firebase';
 import { getCoordinates } from '../utils/cityCoordinates';
-import { sanitizeMessage } from '../utils/messageUtils';
+import { sanitizeMessage, sanitizePublicName } from '../utils/messageUtils';
 import { resolveEffectivePostingRole } from '@/utils/workspace';
 
 const TRUCKER_DOC_FIELD_BY_TYPE = {
@@ -353,7 +353,7 @@ export const createBid = async (bidderId, bidderProfile, listing, listingType, d
 
   const bidData = {
     bidderId,
-    bidderName: bidderProfile.name,
+    bidderName: sanitizePublicName(bidderProfile.name, 'User'),
     bidderType: listingType === 'cargo' ? 'trucker' : 'shipper',
     bidderRating: bidderProfile.truckerProfile?.rating || null,
     bidderTrips: bidderProfile.truckerProfile?.totalTrips || null,
@@ -363,7 +363,7 @@ export const createBid = async (bidderId, bidderProfile, listing, listingType, d
     truckListingId: listingType === 'truck' ? listing.id : null,
     listingType,
     listingOwnerId,
-    listingOwnerName: listing.shipper || listing.trucker || listing.userName || 'Unknown',
+    listingOwnerName: sanitizePublicName(listing.shipper || listing.trucker || listing.userName, 'Unknown'),
     origin: listing.origin,
     destination: listing.destination,
     price: parseFloat(data.price) || 0,
@@ -584,9 +584,7 @@ export const reopenListing = async (listingId, listingType) => {
 export const sendChatMessage = async (bidId, senderId, senderName, message) => {
   const normalizedBidId = typeof bidId === 'string' ? bidId.trim() : '';
   const normalizedSenderId = typeof senderId === 'string' ? senderId.trim() : '';
-  const normalizedSenderName = typeof senderName === 'string' && senderName.trim()
-    ? senderName.trim()
-    : 'User';
+  const normalizedSenderName = sanitizePublicName(senderName, 'User');
   const normalizedMessage = typeof message === 'string' ? message.trim() : '';
   const sanitizedMessage = sanitizeMessage(normalizedMessage);
 

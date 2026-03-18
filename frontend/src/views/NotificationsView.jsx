@@ -110,9 +110,8 @@ export function NotificationsView({
               actionRequired === 'PAY_PLATFORM_FEE'
               || normalizedType.includes('PLATFORM_FEE')
             );
-            const isChatRequest = normalizedType === 'CHAT_REQUEST';
             const isBrokerListingReferral = normalizedType === 'BROKER_LISTING_REFERRAL';
-            const canOpenListing = hasListing && (isChatRequest || isBrokerListingReferral);
+            const canOpenListing = hasListing && isBrokerListingReferral;
             const notificationMessage = isChatNotificationType(notification.type)
               ? sanitizeMessage(notification.message || '')
               : (notification.message || '');
@@ -132,7 +131,7 @@ export function NotificationsView({
                 <div className="flex items-start justify-between" style={{ gap: isMobile ? '12px' : '16px' }}>
                   <div className="min-w-0 flex-1">
                     <p style={{ fontWeight: unread ? '700' : '600', color: darkMode ? '#fff' : '#111827', fontSize: isMobile ? '14px' : '16px' }}>
-                      {notification.title || 'Notification'}
+                      {sanitizeMessage(notification.title || 'Notification')}
                     </p>
                     <p style={{ marginTop: '4px', fontSize: isMobile ? '13px' : '14px', color: '#4b5563', lineHeight: '1.5' }}>
                       {notificationMessage}

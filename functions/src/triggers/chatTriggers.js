@@ -6,6 +6,7 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 const { FieldValue } = require('firebase-admin/firestore');
+const { sanitizeContactText, sanitizePublicName } = require('../utils/contactModeration');
 
 function normalizeId(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -18,60 +19,12 @@ function truncateMessagePreview(message) {
   return normalized.length > 50 ? `${normalized.slice(0, 50)}...` : normalized;
 }
 
-const PHONE_PATTERNS = [
-  /(?:\+?63[\s.-]?|0)9\d{2}[\s.-]?\d{3}[\s.-]?\d{4}\b/g,
-  /\(0\d{1,2}\)[\s.-]?\d{3,4}[\s.-]?\d{4}\b/g,
-  /\b0\d{1,2}[\s.-]\d{3,4}[\s.-]\d{4}\b/g,
-];
-
-const SOCIAL_PATTERNS = [
-  /(?:https?:\/\/)?(?:www\.)?facebook\.com\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?(?:www\.)?fb\.com\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?(?:www\.)?m\.facebook\.com\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?fb\.me\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?(?:www\.)?messenger\.com\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?m\.me\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?(?:www\.)?instagram\.com\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?(?:www\.)?instagr\.am\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?(?:www\.)?wa\.me\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?(?:www\.)?whatsapp\.com\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?(?:www\.)?viber\.com\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?(?:www\.)?t\.me\/[^\s<>]+/gi,
-  /(?:https?:\/\/)?(?:www\.)?telegram\.me\/[^\s<>]+/gi,
-  /(?<![a-zA-Z0-9._%+-])@[a-zA-Z][a-zA-Z0-9._]{2,}/g,
-];
-
-const EMAIL_PATTERNS = [
-  /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
-];
-
-function sanitizeMessageText(message) {
-  if (!message || typeof message !== 'string') return '';
-
-  let sanitized = message;
-  PHONE_PATTERNS.forEach((pattern) => {
-    sanitized = sanitized.replace(pattern, '[Contact Hidden]');
-  });
-  SOCIAL_PATTERNS.forEach((pattern) => {
-    sanitized = sanitized.replace(pattern, '[Link Hidden]');
-  });
-  EMAIL_PATTERNS.forEach((pattern) => {
-    sanitized = sanitized.replace(pattern, '[Email Hidden]');
-  });
-
-  sanitized = sanitized.replace(/(\[Contact Hidden\]\s*)+/g, '[Contact Hidden] ');
-  sanitized = sanitized.replace(/(\[Link Hidden\]\s*)+/g, '[Link Hidden] ');
-  sanitized = sanitized.replace(/(\[Email Hidden\]\s*)+/g, '[Email Hidden] ');
-
-  return sanitized.trim();
-}
-
 function resolveParticipants(bid = {}) {
   return {
     bidderId: normalizeId(bid.bidderId),
     listingOwnerId: normalizeId(bid.listingOwnerId),
-    bidderName: typeof bid.bidderName === 'string' ? bid.bidderName.trim() : '',
-    listingOwnerName: typeof bid.listingOwnerName === 'string' ? bid.listingOwnerName.trim() : '',
+    bidderName: sanitizePublicName(bid.bidderName, ''),
+    listingOwnerName: sanitizePublicName(bid.listingOwnerName, ''),
   };
 }
 
@@ -81,8 +34,7 @@ function resolveRecipientId(senderId, bidParticipants) {
   return '';
 }
 
-async function resolveSenderName(db, senderId, fallbackSenderName, bidParticipants) {
-  if (fallbackSenderName) return fallbackSenderName;
+async function resolveSenderName(db, senderId, bidParticipants) {
   if (senderId === bidParticipants.bidderId && bidParticipants.bidderName) {
     return bidParticipants.bidderName;
   }
@@ -94,7 +46,7 @@ async function resolveSenderName(db, senderId, fallbackSenderName, bidParticipan
     const senderDoc = await db.collection('users').doc(senderId).get();
     if (senderDoc.exists) {
       const senderData = senderDoc.data() || {};
-      const senderName = typeof senderData.name === 'string' ? senderData.name.trim() : '';
+      const senderName = sanitizePublicName(senderData.name, '');
       if (senderName) return senderName;
     }
   } catch (error) {
@@ -141,15 +93,10 @@ exports.onChatMessageCreated = onDocumentCreated(
       return null;
     }
 
-    const senderName = await resolveSenderName(
-      db,
-      senderId,
-      typeof messageData.senderName === 'string' ? messageData.senderName.trim() : '',
-      bidParticipants
-    );
+    const senderName = await resolveSenderName(db, senderId, bidParticipants);
 
     // Keep recipient metadata canonical for unread count logic and cross-client consistency.
-    if (messageData.recipientId !== recipientId) {
+    if (messageData.recipientId !== recipientId || messageData.senderName !== senderName) {
       await snap.ref.set(
         {
           recipientId,
@@ -160,7 +107,7 @@ exports.onChatMessageCreated = onDocumentCreated(
       );
     }
 
-    const messagePreview = truncateMessagePreview(sanitizeMessageText(messageData.message));
+    const messagePreview = truncateMessagePreview(sanitizeContactText(messageData.message));
     const notificationId = `chat_${bidId}_${messageId}`;
 
     await db.collection(`users/${recipientId}/notifications`).doc(notificationId).set({

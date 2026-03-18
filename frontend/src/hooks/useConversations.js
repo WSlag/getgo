@@ -3,6 +3,7 @@ import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestor
 import { db } from '../firebase';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
+import { sanitizeMessage, sanitizePublicName } from '../utils/messageUtils';
 
 /**
  * Hook to fetch all conversations for a user
@@ -67,10 +68,14 @@ export function useConversations(userId, enabled = true) {
 
         return {
           ...bid,
+          bidderName: sanitizePublicName(bid.bidderName, 'Unknown'),
+          listingOwnerName: sanitizePublicName(bid.listingOwnerName, 'Unknown'),
+          origin: sanitizeMessage(bid.origin || ''),
+          destination: sanitizeMessage(bid.destination || ''),
           lastMessage,
           unreadCount,
           otherPartyId,
-          otherPartyName: otherPartyName || 'Unknown',
+          otherPartyName: sanitizePublicName(otherPartyName, 'Unknown'),
           lastActivityAt: lastMessage?.createdAt || bid.updatedAt || bid.createdAt || null,
           updatedAt: lastMessage?.createdAt || bid.updatedAt || bid.createdAt || null,
         };

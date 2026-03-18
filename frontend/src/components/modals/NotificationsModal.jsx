@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { isChatNotificationType, sanitizeMessage } from '@/utils/messageUtils';
+import { isChatNotificationType, sanitizeMessage, sanitizePublicName } from '@/utils/messageUtils';
 
 const notificationIcons = {
   bid: Package,
@@ -290,7 +290,7 @@ export function NotificationsModal({
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-gray-900 dark:text-white leading-snug">
-                              {notification.data?.senderName || notification.title || 'Notification'}
+                              {sanitizePublicName(notification.data?.senderName || notification.title, 'Notification')}
                             </p>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words leading-snug">
                               {getNotificationMessage(notification)}
