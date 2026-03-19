@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useMyBids } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { canOpenBidChat } from '@/utils/bidStatus';
+import { canOpenBidChat, isActiveBidStatus } from '@/utils/bidStatus';
 
 export function MyBidsModal({
   open,
@@ -23,6 +23,10 @@ export function MyBidsModal({
   onOpenChat,
 }) {
   const { bids, loading } = useMyBids(currentUser?.uid);
+  const activeBids = React.useMemo(
+    () => bids.filter((bid) => isActiveBidStatus(bid.status)),
+    [bids]
+  );
 
   const formatPrice = (price) => {
     if (!price) return '---';
@@ -103,7 +107,7 @@ export function MyBidsModal({
                 isTrucker ? "text-emerald-500" : "text-violet-500"
               )} />
             </div>
-          ) : bids.length === 0 ? (
+          ) : activeBids.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="size-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
                 <FileText className="size-8 text-gray-400" />
@@ -119,7 +123,7 @@ export function MyBidsModal({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '16px' }}>
-              {bids.map((bid) => (
+              {activeBids.map((bid) => (
                 <div
                   key={bid.id}
                   className="rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700"

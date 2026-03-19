@@ -103,6 +103,7 @@ export function ContractsView({
   darkMode,
   currentUser,
   workspaceRole = 'shipper',
+  isAdmin = false,
   onOpenContract,
   onBrowseMarketplace,
   onOpenActivity,
@@ -135,11 +136,14 @@ export function ContractsView({
   }, []);
 
   const workspaceScopedContracts = useMemo(() => {
-    if (workspaceRole === 'broker') {
-      return contracts;
+    const scoped = workspaceRole === 'broker'
+      ? contracts
+      : contracts.filter((contract) => inferContractPerspectiveRole(contract, currentUser?.id) === workspaceRole);
+    if (isAdmin) {
+      return scoped;
     }
-    return contracts.filter((contract) => inferContractPerspectiveRole(contract, currentUser?.id) === workspaceRole);
-  }, [contracts, currentUser?.id, workspaceRole]);
+    return scoped.filter((contract) => String(contract?.status || '').toLowerCase() !== 'cancelled');
+  }, [contracts, currentUser?.id, workspaceRole, isAdmin]);
 
   // Filter contracts
   const filteredContracts = useMemo(() => {

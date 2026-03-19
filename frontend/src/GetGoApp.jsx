@@ -34,7 +34,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useCargoListings } from './hooks/useCargoListings';
 import { useTruckListings } from './hooks/useTruckListings';
 import { useNotifications } from './hooks/useNotifications';
-import { useMyBids } from './hooks/useBids';
+import { useBidsOnMyListings, useMyBids } from './hooks/useBids';
 import { useConversations } from './hooks/useConversations';
 // Wallet removed - using direct GCash payment
 import { useShipments } from './hooks/useShipments';
@@ -109,6 +109,7 @@ import {
   resolveBidListingType,
 } from '@/utils/workspace';
 import { isChatNotificationType, sanitizeMessage } from '@/utils/messageUtils';
+import { isActiveBidStatus, normalizeBidStatus } from '@/utils/bidStatus';
 
 const SAVED_SEARCHES_KEY_PREFIX = 'karga.savedSearches.v1';
 const SAVED_ROUTES_KEY_PREFIX = 'karga.savedRoutes.v1';
@@ -182,6 +183,10 @@ export default function GetGoApp() {
   const shouldSubscribeListings = appCheckReady && (activeTab === 'home' || activeTab === 'activity' || activeTab === 'broker');
   const shouldSubscribeNotifications = appCheckReady && Boolean(activeUserId);
   const shouldSubscribeBids = appCheckReady && (activeTab === 'bids' || modals.bid || modals.cargoDetails || modals.truckDetails || modals.myBids);
+  const shouldSubscribeOwnerListingBids = appCheckReady
+    && activeTab === 'home'
+    && Boolean(activeUserId)
+    && ['shipper', 'trucker'].includes(workspaceRole);
   const shouldSubscribeConversations = appCheckReady && Boolean(activeUserId);
   const shouldSubscribeShipments = appCheckReady && (activeTab === 'tracking' || activeTab === 'contracts' || activeTab === 'activity');
 
@@ -215,6 +220,7 @@ export default function GetGoApp() {
   });
   const { notifications: firebaseNotifications } = useNotifications(activeUserId, 50, shouldSubscribeNotifications);
   const { bids: myBids } = useMyBids(activeUserId, shouldSubscribeBids);
+  const { bids: ownerListingBids } = useBidsOnMyListings(activeUserId, shouldSubscribeOwnerListingBids);
   const { conversations, loading: conversationsLoading } = useConversations(activeUserId, shouldSubscribeConversations);
   const {
     shipments: firebaseShipments,
@@ -951,14 +957,24 @@ export default function GetGoApp() {
     return sorted.filter((notification) => {
       const inferredRole = inferNotificationWorkspaceRole(notification);
       if (activeWorkspace === 'broker') {
-        return inferredRole === 'broker';
+        if (inferredRole !== 'broker') return false;
+      } else if (inferredRole && inferredRole !== activeWorkspace) {
+        return false;
       }
-      if (!inferredRole) {
-        return true;
+      if (!isAdmin) {
+        const notificationType = String(notification?.type || '').trim().toUpperCase();
+        const hasContractRef = Boolean(notification?.data?.contractId);
+        const contractStatus = normalizeBidStatus(
+          notification?.data?.contractStatus
+          || notification?.data?.status
+        );
+        if (notificationType === 'CONTRACT_CANCELLED' || (hasContractRef && contractStatus === 'cancelled')) {
+          return false;
+        }
       }
-      return inferredRole === activeWorkspace;
+      return true;
     });
-  }, [firebaseNotifications, activeWorkspace]);
+  }, [firebaseNotifications, activeWorkspace, isAdmin]);
 
   const unreadNotifications = useMemo(
     () => workspaceNotifications.filter((notification) => !isNotificationRead(notification)).length,
@@ -1048,22 +1064,38 @@ export default function GetGoApp() {
     return sortEntitiesNewestFirst(scoped, { fallbackKeys: ['postedAt'] });
   }, [truckListings, isGuestUser, activeWorkspace, authUser?.uid, isBroker]);
 
+  const activeBidCountByListingId = useMemo(() => {
+    const counts = new Map();
+    ownerListingBids.forEach((bid) => {
+      if (!isActiveBidStatus(bid.status)) return;
+      const listingType = bid.cargoListingId ? 'cargo' : (bid.truckListingId ? 'truck' : '');
+      const listingId = bid.cargoListingId || bid.truckListingId || bid.listingId;
+      if (!listingId) return;
+      const mapKey = `${listingType}:${listingId}`;
+      counts.set(mapKey, (counts.get(mapKey) || 0) + 1);
+    });
+    return counts;
+  }, [ownerListingBids]);
+
   const workspaceContracts = useMemo(() => {
-    if (activeWorkspace === 'broker') {
-      return sortEntitiesNewestFirst(contracts, {
-        fallbackKeys: ['signedAt', 'completedAt', 'updatedAt'],
-      });
-    }
-    return sortEntitiesNewestFirst(
-      contracts.filter((contract) => inferContractPerspectiveRole(contract, authUser?.uid) === activeWorkspace),
-      { fallbackKeys: ['signedAt', 'completedAt', 'updatedAt'] }
-    );
-  }, [contracts, activeWorkspace, authUser?.uid]);
+    const scopedContracts = activeWorkspace === 'broker'
+      ? contracts
+      : contracts.filter((contract) => inferContractPerspectiveRole(contract, authUser?.uid) === activeWorkspace);
+    const visibleContracts = isAdmin
+      ? scopedContracts
+      : scopedContracts.filter((contract) => normalizeBidStatus(contract?.status) !== 'cancelled');
+    return sortEntitiesNewestFirst(visibleContracts, {
+      fallbackKeys: ['signedAt', 'completedAt', 'updatedAt'],
+    });
+  }, [contracts, activeWorkspace, authUser?.uid, isAdmin]);
 
   const workspaceMyBids = useMemo(() => {
     if (!authUser?.uid || activeWorkspace === 'broker') return [];
     return sortEntitiesNewestFirst(
-      myBids.filter((bid) => inferBidPerspectiveRole(bid, authUser.uid) === activeWorkspace)
+      myBids.filter((bid) => (
+        inferBidPerspectiveRole(bid, authUser.uid) === activeWorkspace
+        && isActiveBidStatus(bid.status)
+      ))
     );
   }, [myBids, authUser?.uid, activeWorkspace]);
 
@@ -1116,9 +1148,13 @@ export default function GetGoApp() {
         );
       }
       return true;
+    }).map((cargo) => {
+      const activeBidCount = activeBidCountByListingId.get(`cargo:${cargo.id}`);
+      if (typeof activeBidCount !== 'number') return cargo;
+      return { ...cargo, bidCount: activeBidCount };
     }),
     { fallbackKeys: ['postedAt'] }
-  ), [roleScopedCargoListings, filterStatus, searchQuery]);
+  ), [roleScopedCargoListings, filterStatus, searchQuery, activeBidCountByListingId]);
 
   const filteredTruckListings = useMemo(() => sortEntitiesNewestFirst(
     roleScopedTruckListings.filter((truck) => {
@@ -1133,9 +1169,13 @@ export default function GetGoApp() {
         );
       }
       return true;
+    }).map((truck) => {
+      const activeBidCount = activeBidCountByListingId.get(`truck:${truck.id}`);
+      if (typeof activeBidCount !== 'number') return truck;
+      return { ...truck, bidCount: activeBidCount };
     }),
     { fallbackKeys: ['postedAt'] }
-  ), [roleScopedTruckListings, filterStatus, searchQuery]);
+  ), [roleScopedTruckListings, filterStatus, searchQuery, activeBidCountByListingId]);
 
   const homeRoleKpis = useMemo(() => {
     if (activeWorkspace === 'shipper') {
@@ -1148,7 +1188,7 @@ export default function GetGoApp() {
     if (activeWorkspace === 'trucker') {
       return [
         { id: 'available-trucks', label: 'Available Trucks', value: roleScopedTruckListings.filter((truck) => canBookTruckStatus(truck.status)).length },
-        { id: 'active-bids', label: 'Active Bids', value: workspaceMyBids.filter((bid) => ['pending', 'accepted'].includes(String(bid.status || '').toLowerCase())).length },
+        { id: 'active-bids', label: 'Active Bids', value: workspaceMyBids.length },
         { id: 'in-transit', label: 'In Transit', value: workspaceActiveShipments.filter((shipment) => ['picked_up', 'in_transit'].includes(shipment.status)).length },
       ];
     }
@@ -1172,6 +1212,7 @@ export default function GetGoApp() {
     pendingContractsCount,
     unreadNotifications,
   ]);
+
 
   const handleSaveCurrentSearch = () => {
     const normalizedQuery = String(searchQuery || '').trim();
@@ -1952,6 +1993,14 @@ export default function GetGoApp() {
     try {
       const response = await api.contracts.getById(contractId);
       if (response.contract) {
+        if (!isAdmin && normalizeBidStatus(response.contract.status) === 'cancelled') {
+          showToast({
+            type: 'info',
+            title: 'Contract Closed',
+            message: 'This cancelled contract is no longer available in user views.',
+          });
+          return;
+        }
         openModal('contract', response.contract);
       }
     } catch (error) {
@@ -2529,6 +2578,7 @@ export default function GetGoApp() {
               darkMode={darkMode}
               currentUser={{ id: authUser?.uid, ...userProfile }}
               workspaceRole={activeWorkspace}
+              isAdmin={isAdmin}
               onOpenContract={handleOpenContract}
               onBrowseMarketplace={() => setActiveTab('home')}
               onOpenActivity={() => handleTabChange('activity')}
@@ -2823,8 +2873,10 @@ export default function GetGoApp() {
         userBidId={(() => {
           const cargo = cargoDetailsData;
           if (!cargo || !authUser || interactionRole !== 'trucker') return null;
-          // Find user's bid for this cargo from myBids
-          const userBid = myBids.find(bid => bid.cargoListingId === cargo.id);
+          // Use the latest active user bid for this cargo to avoid cancelled/rejected contract links.
+          const userBid = myBids.find(
+            (bid) => bid.cargoListingId === cargo.id && isActiveBidStatus(bid.status)
+          );
           return userBid?.id || null;
         })()}
         darkMode={darkMode}

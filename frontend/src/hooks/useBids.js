@@ -185,13 +185,13 @@ export function useMyBids(userId, enabled = true) {
 }
 
 // Hook to get bids on my listings (as listing owner)
-export function useBidsOnMyListings(userId) {
+export function useBidsOnMyListings(userId, enabled = true) {
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!userId) {
+    if (!enabled || !userId) {
       setBids([]);
       setLoading(false);
       setError(null);
@@ -233,7 +233,7 @@ export function useBidsOnMyListings(userId) {
     );
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, enabled]);
 
   return { bids, loading, error };
 }

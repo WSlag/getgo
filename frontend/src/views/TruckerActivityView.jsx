@@ -6,6 +6,7 @@ import { useMyBids, useBidsOnMyListings } from '@/hooks/useBids';
 import { useContracts } from '@/hooks/useContracts';
 import { inferBidPerspectiveRole, inferContractPerspectiveRole, resolveBidListingType } from '@/utils/workspace';
 import { getCanonicalTimestamp, sortEntitiesNewestFirst } from '@/utils/activitySorting';
+import { isActiveBidStatus } from '@/utils/bidStatus';
 
 function toDate(value) {
   if (!value) return null;
@@ -204,6 +205,7 @@ export function TruckerActivityView({
     () => (myBids || []).filter((bid) => (
       inferBidPerspectiveRole(bid, userId) === 'trucker'
       && resolveBidListingType(bid) === 'cargo'
+      && isActiveBidStatus(bid.status)
     )),
     [myBids, userId]
   );
@@ -212,12 +214,16 @@ export function TruckerActivityView({
     () => (bidsOnMyListings || []).filter((bid) => (
       inferBidPerspectiveRole(bid, userId) === 'trucker'
       && resolveBidListingType(bid) === 'truck'
+      && isActiveBidStatus(bid.status)
     )),
     [bidsOnMyListings, userId]
   );
 
   const truckerContracts = useMemo(
-    () => (contracts || []).filter((contract) => inferContractPerspectiveRole(contract, userId) === 'trucker'),
+    () => (contracts || []).filter((contract) => (
+      inferContractPerspectiveRole(contract, userId) === 'trucker'
+      && String(contract?.status || '').toLowerCase() !== 'cancelled'
+    )),
     [contracts, userId]
   );
 

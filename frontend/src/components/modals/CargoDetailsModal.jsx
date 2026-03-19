@@ -17,7 +17,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import api from '@/services/api';
 import { canBidCargoStatus } from '@/utils/listingStatus';
-import { canOpenBidChat } from '@/utils/bidStatus';
+import { canOpenBidChat, isActiveBidStatus, normalizeBidStatus } from '@/utils/bidStatus';
 
 const LazyRouteMap = React.lazy(() => import('@/components/maps/RouteMap'));
 
@@ -44,6 +44,7 @@ export function CargoDetailsModal({
   const [processingBidId, setProcessingBidId] = React.useState(null);
   const [processingAction, setProcessingAction] = React.useState(null);
   const [contractId, setContractId] = React.useState(null);
+  const [contractStatus, setContractStatus] = React.useState(null);
   const [loadingContract, setLoadingContract] = React.useState(false);
   const [bidContracts, setBidContracts] = React.useState({});
   const [confirmAction, setConfirmAction] = React.useState(null); // { type: 'accept'|'reject', bid }
@@ -94,6 +95,7 @@ export function CargoDetailsModal({
     const fetchContractForBid = async () => {
       if (!open || currentRole !== 'trucker' || !userBidId) {
         setContractId(null);
+        setContractStatus(null);
         return;
       }
 
@@ -102,10 +104,15 @@ export function CargoDetailsModal({
         const response = await api.contracts.getByBid(userBidId);
         if (response.contract) {
           setContractId(response.contract.id);
+          setContractStatus(normalizeBidStatus(response.contract.status));
+        } else {
+          setContractId(null);
+          setContractStatus(null);
         }
       } catch (error) {
         // Contract doesn't exist yet - this is normal
         setContractId(null);
+        setContractStatus(null);
       } finally {
         setLoadingContract(false);
       }
@@ -119,15 +126,19 @@ export function CargoDetailsModal({
     isOwner && open ? cargo?.id : null,
     'cargo'
   );
+  const activeFetchedBids = React.useMemo(
+    () => fetchedBids.filter((bid) => isActiveBidStatus(bid.status)),
+    [fetchedBids]
+  );
 
   React.useEffect(() => {
     const fetchAcceptedBidContracts = async () => {
-      if (!open || !isOwner || fetchedBids.length === 0) {
+      if (!open || !isOwner || activeFetchedBids.length === 0) {
         setBidContracts({});
         return;
       }
 
-      const acceptedBids = fetchedBids.filter((bid) => bid.status === 'accepted');
+      const acceptedBids = activeFetchedBids.filter((bid) => bid.status === 'accepted');
       if (acceptedBids.length === 0) {
         setBidContracts({});
         return;
@@ -148,7 +159,7 @@ export function CargoDetailsModal({
     };
 
     fetchAcceptedBidContracts();
-  }, [open, isOwner, fetchedBids]);
+  }, [open, isOwner, activeFetchedBids]);
 
   React.useEffect(() => {
     if (!open) {
@@ -200,9 +211,12 @@ export function CargoDetailsModal({
   const displayPrice = cargo.price || cargo.askingPrice;
   const displayImages = cargo.images?.length > 0 ? cargo.images : cargo.cargoPhotos || [];
   const displayWeight = cargo.weight ? (cargo.unit && cargo.unit !== 'kg' ? `${cargo.weight} ${cargo.unit}` : `${cargo.weight} tons`) : '';
+  const canShowContractButton = currentRole === 'trucker'
+    && Boolean(contractId && onOpenContract)
+    && normalizeBidStatus(contractStatus) !== 'cancelled';
 
   // Map fetched bids to display format (keep full bid data for chat)
-  const bids = fetchedBids.map(bid => ({
+  const bids = activeFetchedBids.map((bid) => ({
     id: bid.id,
     bidder: bid.bidderName,
     bidderId: bid.bidderId,
@@ -659,7 +673,7 @@ export function CargoDetailsModal({
           ) : null}
 
           {/* View Contract Button - Only for truckers with contract */}
-          {currentRole === 'trucker' && contractId && onOpenContract && (
+          {canShowContractButton && (
             <Button
               variant="gradient"
               onClick={() => {
