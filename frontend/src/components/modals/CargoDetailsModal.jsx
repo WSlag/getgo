@@ -543,7 +543,7 @@ export function CargoDetailsModal({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 gap-2"
+                        className="flex-1 gap-2 border-transparent bg-gradient-to-br from-[#F8A347] to-[#F06A00] text-[#FFFFFF] hover:from-[#F9B35E] hover:to-[#E55D00] hover:text-[#FFFFFF]"
                         onClick={() => onOpenChat?.(bid._original, cargo)}
                       >
                         <MessageSquare className="size-4" />
