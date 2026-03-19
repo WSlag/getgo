@@ -13,6 +13,8 @@
     "migrate:email-auth:apply": "node scripts/reset-test-user-email-auth.cjs --apply",
     "migrate:route-distance:dry": "node scripts/backfill-route-distance.cjs",
     "migrate:route-distance:apply": "node scripts/backfill-route-distance.cjs --apply",
+    "migrate:bid-lifecycle:dry": "node scripts/backfill-bid-lifecycle-integrity.cjs",
+    "migrate:bid-lifecycle:apply": "node scripts/backfill-bid-lifecycle-integrity.cjs --apply",
     "test:settings": "node scripts/settings-propagation-test.cjs",
     "test:referrals": "node scripts/referral-metrics-test.cjs",
     "test:referrals:integration": "firebase emulators:exec --only auth,firestore,functions \"node scripts/referral-listings-integration.cjs\"",

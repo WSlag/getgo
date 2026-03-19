@@ -19,6 +19,8 @@ const {
   toDate,
 } = require('../services/brokerListingReferralService');
 
+const ACTIVE_BID_STATUSES = new Set(['pending', 'accepted']);
+
 function resolveBidListingReference(db, bid = {}) {
   const cargoListingId = typeof bid.cargoListingId === 'string' ? bid.cargoListingId.trim() : '';
   const truckListingId = typeof bid.truckListingId === 'string' ? bid.truckListingId.trim() : '';
@@ -42,6 +44,46 @@ function resolveBidListingReference(db, bid = {}) {
   }
 
   return null;
+}
+
+function normalizeBidStatus(status) {
+  return String(status || '').trim().toLowerCase();
+}
+
+function isActiveBidStatus(status) {
+  return ACTIVE_BID_STATUSES.has(normalizeBidStatus(status));
+}
+
+async function applyListingBidCountDelta(db, listingReference, { delta, ledgerId, metadata = {} } = {}) {
+  if (!listingReference || !Number.isFinite(delta) || delta === 0 || !ledgerId) return;
+
+  const { listingCollection, listingId, listingRef } = listingReference;
+  const ledgerRef = db.collection('bidCountEvents').doc(ledgerId);
+
+  await db.runTransaction(async (tx) => {
+    const [ledgerDoc, listingDoc] = await Promise.all([tx.get(ledgerRef), tx.get(listingRef)]);
+    if (ledgerDoc.exists || !listingDoc.exists) {
+      return;
+    }
+
+    const listingData = listingDoc.data() || {};
+    const currentCountRaw = Number(listingData.bidCount);
+    const currentCount = Number.isFinite(currentCountRaw) ? currentCountRaw : 0;
+    const nextCount = Math.max(currentCount + delta, 0);
+
+    tx.update(listingRef, {
+      bidCount: nextCount,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(ledgerRef, {
+      bidId: metadata.bidId || null,
+      listingId,
+      listingCollection,
+      delta,
+      ...metadata,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  });
 }
 
 async function markListingReferralAsActed(db, bidId, bid, brokerId) {
@@ -130,28 +172,17 @@ exports.onBidCreated = onDocumentCreated(
     const bidderDoc = await db.collection('users').doc(bid.bidderId).get();
     const bidderName = bidderDoc.exists ? bidderDoc.data().name : 'Someone';
 
-    // Server-authoritative bid count increment with idempotency guard.
+    // Server-authoritative active-bid count update with idempotency guard.
     const { listingCollection, listingId } = listingReference;
-    if (listingCollection && listingId) {
-      const listingRef = listingReference.listingRef;
-      const ledgerRef = db.collection('bidCountEvents').doc(bidId);
-
-      await db.runTransaction(async (tx) => {
-        const [ledgerDoc, listingDoc] = await Promise.all([tx.get(ledgerRef), tx.get(listingRef)]);
-        if (ledgerDoc.exists || !listingDoc.exists) {
-          return;
-        }
-
-        tx.update(listingRef, {
-          bidCount: FieldValue.increment(1),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-        tx.set(ledgerRef, {
+    if (listingCollection && listingId && isActiveBidStatus(bid.status)) {
+      await applyListingBidCountDelta(db, listingReference, {
+        delta: 1,
+        ledgerId: bidId,
+        metadata: {
           bidId,
-          listingId,
-          listingCollection,
-          createdAt: FieldValue.serverTimestamp(),
-        });
+          eventType: 'create',
+          status: normalizeBidStatus(bid.status),
+        },
       });
     }
 
@@ -238,6 +269,28 @@ exports.onBidStatusChanged = onDocumentUpdated(
 
     const db = admin.firestore();
     const listingId = after.cargoListingId || after.truckListingId || after.listingId || null;
+    const listingReference = resolveBidListingReference(db, after) || resolveBidListingReference(db, before);
+
+    const activeBefore = isActiveBidStatus(before.status);
+    const activeAfter = isActiveBidStatus(after.status);
+    const bidCountDelta = (activeAfter ? 1 : 0) - (activeBefore ? 1 : 0);
+    if (bidCountDelta !== 0 && listingReference) {
+      try {
+        await applyListingBidCountDelta(db, listingReference, {
+          delta: bidCountDelta,
+          ledgerId: `${bidId}:status:${event.id}`,
+          metadata: {
+            bidId,
+            eventType: 'status-transition',
+            eventId: event.id,
+            beforeStatus: normalizeBidStatus(before.status),
+            afterStatus: normalizeBidStatus(after.status),
+          },
+        });
+      } catch (error) {
+        console.error('Failed to apply bid count status-transition delta:', error);
+      }
+    }
 
     // Get user names
     const ownerDoc = await db.collection('users').doc(after.listingOwnerId).get();

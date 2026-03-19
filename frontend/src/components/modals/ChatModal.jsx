@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useChat } from '@/hooks/useChat';
 import { sendChatMessage, markMessagesRead } from '@/services/firestoreService';
 import { sanitizeMessage } from '@/utils/messageUtils';
+import { isClosedBidStatus, normalizeBidStatus } from '@/utils/bidStatus';
 import api from '@/services/api';
 import { db } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -28,6 +29,7 @@ export function ChatModal({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const [contractId, setContractId] = useState(null);
+  const [contractStatus, setContractStatus] = useState(null);
   const [loadingContract, setLoadingContract] = useState(false);
   const [liveBid, setLiveBid] = useState(null);
   const [agreedPriceInput, setAgreedPriceInput] = useState('');
@@ -47,7 +49,21 @@ export function ChatModal({
   const resolvedBid = liveBid || bid || null;
   const currentUserId = currentUser?.uid || currentUser?.id || null;
   const bidderId = typeof resolvedBid?.bidderId === 'string' ? resolvedBid.bidderId.trim() : '';
-  const bidStatus = String(resolvedBid?.status || '').trim().toLowerCase();
+  const bidStatus = normalizeBidStatus(resolvedBid?.status);
+  const isClosedBid = isClosedBidStatus(bidStatus);
+  const isCancelledContract = normalizeBidStatus(contractStatus) === 'cancelled';
+  const chatReadOnlyReason = useMemo(() => {
+    if (!open || !bidId) return null;
+    if (isClosedBid) {
+      return `This bid is ${bidStatus || 'closed'}. Chat is read-only.`;
+    }
+    if (isCancelledContract) {
+      return 'This contract is cancelled. Chat is read-only.';
+    }
+    return null;
+  }, [open, bidId, isClosedBid, bidStatus, isCancelledContract]);
+  const canSendMessage = !chatReadOnlyReason;
+  const showContractCta = Boolean(contractId && onOpenContract && !isCancelledContract);
   const editableBidStatuses = new Set(['pending', 'accepted']);
   const isBidder = Boolean(currentUserId && bidderId && currentUserId === bidderId);
   const isEditableBidStatus = editableBidStatuses.has(bidStatus);
@@ -152,6 +168,7 @@ export function ChatModal({
     const fetchContract = async () => {
       if (!bidId || !open) {
         setContractId(null);
+        setContractStatus(null);
         return;
       }
 
@@ -160,8 +177,10 @@ export function ChatModal({
         const response = await api.contracts.getByBid(bidId);
         if (response?.contract) {
           setContractId(response.contract.id);
+          setContractStatus(normalizeBidStatus(response.contract.status));
         } else {
           setContractId(null);
+          setContractStatus(null);
         }
       } catch (error) {
         // Contract doesn't exist yet - this is normal for bids without contracts
@@ -173,6 +192,7 @@ export function ChatModal({
           console.warn('Error fetching contract:', error.message || error);
         }
         setContractId(null);
+        setContractStatus(null);
       } finally {
         setLoadingContract(false);
       }
@@ -245,6 +265,10 @@ export function ChatModal({
   };
 
   const handleSend = async () => {
+    if (!canSendMessage) {
+      setError(chatReadOnlyReason || 'This chat is read-only.');
+      return;
+    }
     if (!message.trim() || !bidId || !currentUser) return;
 
     setSending(true);
@@ -268,6 +292,8 @@ export function ChatModal({
         setError('You can only message participants in this bid.');
       } else if (err?.code === 'not-found') {
         setError('This chat is no longer available.');
+      } else if (err?.code === 'failed-precondition') {
+        setError(chatReadOnlyReason || 'This chat is read-only.');
       } else {
         setError('Failed to send message. Please try again.');
       }
@@ -480,7 +506,7 @@ export function ChatModal({
               gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) auto',
               gap: '12px',
               alignItems: 'start',
-              marginBottom: contractId ? '12px' : '0',
+              marginBottom: showContractCta ? '12px' : '0',
             }}
           >
             <div>
@@ -643,7 +669,7 @@ export function ChatModal({
           )}
 
           {/* View Contract Button */}
-          {contractId && onOpenContract && (
+          {showContractCta && (
             <Button
               variant="outline"
               size="sm"
@@ -830,14 +856,14 @@ export function ChatModal({
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder={canSendMessage ? 'Type a message...' : (chatReadOnlyReason || 'This chat is read-only.')}
             style={{ flex: 1, minHeight: '48px', maxHeight: '100px', resize: 'none' }}
-            disabled={sending}
+            disabled={sending || !canSendMessage}
           />
           <Button
             variant="gradient"
             onClick={handleSend}
-            disabled={!message.trim() || sending}
+            disabled={!canSendMessage || !message.trim() || sending}
             style={{
               width: '48px',
               height: '48px',
@@ -856,6 +882,11 @@ export function ChatModal({
             )}
           </Button>
         </div>
+        {!canSendMessage && (
+          <p style={{ fontSize: '12px', color: '#9a3412', textAlign: 'center' }}>
+            {chatReadOnlyReason}
+          </p>
+        )}
         <p style={{ fontSize: '12px', color: '#6b7280', textAlign: 'center' }}>
           Press Enter to send, Shift+Enter for new line
         </p>

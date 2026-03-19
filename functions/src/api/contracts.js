@@ -1274,7 +1274,41 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
     cancellationUpdates.overdueAt = null;
   }
 
-  await db.collection('contracts').doc(contractId).update(cancellationUpdates);
+  const contractRef = db.collection('contracts').doc(contractId);
+  const listingCollection = contract.listingType === 'cargo' ? 'cargoListings' : 'truckListings';
+  const listingRef = contract.listingId
+    ? db.collection(listingCollection).doc(contract.listingId)
+    : null;
+  const bidRef = contract.bidId
+    ? db.collection('bids').doc(contract.bidId)
+    : null;
+
+  const bidDoc = bidRef ? await bidRef.get() : null;
+  const cancellationBatch = db.batch();
+  cancellationBatch.update(contractRef, cancellationUpdates);
+
+  if (listingRef) {
+    cancellationBatch.update(listingRef, {
+      status: contract.listingType === 'cargo' ? 'open' : 'available',
+      updatedAt: FirestoreFieldValue.serverTimestamp(),
+    });
+  }
+
+  if (bidRef && bidDoc?.exists) {
+    cancellationBatch.update(bidRef, {
+      status: 'cancelled',
+      updatedAt: FirestoreFieldValue.serverTimestamp(),
+    });
+  }
+
+  await cancellationBatch.commit();
+
+  if (bidRef && !bidDoc?.exists) {
+    console.warn('[cancelContract] Linked bid not found while cancelling contract', {
+      contractId,
+      bidId: contract.bidId,
+    });
+  }
 
   // Recalculate fee payer debt from source-of-truth contracts to avoid stale suspension states.
   let payerReconciliation = null;
@@ -1291,15 +1325,6 @@ exports.cancelContract = functions.region('asia-southeast1').https.onCall(async 
         createdAt: FirestoreFieldValue.serverTimestamp(),
       });
     }
-  }
-
-  // Update listing status back to available
-  if (contract.listingId) {
-    const listingCollection = contract.listingType === 'cargo' ? 'cargoListings' : 'truckListings';
-    await db.collection(listingCollection).doc(contract.listingId).update({
-      status: 'available',
-      updatedAt: FirestoreFieldValue.serverTimestamp(),
-    });
   }
 
   // Notify all participants
@@ -1553,4 +1578,3 @@ exports.getContractByBid = functions.region('asia-southeast1').https.onCall(asyn
 
   return { contract };
 });
-
