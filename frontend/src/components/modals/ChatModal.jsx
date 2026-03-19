@@ -45,15 +45,22 @@ export function ChatModal({
   const bid = data?.bid;
   const bidId = data?.bidId || bid?.id;
   const resolvedBid = liveBid || bid || null;
+  const currentUserId = currentUser?.uid || currentUser?.id || null;
+  const bidderId = typeof resolvedBid?.bidderId === 'string' ? resolvedBid.bidderId.trim() : '';
   const bidStatus = String(resolvedBid?.status || '').trim().toLowerCase();
-  const isBidder = currentUser?.uid && resolvedBid?.bidderId && currentUser.uid === resolvedBid.bidderId;
+  const editableBidStatuses = new Set(['pending', 'accepted']);
+  const isBidder = Boolean(currentUserId && bidderId && currentUserId === bidderId);
+  const isEditableBidStatus = editableBidStatuses.has(bidStatus);
+  const agreedPriceDisabledReason = useMemo(() => {
+    if (!open || !bidId) return 'Agreed price is unavailable for this chat.';
+    if (loadingContract) return 'Checking contract status...';
+    if (contractId) return 'Agreed price can no longer be updated because a contract already exists.';
+    if (!isEditableBidStatus) return 'Agreed price can only be updated while bid is pending or accepted.';
+    if (!isBidder) return 'Only the bidder can update agreed price.';
+    return null;
+  }, [open, bidId, loadingContract, contractId, isEditableBidStatus, isBidder]);
   const canEditAgreedPrice = Boolean(
-    open
-    && bidId
-    && isBidder
-    && bidStatus === 'pending'
-    && !contractId
-    && !loadingContract
+    !agreedPriceDisabledReason
   );
 
   // Get chat messages via hook
@@ -84,7 +91,6 @@ export function ChatModal({
   // Determine the other party's info
   const isCargo = listingType === 'cargo';
   const participantContext = useMemo(() => {
-    const currentUserId = currentUser?.uid || null;
     const bidderId = resolvedBid?.bidderId || null;
     const listingOwnerId = resolvedBid?.listingOwnerId || listing?.userId || null;
     const defaultName = isCargo
@@ -113,7 +119,7 @@ export function ChatModal({
       otherPartyId: listingOwnerId || bidderId,
       otherPartyName: defaultName,
     };
-  }, [resolvedBid, currentUser?.uid, isCargo, listing?.shipper, listing?.trucker, listing?.userId, listing?.userName]);
+  }, [resolvedBid, currentUserId, isCargo, listing?.shipper, listing?.trucker, listing?.userId, listing?.userName]);
   const otherPartyName = participantContext.otherPartyName;
 
   // Keep bid data fresh while chat is open so price/status updates are reflected live.
@@ -287,7 +293,11 @@ export function ChatModal({
   };
 
   const beginAgreedPriceEdit = () => {
-    if (!canEditAgreedPrice || savingAgreedPrice) return;
+    if (savingAgreedPrice) return;
+    if (!canEditAgreedPrice) {
+      setAgreedPriceError(agreedPriceDisabledReason || 'Agreed price is currently unavailable.');
+      return;
+    }
     setAgreedPriceError(null);
     setEditingAgreedPrice(true);
     setAgreedPriceInput('');
@@ -326,7 +336,7 @@ export function ChatModal({
       if (errorCode.includes('permission-denied')) {
         setAgreedPriceError('Only the bidder can update agreed price.');
       } else if (errorCode.includes('failed-precondition') && errorMessage.includes('pending')) {
-        setAgreedPriceError('Agreed price can only be updated while bid is pending.');
+        setAgreedPriceError('Agreed price can only be updated while bid is pending or accepted.');
       } else if (errorCode.includes('failed-precondition') && errorMessage.includes('contract')) {
         setAgreedPriceError('Agreed price can no longer be updated because contract already exists.');
       } else if (errorCode.includes('invalid-argument')) {
@@ -602,7 +612,8 @@ export function ChatModal({
                 <button
                   type="button"
                   onClick={beginAgreedPriceEdit}
-                  disabled={!canEditAgreedPrice}
+                  aria-disabled={!canEditAgreedPrice}
+                  title={canEditAgreedPrice ? 'Enter agreed price' : agreedPriceDisabledReason || 'Agreed price unavailable'}
                   style={{
                     padding: '8px 16px',
                     borderRadius: '12px',
@@ -615,7 +626,7 @@ export function ChatModal({
                     width: '100%',
                     textAlign: 'center',
                     whiteSpace: 'nowrap',
-                    cursor: canEditAgreedPrice ? 'pointer' : 'default',
+                    cursor: canEditAgreedPrice ? 'pointer' : 'not-allowed',
                     opacity: canEditAgreedPrice ? 1 : 0.9,
                   }}
                 >

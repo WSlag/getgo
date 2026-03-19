@@ -183,7 +183,7 @@ exports.acceptBid = functions.region('asia-southeast1').https.onCall(async (data
 
 /**
  * Update agreed price for an active bid conversation.
- * Bidder-only, pending-only, and blocked once a contract exists.
+ * Bidder-only, pending/accepted, and blocked once a contract exists.
  */
 exports.updateBidAgreedPrice = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   if (!context.auth) {
@@ -229,10 +229,10 @@ exports.updateBidAgreedPrice = functions.region('asia-southeast1').https.onCall(
     }
 
     const status = String(bid.status || '').trim().toLowerCase();
-    if (status !== 'pending') {
+    if (!['pending', 'accepted'].includes(status)) {
       throw new functions.https.HttpsError(
         'failed-precondition',
-        'Agreed price can only be updated while the bid is pending'
+        'Agreed price can only be updated while the bid is pending or accepted'
       );
     }
 
