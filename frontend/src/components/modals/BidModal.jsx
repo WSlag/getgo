@@ -160,7 +160,7 @@ export function BidModal({
                   Reminder: You have outstanding platform fees of {formatPrice(normalizedOutstandingFees)}.
                 </p>
                 <p style={{ fontSize: isMobile ? '11px' : '12px', marginTop: '4px', color: '#c2410c' }} className="dark:text-amber-200">
-                  Settle unpaid fees now. New job creation and contract signing are restricted once unpaid debt reaches PHP 15,000.
+                  Settle unpaid fees now. New job creation and contract signing are restricted once due payment is unpaid.
                 </p>
               </div>
             </div>
