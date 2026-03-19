@@ -76,7 +76,7 @@ const DialogBottomSheet = React.forwardRef(
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-            "rounded-t-3xl max-h-[90vh] flex flex-col",
+            "rounded-t-3xl max-h-[90dvh] flex flex-col",
             "max-w-[500px] mx-auto",
             // Desktop: Center modal
             "lg:inset-auto lg:left-[50%] lg:top-[50%] lg:translate-x-[-50%] lg:translate-y-[-50%]",
