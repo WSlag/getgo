@@ -422,9 +422,13 @@ export function ContractModal({
             <div className="flex-1" style={{ minWidth: 0 }}>
               <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Shipper (First Party)</p>
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shipperInfo?.name}</p>
-              {shipperInfo?.phone && (
+              {fullyExecuted && shipperInfo?.phone ? (
                 <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: '4px' }} className="flex items-center gap-1">
                   <Phone style={{ width: '12px', height: '12px' }} /> {shipperInfo.phone}
+                </p>
+              ) : !fullyExecuted && (
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#9ca3af', marginTop: '4px', fontStyle: 'italic' }} className="flex items-center gap-1">
+                  <Phone style={{ width: '12px', height: '12px' }} /> Available after both parties sign
                 </p>
               )}
             </div>
@@ -463,9 +467,13 @@ export function ContractModal({
             <div className="flex-1" style={{ minWidth: 0 }}>
               <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Trucker (Second Party)</p>
               <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{truckerInfo?.name}</p>
-              {truckerInfo?.phone && (
+              {fullyExecuted && truckerInfo?.phone ? (
                 <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280', marginTop: '4px' }} className="flex items-center gap-1">
                   <Phone style={{ width: '12px', height: '12px' }} /> {truckerInfo.phone}
+                </p>
+              ) : !fullyExecuted && (
+                <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#9ca3af', marginTop: '4px', fontStyle: 'italic' }} className="flex items-center gap-1">
+                  <Phone style={{ width: '12px', height: '12px' }} /> Available after both parties sign
                 </p>
               )}
               {contract.vehiclePlateNumber && (
