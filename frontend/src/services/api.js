@@ -125,6 +125,10 @@ const api = {
     },
   },
 
+  bids: {
+    updateAgreedPrice: (bidId, agreedPrice) => callFunction('updateBidAgreedPrice', { bidId, agreedPrice }),
+  },
+
   ratings: {
     getForUser: (userId) => getRatingsForUser(userId),
     getForContract: (contractId) => getRatingsForContract(contractId),

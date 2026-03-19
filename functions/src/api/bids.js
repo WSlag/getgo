@@ -6,6 +6,7 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { enforceUserRateLimit } = require('../utils/callableRateLimit');
+const { sanitizePublicName } = require('../utils/contactModeration');
 
 const PLATFORM_FEE_DEBT_CAP = Number(process.env.PLATFORM_FEE_DEBT_CAP || 15000);
 
@@ -16,6 +17,20 @@ function toFiniteNumber(value, fallback = 0) {
 
 function resolveOutstandingCap() {
   return PLATFORM_FEE_DEBT_CAP;
+}
+
+function normalizeCurrencyAmount(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.round(parsed * 100) / 100;
+}
+
+function formatPhpAmount(value) {
+  if (!Number.isFinite(value)) return '0';
+  return Number(value).toLocaleString('en-PH', {
+    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function resolveListingRef(db, bidData = {}) {
@@ -157,6 +172,126 @@ exports.acceptBid = functions.region('asia-southeast1').https.onCall(async (data
     });
 
     return { alreadyAccepted: false, listingType: listingMeta.listingType, listingId: listingMeta.listingId };
+  });
+
+  return {
+    success: true,
+    bidId,
+    ...result,
+  };
+});
+
+/**
+ * Update agreed price for an active bid conversation.
+ * Bidder-only, pending-only, and blocked once a contract exists.
+ */
+exports.updateBidAgreedPrice = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const bidId = String(data?.bidId || '').trim();
+  if (!bidId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Bid ID is required');
+  }
+
+  const normalizedAgreedPrice = normalizeCurrencyAmount(data?.agreedPrice);
+  if (!Number.isFinite(normalizedAgreedPrice) || normalizedAgreedPrice <= 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'Agreed price must be greater than 0');
+  }
+
+  const userId = context.auth.uid;
+  const db = admin.firestore();
+  await enforceUserRateLimit({
+    db,
+    userId,
+    operation: 'updateBidAgreedPrice',
+    maxAttempts: 20,
+    windowMs: 60 * 1000,
+  });
+
+  const result = await db.runTransaction(async (tx) => {
+    const bidRef = db.collection('bids').doc(bidId);
+    const bidDoc = await tx.get(bidRef);
+    if (!bidDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Bid not found');
+    }
+
+    const bid = bidDoc.data() || {};
+    const bidderId = typeof bid.bidderId === 'string' ? bid.bidderId.trim() : '';
+    const listingOwnerId = typeof bid.listingOwnerId === 'string' ? bid.listingOwnerId.trim() : '';
+    if (!bidderId || !listingOwnerId) {
+      throw new functions.https.HttpsError('failed-precondition', 'Bid participants are incomplete');
+    }
+
+    if (userId !== bidderId) {
+      throw new functions.https.HttpsError('permission-denied', 'Only the bidder can update agreed price');
+    }
+
+    const status = String(bid.status || '').trim().toLowerCase();
+    if (status !== 'pending') {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Agreed price can only be updated while the bid is pending'
+      );
+    }
+
+    const contractSnap = await tx.get(
+      db.collection('contracts')
+        .where('bidId', '==', bidId)
+        .limit(1)
+    );
+    if (!contractSnap.empty) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Agreed price can no longer be updated because a contract already exists'
+      );
+    }
+
+    const previousPrice = normalizeCurrencyAmount(bid.price) || 0;
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const senderName = sanitizePublicName(bid.bidderName, 'Bidder');
+    const agreedMessage = `Agreed price updated to PHP ${formatPhpAmount(normalizedAgreedPrice)}`;
+
+    tx.update(bidRef, {
+      price: normalizedAgreedPrice,
+      updatedAt: now,
+    });
+
+    const messageRef = db.collection('bids').doc(bidId).collection('messages').doc();
+    tx.set(messageRef, {
+      senderId: bidderId,
+      senderName,
+      recipientId: listingOwnerId,
+      message: agreedMessage,
+      type: 'AGREED_PRICE_UPDATED',
+      agreedPrice: normalizedAgreedPrice,
+      previousPrice,
+      read: false,
+      isRead: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const brokerActivityRef = db.collection('brokerMarketplaceActivity').doc(`bid:${bidId}`);
+    const brokerActivityDoc = await tx.get(brokerActivityRef);
+    if (brokerActivityDoc.exists) {
+      tx.set(
+        brokerActivityRef,
+        {
+          amount: normalizedAgreedPrice,
+          activityAt: now,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+    }
+
+    return {
+      messageId: messageRef.id,
+      agreedPrice: normalizedAgreedPrice,
+      previousPrice,
+    };
   });
 
   return {
