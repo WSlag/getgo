@@ -574,7 +574,7 @@ export function ContractModal({
                       marginTop: '4px',
                       fontWeight: '500'
                     }}>
-                      Warning: New job creation and contract signing may be restricted if unpaid debt reaches PHP 15,000.
+                      Warning: New job creation and contract signing may be restricted if due payment is unpaid.
                     </p>
                   )}
                   <Button
