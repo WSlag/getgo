@@ -552,7 +552,7 @@ export function ChatModal({
                       }
                     }}
                     inputMode="decimal"
-                    placeholder="Enter Agreed Price"
+                    placeholder="Enter New Agreed Price"
                     style={{
                       flex: 1,
                       border: 'none',
@@ -630,7 +630,7 @@ export function ChatModal({
                     opacity: canEditAgreedPrice ? 1 : 0.9,
                   }}
                 >
-                  Enter Agreed Price
+                  Enter New Agreed Price
                 </button>
               )}
             </div>
