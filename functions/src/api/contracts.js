@@ -1516,16 +1516,20 @@ exports.getContract = functions.region('asia-southeast1').https.onCall(async (da
     contract.shipment = { id: shipmentSnap.docs[0].id, ...shipmentSnap.docs[0].data() };
   }
 
-  // Attach name + phone for both parties so the frontend can always display them
+  // Only reveal phone numbers after contract is fully executed (both parties signed)
+  const isFullyExecuted = contract.status === 'signed'
+    || contract.status === 'completed'
+    || contract.status === 'in_transit';
+
   if (shipperDoc?.exists) {
     const d = shipperDoc.data();
     contract.shipperName = d.name || contract.listingOwnerName || '';
-    contract.shipperPhone = d.phone || '';
+    contract.shipperPhone = isFullyExecuted ? (d.phone || '') : '';
   }
   if (truckerDoc?.exists) {
     const d = truckerDoc.data();
     contract.truckerName = d.name || contract.bidderName || '';
-    contract.truckerPhone = d.phone || '';
+    contract.truckerPhone = isFullyExecuted ? (d.phone || '') : '';
   }
 
   return { contract };
