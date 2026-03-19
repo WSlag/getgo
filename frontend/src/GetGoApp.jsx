@@ -1490,6 +1490,14 @@ export default function GetGoApp() {
     setActiveTab(nextTab);
   }, [activeWorkspace, activityPrimaryWorkspace, setWorkspaceRole, setActiveTab]);
 
+  const handleMobileTabChange = useCallback((nextTab) => {
+    if (nextTab === 'activity' && !(authUser && userProfile)) {
+      requireAuth(() => handleTabChange('activity'), 'Sign in to view activity');
+      return;
+    }
+    handleTabChange(nextTab);
+  }, [authUser, userProfile, requireAuth, handleTabChange]);
+
   const handleProfileClick = () => {
     requireAuth(() => setActiveTab('profile'), 'Sign in to view profile');
   };
@@ -2612,10 +2620,9 @@ export default function GetGoApp() {
       {/* Mobile Navigation */}
       <MobileNav
         activeTab={activeTab}
-        onTabChange={handleTabChange}
+        onTabChange={handleMobileTabChange}
         onPostClick={handlePostClick}
         unreadMessages={unreadMessages}
-        unreadNotifications={unreadNotifications}
         currentRole={activeWorkspace}
       />
 
