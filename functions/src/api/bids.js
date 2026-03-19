@@ -248,6 +248,9 @@ exports.updateBidAgreedPrice = functions.region('asia-southeast1').https.onCall(
       );
     }
 
+    const brokerActivityRef = db.collection('brokerMarketplaceActivity').doc(`bid:${bidId}`);
+    const brokerActivityDoc = await tx.get(brokerActivityRef);
+
     const previousPrice = normalizeCurrencyAmount(bid.price) || 0;
     const now = admin.firestore.FieldValue.serverTimestamp();
     const senderName = sanitizePublicName(bid.bidderName, 'Bidder');
@@ -273,8 +276,6 @@ exports.updateBidAgreedPrice = functions.region('asia-southeast1').https.onCall(
       updatedAt: now,
     });
 
-    const brokerActivityRef = db.collection('brokerMarketplaceActivity').doc(`bid:${bidId}`);
-    const brokerActivityDoc = await tx.get(brokerActivityRef);
     if (brokerActivityDoc.exists) {
       tx.set(
         brokerActivityRef,
