@@ -3,7 +3,7 @@ import { MessageSquare, Send, MapPin, Package, Truck, Loader2, FileText, Check, 
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Dialog,
-  DialogContent,
+  DialogBottomSheet,
   DialogHeader,
   DialogTitle,
   DialogDescription,
@@ -458,7 +458,8 @@ export function ChatModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md backdrop-blur-sm">
+      <DialogBottomSheet className="max-w-md backdrop-blur-sm">
+        <div style={{ padding: isMobile ? '16px' : '28px', paddingBottom: 0 }}>
         <DialogHeader>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
@@ -848,49 +849,55 @@ export function ChatModal({
             <p style={{ fontSize: '14px', color: '#dc2626' }}>{error}</p>
           </div>
         )}
-
-        {/* Input Section */}
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <Textarea
-            ref={inputRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={canSendMessage ? 'Type a message...' : (chatReadOnlyReason || 'This chat is read-only.')}
-            style={{ flex: 1, minHeight: '48px', maxHeight: '100px', resize: 'none' }}
-            disabled={sending || !canSendMessage}
-          />
-          <Button
-            variant="gradient"
-            onClick={handleSend}
-            disabled={!canSendMessage || !message.trim() || sending}
-            style={{
-              width: '48px',
-              height: '48px',
-              flexShrink: 0,
-              borderRadius: '12px',
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            {sending ? (
-              <Loader2 style={{ width: '20px', height: '20px', animation: 'spin 1s linear infinite' }} />
-            ) : (
-              <Send style={{ width: '20px', height: '20px' }} />
-            )}
-          </Button>
         </div>
-        {!canSendMessage && (
-          <p style={{ fontSize: '12px', color: '#9a3412', textAlign: 'center' }}>
-            {chatReadOnlyReason}
+
+        {/* Input Section — pinned above keyboard on mobile */}
+        <div
+          className="dialog-fixed-footer"
+          style={{ padding: isMobile ? '12px 16px 16px' : '12px 28px 28px', display: 'flex', flexDirection: 'column', gap: '8px' }}
+        >
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <Textarea
+              ref={inputRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={canSendMessage ? 'Type a message...' : (chatReadOnlyReason || 'This chat is read-only.')}
+              style={{ flex: 1, minHeight: '48px', maxHeight: '100px', resize: 'none' }}
+              disabled={sending || !canSendMessage}
+            />
+            <Button
+              variant="gradient"
+              onClick={handleSend}
+              disabled={!canSendMessage || !message.trim() || sending}
+              style={{
+                width: '48px',
+                height: '48px',
+                flexShrink: 0,
+                borderRadius: '12px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {sending ? (
+                <Loader2 style={{ width: '20px', height: '20px', animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <Send style={{ width: '20px', height: '20px' }} />
+              )}
+            </Button>
+          </div>
+          {!canSendMessage && (
+            <p style={{ fontSize: '12px', color: '#9a3412', textAlign: 'center' }}>
+              {chatReadOnlyReason}
+            </p>
+          )}
+          <p style={{ fontSize: '12px', color: '#6b7280', textAlign: 'center' }}>
+            Press Enter to send, Shift+Enter for new line
           </p>
-        )}
-        <p style={{ fontSize: '12px', color: '#6b7280', textAlign: 'center' }}>
-          Press Enter to send, Shift+Enter for new line
-        </p>
-      </DialogContent>
+        </div>
+      </DialogBottomSheet>
     </Dialog>
   );
 }
