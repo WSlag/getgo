@@ -15,7 +15,7 @@ import { useBidsForListing } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { canBookTruckStatus, toTruckUiStatus } from '@/utils/listingStatus';
-import { canOpenBidChat } from '@/utils/bidStatus';
+import { canOpenBidChat, isActiveBidStatus } from '@/utils/bidStatus';
 import api from '@/services/api';
 
 const LazyRouteMap = React.lazy(() => import('@/components/maps/RouteMap'));
@@ -90,15 +90,19 @@ export function TruckDetailsModal({
     isOwner && open ? truck?.id : null,
     'truck'
   );
+  const activeFetchedBids = React.useMemo(
+    () => fetchedBids.filter((bid) => isActiveBidStatus(bid.status)),
+    [fetchedBids]
+  );
 
   React.useEffect(() => {
     const fetchAcceptedBidContracts = async () => {
-      if (!open || !isOwner || fetchedBids.length === 0) {
+      if (!open || !isOwner || activeFetchedBids.length === 0) {
         setBidContracts({});
         return;
       }
 
-      const acceptedBids = fetchedBids.filter((bid) => bid.status === 'accepted');
+      const acceptedBids = activeFetchedBids.filter((bid) => bid.status === 'accepted');
       if (acceptedBids.length === 0) {
         setBidContracts({});
         return;
@@ -119,7 +123,7 @@ export function TruckDetailsModal({
     };
 
     fetchAcceptedBidContracts();
-  }, [open, isOwner, fetchedBids]);
+  }, [open, isOwner, activeFetchedBids]);
 
   React.useEffect(() => {
     if (!open) {
@@ -194,7 +198,7 @@ export function TruckDetailsModal({
   const truckPhotos = truck.truckPhotos || [];
 
   // Map fetched bids to booking display format (keep full bid data for chat)
-  const bookings = fetchedBids.map(bid => ({
+  const bookings = activeFetchedBids.map((bid) => ({
     id: bid.id,
     shipper: bid.bidderName,
     shipperId: bid.bidderId,

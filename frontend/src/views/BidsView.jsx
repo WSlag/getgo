@@ -8,7 +8,7 @@ import { useMyBids } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
 import { inferBidPerspectiveRole, getWorkspaceLabel, resolveBidListingType } from '@/utils/workspace';
-import { canOpenBidChat } from '@/utils/bidStatus';
+import { canOpenBidChat, isActiveBidStatus } from '@/utils/bidStatus';
 
 export function BidsView({
   currentUser,
@@ -67,7 +67,10 @@ export function BidsView({
     if (!userId) return [];
     if (!['shipper', 'trucker'].includes(activeWorkspace)) return [];
     return sortEntitiesNewestFirst(
-      bids.filter((bid) => inferBidPerspectiveRole(bid, userId) === activeWorkspace)
+      bids.filter((bid) => (
+        inferBidPerspectiveRole(bid, userId) === activeWorkspace
+        && isActiveBidStatus(bid.status)
+      ))
     );
   }, [bids, userId, activeWorkspace]);
 
