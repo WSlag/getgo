@@ -597,7 +597,7 @@ export function TruckDetailsModal({
                       <Button
                         variant="outline"
                         size={isMobile ? "sm" : "default"}
-                        className="flex-1 gap-2"
+                        className="flex-1 gap-2 border-transparent bg-gradient-to-br from-[#F8A347] to-[#F06A00] text-[#FFFFFF] hover:from-[#F9B35E] hover:to-[#E55D00] hover:text-[#FFFFFF]"
                         onClick={() => onOpenChat?.(booking._original, truck)}
                       >
                         <MessageSquare className="size-4" />
