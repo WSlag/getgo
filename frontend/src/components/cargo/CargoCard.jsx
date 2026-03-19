@@ -129,23 +129,23 @@ export function CargoCard({
             )}
           </div>
 
-          {/* Row 3: Route + Metrics */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 flex-1 min-w-0">
-              <div className="size-2 rounded-full bg-green-500 flex-shrink-0" />
-              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayOrigin}</span>
-              <span className="text-orange-500 flex-shrink-0">→</span>
-              <div className="size-2 rounded-full bg-red-500 flex-shrink-0" />
-              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayDestination}</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
-              {displayTimeAgo && <span>{displayTimeAgo}</span>}
-              {distance && <span>{distance}</span>}
-              {displayTime && <span>• {displayTime}</span>}
-              {bidCount > 0 && (
-                <span className="text-orange-600 dark:text-orange-400 font-semibold">• {bidCount} {bidCount === 1 ? 'bid' : 'bids'}</span>
-              )}
-            </div>
+          {/* Row 3: Route */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="size-2 rounded-full bg-green-500 flex-shrink-0" />
+            <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayOrigin}</span>
+            <span className="text-orange-500 flex-shrink-0">→</span>
+            <div className="size-2 rounded-full bg-red-500 flex-shrink-0" />
+            <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayDestination}</span>
+          </div>
+
+          {/* Row 4: Metrics */}
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {displayTimeAgo && <span>{displayTimeAgo}</span>}
+            {distance && <span>{distance}</span>}
+            {displayTime && <span>• {displayTime}</span>}
+            {bidCount > 0 && (
+              <span className="text-orange-600 dark:text-orange-400 font-semibold">• {bidCount} {bidCount === 1 ? 'bid' : 'bids'}</span>
+            )}
           </div>
         </div>
       </button>
