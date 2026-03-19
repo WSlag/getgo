@@ -71,6 +71,11 @@ service cloud.firestore {
       );
     }
 
+    function canCreateBidMessage(bidId) {
+      return exists(/databases/$(database)/documents/bids/$(bidId))
+        && !(get(/databases/$(database)/documents/bids/$(bidId)).data.status in ['rejected', 'cancelled', 'contracted', 'withdrawn']);
+    }
+
     // Helper: bid references cargo listing (and self-consistent ids/type)
     function hasCargoBidReference(bidData) {
       return bidData.cargoListingId is string
@@ -97,7 +102,7 @@ service cloud.firestore {
     function cargoListingIsBiddable(listingId) {
       return listingId is string
         && exists(/databases/$(database)/documents/cargoListings/$(listingId))
-        && get(/databases/$(database)/documents/cargoListings/$(listingId)).data.status == 'open';
+        && get(/databases/$(database)/documents/cargoListings/$(listingId)).data.status in ['open', 'available'];
     }
 
     function truckListingIsBiddable(listingId) {
@@ -485,6 +490,7 @@ service cloud.firestore {
       match /messages/{msgId} {
         allow read: if isBidParticipant(bidId) || isAdmin();
         allow create: if isBidParticipant(bidId)
+          && canCreateBidMessage(bidId)
           && request.resource.data.senderId == request.auth.uid
           && (
             !('senderName' in request.resource.data)

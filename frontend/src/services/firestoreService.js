@@ -611,6 +611,12 @@ export const sendChatMessage = async (bidId, senderId, senderName, message) => {
   const bidData = bidSnap.data() || {};
   const bidderId = typeof bidData.bidderId === 'string' ? bidData.bidderId.trim() : '';
   const listingOwnerId = typeof bidData.listingOwnerId === 'string' ? bidData.listingOwnerId.trim() : '';
+  const bidStatus = String(bidData.status || '').trim().toLowerCase();
+  if (['rejected', 'cancelled', 'contracted', 'withdrawn'].includes(bidStatus)) {
+    const err = new Error(`Chat is read-only for ${bidStatus || 'closed'} bids`);
+    err.code = 'failed-precondition';
+    throw err;
+  }
 
   if (!bidderId || !listingOwnerId) {
     const err = new Error('Bid participant data is incomplete');

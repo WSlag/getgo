@@ -8,6 +8,7 @@ import { useMyBids } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
 import { inferBidPerspectiveRole, getWorkspaceLabel, resolveBidListingType } from '@/utils/workspace';
+import { canOpenBidChat } from '@/utils/bidStatus';
 
 export function BidsView({
   currentUser,
@@ -50,6 +51,9 @@ export function BidsView({
       pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
       accepted: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
       rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+      cancelled: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+      contracted: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      withdrawn: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
     };
     return styles[status] || styles.pending;
   };
@@ -215,27 +219,29 @@ export function BidsView({
                   )}
 
                   {/* Chat Button */}
-                  <Button
-                    variant="outline"
-                    size={isMobile ? "sm" : "default"}
-                    className="w-full gap-2"
-                    onClick={() => {
-                      const listingData = {
-                        id: bid.listingId,
-                        listingType,
-                        origin: bid.origin,
-                        destination: bid.destination,
-                        userId: bid.listingOwnerId,
-                        userName: bid.listingOwnerName,
-                        shipper: bid.listingOwnerName,
-                        trucker: bid.listingOwnerName,
-                      };
-                      onOpenChat?.(bid, listingData);
-                    }}
-                  >
-                    <MessageSquare className="size-4" />
-                    View Chat
-                  </Button>
+                  {canOpenBidChat(bid.status) && (
+                    <Button
+                      variant="outline"
+                      size={isMobile ? "sm" : "default"}
+                      className="w-full gap-2"
+                      onClick={() => {
+                        const listingData = {
+                          id: bid.listingId,
+                          listingType,
+                          origin: bid.origin,
+                          destination: bid.destination,
+                          userId: bid.listingOwnerId,
+                          userName: bid.listingOwnerName,
+                          shipper: bid.listingOwnerName,
+                          trucker: bid.listingOwnerName,
+                        };
+                        onOpenChat?.(bid, listingData);
+                      }}
+                    >
+                      <MessageSquare className="size-4" />
+                      View Chat
+                    </Button>
+                  )}
                 </div>
               </div>
             );

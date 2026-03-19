@@ -321,6 +321,28 @@ async function main() {
       )
     );
 
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'bids', 'bid-rules-safe'), {
+        status: 'rejected',
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    await assertFails(
+      setDoc(
+        doc(trucker, 'bids', 'bid-rules-safe', 'messages', 'msg-closed-bid'),
+        {
+          senderId: 'trucker1',
+          senderName: 'Safe Name',
+          message: 'Trying to send after rejection',
+          read: false,
+          isRead: false,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        }
+      )
+    );
+
     console.log('anti-contact Firestore rules checks passed.');
   } finally {
     await env.cleanup();

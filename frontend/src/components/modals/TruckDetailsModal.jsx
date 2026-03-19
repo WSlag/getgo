@@ -15,6 +15,7 @@ import { useBidsForListing } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { canBookTruckStatus, toTruckUiStatus } from '@/utils/listingStatus';
+import { canOpenBidChat } from '@/utils/bidStatus';
 import api from '@/services/api';
 
 const LazyRouteMap = React.lazy(() => import('@/components/maps/RouteMap'));
@@ -579,6 +580,21 @@ export function TruckDetailsModal({
                             Rejected
                           </Badge>
                         )}
+                        {booking.status === 'cancelled' && (
+                          <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '11px' : '12px' }}>
+                            Cancelled
+                          </Badge>
+                        )}
+                        {booking.status === 'contracted' && (
+                          <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '11px' : '12px' }}>
+                            Contracted
+                          </Badge>
+                        )}
+                        {booking.status === 'withdrawn' && (
+                          <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300" style={{ padding: isMobile ? '2px 6px' : '4px 8px', fontSize: isMobile ? '11px' : '12px' }}>
+                            Withdrawn
+                          </Badge>
+                        )}
                       </div>
                     </div>
                     {/* Booking Message - Sanitized */}
@@ -594,15 +610,17 @@ export function TruckDetailsModal({
                     )}
                     {/* Action Buttons */}
                     <div className="flex" style={{ gap: isMobile ? '6px' : '8px', marginTop: isMobile ? '8px' : '12px' }}>
-                      <Button
-                        variant="outline"
-                        size={isMobile ? "sm" : "default"}
-                        className="flex-1 gap-2 border-transparent bg-gradient-to-br from-[#F8A347] to-[#F06A00] text-[#FFFFFF] hover:from-[#F9B35E] hover:to-[#E55D00] hover:text-[#FFFFFF]"
-                        onClick={() => onOpenChat?.(booking._original, truck)}
-                      >
-                        <MessageSquare className="size-4" />
-                        Chat
-                      </Button>
+                      {canOpenBidChat(booking.status) && (
+                        <Button
+                          variant="outline"
+                          size={isMobile ? "sm" : "default"}
+                          className="flex-1 gap-2 border-transparent bg-gradient-to-br from-[#F8A347] to-[#F06A00] text-[#FFFFFF] hover:from-[#F9B35E] hover:to-[#E55D00] hover:text-[#FFFFFF]"
+                          onClick={() => onOpenChat?.(booking._original, truck)}
+                        >
+                          <MessageSquare className="size-4" />
+                          Chat
+                        </Button>
+                      )}
                       {booking.status === 'pending' && (
                         <>
                           <Button

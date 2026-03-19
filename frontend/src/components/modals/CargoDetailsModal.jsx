@@ -17,6 +17,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import api from '@/services/api';
 import { canBidCargoStatus } from '@/utils/listingStatus';
+import { canOpenBidChat } from '@/utils/bidStatus';
 
 const LazyRouteMap = React.lazy(() => import('@/components/maps/RouteMap'));
 
@@ -525,6 +526,21 @@ export function CargoDetailsModal({
                             Rejected
                           </Badge>
                         )}
+                        {bid.status === 'cancelled' && (
+                          <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                            Cancelled
+                          </Badge>
+                        )}
+                        {bid.status === 'contracted' && (
+                          <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                            Contracted
+                          </Badge>
+                        )}
+                        {bid.status === 'withdrawn' && (
+                          <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                            Withdrawn
+                          </Badge>
+                        )}
                       </div>
                     </div>
                     {/* Bid Message - Sanitized */}
@@ -540,15 +556,17 @@ export function CargoDetailsModal({
                     )}
                     {/* Action Buttons */}
                     <div className="flex gap-2 mt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 gap-2 border-transparent bg-gradient-to-br from-[#F8A347] to-[#F06A00] text-[#FFFFFF] hover:from-[#F9B35E] hover:to-[#E55D00] hover:text-[#FFFFFF]"
-                        onClick={() => onOpenChat?.(bid._original, cargo)}
-                      >
-                        <MessageSquare className="size-4" />
-                        Chat
-                      </Button>
+                      {canOpenBidChat(bid.status) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 gap-2 border-transparent bg-gradient-to-br from-[#F8A347] to-[#F06A00] text-[#FFFFFF] hover:from-[#F9B35E] hover:to-[#E55D00] hover:text-[#FFFFFF]"
+                          onClick={() => onOpenChat?.(bid._original, cargo)}
+                        >
+                          <MessageSquare className="size-4" />
+                          Chat
+                        </Button>
+                      )}
                       {bid.status === 'pending' && (
                         <>
                           <Button
