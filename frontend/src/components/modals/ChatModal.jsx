@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { MessageSquare, Send, MapPin, Package, Truck, Loader2, FileText } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { MessageSquare, Send, MapPin, Package, Truck, Loader2, FileText, Check, X } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Dialog,
@@ -11,11 +10,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { useChat } from '@/hooks/useChat';
 import { sendChatMessage, markMessagesRead } from '@/services/firestoreService';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import api from '@/services/api';
+import { db } from '@/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 export function ChatModal({
   open,
@@ -29,8 +29,14 @@ export function ChatModal({
   const [error, setError] = useState(null);
   const [contractId, setContractId] = useState(null);
   const [loadingContract, setLoadingContract] = useState(false);
+  const [liveBid, setLiveBid] = useState(null);
+  const [agreedPriceInput, setAgreedPriceInput] = useState('');
+  const [editingAgreedPrice, setEditingAgreedPrice] = useState(false);
+  const [savingAgreedPrice, setSavingAgreedPrice] = useState(false);
+  const [agreedPriceError, setAgreedPriceError] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const agreedPriceInputRef = useRef(null);
   const isMobile = useMediaQuery('(max-width: 1023px)');
 
   // Extract data from modal props
@@ -38,6 +44,17 @@ export function ChatModal({
   const listingType = data?.type || 'cargo';
   const bid = data?.bid;
   const bidId = data?.bidId || bid?.id;
+  const resolvedBid = liveBid || bid || null;
+  const bidStatus = String(resolvedBid?.status || '').trim().toLowerCase();
+  const isBidder = currentUser?.uid && resolvedBid?.bidderId && currentUser.uid === resolvedBid.bidderId;
+  const canEditAgreedPrice = Boolean(
+    open
+    && bidId
+    && isBidder
+    && bidStatus === 'pending'
+    && !contractId
+    && !loadingContract
+  );
 
   // Get chat messages via hook
   const { messages: fetchedMessages, loading: messagesLoading } = useChat(bidId);
@@ -47,13 +64,13 @@ export function ChatModal({
     const allMessages = [];
 
     // Add initial bid message if it exists
-    if (bid?.message) {
+    if (resolvedBid?.message) {
       allMessages.push({
         id: 'bid-initial',
-        senderId: bid.bidderId,
-        senderName: bid.bidderName || 'Bidder',
-        message: bid.message,
-        createdAt: bid.createdAt,
+        senderId: resolvedBid.bidderId,
+        senderName: resolvedBid.bidderName || 'Bidder',
+        message: resolvedBid.message,
+        createdAt: resolvedBid.createdAt,
         isInitialBid: true,
       });
     }
@@ -62,14 +79,14 @@ export function ChatModal({
     allMessages.push(...fetchedMessages);
 
     return allMessages;
-  }, [bid, fetchedMessages]);
+  }, [resolvedBid, fetchedMessages]);
 
   // Determine the other party's info
   const isCargo = listingType === 'cargo';
   const participantContext = useMemo(() => {
     const currentUserId = currentUser?.uid || null;
-    const bidderId = bid?.bidderId || null;
-    const listingOwnerId = bid?.listingOwnerId || listing?.userId || null;
+    const bidderId = resolvedBid?.bidderId || null;
+    const listingOwnerId = resolvedBid?.listingOwnerId || listing?.userId || null;
     const defaultName = isCargo
       ? (listing?.shipper || listing?.userName || 'Shipper')
       : (listing?.trucker || listing?.userName || 'Trucker');
@@ -81,14 +98,14 @@ export function ChatModal({
     if (currentUserId === bidderId) {
       return {
         otherPartyId: listingOwnerId,
-        otherPartyName: bid?.listingOwnerName || defaultName,
+        otherPartyName: resolvedBid?.listingOwnerName || defaultName,
       };
     }
 
     if (currentUserId === listingOwnerId) {
       return {
         otherPartyId: bidderId,
-        otherPartyName: bid?.bidderName || 'Bidder',
+        otherPartyName: resolvedBid?.bidderName || 'Bidder',
       };
     }
 
@@ -96,8 +113,33 @@ export function ChatModal({
       otherPartyId: listingOwnerId || bidderId,
       otherPartyName: defaultName,
     };
-  }, [bid, currentUser?.uid, isCargo, listing?.shipper, listing?.trucker, listing?.userId, listing?.userName]);
+  }, [resolvedBid, currentUser?.uid, isCargo, listing?.shipper, listing?.trucker, listing?.userId, listing?.userName]);
   const otherPartyName = participantContext.otherPartyName;
+
+  // Keep bid data fresh while chat is open so price/status updates are reflected live.
+  useEffect(() => {
+    if (!open || !bidId) {
+      setLiveBid(null);
+      return;
+    }
+
+    const bidRef = doc(db, 'bids', bidId);
+    const unsubscribe = onSnapshot(
+      bidRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setLiveBid({ id: snapshot.id, ...snapshot.data() });
+        } else {
+          setLiveBid(null);
+        }
+      },
+      (err) => {
+        console.warn('Error subscribing to bid updates:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [open, bidId]);
 
   // Fetch contract for this bid when modal opens
   useEffect(() => {
@@ -158,9 +200,27 @@ export function ChatModal({
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) {
+      setEditingAgreedPrice(false);
+      setAgreedPriceInput('');
+      setAgreedPriceError(null);
+      setSavingAgreedPrice(false);
+    }
+  }, [open, bidId]);
+
   const formatPrice = (price) => {
     if (!price) return '---';
     return `PHP ${Number(price).toLocaleString()}`;
+  };
+
+  const parseAgreedPriceInput = (rawValue) => {
+    if (typeof rawValue !== 'string') return null;
+    const normalized = rawValue.replace(/[^\d.]/g, '');
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.round(parsed * 100) / 100;
   };
 
   const formatTimeAgo = (timestamp) => {
@@ -220,7 +280,83 @@ export function ChatModal({
   const handleClose = () => {
     setMessage('');
     setError(null);
+    setEditingAgreedPrice(false);
+    setAgreedPriceInput('');
+    setAgreedPriceError(null);
     onClose?.();
+  };
+
+  const beginAgreedPriceEdit = () => {
+    if (!canEditAgreedPrice || savingAgreedPrice) return;
+    setAgreedPriceError(null);
+    setEditingAgreedPrice(true);
+    setAgreedPriceInput('');
+    setTimeout(() => {
+      agreedPriceInputRef.current?.focus();
+    }, 0);
+  };
+
+  const cancelAgreedPriceEdit = () => {
+    if (savingAgreedPrice) return;
+    setEditingAgreedPrice(false);
+    setAgreedPriceInput('');
+    setAgreedPriceError(null);
+  };
+
+  const submitAgreedPrice = async () => {
+    if (!canEditAgreedPrice || savingAgreedPrice || !bidId) return;
+
+    const parsedAmount = parseAgreedPriceInput(agreedPriceInput);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setAgreedPriceError('Enter a valid amount greater than 0.');
+      return;
+    }
+
+    setSavingAgreedPrice(true);
+    setAgreedPriceError(null);
+
+    try {
+      await api.bids.updateAgreedPrice(bidId, parsedAmount);
+      setEditingAgreedPrice(false);
+      setAgreedPriceInput('');
+    } catch (err) {
+      console.error('Failed to update agreed price:', err);
+      const errorCode = String(err?.code || '').toLowerCase();
+      const errorMessage = String(err?.message || '').toLowerCase();
+      if (errorCode.includes('permission-denied')) {
+        setAgreedPriceError('Only the bidder can update agreed price.');
+      } else if (errorCode.includes('failed-precondition') && errorMessage.includes('pending')) {
+        setAgreedPriceError('Agreed price can only be updated while bid is pending.');
+      } else if (errorCode.includes('failed-precondition') && errorMessage.includes('contract')) {
+        setAgreedPriceError('Agreed price can no longer be updated because contract already exists.');
+      } else if (errorCode.includes('invalid-argument')) {
+        setAgreedPriceError('Please enter a valid agreed price.');
+      } else {
+        setAgreedPriceError('Failed to update agreed price. Please try again.');
+      }
+    } finally {
+      setSavingAgreedPrice(false);
+    }
+  };
+
+  const handleAgreedInputKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitAgreedPrice();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelAgreedPriceEdit();
+    }
+  };
+
+  const handleAgreedInputChange = (event) => {
+    const nextRawValue = event.target.value;
+    if (!/^[0-9]*\.?[0-9]{0,2}$/.test(nextRawValue)) {
+      return;
+    }
+    setAgreedPriceInput(nextRawValue);
   };
 
   if (!listing) return null;
@@ -328,7 +464,15 @@ export function ChatModal({
           background: 'linear-gradient(to bottom right, #f9fafb, #f3f4f6)',
           borderRadius: '12px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: contractId ? '12px' : '0' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) auto',
+              gap: '12px',
+              alignItems: 'start',
+              marginBottom: contractId ? '12px' : '0',
+            }}
+          >
             <div>
               <p style={{ fontWeight: '600', color: '#111827' }}>
                 {isCargo ? listing.cargoType || 'Cargo' : listing.vehicleType || 'Truck'}
@@ -340,17 +484,152 @@ export function ChatModal({
                 }
               </p>
             </div>
-            <div style={{
-              padding: '8px 16px',
-              borderRadius: '12px',
-              background: 'linear-gradient(to right, #fb923c, #ea580c)',
-              color: 'white',
-              fontWeight: '700',
-              fontSize: '16px'
-            }}>
-              {bid?.price ? `Bid: ${formatPrice(bid.price)}` : formatPrice(listing.askingPrice || listing.price)}
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                alignItems: isMobile ? 'stretch' : 'flex-end',
+                width: isMobile ? '100%' : 'auto',
+                minWidth: isMobile ? '100%' : '220px',
+              }}
+            >
+              <div
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(to right, #fb923c, #ea580c)',
+                  color: '#FFFFFF',
+                  fontWeight: '700',
+                  fontSize: '16px',
+                  textAlign: 'center',
+                  minHeight: '42px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {resolvedBid?.price ? `Bid: ${formatPrice(resolvedBid.price)}` : formatPrice(listing.askingPrice || listing.price)}
+              </div>
+
+              {editingAgreedPrice ? (
+                <div
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '12px',
+                    background: '#ffedd5',
+                    color: '#9a3412',
+                    border: '1px solid #fdba74',
+                    fontWeight: '700',
+                    fontSize: '16px',
+                    minHeight: '42px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    width: '100%',
+                  }}
+                >
+                  <input
+                    ref={agreedPriceInputRef}
+                    value={agreedPriceInput}
+                    onChange={handleAgreedInputChange}
+                    onKeyDown={handleAgreedInputKeyDown}
+                    onBlur={() => {
+                      if (!savingAgreedPrice) {
+                        cancelAgreedPriceEdit();
+                      }
+                    }}
+                    inputMode="decimal"
+                    placeholder="Enter Agreed Price"
+                    style={{
+                      flex: 1,
+                      border: 'none',
+                      outline: 'none',
+                      background: 'transparent',
+                      color: '#9a3412',
+                      fontWeight: '700',
+                      fontSize: '16px',
+                      minWidth: 0,
+                    }}
+                    disabled={savingAgreedPrice}
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={submitAgreedPrice}
+                    disabled={savingAgreedPrice}
+                    aria-label="Confirm agreed price"
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#16a34a',
+                      cursor: savingAgreedPrice ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                    }}
+                  >
+                    {savingAgreedPrice ? (
+                      <Loader2 style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+                    ) : (
+                      <Check style={{ width: '16px', height: '16px' }} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={cancelAgreedPriceEdit}
+                    disabled={savingAgreedPrice}
+                    aria-label="Cancel agreed price edit"
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#dc2626',
+                      cursor: savingAgreedPrice ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                    }}
+                  >
+                    <X style={{ width: '16px', height: '16px' }} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={beginAgreedPriceEdit}
+                  disabled={!canEditAgreedPrice}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '12px',
+                    background: '#ffedd5',
+                    color: '#9a3412',
+                    border: '1px solid #fdba74',
+                    fontWeight: '700',
+                    fontSize: '16px',
+                    minHeight: '42px',
+                    width: '100%',
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap',
+                    cursor: canEditAgreedPrice ? 'pointer' : 'default',
+                    opacity: canEditAgreedPrice ? 1 : 0.9,
+                  }}
+                >
+                  Enter Agreed Price
+                </button>
+              )}
             </div>
           </div>
+
+          {agreedPriceError && (
+            <p style={{ marginTop: '8px', fontSize: '12px', color: '#dc2626' }}>
+              {agreedPriceError}
+            </p>
+          )}
 
           {/* View Contract Button */}
           {contractId && onOpenContract && (

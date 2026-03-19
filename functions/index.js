@@ -1395,6 +1395,7 @@ exports.getPendingRatings = ratingFunctions.getPendingRatings;
 
 const bidFunctions = require('./src/api/bids');
 exports.acceptBid = bidFunctions.acceptBid;
+exports.updateBidAgreedPrice = bidFunctions.updateBidAgreedPrice;
 
 // =============================================================================
 // ADMIN FUNCTIONS
