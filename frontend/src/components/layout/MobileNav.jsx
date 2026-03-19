@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, MessageSquare, Plus, MapPin, User, Bell } from 'lucide-react';
+import { Home, MessageSquare, Plus, MapPin, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function MobileNav({
@@ -7,19 +7,16 @@ export function MobileNav({
   onTabChange,
   onPostClick,
   unreadMessages = 0,
-  unreadNotifications = 0,
   currentRole = 'shipper', // 'shipper' or 'trucker'
   className,
 }) {
-  // 5-item navigation with Tracking replacing Activity
-  // [Home] [Tracking] [+ Post] [Messages] [Profile]
-  // Notifications accessible via bell badge on Profile
+  // [Home] [Tracking] [+ Post] [Messages] [My Activity]
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'tracking', label: 'Tracking', icon: MapPin },
     { id: 'post', label: 'Post', icon: Plus, isAction: true },
     { id: 'messages', label: 'Messages', icon: MessageSquare, badge: unreadMessages },
-    { id: 'profile', label: 'Profile', icon: User, notificationBadge: unreadNotifications },
+    { id: 'activity', label: 'My Activity', icon: ClipboardList },
   ];
 
   return (
@@ -72,11 +69,6 @@ export function MobileNav({
                 {item.badge > 0 && (
                   <span className="absolute -top-1 -right-1 size-4 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white dark:border-gray-900">
                     {item.badge > 9 ? '9+' : item.badge}
-                  </span>
-                )}
-                {item.notificationBadge > 0 && (
-                  <span className="absolute -top-1 -right-1 size-4 flex items-center justify-center bg-orange-500 text-white text-[10px] font-bold rounded-full border-2 border-white dark:border-gray-900">
-                    {item.notificationBadge > 9 ? '9+' : item.notificationBadge}
                   </span>
                 )}
               </div>
