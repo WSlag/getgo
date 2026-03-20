@@ -10,7 +10,12 @@ import { Phone, PhoneOff } from 'lucide-react';
  *   onAccept     — (call) => void
  *   onDecline    — (call) => void
  */
-export function IncomingCallBanner({ incomingCall, onAccept, onDecline }) {
+export function IncomingCallBanner({
+  incomingCall,
+  onAccept,
+  onDecline,
+  disableAccept = false,
+}) {
   if (!incomingCall) return null;
 
   const callerInitial = (incomingCall.callerName || '?')[0].toUpperCase();
@@ -106,7 +111,11 @@ export function IncomingCallBanner({ incomingCall, onAccept, onDecline }) {
       {/* Accept */}
       <button
         type="button"
-        onClick={() => onAccept(incomingCall)}
+        onClick={() => {
+          if (disableAccept) return;
+          onAccept(incomingCall);
+        }}
+        disabled={disableAccept}
         aria-label="Accept call"
         style={{
           width: 42,
@@ -114,17 +123,24 @@ export function IncomingCallBanner({ incomingCall, onAccept, onDecline }) {
           borderRadius: '50%',
           backgroundColor: '#22c55e',
           border: 'none',
-          cursor: 'pointer',
+          cursor: disableAccept ? 'not-allowed' : 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
           transition: 'filter 0.15s, transform 0.15s',
           boxShadow: '0 4px 12px rgba(34,197,94,0.4)',
+          opacity: disableAccept ? 0.5 : 1,
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.15)'; }}
+        onMouseEnter={(e) => {
+          if (disableAccept) return;
+          e.currentTarget.style.filter = 'brightness(1.15)';
+        }}
         onMouseLeave={(e) => { e.currentTarget.style.filter = ''; }}
-        onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.92)'; }}
+        onMouseDown={(e) => {
+          if (disableAccept) return;
+          e.currentTarget.style.transform = 'scale(0.92)';
+        }}
         onMouseUp={(e) => { e.currentTarget.style.transform = ''; }}
       >
         <Phone color="white" size={17} />

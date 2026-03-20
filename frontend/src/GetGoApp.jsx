@@ -48,6 +48,7 @@ import { useBrokerOnboarding } from './hooks/useBrokerOnboarding';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { InAppBrowserOverlay } from '@/components/shared/InAppBrowserOverlay';
 import { PWAInstallPrompt } from '@/components/shared/PWAInstallPrompt';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { buildAndroidIntentUrl } from './utils/browserDetect';
 import { useCallSignaling, deriveAgoraUid } from './hooks/useCallSignaling';
 import { IncomingCallBanner } from '@/components/call/IncomingCallBanner';
@@ -122,6 +123,7 @@ const TERMINAL_CALL_STATUSES = new Set(['ended', 'rejected', 'missed']);
 const INCOMING_RINGTONE_SRC = '/sounds/incoming-call.wav';
 const INCOMING_VIBRATION_PATTERN = [350, 180, 350, 480];
 const INCOMING_VIBRATION_REPEAT_MS = 2000;
+const CALL_ELIGIBILITY_CACHE_TTL_MS = 60 * 1000;
 
 function getUserScopedKey(prefix, uid) {
   return `${prefix}:${uid || 'guest'}`;
@@ -246,9 +248,11 @@ export default function GetGoApp() {
   } = useSocket(activeUserId);
 
   // Voice Call Signaling
-  const { incomingCall, initiateCall, updateCallStatus } = useCallSignaling(activeUserId);
+  const { incomingCall, initiateCall, updateCallStatus, checkCallEligibility } = useCallSignaling(activeUserId);
   const [activeCall, setActiveCall] = useState(null);
-  // activeCall: { callId, channelName, agoraUid, otherPartyName, isOutgoing, status } | null
+  const [pendingCallRequest, setPendingCallRequest] = useState(null);
+  // activeCall: { callId, channelName, agoraUid, otherPartyName, otherPartyId, isOutgoing, status } | null
+  const [callEligibilityByUser, setCallEligibilityByUser] = useState({});
   const callToastKeysRef = useRef(new Set());
   const incomingChatAutoClosedCallIdRef = useRef(null);
   const incomingRingtoneRef = useRef(null);
@@ -259,6 +263,69 @@ export default function GetGoApp() {
     if (!activation) return true;
     return Boolean(activation.hasBeenActive || activation.isActive);
   }, []);
+
+  const isCallQuotaError = useCallback((err) => {
+    const code = String(err?.code || '').toLowerCase();
+    return code.includes('resource-exhausted');
+  }, []);
+
+  const upsertCallEligibility = useCallback((otherUserId, eligible, checkedAtMs = Date.now()) => {
+    const normalizedUserId = typeof otherUserId === 'string' ? otherUserId.trim() : '';
+    if (!normalizedUserId) return;
+    setCallEligibilityByUser((prev) => ({
+      ...prev,
+      [normalizedUserId]: {
+        eligible: Boolean(eligible),
+        checkedAtMs,
+      },
+    }));
+  }, []);
+
+  const isCallDisabled = useCallback((otherUserId) => {
+    const normalizedUserId = typeof otherUserId === 'string' ? otherUserId.trim() : '';
+    if (!normalizedUserId) return true;
+    const cached = callEligibilityByUser[normalizedUserId];
+    return cached ? cached.eligible === false : false;
+  }, [callEligibilityByUser]);
+
+  const ensureCallEligibility = useCallback(
+    async (otherUserId, { force = false } = {}) => {
+      const normalizedUserId = typeof otherUserId === 'string' ? otherUserId.trim() : '';
+      if (!authUser?.uid || !normalizedUserId || normalizedUserId === authUser.uid) return false;
+
+      const nowMs = Date.now();
+      const cached = callEligibilityByUser[normalizedUserId];
+      const isFresh = cached && (nowMs - cached.checkedAtMs) < CALL_ELIGIBILITY_CACHE_TTL_MS;
+      if (!force && isFresh) {
+        return cached.eligible !== false;
+      }
+
+      try {
+        const eligibility = await checkCallEligibility({ calleeId: normalizedUserId });
+        const eligible = eligibility?.eligible !== false;
+        upsertCallEligibility(normalizedUserId, eligible, nowMs);
+        return eligible;
+      } catch (err) {
+        if (isCallQuotaError(err)) {
+          upsertCallEligibility(normalizedUserId, false, nowMs);
+          return false;
+        }
+        // Fail open for transient eligibility lookup errors to avoid blocking valid calls.
+        return true;
+      }
+    },
+    [authUser?.uid, callEligibilityByUser, checkCallEligibility, upsertCallEligibility, isCallQuotaError]
+  );
+
+  useEffect(() => {
+    setCallEligibilityByUser({});
+  }, [authUser?.uid]);
+
+  useEffect(() => {
+    const callerId = typeof incomingCall?.callerId === 'string' ? incomingCall.callerId.trim() : '';
+    if (!callerId || typeof ensureCallEligibility !== 'function') return;
+    ensureCallEligibility(callerId).catch(() => {});
+  }, [incomingCall?.id, incomingCall?.callerId, ensureCallEligibility]);
 
   const notifyCallStatus = useCallback((callId, status) => {
     if (!callId || !status) return;
@@ -356,9 +423,13 @@ export default function GetGoApp() {
     closeModal('chat');
   }, [activeCall?.callId, modals.chat, closeModal]);
 
-  const handleInitiateCall = useCallback(
+  const startCallSession = useCallback(
     async ({ calleeId, calleeName, callType, contextId }) => {
       if (!authUser?.uid || !calleeId || activeCall) return;
+
+      const canStartCall = await ensureCallEligibility(calleeId);
+      if (!canStartCall) return;
+
       try {
         const callerName = authUser.displayName || userProfile?.name || 'User';
         const { callId, channelName } = await initiateCall({
@@ -374,16 +445,46 @@ export default function GetGoApp() {
           channelName,
           agoraUid: deriveAgoraUid(authUser.uid),
           otherPartyName: calleeName,
+          otherPartyId: calleeId,
           isOutgoing: true,
           status: 'ringing',
         });
+        upsertCallEligibility(calleeId, true);
       } catch (err) {
+        if (isCallQuotaError(err)) {
+          upsertCallEligibility(calleeId, false);
+          return;
+        }
         console.error('[handleInitiateCall] failed:', err);
         showToast({ type: 'error', title: 'Could not start call', message: err.message || '' });
       }
     },
-    [authUser, userProfile, activeCall, initiateCall, showToast]
+    [authUser, userProfile, activeCall, initiateCall, ensureCallEligibility, upsertCallEligibility, isCallQuotaError, showToast]
   );
+
+  const handleInitiateCall = useCallback(
+    ({ calleeId, calleeName, callType, contextId }) => {
+      if (!authUser?.uid || !calleeId || activeCall) return;
+      setPendingCallRequest({
+        calleeId,
+        calleeName,
+        callType,
+        contextId,
+      });
+    },
+    [authUser?.uid, activeCall]
+  );
+
+  const handleConfirmPendingCall = useCallback(async () => {
+    const request = pendingCallRequest;
+    if (!request) return;
+    setPendingCallRequest(null);
+    await startCallSession(request);
+  }, [pendingCallRequest, startCallSession]);
+
+  const handleCancelPendingCall = useCallback(() => {
+    setPendingCallRequest(null);
+  }, []);
 
   const handleAcceptCall = useCallback(
     async (call) => {
@@ -411,6 +512,9 @@ export default function GetGoApp() {
         });
         return;
       }
+      if (isCallDisabled(call?.callerId)) {
+        return;
+      }
       try {
         stopIncomingCallAlerts();
         await updateCallStatus(call.id, 'active');
@@ -419,10 +523,15 @@ export default function GetGoApp() {
           channelName: call.channelName,
           agoraUid: deriveAgoraUid(authUser.uid),
           otherPartyName: call.callerName,
+          otherPartyId: call.callerId,
           isOutgoing: false,
           status: 'active',
         });
       } catch (err) {
+        if (isCallQuotaError(err)) {
+          upsertCallEligibility(call?.callerId, false);
+          return;
+        }
         console.error('[handleAcceptCall] failed:', err);
         showToast({
           type: 'error',
@@ -431,7 +540,7 @@ export default function GetGoApp() {
         });
       }
     },
-    [authUser, activeCall, stopIncomingCallAlerts, updateCallStatus, showToast]
+    [authUser, activeCall, isCallDisabled, stopIncomingCallAlerts, updateCallStatus, isCallQuotaError, showToast, upsertCallEligibility]
   );
 
   const handleDeclineCall = useCallback(
@@ -478,6 +587,8 @@ export default function GetGoApp() {
         const nextStatus = typeof data.status === 'string' ? data.status : null;
         if (!nextStatus) return;
 
+        const otherPartyId = data.callerId === authUser?.uid ? data.calleeId : data.callerId;
+
         setActiveCall((prev) => {
           if (!prev || prev.callId !== subscribedCallId) return prev;
           if (prev.status === nextStatus) return prev;
@@ -485,6 +596,9 @@ export default function GetGoApp() {
         });
 
         if (TERMINAL_CALL_STATUSES.has(nextStatus)) {
+          if (otherPartyId) {
+            ensureCallEligibility(otherPartyId, { force: true }).catch(() => {});
+          }
           setActiveCall((prev) => (prev?.callId === subscribedCallId ? null : prev));
           notifyCallStatus(subscribedCallId, nextStatus);
         }
@@ -495,7 +609,7 @@ export default function GetGoApp() {
     );
 
     return () => unsubscribe();
-  }, [activeCall?.callId, notifyCallStatus]);
+  }, [activeCall?.callId, authUser?.uid, ensureCallEligibility, notifyCallStatus]);
 
   // Outgoing no-answer timeout should be based on signaling status, not local SDK state.
   useEffect(() => {
@@ -517,12 +631,16 @@ export default function GetGoApp() {
     (reason) => {
       stopIncomingCallAlerts();
       const closingCallId = activeCall?.callId;
+      const closingOtherPartyId = activeCall?.otherPartyId;
       setActiveCall(null);
+      if (closingOtherPartyId) {
+        ensureCallEligibility(closingOtherPartyId, { force: true }).catch(() => {});
+      }
       if (reason === 'ended' || reason === 'missed' || reason === 'rejected') {
         notifyCallStatus(closingCallId, reason);
       }
     },
-    [activeCall?.callId, notifyCallStatus, stopIncomingCallAlerts]
+    [activeCall?.callId, activeCall?.otherPartyId, ensureCallEligibility, notifyCallStatus, stopIncomingCallAlerts]
   );
 
   // Broker Onboarding & Re-engagement
@@ -2709,6 +2827,8 @@ export default function GetGoApp() {
               darkMode={darkMode}
               onLocationUpdate={emitShipmentUpdate}
               onInitiateCall={authUser ? handleInitiateCall : null}
+              onEnsureCallEligibility={authUser ? ensureCallEligibility : null}
+              isCallDisabled={authUser ? isCallDisabled : null}
             />
           </ErrorBoundary>
         )}
@@ -3237,6 +3357,8 @@ export default function GetGoApp() {
         currentUser={authUser}
         onOpenContract={handleOpenContract}
         onInitiateCall={authUser ? handleInitiateCall : null}
+        onEnsureCallEligibility={authUser ? ensureCallEligibility : null}
+        isCallDisabled={authUser ? isCallDisabled : null}
       />
       )}
 
@@ -3522,6 +3644,7 @@ export default function GetGoApp() {
           incomingCall={incomingCall}
           onAccept={handleAcceptCall}
           onDecline={handleDeclineCall}
+          disableAccept={isCallDisabled(incomingCall?.callerId)}
         />
       )}
 
@@ -3541,6 +3664,16 @@ export default function GetGoApp() {
           />
         </Suspense>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingCallRequest)}
+        title="Voice call"
+        description="This call may be recorded."
+        confirmLabel="Start call"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmPendingCall}
+        onCancel={handleCancelPendingCall}
+      />
 
       {/* PWA Install Prompt (Android/Desktop banner or iOS Safari instructions) */}
       <PWAInstallPrompt

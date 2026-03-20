@@ -333,6 +333,14 @@
       ]
     },
     {
+      "collectionGroup": "calls",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "forcedEndAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "supportConversations",
       "queryScope": "COLLECTION",
       "fields": [
