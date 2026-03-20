@@ -526,9 +526,8 @@ export function ChatModal({
             <div
               style={{
                 display: 'flex',
-                justifyContent: 'flex-end',
+                justifyContent: 'center',
                 marginTop: '10px',
-                paddingRight: '52px', // Preserve clear separation from the top-right close button.
               }}
             >
               <CallButton
@@ -539,7 +538,8 @@ export function ChatModal({
                   contextId: bidId,
                 })}
                 title={`Call ${participantContext.otherPartyName}`}
-                className="w-10 h-10 rounded-2xl"
+                className="w-11 h-11 rounded-2xl"
+                iconClassName="size-5"
               />
             </div>
           )}
