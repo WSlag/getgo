@@ -119,6 +119,9 @@ const SAVED_ROUTES_KEY_PREFIX = 'karga.savedRoutes.v1';
 const ONBOARDING_DISMISSED_KEY_PREFIX = 'karga.onboardingDismissed.v1';
 const INSTALL_STATUS_TOAST_COOLDOWN_MS = 2500;
 const TERMINAL_CALL_STATUSES = new Set(['ended', 'rejected', 'missed']);
+const INCOMING_RINGTONE_SRC = '/sounds/incoming-call.wav';
+const INCOMING_VIBRATION_PATTERN = [350, 180, 350, 480];
+const INCOMING_VIBRATION_REPEAT_MS = 2000;
 
 function getUserScopedKey(prefix, uid) {
   return `${prefix}:${uid || 'guest'}`;
@@ -247,6 +250,8 @@ export default function GetGoApp() {
   const [activeCall, setActiveCall] = useState(null);
   // activeCall: { callId, channelName, agoraUid, otherPartyName, isOutgoing, status } | null
   const callToastKeysRef = useRef(new Set());
+  const incomingRingtoneRef = useRef(null);
+  const incomingVibrationIntervalRef = useRef(null);
 
   const notifyCallStatus = useCallback((callId, status) => {
     if (!callId || !status) return;
@@ -262,6 +267,67 @@ export default function GetGoApp() {
       showToast({ type: 'info', title: 'Call declined', message: '' });
     }
   }, [showToast]);
+
+  const stopIncomingCallAlerts = useCallback(() => {
+    if (incomingVibrationIntervalRef.current) {
+      clearInterval(incomingVibrationIntervalRef.current);
+      incomingVibrationIntervalRef.current = null;
+    }
+
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(0);
+    }
+
+    const audio = incomingRingtoneRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+  }, []);
+
+  const startIncomingCallAlerts = useCallback(() => {
+    const audio = incomingRingtoneRef.current;
+    if (audio) {
+      audio.currentTime = 0;
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch((err) => {
+          // Autoplay may be blocked before user interaction; keep silent fallback.
+          console.debug('[incoming-call] ringtone playback blocked:', err?.message || err);
+        });
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(INCOMING_VIBRATION_PATTERN);
+      if (!incomingVibrationIntervalRef.current) {
+        incomingVibrationIntervalRef.current = setInterval(() => {
+          navigator.vibrate(INCOMING_VIBRATION_PATTERN);
+        }, INCOMING_VIBRATION_REPEAT_MS);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const audio = new Audio(INCOMING_RINGTONE_SRC);
+    audio.loop = true;
+    audio.preload = 'auto';
+    audio.volume = 1;
+    incomingRingtoneRef.current = audio;
+
+    return () => {
+      stopIncomingCallAlerts();
+      incomingRingtoneRef.current = null;
+    };
+  }, [stopIncomingCallAlerts]);
+
+  useEffect(() => {
+    const shouldPlayIncomingAlerts = Boolean(incomingCall?.id) && !activeCall?.callId;
+    if (shouldPlayIncomingAlerts) {
+      startIncomingCallAlerts();
+      return;
+    }
+    stopIncomingCallAlerts();
+  }, [incomingCall?.id, activeCall?.callId, startIncomingCallAlerts, stopIncomingCallAlerts]);
 
   const handleInitiateCall = useCallback(
     async ({ calleeId, calleeName, callType, contextId }) => {
@@ -296,6 +362,7 @@ export default function GetGoApp() {
     async (call) => {
       if (!authUser?.uid || activeCall) return;
       try {
+        stopIncomingCallAlerts();
         await updateCallStatus(call.id, 'active');
         setActiveCall({
           callId: call.id,
@@ -309,18 +376,19 @@ export default function GetGoApp() {
         console.error('[handleAcceptCall] failed:', err);
       }
     },
-    [authUser, activeCall, updateCallStatus]
+    [authUser, activeCall, stopIncomingCallAlerts, updateCallStatus]
   );
 
   const handleDeclineCall = useCallback(
     async (call) => {
       try {
+        stopIncomingCallAlerts();
         await updateCallStatus(call.id, 'rejected');
       } catch (err) {
         console.error('[handleDeclineCall] failed:', err);
       }
     },
-    [updateCallStatus]
+    [stopIncomingCallAlerts, updateCallStatus]
   );
 
   // Keep local call state in sync with Firestore status and close when terminal.
@@ -379,13 +447,14 @@ export default function GetGoApp() {
 
   const handleCallClose = useCallback(
     (reason) => {
+      stopIncomingCallAlerts();
       const closingCallId = activeCall?.callId;
       setActiveCall(null);
       if (reason === 'ended' || reason === 'missed' || reason === 'rejected') {
         notifyCallStatus(closingCallId, reason);
       }
     },
-    [activeCall?.callId, notifyCallStatus]
+    [activeCall?.callId, notifyCallStatus, stopIncomingCallAlerts]
   );
 
   // Broker Onboarding & Re-engagement
