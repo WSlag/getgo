@@ -253,6 +253,12 @@ export default function GetGoApp() {
   const incomingChatAutoClosedCallIdRef = useRef(null);
   const incomingRingtoneRef = useRef(null);
   const incomingVibrationIntervalRef = useRef(null);
+  const canTriggerVibration = useCallback(() => {
+    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false;
+    const activation = navigator.userActivation;
+    if (!activation) return true;
+    return Boolean(activation.hasBeenActive || activation.isActive);
+  }, []);
 
   const notifyCallStatus = useCallback((callId, status) => {
     if (!callId || !status) return;
@@ -275,7 +281,7 @@ export default function GetGoApp() {
       incomingVibrationIntervalRef.current = null;
     }
 
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    if (canTriggerVibration()) {
       navigator.vibrate(0);
     }
 
@@ -283,7 +289,7 @@ export default function GetGoApp() {
     if (!audio) return;
     audio.pause();
     audio.currentTime = 0;
-  }, []);
+  }, [canTriggerVibration]);
 
   const startIncomingCallAlerts = useCallback(() => {
     const audio = incomingRingtoneRef.current;
@@ -298,15 +304,16 @@ export default function GetGoApp() {
       }
     }
 
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    if (canTriggerVibration()) {
       navigator.vibrate(INCOMING_VIBRATION_PATTERN);
       if (!incomingVibrationIntervalRef.current) {
         incomingVibrationIntervalRef.current = setInterval(() => {
+          if (!canTriggerVibration()) return;
           navigator.vibrate(INCOMING_VIBRATION_PATTERN);
         }, INCOMING_VIBRATION_REPEAT_MS);
       }
     }
-  }, []);
+  }, [canTriggerVibration]);
 
   useEffect(() => {
     const audio = new Audio(INCOMING_RINGTONE_SRC);
