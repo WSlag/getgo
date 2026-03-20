@@ -4,12 +4,9 @@ import {
   query,
   where,
   onSnapshot,
-  setDoc,
-  updateDoc,
-  doc,
-  serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import api from '../services/api';
 
 /**
  * Derive a deterministic Agora numeric UID (uint32) from a Firebase UID.
@@ -80,24 +77,14 @@ export function useCallSignaling(currentUserId) {
    */
   const initiateCall = useCallback(
     async ({ callerId, calleeId, callerName, calleeName, callType, contextId }) => {
-      // Pre-generate the doc ID so channelName = callId from the very first write,
-      // satisfying the Firestore rule that requires channelName.size() > 0 on create.
-      const callRef = doc(collection(db, 'calls'));
-      const callId = callRef.id;
-      await setDoc(callRef, {
+      return api.calls.start({
         callerId,
         calleeId,
         callerName: callerName || 'User',
         calleeName: calleeName || 'User',
-        channelName: callId,
-        status: 'ringing',
         callType,
         contextId,
-        createdAt: serverTimestamp(),
-        answeredAt: null,
-        endedAt: null,
       });
-      return { callId, channelName: callId };
     },
     []
   );
@@ -106,21 +93,25 @@ export function useCallSignaling(currentUserId) {
    * Update a call's status (and optional extra fields).
    */
   const updateCallStatus = useCallback(async (callId, status, extra = {}) => {
-    if (!callId) return;
-    const callRef = doc(db, 'calls', callId);
-    const update = { status, ...extra };
+    if (!callId || !status) return null;
     if (status === 'active') {
-      update.answeredAt = serverTimestamp();
+      return api.calls.answer(callId);
     }
     if (['ended', 'rejected', 'missed'].includes(status)) {
-      update.endedAt = serverTimestamp();
+      return api.calls.end(callId, status, extra || {});
     }
-    await updateDoc(callRef, update);
+    return null;
+  }, []);
+
+  const checkCallEligibility = useCallback(async ({ calleeId }) => {
+    if (!calleeId) return { eligible: false, remainingSeconds: 0 };
+    return api.calls.getEligibility(calleeId);
   }, []);
 
   return {
     incomingCall,
     initiateCall,
     updateCallStatus,
+    checkCallEligibility,
   };
 }

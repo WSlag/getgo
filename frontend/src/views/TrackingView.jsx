@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { MapPin, Package, Truck, Navigation, Radio, MapPinned, CheckCircle2, Calendar, User, PhoneCall } from 'lucide-react';
 import { CallButton } from '@/components/call/CallButton';
 import { cn } from '@/lib/utils';
@@ -84,6 +84,8 @@ export function TrackingView({
   className,
   onLocationUpdate = null,
   onInitiateCall = null,
+  onEnsureCallEligibility = null,
+  isCallDisabled = null,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const [selectedShipmentId, setSelectedShipmentId] = useState(null);
@@ -220,6 +222,27 @@ export function TrackingView({
     return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  useEffect(() => {
+    if (typeof onEnsureCallEligibility !== 'function') return;
+
+    const counterpartIds = new Set();
+    roleScopedShipments.forEach((shipment) => {
+      const shipmentAssignedTrucker = shipment?.truckerId && currentUserId
+        ? shipment.truckerId === currentUserId
+        : activeWorkspace === 'trucker';
+      const counterpartId = shipmentAssignedTrucker
+        ? shipment.shipperId
+        : shipment.truckerId;
+      if (counterpartId && shipment.status !== 'delivered') {
+        counterpartIds.add(counterpartId);
+      }
+    });
+
+    counterpartIds.forEach((counterpartId) => {
+      Promise.resolve(onEnsureCallEligibility(counterpartId)).catch(() => {});
+    });
+  }, [roleScopedShipments, onEnsureCallEligibility, currentUserId, activeWorkspace]);
+
   const ShipmentCard = ({ shipment }) => {
     const status = statusConfig[shipment.status] || statusConfig.in_transit;
     const canPickUpShipment = canPickUp(shipment);
@@ -237,6 +260,10 @@ export function TrackingView({
       : (shipment.truckerName || 'Trucker');
     const canCallShipment = Boolean(
       onInitiateCall && callOtherPartyId && shipment.status !== 'delivered'
+    );
+    const callActionDisabled = Boolean(
+      !callOtherPartyId
+      || (typeof isCallDisabled === 'function' && isCallDisabled(callOtherPartyId))
     );
 
     return (
@@ -277,6 +304,7 @@ export function TrackingView({
                     callType: 'monitoring',
                     contextId: shipment.id,
                   })}
+                  disabled={callActionDisabled}
                   title={`Call ${callOtherPartyName}`}
                 />
               )}

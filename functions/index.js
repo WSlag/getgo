@@ -1395,6 +1395,10 @@ exports.getPendingRatings = ratingFunctions.getPendingRatings;
 
 const callFunctions = require('./src/api/calls');
 exports.generateAgoraToken = callFunctions.generateAgoraToken;
+exports.getVoiceCallEligibility = callFunctions.getVoiceCallEligibility;
+exports.startVoiceCall = callFunctions.startVoiceCall;
+exports.answerVoiceCall = callFunctions.answerVoiceCall;
+exports.endVoiceCall = callFunctions.endVoiceCall;
 
 // =============================================================================
 // BID FUNCTIONS
@@ -1538,6 +1542,7 @@ exports.sendPlatformFeeReminders = platformFeeReminders.sendPlatformFeeReminders
 
 const brokerListingReferralExpiry = require('./src/scheduled/brokerListingReferralExpiry');
 exports.expireBrokerListingReferrals = brokerListingReferralExpiry.expireBrokerListingReferrals;
+exports.enforceVoiceCallTimeouts = callFunctions.enforceVoiceCallTimeouts;
 
 // =============================================================================
 // ROUTING PROXY - Avoids CORS restrictions on OpenRouteService from the browser

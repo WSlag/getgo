@@ -132,6 +132,10 @@ const api = {
   calls: {
     generateToken: (channelName, uid) =>
       callFunction('generateAgoraToken', { channelName, uid }),
+    start: (data = {}) => callFunction('startVoiceCall', data || {}),
+    answer: (callId) => callFunction('answerVoiceCall', { callId }),
+    end: (callId, status, extra = {}) => callFunction('endVoiceCall', { callId, status, ...(extra || {}) }),
+    getEligibility: (calleeId) => callFunction('getVoiceCallEligibility', { calleeId }),
   },
 
   ratings: {

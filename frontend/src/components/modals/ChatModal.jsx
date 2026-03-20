@@ -27,6 +27,8 @@ export function ChatModal({
   currentUser,
   onOpenContract,
   onInitiateCall,
+  onEnsureCallEligibility,
+  isCallDisabled,
 }) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -144,6 +146,17 @@ export function ChatModal({
     };
   }, [resolvedBid, currentUserId, isCargo, listing?.shipper, listing?.trucker, listing?.userId, listing?.userName]);
   const otherPartyName = participantContext.otherPartyName;
+  const callButtonDisabled = Boolean(
+    !participantContext.otherPartyId
+    || (typeof isCallDisabled === 'function' && isCallDisabled(participantContext.otherPartyId))
+  );
+
+  useEffect(() => {
+    if (!open || !canCall || !participantContext.otherPartyId || typeof onEnsureCallEligibility !== 'function') {
+      return;
+    }
+    Promise.resolve(onEnsureCallEligibility(participantContext.otherPartyId)).catch(() => {});
+  }, [open, canCall, participantContext.otherPartyId, onEnsureCallEligibility]);
 
   // Keep bid data fresh while chat is open so price/status updates are reflected live.
   useEffect(() => {
@@ -518,6 +531,7 @@ export function ChatModal({
                   callType: 'negotiation',
                   contextId: bidId,
                 })}
+                disabled={callButtonDisabled}
                 title={`Call ${participantContext.otherPartyName}`}
               />
             )}
@@ -537,6 +551,7 @@ export function ChatModal({
                   callType: 'negotiation',
                   contextId: bidId,
                 })}
+                disabled={callButtonDisabled}
                 title={`Call ${participantContext.otherPartyName}`}
                 className="w-11 h-11 rounded-2xl"
                 iconClassName="size-5"
