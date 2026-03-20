@@ -469,7 +469,15 @@ export function ChatModal({
         <div style={{ padding: isMobile ? '16px' : '28px', paddingBottom: 0 }}>
         <DialogHeader>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                minWidth: 0,
+                paddingRight: isMobile ? '52px' : 0, // Keep distance from the modal close button hit-area.
+              }}
+            >
               <div style={{
                 width: '48px',
                 height: '48px',
@@ -502,7 +510,7 @@ export function ChatModal({
                 </DialogDescription>
               </div>
             </div>
-            {canCall && (
+            {!isMobile && canCall && (
               <CallButton
                 onCall={() => onInitiateCall({
                   calleeId: participantContext.otherPartyId,
@@ -514,6 +522,27 @@ export function ChatModal({
               />
             )}
           </div>
+          {isMobile && canCall && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                marginTop: '10px',
+                paddingRight: '52px', // Preserve clear separation from the top-right close button.
+              }}
+            >
+              <CallButton
+                onCall={() => onInitiateCall({
+                  calleeId: participantContext.otherPartyId,
+                  calleeName: participantContext.otherPartyName,
+                  callType: 'negotiation',
+                  contextId: bidId,
+                })}
+                title={`Call ${participantContext.otherPartyName}`}
+                className="w-10 h-10 rounded-2xl"
+              />
+            </div>
+          )}
         </DialogHeader>
 
         {/* Listing Summary */}
