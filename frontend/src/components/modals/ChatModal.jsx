@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MessageSquare, Send, MapPin, Package, Truck, Loader2, FileText, Check, X } from 'lucide-react';
+import { CallButton } from '@/components/call/CallButton';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Dialog,
   DialogBottomSheet,
+  DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
@@ -24,6 +26,7 @@ export function ChatModal({
   data,
   currentUser,
   onOpenContract,
+  onInitiateCall,
 }) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -64,6 +67,10 @@ export function ChatModal({
   }, [open, bidId, isClosedBid, bidStatus, isCancelledContract]);
   const canSendMessage = !chatReadOnlyReason;
   const showContractCta = Boolean(contractId && onOpenContract && !isCancelledContract);
+  // Call button is shown when chat is active (not read-only) and we have a valid other party
+  const canCall = Boolean(
+    onInitiateCall && currentUserId && !chatReadOnlyReason
+  );
   const editableBidStatuses = new Set(['pending', 'accepted']);
   const isBidder = Boolean(currentUserId && bidderId && currentUserId === bidderId);
   const isEditableBidStatus = editableBidStatuses.has(bidStatus);
@@ -461,37 +468,51 @@ export function ChatModal({
       <DialogBottomSheet className="max-w-md backdrop-blur-sm">
         <div style={{ padding: isMobile ? '16px' : '28px', paddingBottom: 0 }}>
         <DialogHeader>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              background: isCargo
-                ? 'linear-gradient(to bottom right, #fb923c, #ea580c)'
-                : 'linear-gradient(to bottom right, #a78bfa, #7c3aed)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: isCargo
-                ? '0 10px 15px -3px rgba(249, 115, 22, 0.3)'
-                : '0 10px 15px -3px rgba(139, 92, 246, 0.3)'
-            }}>
-              {isCargo ? (
-                <Package style={{ width: '24px', height: '24px', color: 'white' }} />
-              ) : (
-                <Truck style={{ width: '24px', height: '24px', color: 'white' }} />
-              )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                flexShrink: 0,
+                borderRadius: '12px',
+                background: isCargo
+                  ? 'linear-gradient(to bottom right, #fb923c, #ea580c)'
+                  : 'linear-gradient(to bottom right, #a78bfa, #7c3aed)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: isCargo
+                  ? '0 10px 15px -3px rgba(249, 115, 22, 0.3)'
+                  : '0 10px 15px -3px rgba(139, 92, 246, 0.3)'
+              }}>
+                {isCargo ? (
+                  <Package style={{ width: '24px', height: '24px', color: 'white' }} />
+                ) : (
+                  <Truck style={{ width: '24px', height: '24px', color: 'white' }} />
+                )}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <DialogTitle>Chat with {otherPartyName}</DialogTitle>
+                <DialogDescription style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <MapPin style={{ width: '12px', height: '12px', color: '#22c55e' }} />
+                  <span>{listing.origin}</span>
+                  <span style={{ color: '#9ca3af', margin: '0 4px' }}>{'->'}</span>
+                  <MapPin style={{ width: '12px', height: '12px', color: '#ef4444' }} />
+                  <span>{listing.destination}</span>
+                </DialogDescription>
+              </div>
             </div>
-            <div>
-              <DialogTitle>Chat with {otherPartyName}</DialogTitle>
-              <DialogDescription style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <MapPin style={{ width: '12px', height: '12px', color: '#22c55e' }} />
-                <span>{listing.origin}</span>
-                <span style={{ color: '#9ca3af', margin: '0 4px' }}>{'->'}</span>
-                <MapPin style={{ width: '12px', height: '12px', color: '#ef4444' }} />
-                <span>{listing.destination}</span>
-              </DialogDescription>
-            </div>
+            {canCall && (
+              <CallButton
+                onCall={() => onInitiateCall({
+                  calleeId: participantContext.otherPartyId,
+                  calleeName: participantContext.otherPartyName,
+                  callType: 'negotiation',
+                  contextId: bidId,
+                })}
+                title={`Call ${participantContext.otherPartyName}`}
+              />
+            )}
           </div>
         </DialogHeader>
 

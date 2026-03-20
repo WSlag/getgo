@@ -847,5 +847,72 @@ service cloud.firestore {
       }
     }
 
+    // ============================================================
+    // VOICE CALLS — signaling channel for Agora voice calls
+    // ============================================================
+    match /calls/{callId} {
+      // Only the two participants can read their call document
+      allow read: if isAuth() && (
+        resource.data.callerId == request.auth.uid ||
+        resource.data.calleeId == request.auth.uid
+      );
+
+      // Caller creates the document; callerId must equal their own uid
+      allow create: if isAuth()
+        && request.resource.data.callerId == request.auth.uid
+        && request.resource.data.callerName is string
+        && request.resource.data.callerName.size() > 0
+        && request.resource.data.callerName.size() <= 100
+        && !containsContactInfo(request.resource.data.callerName)
+        && request.resource.data.calleeId is string
+        && request.resource.data.calleeId != request.auth.uid
+        && request.resource.data.calleeName is string
+        && request.resource.data.calleeName.size() > 0
+        && request.resource.data.calleeName.size() <= 100
+        && !containsContactInfo(request.resource.data.calleeName)
+        && request.resource.data.status == 'ringing'
+        && request.resource.data.channelName is string
+        && request.resource.data.channelName.size() > 0
+        && request.resource.data.channelName == callId
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.callType in ['negotiation', 'monitoring']
+        && request.resource.data.contextId is string
+        && request.resource.data.contextId.size() > 0
+        && request.resource.data.contextId.size() <= 128
+        && request.resource.data.keys().hasOnly([
+            'callerId', 'calleeId', 'callerName', 'calleeName',
+            'channelName', 'status', 'callType', 'contextId',
+            'createdAt', 'answeredAt', 'endedAt'
+        ]);
+
+      // Either participant can update status/timestamp fields only
+      allow update: if isAuth()
+        && (
+          resource.data.callerId == request.auth.uid ||
+          resource.data.calleeId == request.auth.uid
+        )
+        // Immutable fields must not change
+        && request.resource.data.callerId == resource.data.callerId
+        && request.resource.data.calleeId == resource.data.calleeId
+        && request.resource.data.channelName == resource.data.channelName
+        && request.resource.data.callType == resource.data.callType
+        && request.resource.data.contextId == resource.data.contextId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          (resource.data.status == 'ringing'
+            && request.resource.data.status in ['ringing', 'active', 'ended', 'rejected', 'missed'])
+          || (resource.data.status == 'active'
+            && request.resource.data.status in ['active', 'ended'])
+          || (
+            resource.data.status in ['ended', 'rejected', 'missed']
+            && request.resource.data.status == resource.data.status
+          )
+        )
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'answeredAt', 'endedAt']);
+
+      allow delete: if false;
+    }
+
   }
 }

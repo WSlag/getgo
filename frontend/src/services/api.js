@@ -129,6 +129,11 @@ const api = {
     updateAgreedPrice: (bidId, agreedPrice) => callFunction('updateBidAgreedPrice', { bidId, agreedPrice }),
   },
 
+  calls: {
+    generateToken: (channelName, uid) =>
+      callFunction('generateAgoraToken', { channelName, uid }),
+  },
+
   ratings: {
     getForUser: (userId) => getRatingsForUser(userId),
     getForContract: (contractId) => getRatingsForContract(contractId),
