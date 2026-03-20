@@ -25,7 +25,7 @@ export function IncomingCallBanner({ incomingCall, onAccept, onDecline }) {
         left: '50%',
         transform: 'translateX(-50%)',
         width: 'min(360px, calc(100vw - 24px))',
-        zIndex: 9998,
+        zIndex: 9999,
         backgroundColor: '#111827',
         borderRadius: 20,
         padding: '14px 16px',
