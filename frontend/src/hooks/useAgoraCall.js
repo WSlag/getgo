@@ -200,7 +200,10 @@ export function useAgoraCall() {
     callSessionRef.current += 1;
     stopDurationTimer();
     if (joinTaskRef.current) {
-      await joinTaskRef.current.catch(() => {});
+      // Do not block user hang-up on an in-flight join task (token/mic/join can
+      // stall on some mobile browsers). Mark this session stale and continue
+      // teardown immediately so UI actions stay responsive.
+      joinTaskRef.current.catch(() => {});
       joinTaskRef.current = null;
     }
     await cleanupLocalTrack();

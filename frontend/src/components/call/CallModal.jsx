@@ -2,6 +2,8 @@ import { useEffect, useCallback } from 'react';
 import { PhoneOff, Mic, MicOff, Volume2, VolumeX, Phone } from 'lucide-react';
 import { useAgoraCall } from '@/hooks/useAgoraCall';
 
+const LEAVE_CALL_TIMEOUT_MS = 1500;
+
 function formatDuration(seconds) {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
   const s = (seconds % 60).toString().padStart(2, '0');
@@ -107,6 +109,18 @@ export function CallModal({
     resetCall,
   } = useAgoraCall();
 
+  const leaveChannelSafely = useCallback(async () => {
+    let timeoutId;
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutId = setTimeout(resolve, LEAVE_CALL_TIMEOUT_MS);
+    });
+    try {
+      await Promise.race([leaveChannel(), timeoutPromise]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }, [leaveChannel]);
+
   // Join the channel when the modal opens.
   useEffect(() => {
     if (!open || !channelName || agoraUid == null) return;
@@ -116,7 +130,7 @@ export function CallModal({
 
   const handleEnd = useCallback(async () => {
     try {
-      await leaveChannel();
+      await leaveChannelSafely();
       if (callId && onUpdateStatus) {
         await onUpdateStatus(callId, 'ended');
       }
@@ -126,11 +140,11 @@ export function CallModal({
       resetCall();
       onClose('ended');
     }
-  }, [callId, onUpdateStatus, leaveChannel, resetCall, onClose]);
+  }, [callId, onUpdateStatus, leaveChannelSafely, resetCall, onClose]);
 
   const handleCancel = useCallback(async () => {
     try {
-      await leaveChannel();
+      await leaveChannelSafely();
       if (callId && onUpdateStatus) {
         await onUpdateStatus(callId, isOutgoing ? 'ended' : 'rejected');
       }
@@ -140,12 +154,12 @@ export function CallModal({
       resetCall();
       onClose(isOutgoing ? 'cancelled' : 'rejected');
     }
-  }, [callId, isOutgoing, onUpdateStatus, leaveChannel, resetCall, onClose]);
+  }, [callId, isOutgoing, onUpdateStatus, leaveChannelSafely, resetCall, onClose]);
 
   const handleDismiss = useCallback(async () => {
     const isTerminalStatus = ['ended', 'rejected', 'missed'].includes(callStatus);
     try {
-      await leaveChannel();
+      await leaveChannelSafely();
       if (callId && onUpdateStatus && !isTerminalStatus) {
         await onUpdateStatus(callId, isOutgoing ? 'ended' : 'rejected');
       }
@@ -155,7 +169,7 @@ export function CallModal({
       resetCall();
       onClose('dismissed');
     }
-  }, [callId, callStatus, isOutgoing, leaveChannel, onUpdateStatus, onClose, resetCall]);
+  }, [callId, callStatus, isOutgoing, leaveChannelSafely, onUpdateStatus, onClose, resetCall]);
 
   if (!open) return null;
 
