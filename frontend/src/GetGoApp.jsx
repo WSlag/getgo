@@ -341,6 +341,14 @@ export default function GetGoApp() {
     closeModal('chat');
   }, [incomingCall?.id, activeCall?.callId, modals.chat, closeModal]);
 
+  // If a call starts while chat is open (caller side), close chat so call controls
+  // are never blocked by the modal layer.
+  useEffect(() => {
+    if (!activeCall?.callId) return;
+    if (!modals.chat) return;
+    closeModal('chat');
+  }, [activeCall?.callId, modals.chat, closeModal]);
+
   const handleInitiateCall = useCallback(
     async ({ calleeId, calleeName, callType, contextId }) => {
       if (!authUser?.uid || !calleeId || activeCall) return;
