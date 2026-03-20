@@ -250,6 +250,7 @@ export default function GetGoApp() {
   const [activeCall, setActiveCall] = useState(null);
   // activeCall: { callId, channelName, agoraUid, otherPartyName, isOutgoing, status } | null
   const callToastKeysRef = useRef(new Set());
+  const incomingChatAutoClosedCallIdRef = useRef(null);
   const incomingRingtoneRef = useRef(null);
   const incomingVibrationIntervalRef = useRef(null);
 
@@ -329,6 +330,17 @@ export default function GetGoApp() {
     stopIncomingCallAlerts();
   }, [incomingCall?.id, activeCall?.callId, startIncomingCallAlerts, stopIncomingCallAlerts]);
 
+  useEffect(() => {
+    const incomingCallId = incomingCall?.id;
+    if (!incomingCallId) return;
+    if (activeCall?.callId) return;
+    if (!modals.chat) return;
+    if (incomingChatAutoClosedCallIdRef.current === incomingCallId) return;
+
+    incomingChatAutoClosedCallIdRef.current = incomingCallId;
+    closeModal('chat');
+  }, [incomingCall?.id, activeCall?.callId, modals.chat, closeModal]);
+
   const handleInitiateCall = useCallback(
     async ({ calleeId, calleeName, callType, contextId }) => {
       if (!authUser?.uid || !calleeId || activeCall) return;
@@ -360,7 +372,30 @@ export default function GetGoApp() {
 
   const handleAcceptCall = useCallback(
     async (call) => {
-      if (!authUser?.uid || activeCall) return;
+      if (!authUser?.uid) {
+        showToast({
+          type: 'error',
+          title: 'Unable to answer call',
+          message: 'Please sign in again and try answering the call.',
+        });
+        return;
+      }
+      if (activeCall) {
+        showToast({
+          type: 'info',
+          title: 'Call already in progress',
+          message: 'End the current call before answering another one.',
+        });
+        return;
+      }
+      if (!call?.id) {
+        showToast({
+          type: 'error',
+          title: 'Unable to answer call',
+          message: 'Call session could not be found.',
+        });
+        return;
+      }
       try {
         stopIncomingCallAlerts();
         await updateCallStatus(call.id, 'active');
@@ -374,21 +409,39 @@ export default function GetGoApp() {
         });
       } catch (err) {
         console.error('[handleAcceptCall] failed:', err);
+        showToast({
+          type: 'error',
+          title: 'Could not answer call',
+          message: err?.message || 'Please try again.',
+        });
       }
     },
-    [authUser, activeCall, stopIncomingCallAlerts, updateCallStatus]
+    [authUser, activeCall, stopIncomingCallAlerts, updateCallStatus, showToast]
   );
 
   const handleDeclineCall = useCallback(
     async (call) => {
+      if (!call?.id) {
+        showToast({
+          type: 'error',
+          title: 'Unable to decline call',
+          message: 'Call session could not be found.',
+        });
+        return;
+      }
       try {
         stopIncomingCallAlerts();
         await updateCallStatus(call.id, 'rejected');
       } catch (err) {
         console.error('[handleDeclineCall] failed:', err);
+        showToast({
+          type: 'error',
+          title: 'Could not decline call',
+          message: err?.message || 'Please try again.',
+        });
       }
     },
-    [stopIncomingCallAlerts, updateCallStatus]
+    [stopIncomingCallAlerts, updateCallStatus, showToast]
   );
 
   // Keep local call state in sync with Firestore status and close when terminal.
@@ -3449,7 +3502,7 @@ export default function GetGoApp() {
       )}
 
       {/* Incoming call banner — shown when another user is calling */}
-      {!activeCall && (
+      {!activeCall && !modals.chat && (
         <IncomingCallBanner
           incomingCall={incomingCall}
           onAccept={handleAcceptCall}
