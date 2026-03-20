@@ -383,15 +383,44 @@ export default function GetGoApp() {
   }, [canTriggerVibration]);
 
   useEffect(() => {
-    const audio = new Audio(INCOMING_RINGTONE_SRC);
+    const audio = new Audio();
     audio.loop = true;
     audio.preload = 'auto';
     audio.volume = 1;
+    let cancelled = false;
+    let objectUrl = null;
+
+    const primeIncomingRingtone = async () => {
+      try {
+        const response = await fetch(INCOMING_RINGTONE_SRC, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Incoming ringtone fetch failed with status ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        if (cancelled) return;
+
+        objectUrl = URL.createObjectURL(blob);
+        audio.src = objectUrl;
+        audio.load();
+      } catch (error) {
+        // Fallback to direct URL if blob prefetch fails in some browsers.
+        audio.src = INCOMING_RINGTONE_SRC;
+        audio.load();
+        console.debug('[incoming-call] ringtone prefetch fallback:', error?.message || error);
+      }
+    };
+
+    void primeIncomingRingtone();
     incomingRingtoneRef.current = audio;
 
     return () => {
+      cancelled = true;
       stopIncomingCallAlerts();
       incomingRingtoneRef.current = null;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [stopIncomingCallAlerts]);
 
