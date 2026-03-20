@@ -32,28 +32,37 @@ function Avatar({ name, size = 80 }) {
   );
 }
 
-function RoundButton({ onClick, label, color, size = 64, children }) {
+function RoundButton({ onClick, label, color, size = 64, disabled = false, children }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
+      aria-disabled={disabled}
+      disabled={disabled}
       style={{
         width: size,
         height: size,
         borderRadius: '50%',
         backgroundColor: color,
         border: 'none',
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         transition: 'transform 0.15s, filter 0.15s',
         flexShrink: 0,
+        opacity: disabled ? 0.55 : 1,
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.15)'; }}
+      onMouseEnter={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.filter = 'brightness(1.15)';
+      }}
       onMouseLeave={(e) => { e.currentTarget.style.filter = ''; }}
-      onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.93)'; }}
+      onMouseDown={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.transform = 'scale(0.93)';
+      }}
       onMouseUp={(e) => { e.currentTarget.style.transform = ''; }}
     >
       {children}
@@ -263,39 +272,54 @@ export function CallModal({
 
       {/* Controls */}
       {isActive ? (
-        <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-          {/* Mute */}
-          <RoundButton
-            onClick={toggleMute}
-            label={isMuted ? 'Unmute' : 'Mute'}
-            color={isMuted ? '#374151' : 'rgba(255,255,255,0.12)'}
-            size={56}
-          >
-            {isMuted
-              ? <MicOff color="white" size={20} />
-              : <Mic color="white" size={20} />
-            }
-          </RoundButton>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+            {/* Mute */}
+            <RoundButton
+              onClick={toggleMute}
+              label={isMuted ? 'Unmute' : 'Mute'}
+              color={isMuted ? '#374151' : 'rgba(255,255,255,0.12)'}
+              size={56}
+            >
+              {isMuted
+                ? <MicOff color="white" size={20} />
+                : <Mic color="white" size={20} />
+              }
+            </RoundButton>
 
-          {/* End call */}
-          <RoundButton
-            onClick={handleEnd}
-            label="End call"
-            color="#ef4444"
-            size={72}
-          >
-            <PhoneOff color="white" size={28} />
-          </RoundButton>
+            {/* End call */}
+            <RoundButton
+              onClick={handleEnd}
+              label="End call"
+              color="#ef4444"
+              size={72}
+            >
+              <PhoneOff color="white" size={28} />
+            </RoundButton>
 
-          {/* Speaker placeholder - Agora web SDK plays through default output */}
-          <RoundButton
-            onClick={() => {}}
-            label="Speaker"
-            color="rgba(255,255,255,0.12)"
-            size={56}
+            {/* Web fallback: output route is controlled by browser/device */}
+            <RoundButton
+              label="Speaker output is controlled by your device and browser"
+              color="rgba(255,255,255,0.12)"
+              size={56}
+              disabled
+            >
+              <Volume2 color="white" size={20} />
+            </RoundButton>
+          </div>
+
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12,
+              lineHeight: 1.35,
+              color: 'rgba(255,255,255,0.56)',
+              textAlign: 'center',
+              maxWidth: 300,
+            }}
           >
-            <Volume2 color="white" size={20} />
-          </RoundButton>
+            Speaker output is controlled by your device/browser on web.
+          </p>
         </div>
       ) : (
         /* Ringing / error / ended - show cancel + optional dismiss */
@@ -318,16 +342,25 @@ export function CallModal({
           >
             <PhoneOff color="white" size={28} />
           </RoundButton>
-          {/* Accept button shown for callee in the connecting state */}
+          {/* Non-interactive call state indicator for callee while connecting */}
           {!isOutgoing && isConnecting && (
-            <RoundButton
-              onClick={() => {}}
-              label="In call"
-              color="#22c55e"
-              size={72}
+            <div
+              role="status"
+              aria-label="Call connecting"
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: '50%',
+                backgroundColor: '#22c55e',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                opacity: 0.9,
+              }}
             >
               <Phone color="white" size={28} />
-            </RoundButton>
+            </div>
           )}
         </div>
       )}
