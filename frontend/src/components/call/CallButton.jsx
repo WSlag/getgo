@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
  * Small green phone-icon button for initiating a voice call.
  * Designed to slot into modal headers and card action rows.
  */
-export function CallButton({ onCall, disabled, title, className }) {
+export function CallButton({ onCall, disabled, title, className, iconClassName }) {
   return (
     <button
       type="button"
@@ -25,7 +25,7 @@ export function CallButton({ onCall, disabled, title, className }) {
         className
       )}
     >
-      <Phone className="size-4" />
+      <Phone className={cn('size-4', iconClassName)} />
     </button>
   );
 }
