@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { MapPin, Package, Truck, Navigation, Radio, MapPinned, CheckCircle2, Calendar, User, PhoneCall } from 'lucide-react';
+import { CallButton } from '@/components/call/CallButton';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import TrackingMap from '@/components/maps/TrackingMap';
@@ -82,6 +83,7 @@ export function TrackingView({
   darkMode = false,
   className,
   onLocationUpdate = null,
+  onInitiateCall = null,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const [selectedShipmentId, setSelectedShipmentId] = useState(null);
@@ -226,6 +228,17 @@ export function TrackingView({
     const pickupLoading = isActionLoading(shipment.id, 'pickup');
     const deliverLoading = isActionLoading(shipment.id, 'deliver');
 
+    // Determine the other call party (the one who is NOT the current user)
+    const callOtherPartyId = isAssignedTrucker(shipment)
+      ? shipment.shipperId
+      : shipment.truckerId;
+    const callOtherPartyName = isAssignedTrucker(shipment)
+      ? (shipment.shipperName || 'Shipper')
+      : (shipment.truckerName || 'Trucker');
+    const canCallShipment = Boolean(
+      onInitiateCall && callOtherPartyId && shipment.status !== 'delivered'
+    );
+
     return (
       <div
         className={cn(
@@ -255,9 +268,22 @@ export function TrackingView({
                 {shipment.cargoDescription || 'Cargo'}
               </h3>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Progress</p>
-              <p className={cn('text-lg font-bold', status.textColor)}>{shipment.progress || 0}%</p>
+            <div className="text-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+              {canCallShipment && (
+                <CallButton
+                  onCall={() => onInitiateCall({
+                    calleeId: callOtherPartyId,
+                    calleeName: callOtherPartyName,
+                    callType: 'monitoring',
+                    contextId: shipment.id,
+                  })}
+                  title={`Call ${callOtherPartyName}`}
+                />
+              )}
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Progress</p>
+                <p className={cn('text-lg font-bold', status.textColor)}>{shipment.progress || 0}%</p>
+              </div>
             </div>
           </div>
 

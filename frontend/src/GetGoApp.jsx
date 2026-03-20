@@ -49,6 +49,9 @@ import { usePWAInstall } from './hooks/usePWAInstall';
 import { InAppBrowserOverlay } from '@/components/shared/InAppBrowserOverlay';
 import { PWAInstallPrompt } from '@/components/shared/PWAInstallPrompt';
 import { buildAndroidIntentUrl } from './utils/browserDetect';
+import { useCallSignaling, deriveAgoraUid } from './hooks/useCallSignaling';
+import { IncomingCallBanner } from '@/components/call/IncomingCallBanner';
+const CallModal = lazy(() => import('@/components/call/CallModal').then((m) => ({ default: m.CallModal })));
 
 // Layout Components
 import { Header } from '@/components/layout/Header';
@@ -115,6 +118,7 @@ const SAVED_SEARCHES_KEY_PREFIX = 'karga.savedSearches.v1';
 const SAVED_ROUTES_KEY_PREFIX = 'karga.savedRoutes.v1';
 const ONBOARDING_DISMISSED_KEY_PREFIX = 'karga.onboardingDismissed.v1';
 const INSTALL_STATUS_TOAST_COOLDOWN_MS = 2500;
+const TERMINAL_CALL_STATUSES = new Set(['ended', 'rejected', 'missed']);
 
 function getUserScopedKey(prefix, uid) {
   return `${prefix}:${uid || 'guest'}`;
@@ -140,6 +144,7 @@ export default function GetGoApp() {
     referralAttributionEvent,
     clearReferralAttributionEvent,
   } = useAuth();
+  const showToast = useToast();
 
   const canSubscribeUserData = Boolean(authUser?.uid && userProfile);
   const activeUserId = canSubscribeUserData ? authUser.uid : null;
@@ -236,6 +241,152 @@ export default function GetGoApp() {
     emitShipmentUpdate,
     clearNotification,
   } = useSocket(activeUserId);
+
+  // Voice Call Signaling
+  const { incomingCall, initiateCall, updateCallStatus } = useCallSignaling(activeUserId);
+  const [activeCall, setActiveCall] = useState(null);
+  // activeCall: { callId, channelName, agoraUid, otherPartyName, isOutgoing, status } | null
+  const callToastKeysRef = useRef(new Set());
+
+  const notifyCallStatus = useCallback((callId, status) => {
+    if (!callId || !status) return;
+    const key = `${callId}:${status}`;
+    if (callToastKeysRef.current.has(key)) return;
+    callToastKeysRef.current.add(key);
+
+    if (status === 'ended') {
+      showToast({ type: 'info', title: 'Call ended', message: '' });
+    } else if (status === 'missed') {
+      showToast({ type: 'info', title: 'No answer', message: 'The call was not answered.' });
+    } else if (status === 'rejected') {
+      showToast({ type: 'info', title: 'Call declined', message: '' });
+    }
+  }, [showToast]);
+
+  const handleInitiateCall = useCallback(
+    async ({ calleeId, calleeName, callType, contextId }) => {
+      if (!authUser?.uid || !calleeId || activeCall) return;
+      try {
+        const callerName = authUser.displayName || userProfile?.name || 'User';
+        const { callId, channelName } = await initiateCall({
+          callerId: authUser.uid,
+          calleeId,
+          callerName,
+          calleeName,
+          callType,
+          contextId,
+        });
+        setActiveCall({
+          callId,
+          channelName,
+          agoraUid: deriveAgoraUid(authUser.uid),
+          otherPartyName: calleeName,
+          isOutgoing: true,
+          status: 'ringing',
+        });
+      } catch (err) {
+        console.error('[handleInitiateCall] failed:', err);
+        showToast({ type: 'error', title: 'Could not start call', message: err.message || '' });
+      }
+    },
+    [authUser, userProfile, activeCall, initiateCall, showToast]
+  );
+
+  const handleAcceptCall = useCallback(
+    async (call) => {
+      if (!authUser?.uid || activeCall) return;
+      try {
+        await updateCallStatus(call.id, 'active');
+        setActiveCall({
+          callId: call.id,
+          channelName: call.channelName,
+          agoraUid: deriveAgoraUid(authUser.uid),
+          otherPartyName: call.callerName,
+          isOutgoing: false,
+          status: 'active',
+        });
+      } catch (err) {
+        console.error('[handleAcceptCall] failed:', err);
+      }
+    },
+    [authUser, activeCall, updateCallStatus]
+  );
+
+  const handleDeclineCall = useCallback(
+    async (call) => {
+      try {
+        await updateCallStatus(call.id, 'rejected');
+      } catch (err) {
+        console.error('[handleDeclineCall] failed:', err);
+      }
+    },
+    [updateCallStatus]
+  );
+
+  // Keep local call state in sync with Firestore status and close when terminal.
+  useEffect(() => {
+    if (!activeCall?.callId) return undefined;
+
+    const subscribedCallId = activeCall.callId;
+    const callRef = doc(db, 'calls', subscribedCallId);
+    const unsubscribe = onSnapshot(
+      callRef,
+      (snap) => {
+        if (!snap.exists()) {
+          setActiveCall((prev) => (prev?.callId === subscribedCallId ? null : prev));
+          notifyCallStatus(subscribedCallId, 'ended');
+          return;
+        }
+
+        const data = snap.data() || {};
+        const nextStatus = typeof data.status === 'string' ? data.status : null;
+        if (!nextStatus) return;
+
+        setActiveCall((prev) => {
+          if (!prev || prev.callId !== subscribedCallId) return prev;
+          if (prev.status === nextStatus) return prev;
+          return { ...prev, status: nextStatus };
+        });
+
+        if (TERMINAL_CALL_STATUSES.has(nextStatus)) {
+          setActiveCall((prev) => (prev?.callId === subscribedCallId ? null : prev));
+          notifyCallStatus(subscribedCallId, nextStatus);
+        }
+      },
+      (err) => {
+        console.warn('[call-status-listener] failed:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [activeCall?.callId, notifyCallStatus]);
+
+  // Outgoing no-answer timeout should be based on signaling status, not local SDK state.
+  useEffect(() => {
+    if (!activeCall?.callId || !activeCall.isOutgoing) return undefined;
+    if (activeCall.status !== 'ringing') return undefined;
+
+    const timeout = setTimeout(async () => {
+      try {
+        await updateCallStatus(activeCall.callId, 'missed');
+      } catch (err) {
+        console.error('[outgoing-call-timeout] failed to mark missed:', err);
+      }
+    }, 30000);
+
+    return () => clearTimeout(timeout);
+  }, [activeCall?.callId, activeCall?.isOutgoing, activeCall?.status, updateCallStatus]);
+
+  const handleCallClose = useCallback(
+    (reason) => {
+      const closingCallId = activeCall?.callId;
+      setActiveCall(null);
+      if (reason === 'ended' || reason === 'missed' || reason === 'rejected') {
+        notifyCallStatus(closingCallId, reason);
+      }
+    },
+    [activeCall?.callId, notifyCallStatus]
+  );
 
   // Broker Onboarding & Re-engagement
   const {
@@ -465,7 +616,6 @@ export default function GetGoApp() {
   const [contractFilter, setContractFilter] = useState('all');
 
   // Toast notifications via context
-  const showToast = useToast();
   const [ratingTarget, setRatingTarget] = useState(null);
   const [ratingLoading, setRatingLoading] = useState(false);
   const [savedSearches, setSavedSearches] = useState([]);
@@ -2421,6 +2571,7 @@ export default function GetGoApp() {
               currentUserId={authUser?.uid}
               darkMode={darkMode}
               onLocationUpdate={emitShipmentUpdate}
+              onInitiateCall={authUser ? handleInitiateCall : null}
             />
           </ErrorBoundary>
         )}
@@ -2948,6 +3099,7 @@ export default function GetGoApp() {
         data={chatModalData}
         currentUser={authUser}
         onOpenContract={handleOpenContract}
+        onInitiateCall={authUser ? handleInitiateCall : null}
       />
       )}
 
@@ -3225,6 +3377,32 @@ export default function GetGoApp() {
             }
           }}
         />
+      )}
+
+      {/* Incoming call banner — shown when another user is calling */}
+      {!activeCall && (
+        <IncomingCallBanner
+          incomingCall={incomingCall}
+          onAccept={handleAcceptCall}
+          onDecline={handleDeclineCall}
+        />
+      )}
+
+      {/* Active call overlay */}
+      {activeCall && (
+        <Suspense fallback={null}>
+          <CallModal
+            open={Boolean(activeCall)}
+            callId={activeCall.callId}
+            channelName={activeCall.channelName}
+            agoraUid={activeCall.agoraUid}
+            otherPartyName={activeCall.otherPartyName}
+            isOutgoing={activeCall.isOutgoing}
+            callStatus={activeCall.status}
+            onUpdateStatus={updateCallStatus}
+            onClose={handleCallClose}
+          />
+        </Suspense>
       )}
 
       {/* PWA Install Prompt (Android/Desktop banner or iOS Safari instructions) */}

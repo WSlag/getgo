@@ -1390,6 +1390,13 @@ exports.submitRating = ratingFunctions.submitRating;
 exports.getPendingRatings = ratingFunctions.getPendingRatings;
 
 // =============================================================================
+// VOICE CALL FUNCTIONS
+// =============================================================================
+
+const callFunctions = require('./src/api/calls');
+exports.generateAgoraToken = callFunctions.generateAgoraToken;
+
+// =============================================================================
 // BID FUNCTIONS
 // =============================================================================
 
