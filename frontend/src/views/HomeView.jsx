@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect, useId } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, useId, useCallback } from 'react';
 import { Filter, X, Route, ChevronRight, AlertCircle, BookmarkPlus, Bookmark, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CargoCard } from '@/components/cargo/CargoCard';
@@ -9,9 +9,19 @@ import { canBidCargoStatus, canBookTruckStatus } from '@/utils/listingStatus';
 import BrokerHomeCard from '@/components/broker/BrokerHomeCard';
 import { getWorkspaceLabel } from '@/utils/workspace';
 import { HeroCarousel } from '@/components/HeroCarousel';
+import { trackAnalyticsEvent } from '@/services/analyticsService';
 
 const ITEMS_PER_PAGE = 20;
 const MOBILE_STICKY_CONTROLS_MIN_HEIGHT = 132;
+const MOBILE_BOTTOM_CONTENT_GAP = 24;
+const MOBILE_NAV_FALLBACK_HEIGHT = 96;
+const HOME_INFINITE_SCROLL_DEFAULT = import.meta.env.VITE_ENABLE_HOME_INFINITE_SCROLL !== 'false';
+
+function buildPaginationSessionId() {
+  const timestamp = Date.now().toString(36);
+  const entropy = Math.random().toString(36).slice(2, 8);
+  return `${timestamp}-${entropy}`;
+}
 
 export function HomeView({
   activeMarket = 'cargo',
@@ -48,6 +58,7 @@ export function HomeView({
   onScroll,
   mobileHeaderVisible = true,
   mobileHeaderHeight = 74,
+  mobileNavHeight = MOBILE_NAV_FALLBACK_HEIGHT,
   roleKpis = [],
 }) {
   const activeWorkspace = workspaceRole || currentRole;
@@ -55,27 +66,211 @@ export function HomeView({
   const listingCount = listings.length;
   const isAccountSuspended = currentUser?.accountStatus === 'suspended' || currentUser?.isActive === false;
   const resolvedMobileHeaderHeight = Number.isFinite(mobileHeaderHeight) ? mobileHeaderHeight : 74;
+  const resolvedMobileNavHeight = Number.isFinite(mobileNavHeight) && mobileNavHeight > 0
+    ? mobileNavHeight
+    : MOBILE_NAV_FALLBACK_HEIGHT;
 
   // Pagination: show ITEMS_PER_PAGE at a time with "Load More"
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const [controlsHeight, setControlsHeight] = useState(MOBILE_STICKY_CONTROLS_MIN_HEIGHT);
+  const [observerSupported, setObserverSupported] = useState(
+    () => typeof window !== 'undefined' && 'IntersectionObserver' in window
+  );
   const visibleListings = listings.slice(0, visibleCount);
   const hasMore = visibleCount < listings.length;
+  const hasSearchQuery = Boolean(searchQuery?.trim());
+  const paginationEligible = listingCount > ITEMS_PER_PAGE;
 
   const scrollContainerRef = useRef(null);
   const stickyControlsRef = useRef(null);
+  const loadMoreSentinelRef = useRef(null);
+  const paginationSessionRef = useRef(null);
+  const pendingLoadSourceRef = useRef(null);
+  const previousVisibleCountRef = useRef(ITEMS_PER_PAGE);
+  const listingCountRef = useRef(listingCount);
   const searchInputId = useId();
 
   // Detect mobile screen for compact cards
   const isMobile = useMediaQuery('(max-width: 1023px)');
+  const shouldAutoLoadMore = isMobile && HOME_INFINITE_SCROLL_DEFAULT;
+  const showManualLoadMore = !shouldAutoLoadMore || !observerSupported;
+  const trackPaginationEvent = useCallback((eventName, params = {}) => {
+    trackAnalyticsEvent(eventName, {
+      market: activeMarket,
+      workspace_role: activeWorkspace,
+      is_mobile: isMobile,
+      filter_status: filterStatus,
+      has_search_query: hasSearchQuery,
+      ...params,
+    });
+  }, [activeMarket, activeWorkspace, isMobile, filterStatus, hasSearchQuery]);
+
+  const handleLoadMore = useCallback((source = 'manual') => {
+    pendingLoadSourceRef.current = source;
+    setVisibleCount((prev) => Math.min(prev + ITEMS_PER_PAGE, listings.length));
+  }, [listings.length]);
 
   // Reset visible count and scroll position when market or filter changes
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE);
+    previousVisibleCountRef.current = ITEMS_PER_PAGE;
+    pendingLoadSourceRef.current = null;
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
   }, [activeMarket, filterStatus, searchQuery]);
+
+  useEffect(() => {
+    listingCountRef.current = listingCount;
+    const session = paginationSessionRef.current;
+    if (!session) return;
+    session.latestTotal = listingCount;
+    session.reachedEnd = session.maxVisible >= listingCount;
+  }, [listingCount]);
+
+  useEffect(() => {
+    if (!paginationEligible) {
+      paginationSessionRef.current = null;
+      return undefined;
+    }
+
+    const sessionId = buildPaginationSessionId();
+    const startedAtMs = Date.now();
+    const totalAtStart = listingCountRef.current;
+    const initialVisible = Math.min(ITEMS_PER_PAGE, totalAtStart);
+
+    paginationSessionRef.current = {
+      sessionId,
+      startedAtMs,
+      initialTotal: totalAtStart,
+      latestTotal: totalAtStart,
+      autoLoads: 0,
+      manualLoads: 0,
+      maxVisible: initialVisible,
+      maxPageDepth: Math.max(1, Math.ceil(initialVisible / ITEMS_PER_PAGE)),
+      reachedEnd: initialVisible >= totalAtStart,
+    };
+
+    trackPaginationEvent('home_pagination_session_start', {
+      session_id: sessionId,
+      total_listings: totalAtStart,
+      auto_mode_enabled: shouldAutoLoadMore,
+    });
+
+    return () => {
+      const session = paginationSessionRef.current;
+      if (!session || session.sessionId !== sessionId) return;
+
+      const durationMs = Math.max(0, Date.now() - session.startedAtMs);
+      const totalListings = Math.max(session.initialTotal, session.latestTotal || 0);
+      const firstPageDropoff = totalListings > ITEMS_PER_PAGE && session.maxVisible <= ITEMS_PER_PAGE;
+
+      trackPaginationEvent('home_pagination_session_end', {
+        session_id: session.sessionId,
+        total_listings: totalListings,
+        max_visible: session.maxVisible,
+        max_page_depth: session.maxPageDepth,
+        auto_load_count: session.autoLoads,
+        manual_load_count: session.manualLoads,
+        reached_end: session.reachedEnd,
+        first_page_dropoff: firstPageDropoff,
+        duration_ms: durationMs,
+      });
+
+      if (firstPageDropoff) {
+        trackPaginationEvent('home_pagination_first_page_dropoff', {
+          session_id: session.sessionId,
+          total_listings: totalListings,
+          duration_ms: durationMs,
+        });
+      }
+
+      paginationSessionRef.current = null;
+    };
+  }, [
+    paginationEligible,
+    activeMarket,
+    activeWorkspace,
+    filterStatus,
+    hasSearchQuery,
+    isMobile,
+    shouldAutoLoadMore,
+    trackPaginationEvent,
+  ]);
+
+  useEffect(() => {
+    const previousCount = previousVisibleCountRef.current;
+    if (visibleCount <= previousCount) {
+      previousVisibleCountRef.current = visibleCount;
+      if (visibleCount < previousCount) {
+        pendingLoadSourceRef.current = null;
+      }
+      return;
+    }
+
+    const source = pendingLoadSourceRef.current || (showManualLoadMore ? 'manual' : 'auto');
+    pendingLoadSourceRef.current = null;
+    previousVisibleCountRef.current = visibleCount;
+
+    const pageDepth = Math.max(1, Math.ceil(visibleCount / ITEMS_PER_PAGE));
+    const session = paginationSessionRef.current;
+    if (session) {
+      if (source === 'auto') {
+        session.autoLoads += 1;
+      } else {
+        session.manualLoads += 1;
+      }
+      session.maxVisible = Math.max(session.maxVisible, visibleCount);
+      session.maxPageDepth = Math.max(session.maxPageDepth, pageDepth);
+      session.latestTotal = listingCount;
+      session.reachedEnd = visibleCount >= listingCount;
+    }
+
+    trackPaginationEvent('home_pagination_load_more', {
+      session_id: session?.sessionId || 'no_session',
+      source,
+      loaded_count: visibleCount,
+      total_listings: listingCount,
+      page_depth: pageDepth,
+      has_more: visibleCount < listingCount,
+    });
+  }, [visibleCount, listingCount, showManualLoadMore, trackPaginationEvent]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      setObserverSupported(false);
+      return;
+    }
+    setObserverSupported('IntersectionObserver' in window);
+  }, []);
+
+  useEffect(() => {
+    if (!hasMore || showManualLoadMore || typeof window === 'undefined') return undefined;
+    const root = scrollContainerRef.current;
+    const target = loadMoreSentinelRef.current;
+    if (!root || !target) return undefined;
+
+    let didTrigger = false;
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (!entry?.isIntersecting || didTrigger) return;
+        didTrigger = true;
+        handleLoadMore('auto');
+      },
+      {
+        root,
+        rootMargin: '0px 0px 220px 0px',
+        threshold: 0.01,
+      }
+    );
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, showManualLoadMore, visibleCount, handleLoadMore]);
 
   // Keep mobile spacer aligned with actual sticky controls height.
   // Re-measure aggressively on viewport/layout changes to avoid stale spacer values.
@@ -163,7 +358,7 @@ export function HomeView({
       style={{
         padding: isMobile ? '0' : '24px',
         paddingTop: isMobile ? '0' : '24px',
-        paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '24px',
+        paddingBottom: isMobile ? `${Math.ceil(resolvedMobileNavHeight + MOBILE_BOTTOM_CONTENT_GAP)}px` : '24px',
         overscrollBehaviorY: 'contain',
       }}
       onScroll={handleHomeScroll}
@@ -481,7 +676,7 @@ export function HomeView({
           <div className={cn(
             "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3",
             isMobile ? "gap-2" : "gap-8"
-          )}>
+          )} data-testid="home-listings-grid">
             {activeMarket === 'cargo'
               ? visibleListings.map((cargo) => (
                   <CargoCard
@@ -527,17 +722,46 @@ export function HomeView({
                 ))}
           </div>
           {hasMore && (
-            <div className="flex justify-center mt-6">
-              <Button
-                variant="outline"
-                onClick={() => setVisibleCount(prev => prev + ITEMS_PER_PAGE)}
-                className="gap-2"
-              >
-                Load More
-                <span className="text-xs text-muted-foreground">
-                  ({visibleCount} of {listings.length})
-                </span>
-              </Button>
+            <div className="mt-6 mb-2" data-testid="home-pagination-controls">
+              {showManualLoadMore ? (
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleLoadMore('manual')}
+                    className="gap-2"
+                  >
+                    Load More
+                    <span className="text-xs text-muted-foreground">
+                      ({visibleCount} of {listings.length})
+                    </span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <div ref={loadMoreSentinelRef} data-testid="home-infinite-sentinel" className="h-px w-full" />
+                  <p className="text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
+                    {visibleCount} of {listings.length} loaded. Scroll for more.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleLoadMore('manual')}
+                    className="gap-2"
+                  >
+                    Load More
+                    <span className="text-xs text-muted-foreground">
+                      ({visibleCount} of {listings.length})
+                    </span>
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          {!hasMore && listings.length > ITEMS_PER_PAGE && (
+            <div className="flex justify-center mt-4 mb-2" data-testid="home-pagination-end">
+              <p className="text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
+                You're all caught up ({listings.length} total).
+              </p>
             </div>
           )}
         </>

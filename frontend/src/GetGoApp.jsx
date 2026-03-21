@@ -124,6 +124,7 @@ const INCOMING_RINGTONE_SRC = '/sounds/incoming-call.wav';
 const INCOMING_VIBRATION_PATTERN = [350, 180, 350, 480];
 const INCOMING_VIBRATION_REPEAT_MS = 2000;
 const CALL_ELIGIBILITY_CACHE_TTL_MS = 60 * 1000;
+const MOBILE_NAV_FALLBACK_HEIGHT = 96;
 
 function getUserScopedKey(prefix, uid) {
   return `${prefix}:${uid || 'guest'}`;
@@ -702,12 +703,15 @@ export default function GetGoApp() {
   const HEADER_DIRECTION_DELTA = 2;
   const HEADER_REVEAL_LOCK_MS = 180;
   const headerRef = useRef(null);
+  const mobileNavRef = useRef(null);
   const lastScrollY = useRef(0);
   const downScrollDistance = useRef(0);
   const upScrollDistance = useRef(0);
   const revealLockUntil = useRef(0);
   const [mobileHeaderVisible, setMobileHeaderVisible] = useState(true);
   const [mobileHeaderHeight, setMobileHeaderHeight] = useState(74);
+  const [mobileViewportHeight, setMobileViewportHeight] = useState(null);
+  const [mobileNavHeight, setMobileNavHeight] = useState(MOBILE_NAV_FALLBACK_HEIGHT);
 
   const handleHomeScroll = useCallback((e) => {
     const scrollTop = e.currentTarget?.scrollTop ?? e.target?.scrollTop ?? 0;
@@ -819,6 +823,80 @@ export default function GetGoApp() {
       }
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const mobileQuery = window.matchMedia('(max-width: 1023px)');
+    let rafId = null;
+    let resizeObserver = null;
+    const timeoutIds = [];
+    const visualViewport = window.visualViewport;
+
+    const measureMobileLayout = () => {
+      if (!mobileQuery.matches) {
+        setMobileViewportHeight(null);
+        setMobileNavHeight((prev) => (Math.abs(prev - MOBILE_NAV_FALLBACK_HEIGHT) > 0.5 ? MOBILE_NAV_FALLBACK_HEIGHT : prev));
+        return;
+      }
+
+      const measuredViewportHeight = Math.ceil(visualViewport?.height || window.innerHeight || 0);
+      if (Number.isFinite(measuredViewportHeight) && measuredViewportHeight > 0) {
+        setMobileViewportHeight((prev) => (Math.abs((prev || 0) - measuredViewportHeight) > 0.5 ? measuredViewportHeight : prev));
+      }
+
+      const measuredNavHeight = Math.ceil(mobileNavRef.current?.getBoundingClientRect?.().height || 0);
+      if (Number.isFinite(measuredNavHeight) && measuredNavHeight > 0) {
+        setMobileNavHeight((prev) => (Math.abs(prev - measuredNavHeight) > 0.5 ? measuredNavHeight : prev));
+      } else {
+        setMobileNavHeight((prev) => (Math.abs(prev - MOBILE_NAV_FALLBACK_HEIGHT) > 0.5 ? MOBILE_NAV_FALLBACK_HEIGHT : prev));
+      }
+    };
+
+    const scheduleMeasure = () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      rafId = window.requestAnimationFrame(measureMobileLayout);
+    };
+
+    scheduleMeasure();
+    timeoutIds.push(window.setTimeout(scheduleMeasure, 120));
+    timeoutIds.push(window.setTimeout(scheduleMeasure, 420));
+
+    if (typeof window.ResizeObserver !== 'undefined' && mobileNavRef.current) {
+      resizeObserver = new window.ResizeObserver(() => {
+        scheduleMeasure();
+      });
+      resizeObserver.observe(mobileNavRef.current);
+    }
+
+    window.addEventListener('resize', scheduleMeasure);
+    window.addEventListener('orientationchange', scheduleMeasure);
+    visualViewport?.addEventListener('resize', scheduleMeasure);
+
+    if (mobileQuery.addEventListener) {
+      mobileQuery.addEventListener('change', scheduleMeasure);
+    } else {
+      mobileQuery.addListener(scheduleMeasure);
+    }
+
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      timeoutIds.forEach((id) => window.clearTimeout(id));
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
+      window.removeEventListener('orientationchange', scheduleMeasure);
+      visualViewport?.removeEventListener('resize', scheduleMeasure);
+      if (mobileQuery.removeEventListener) {
+        mobileQuery.removeEventListener('change', scheduleMeasure);
+      } else {
+        mobileQuery.removeListener(scheduleMeasure);
+      }
+    };
+  }, [activeTab, activeMarket, filterStatus, searchQuery]);
 
   // Reset mobile header when switching to home tab
   useEffect(() => {
@@ -2695,7 +2773,10 @@ export default function GetGoApp() {
   }
 
   return (
-    <div className="flex flex-col h-screen h-[100dvh] min-h-screen min-h-[100svh] overflow-hidden bg-gray-50 dark:bg-gray-950">
+    <div
+      className="flex h-screen min-h-screen flex-col overflow-hidden bg-gray-50 dark:bg-gray-950"
+      style={mobileViewportHeight ? { height: `${mobileViewportHeight}px`, minHeight: `${mobileViewportHeight}px` } : undefined}
+    >
       {/* Header */}
       <Header
         headerRef={headerRef}
@@ -2805,6 +2886,7 @@ export default function GetGoApp() {
               onScroll={handleHomeScroll}
               mobileHeaderVisible={showMobileHeader}
               mobileHeaderHeight={mobileHeaderHeight}
+              mobileNavHeight={mobileNavHeight}
               roleKpis={homeRoleKpis}
             />
           </ErrorBoundary>
@@ -3056,6 +3138,7 @@ export default function GetGoApp() {
 
       {/* Mobile Navigation */}
       <MobileNav
+        ref={mobileNavRef}
         activeTab={activeTab}
         onTabChange={handleMobileTabChange}
         onPostClick={handlePostClick}
