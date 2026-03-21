@@ -252,6 +252,75 @@ test.describe('Mobile Responsiveness', () => {
     expect(geometry.searchTop).toBeGreaterThanOrEqual(cargoRect.bottom - 1);
   });
 
+  test('should auto-load more home listings on mobile when reaching pagination sentinel', async ({ page }) => {
+    const trucksButton = page.getByRole('button', { name: /trucks/i }).first();
+    await expect(trucksButton).toBeVisible();
+    await trucksButton.click();
+    await page.waitForTimeout(350);
+
+    const initialCount = await page.evaluate(() => {
+      const grid = document.querySelector('[data-testid="home-listings-grid"]');
+      if (!grid) return 0;
+      return grid.children.length;
+    });
+    expect(initialCount).toBeGreaterThan(0);
+
+    await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      container?.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+    });
+    await page.waitForTimeout(700);
+
+    const loadedCount = await page.evaluate(() => {
+      const grid = document.querySelector('[data-testid="home-listings-grid"]');
+      if (!grid) return 0;
+      return grid.children.length;
+    });
+
+    expect(loadedCount).toBeGreaterThan(initialCount);
+  });
+
+  test('should keep home pagination controls above mobile nav on browser mobile layout', async ({ page }) => {
+    const trucksButton = page.getByRole('button', { name: /trucks/i }).first();
+    await expect(trucksButton).toBeVisible();
+    await trucksButton.click();
+    await page.waitForTimeout(350);
+
+    await page.evaluate(async () => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      if (!container) return;
+
+      // Infinite loading can increase scrollHeight after each bottom reach.
+      // Re-scroll a few times until we settle near the true end.
+      for (let i = 0; i < 8; i += 1) {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+        await new Promise((resolve) => window.setTimeout(resolve, 180));
+      }
+    });
+    await page.waitForTimeout(250);
+
+    const geometry = await page.evaluate(() => {
+      const paginationEl = document.querySelector('[data-testid="home-pagination-controls"], [data-testid="home-pagination-end"]');
+      const navEl = document.querySelector('[data-testid="mobile-nav"]');
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      if (!paginationEl || !navEl || !container) return null;
+
+      const paginationRect = paginationEl.getBoundingClientRect();
+      const navRect = navEl.getBoundingClientRect();
+
+      return {
+        scrollTop: container.scrollTop,
+        maxScrollTop: Math.max(0, container.scrollHeight - container.clientHeight),
+        paginationBottom: paginationRect.bottom,
+        navTop: navRect.top,
+      };
+    });
+
+    expect(geometry).not.toBeNull();
+    expect(geometry.scrollTop).toBeGreaterThanOrEqual(Math.max(0, geometry.maxScrollTop - 4));
+    expect(geometry.paginationBottom).toBeLessThanOrEqual(geometry.navTop + 1);
+  });
+
   test('should keep listing controls stable while scrolling', async ({ page }) => {
     const scrollContainer = page.getByTestId('home-scroll-container');
     const listingControls = page.getByTestId('home-sticky-controls');
@@ -595,5 +664,39 @@ test.describe('Desktop Layout', () => {
     // No errors
     const errorText = await page.locator('text=/error|crashed/i').count();
     expect(errorText).toBe(0);
+  });
+
+  test('should keep home listings container scrollable on desktop', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(
+      () => !document.querySelector('.animate-spin'),
+      { timeout: 15000 }
+    );
+    await page.waitForTimeout(1000);
+
+    const metrics = await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="home-scroll-container"]');
+      if (!container) {
+        return { found: false };
+      }
+
+      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      const hasOverflow = maxScrollTop > 20;
+      container.scrollTop = 0;
+      container.scrollTop = Math.min(420, maxScrollTop);
+
+      return {
+        found: true,
+        hasOverflow,
+        before: 0,
+        after: container.scrollTop,
+        clientHeight: container.clientHeight,
+        scrollHeight: container.scrollHeight,
+      };
+    });
+
+    expect(metrics.found).toBe(true);
+    test.skip(!metrics.hasOverflow, 'Not enough desktop overflow content to validate scrollability.');
+    expect(metrics.after).toBeGreaterThan(metrics.before);
   });
 });
