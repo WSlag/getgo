@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Star,
-  Eye,
   Trash2,
   Flag,
   User,
@@ -13,8 +12,6 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase';
 import api from '@/services/api';
 
 // Star rating display
@@ -44,16 +41,15 @@ export function RatingsManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [scoreFilter, setScoreFilter] = useState('all');
   const [stats, setStats] = useState({ total: 0, average: 0, fiveStars: 0, oneStars: 0 });
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
   // Fetch ratings
   const fetchRatings = async () => {
     setLoading(true);
     try {
-      const snapshot = await getDocs(query(collection(db, 'ratings'), orderBy('createdAt', 'desc')));
-      const ratingsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const response = await api.admin.getRatings({ limit: 500 });
+      const ratingsData = response?.items || response?.ratings || [];
+      setLastUpdatedAt(response?.meta?.asOf || null);
 
       setRatings(ratingsData);
 
@@ -179,9 +175,6 @@ export function RatingsManagement() {
       align: 'right',
       render: (_, row) => (
         <div className="flex items-center justify-end gap-1">
-          <Button size="sm" variant="ghost">
-            <Eye className="size-4" />
-          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -227,6 +220,9 @@ export function RatingsManagement() {
           iconColor="bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30"
         />
       </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Last updated: {lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : 'Unavailable'}
+      </p>
 
       {/* Rating Distribution */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" style={{ padding: isDesktop ? '24px' : '16px' }}>

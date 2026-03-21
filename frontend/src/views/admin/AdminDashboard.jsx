@@ -59,21 +59,17 @@ export function AdminDashboard({ onBackToApp }) {
   // Fetch badge counts
   const fetchBadges = useCallback(async (brokerPayoutRequests) => {
     try {
-      const pendingRequests = Array.isArray(brokerPayoutRequests)
-        ? brokerPayoutRequests.filter((request) => request.status === 'pending')
-        : null;
+      const overview = await api.admin.getDashboardOverview();
+      const resolvedBadges = overview?.badges || {};
+      const pendingBrokerPayouts = Array.isArray(brokerPayoutRequests)
+        ? brokerPayoutRequests.filter((request) => request.status === 'pending').length
+        : (resolvedBadges.pendingBrokerPayouts || 0);
 
-      const [stats, brokerPayouts] = await Promise.all([
-        api.admin.getPaymentStats(),
-        pendingRequests
-          ? Promise.resolve({ requests: pendingRequests })
-          : api.admin.getBrokerPayoutRequests({ status: 'pending', limit: 500 }),
-      ]);
-      const resolvedStats = stats?.stats || stats || {};
       setBadges({
-        pendingPayments: resolvedStats.pendingReview || 0,
-        openDisputes: 0, // Dispute tracking endpoint not yet implemented
-        pendingBrokerPayouts: brokerPayouts?.requests?.length || 0,
+        pendingPayments: resolvedBadges.pendingPayments || 0,
+        openDisputes: resolvedBadges.openDisputes || 0,
+        pendingBrokerPayouts,
+        openSupportTickets: resolvedBadges.openSupportTickets || 0,
       });
     } catch (err) {
       console.error('Error fetching admin badges:', err);

@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
-process.env.PW_FIREBASE_PROJECT_ID = process.env.PW_FIREBASE_PROJECT_ID || 'karga-ph';
+const EMULATOR_PROJECT_ID =
+  process.env.PW_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'karga-ph';
+process.env.PW_FIREBASE_PROJECT_ID = EMULATOR_PROJECT_ID;
 
 /**
  * Playwright E2E Test Configuration for Karga Marketplace
@@ -72,13 +74,16 @@ export default defineConfig({
 
     // Firebase Emulators (auth + firestore + functions)
     {
-      command: 'firebase emulators:start --only auth,firestore,functions',
+      command: `firebase emulators:start --project ${EMULATOR_PROJECT_ID} --only auth,firestore,functions`,
       url: 'http://127.0.0.1:9099', // Auth emulator (simpler than waiting for UI)
       reuseExistingServer: !process.env.CI,
       timeout: 180 * 1000, // 3 minutes — allows JAR download on first run
       env: {
         JAVA_HOME: 'C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.5.11-hotspot',
         PATH: `C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.5.11-hotspot\\bin;${process.env.PATH}`,
+        FIREBASE_PROJECT: EMULATOR_PROJECT_ID,
+        FIREBASE_PROJECT_ID: EMULATOR_PROJECT_ID,
+        GCLOUD_PROJECT: EMULATOR_PROJECT_ID,
       },
       stdout: 'pipe',
       stderr: 'pipe',

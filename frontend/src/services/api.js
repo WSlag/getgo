@@ -227,6 +227,7 @@ const api = {
 
   admin: {
     getDashboardStats: () => callFunction('adminGetDashboardStats', {}),
+    getDashboardOverview: () => callFunction('adminGetDashboardOverview', {}),
     getSystemSettings: () => callFunction('adminGetSystemSettings', {}),
     updateSystemSettings: (settings) => callFunction('adminUpdateSystemSettings', { settings }),
 
@@ -247,15 +248,20 @@ const api = {
     toggleAdmin: (userId, grant) => callFunction('adminToggleAdmin', { userId, grant }),
 
     getContracts: (params) => callFunction('adminGetContracts', params || {}),
+    getListings: (params) => callFunction('adminGetListings', params || {}),
+    getRatings: (params) => callFunction('adminGetRatings', params || {}),
+    getDisputes: (params) => callFunction('adminGetDisputes', params || {}),
     getShipments: (params) => callFunction('adminGetShipments', params || {}),
     deactivateListing: (listingId, listingType, data = {}) =>
       callFunction('adminDeactivateListing', { listingId, listingType, ...data }),
     deleteRating: (ratingId) => callFunction('adminDeleteRating', { ratingId }),
 
     getFinancialSummary: () => callFunction('adminGetFinancialSummary', {}),
+    getFinancialOverview: (params) => callFunction('adminGetFinancialOverview', params || {}),
     getMarketplaceKpis: (params) => callFunction('adminGetMarketplaceKpis', params || {}),
 
     resolveDispute: (disputeId, data) => callFunction('adminResolveDispute', { disputeId, ...data }),
+    backfillLegacyDisputes: (params) => callFunction('adminBackfillLegacyDisputes', params || {}),
 
     getBrokers: (params) => callFunction('adminGetBrokers', params || {}),
     updateBrokerTier: (brokerId, tier) => callFunction('adminUpdateBrokerTier', { brokerId, tier }),

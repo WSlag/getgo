@@ -12,8 +12,6 @@ import { PesoIcon } from '@/components/ui/PesoIcon';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, documentId, getDocs, query, orderBy, where } from 'firebase/firestore';
-import { db } from '@/firebase';
 import api from '@/services/api';
 
 // Transaction type badge
@@ -50,144 +48,32 @@ export function FinancialOverview() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
   // Fetch financial data
   const fetchFinancialData = async () => {
     setLoading(true);
     try {
-      // Align revenue windows with backend Manila day boundaries.
-      const now = new Date();
-      const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
-      const manilaMs = utcMs + (8 * 60 * 60 * 1000);
-      const manilaDate = new Date(manilaMs);
-      manilaDate.setHours(0, 0, 0, 0);
-      const today = new Date(manilaDate.getTime() - (8 * 60 * 60 * 1000));
-      const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-      const [paymentStatsResult, dashboardStatsResult] = await Promise.allSettled([
-        api.admin.getPaymentStats(),
-        api.admin.getDashboardStats(),
-      ]);
-      const paymentStats = paymentStatsResult.status === 'fulfilled' ? paymentStatsResult.value : null;
-      const dashboardStats = dashboardStatsResult.status === 'fulfilled' ? dashboardStatsResult.value : null;
-
-      // Keep "Today's Revenue" aligned with Payment Review stats when available.
-      const fallbackTodayRevenue = Number(paymentStats?.totalAmountToday || paymentStats?.stats?.totalAmountToday || 0);
-      const fallbackTotalRevenue = Number(dashboardStats?.financial?.platformFeesCollected || 0);
-      const fallbackWalletBalance = Number(dashboardStats?.financial?.totalWalletBalance || 0);
-
-      let totalRevenue = fallbackTotalRevenue;
-      let todayRevenue = fallbackTodayRevenue;
-      let weekRevenue = 0;
-      let monthRevenue = 0;
-      const txData = [];
-
-      try {
-        // Authoritative fee ledger for platform revenue history.
-        const platformFeesSnapshot = await getDocs(
-          query(
-            collection(db, 'platformFees'),
-            where('status', '==', 'completed'),
-            orderBy('createdAt', 'desc')
-          )
-        );
-
-        let computedTotalRevenue = 0;
-        let computedTodayRevenue = 0;
-        let computedWeekRevenue = 0;
-        let computedMonthRevenue = 0;
-
-        platformFeesSnapshot.forEach((docSnap) => {
-          const data = docSnap.data() || {};
-          const feeAmount = Number(data.amount || 0);
-          if (!Number.isFinite(feeAmount) || feeAmount <= 0) return;
-
-          computedTotalRevenue += feeAmount;
-
-          const collectedAt = data.createdAt?.toDate?.() || (data.createdAt ? new Date(data.createdAt) : null);
-          if (collectedAt && !Number.isNaN(collectedAt.getTime())) {
-            if (collectedAt >= today) computedTodayRevenue += feeAmount;
-            if (collectedAt >= weekAgo) computedWeekRevenue += feeAmount;
-            if (collectedAt >= monthAgo) computedMonthRevenue += feeAmount;
-          }
-
-          txData.push({
-            id: docSnap.id,
-            type: 'fee',
-            amount: feeAmount,
-            userId: data.userId || '',
-            userName: data.userName || data.userId?.slice(0, 12) || 'Unknown',
-            createdAt: collectedAt || new Date(),
-          });
-        });
-
-        totalRevenue = computedTotalRevenue;
-        weekRevenue = computedWeekRevenue;
-        monthRevenue = computedMonthRevenue;
-
-        // Prefer backend payment-stats value to stay consistent with Payment Review.
-        todayRevenue = fallbackTodayRevenue > 0 ? fallbackTodayRevenue : computedTodayRevenue;
-      } catch (platformFeeError) {
-        console.warn('Platform fee query blocked; using callable stat fallbacks:', platformFeeError);
-      }
-
-      // Use server-side admin summary to avoid client-side rules failures on collectionGroup(wallet).
-      const totalWalletBalance = fallbackWalletBalance;
+      const response = await api.admin.getFinancialOverview({ limit: 50 });
+      const responseStats = response?.stats || {};
+      const responseItems = response?.items || response?.transactions || [];
 
       setStats({
-        totalRevenue,
-        todayRevenue,
-        weekRevenue,
-        monthRevenue,
-        totalWalletBalance,
-        pendingPayouts: 0, // Payout request tracking not yet implemented
+        totalRevenue: Number(responseStats.totalRevenue || 0),
+        todayRevenue: Number(responseStats.todayRevenue || 0),
+        weekRevenue: Number(responseStats.weekRevenue || 0),
+        monthRevenue: Number(responseStats.monthRevenue || 0),
+        totalWalletBalance: Number(responseStats.totalWalletBalance || 0),
+        pendingPayouts: Number(responseStats.pendingPayouts || 0),
       });
 
-      const recentTx = txData.slice(0, 20);
-      const userIds = [...new Set(recentTx.map((tx) => tx.userId).filter(Boolean))];
-      const userNameById = {};
-
-      // Firestore "in" accepts up to 10 values, so chunk user lookups.
-      if (userIds.length > 0) {
-        try {
-          const chunks = [];
-          for (let i = 0; i < userIds.length; i += 10) {
-            chunks.push(userIds.slice(i, i + 10));
-          }
-
-          const snapshots = await Promise.all(
-            chunks.map((ids) =>
-              getDocs(
-                query(
-                  collection(db, 'users'),
-                  where(documentId(), 'in', ids)
-                )
-              )
-            )
-          );
-
-          snapshots.forEach((snapshot) => {
-            snapshot.forEach((userDoc) => {
-              const userData = userDoc.data() || {};
-              userNameById[userDoc.id] =
-                userData.displayName ||
-                userData.name ||
-                userData.email ||
-                userDoc.id.slice(0, 12);
-            });
-          });
-        } catch (userLookupError) {
-          console.warn('User name lookup blocked; using UID fallback labels:', userLookupError);
-        }
-      }
-
       setTransactions(
-        recentTx.map((tx) => ({
+        responseItems.map((tx) => ({
           ...tx,
-          userName: userNameById[tx.userId] || tx.userName,
+          createdAt: tx?.createdAt ? new Date(tx.createdAt) : new Date(),
         }))
       );
+      setLastUpdatedAt(response?.meta?.asOf || null);
     } catch (error) {
       console.error('Error fetching financial data:', error);
     } finally {
@@ -231,7 +117,7 @@ export function FinancialOverview() {
         const isOutflow = row.type === 'payout' || row.type === 'refund';
         return (
           <span className={cn('font-semibold', isOutflow ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400')}>
-            {isOutflow ? '-' : '+'}₱{formatPrice(row.amount)}
+            {isOutflow ? '-' : '+'}PHP {formatPrice(row.amount)}
           </span>
         );
       },
@@ -253,25 +139,25 @@ export function FinancialOverview() {
       <div className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: isDesktop ? '24px' : '12px' }}>
         <StatCard
           title="Today's Revenue"
-          value={`₱${formatPrice(stats.todayRevenue)}`}
+          value={`PHP ${formatPrice(stats.todayRevenue)}`}
           icon={PesoIcon}
           iconColor="bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30"
         />
         <StatCard
           title="This Week"
-          value={`₱${formatPrice(stats.weekRevenue)}`}
+          value={`PHP ${formatPrice(stats.weekRevenue)}`}
           icon={TrendingUp}
           iconColor="bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30"
         />
         <StatCard
           title="This Month"
-          value={`₱${formatPrice(stats.monthRevenue)}`}
+          value={`PHP ${formatPrice(stats.monthRevenue)}`}
           icon={Calendar}
           iconColor="bg-gradient-to-br from-purple-400 to-purple-600 shadow-purple-500/30"
         />
         <StatCard
           title="All Time"
-          value={`₱${formatPrice(stats.totalRevenue)}`}
+          value={`PHP ${formatPrice(stats.totalRevenue)}`}
           icon={PesoIcon}
           iconColor="bg-gradient-to-br from-orange-400 to-orange-600 shadow-orange-500/30"
         />
@@ -281,19 +167,22 @@ export function FinancialOverview() {
       <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: isDesktop ? '24px' : '12px' }}>
         <StatCard
           title="Total Wallet Balances"
-          value={`₱${formatPrice(stats.totalWalletBalance)}`}
+          value={`PHP ${formatPrice(stats.totalWalletBalance)}`}
           subtitle="Combined balance of all users"
           icon={Wallet}
           iconColor="bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30"
         />
         <StatCard
           title="Pending Payouts"
-          value={`₱${formatPrice(stats.pendingPayouts)}`}
+          value={`PHP ${formatPrice(stats.pendingPayouts)}`}
           subtitle="Awaiting processing"
           icon={CreditCard}
           iconColor="bg-gradient-to-br from-yellow-400 to-yellow-600 shadow-yellow-500/30"
         />
       </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Last updated: {lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : 'Unavailable'}
+      </p>
 
       {/* Recent Transactions */}
       <DataTable

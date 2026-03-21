@@ -1609,8 +1609,13 @@ exports.adminGetBrokers = functions.region(REGION).https.onCall(async (data, con
   });
 
   return {
+    items: brokers,
     brokers,
     total: brokers.length,
+    nextCursor: null,
+    meta: {
+      asOf: new Date().toISOString(),
+    },
   };
 });
 

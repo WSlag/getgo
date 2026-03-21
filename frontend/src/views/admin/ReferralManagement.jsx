@@ -99,6 +99,7 @@ export function ReferralManagement() {
         phone: broker.user?.phone || '-',
         referralCode: broker.referralCode || '-',
         tier: broker.tier || 'STARTER',
+        status: broker.status || 'active',
         totalReferrals: broker.totalReferrals || 0,
         totalEarnings: broker.totalEarnings || 0,
         pendingEarnings: broker.pendingEarnings || 0,
