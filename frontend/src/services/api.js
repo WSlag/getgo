@@ -23,26 +23,74 @@ import {
  * @param {Object} data Payload
  * @returns {Promise<any>} Function result data
  */
-async function callFunction(name, data = {}) {
-  const fn = httpsCallable(functions, name);
-  try {
-    const result = await fn(data);
-    return result.data;
-  } catch (error) {
-    const isExpectedError =
-      error.code === 'not-found' ||
-      (error.message && error.message.includes('Contract not found'));
+function normalizeFunctionErrorCode(error) {
+  const rawCode = error?.code;
+  if (typeof rawCode !== 'string' || rawCode.trim() === '') return '';
+  const normalized = rawCode.includes('/') ? rawCode.split('/').pop() : rawCode;
+  return normalized || rawCode;
+}
 
-    if (!isExpectedError) {
-      console.error(`Cloud Function ${name} error:`, error);
-    }
-
-    const err = new Error(error.message || 'Function call failed');
-    err.code = error.code;
-    err.details = error.details || null;
-    err.cause = error;
-    throw err;
+function isTransientFunctionError(error) {
+  const code = normalizeFunctionErrorCode(error);
+  if (['internal', 'unavailable', 'deadline-exceeded', 'aborted', 'resource-exhausted', 'unknown'].includes(code)) {
+    return true;
   }
+
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('err_connection_closed') ||
+    message.includes('connection closed') ||
+    message.includes('network') ||
+    message.includes('failed to fetch')
+  );
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function callFunction(name, data = {}, options = {}) {
+  const fn = httpsCallable(functions, name);
+  const retryCount = Number.isInteger(options.retryCount)
+    ? Math.min(Math.max(options.retryCount, 0), 3)
+    : 0;
+  const retryDelayMs = Number.isFinite(options.retryDelayMs)
+    ? Math.max(Number(options.retryDelayMs), 100)
+    : 300;
+
+  for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+    try {
+      const result = await fn(data);
+      return result.data;
+    } catch (error) {
+      const normalizedCode = normalizeFunctionErrorCode(error);
+      const isExpectedError =
+        normalizedCode === 'not-found' ||
+        (error.message && error.message.includes('Contract not found'));
+      const shouldRetry = attempt < retryCount && isTransientFunctionError(error);
+
+      if (shouldRetry) {
+        const jitterMs = Math.floor(Math.random() * 100);
+        const delayMs = retryDelayMs * (2 ** attempt) + jitterMs;
+        await sleep(delayMs);
+        continue;
+      }
+
+      if (!isExpectedError) {
+        console.error(`Cloud Function ${name} error:`, error);
+      }
+
+      const err = new Error(error.message || 'Function call failed');
+      err.code = normalizedCode || error.code;
+      err.details = error.details || null;
+      err.cause = error;
+      throw err;
+    }
+  }
+
+  const err = new Error('Function call failed');
+  err.code = 'unknown';
+  throw err;
 }
 
 const requireAuthUser = () => {
@@ -227,7 +275,8 @@ const api = {
 
   admin: {
     getDashboardStats: () => callFunction('adminGetDashboardStats', {}),
-    getDashboardOverview: () => callFunction('adminGetDashboardOverview', {}),
+    getDashboardOverview: () =>
+      callFunction('adminGetDashboardOverview', {}, { retryCount: 2, retryDelayMs: 400 }),
     getSystemSettings: () => callFunction('adminGetSystemSettings', {}),
     updateSystemSettings: (settings) => callFunction('adminUpdateSystemSettings', { settings }),
 
