@@ -221,7 +221,7 @@ function UserDetailModal({
               </Button>
             )}
 
-            {user.isAdmin ? (
+            {user.isAdmin && (
               <Button
                 onClick={() => onToggleAdmin(user.id, false)}
                 disabled={loading}
@@ -230,16 +230,6 @@ function UserDetailModal({
               >
                 {loading ? <Loader2 className="size-4 animate-spin mr-2" /> : <ShieldOff className="size-4 mr-2" />}
                 Revoke Admin
-              </Button>
-            ) : (
-              <Button
-                onClick={() => onToggleAdmin(user.id, true)}
-                disabled={loading}
-                variant="outline"
-                className="border-orange-300 text-orange-600 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400"
-              >
-                {loading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Shield className="size-4 mr-2" />}
-                Grant Admin
               </Button>
             )}
 

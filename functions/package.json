@@ -23,6 +23,7 @@
     "test:broker-register:idempotency": "firebase emulators:exec --only auth,firestore,functions \"node scripts/broker-register-idempotency.cjs\"",
     "test:route-distance": "firebase emulators:exec --only firestore,functions \"node scripts/route-distance-smoke.cjs\"",
     "test:platform-fee-reminders": "firebase emulators:exec --only auth,firestore,functions \"node scripts/platform-fee-reminders-smoke.cjs\"",
+    "test:admin-policy": "firebase emulators:exec --only auth,firestore \"node scripts/admin-policy-guardrails-integration.cjs\"",
     "test:anti-contact:unit": "node scripts/anti-contact-unit.cjs",
     "test:anti-contact:rules": "firebase emulators:exec --only firestore \"node scripts/anti-contact-rules.cjs\"",
     "test:anti-contact:functions": "firebase emulators:exec --only auth,firestore,functions \"node scripts/anti-contact-functions-integration.cjs\"",

@@ -15,6 +15,7 @@ const {
 const TRUCKER_CANCELLATION_THRESHOLD = 5;
 const TRUCKER_CANCELLATION_WINDOW_DAYS = 30;
 const TRUCKER_CANCELLATION_BLOCK_DAYS = 7;
+const ADMIN_GRANTS_ENABLED = String(process.env.ALLOW_ADMIN_GRANTS || '').trim().toLowerCase() === 'true';
 
 function safeErrorMessage(error) {
   if (!error) return 'Unknown error';
@@ -40,6 +41,40 @@ function parseLimit(value, fallbackLimit) {
   return Math.min(Math.max(base, 1), 500);
 }
 
+function buildAdminListResponse({ items, total, nextCursor, legacyKey, extra = {} }) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const payload = {
+    items: safeItems,
+    total: Number.isFinite(total) ? total : safeItems.length,
+    nextCursor: nextCursor || null,
+    meta: {
+      asOf: new Date().toISOString(),
+    },
+    ...extra,
+  };
+  if (legacyKey) {
+    payload[legacyKey] = safeItems;
+  }
+  return payload;
+}
+
+function encodeCursor(payload = {}) {
+  try {
+    return Buffer.from(JSON.stringify(payload)).toString('base64url');
+  } catch (error) {
+    return null;
+  }
+}
+
+function decodeCursor(cursorValue) {
+  if (!cursorValue || typeof cursorValue !== 'string') return null;
+  try {
+    return JSON.parse(Buffer.from(cursorValue, 'base64url').toString('utf8'));
+  } catch (error) {
+    return null;
+  }
+}
+
 function toDateValue(value) {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -48,6 +83,32 @@ function toDateValue(value) {
   if (typeof value._seconds === 'number') return new Date(value._seconds * 1000);
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function serializeForApi(value) {
+  if (value === null || value === undefined) return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value?.toDate === 'function') {
+    const date = value.toDate();
+    return Number.isNaN(date?.getTime?.()) ? null : date.toISOString();
+  }
+  if (typeof value?._seconds === 'number') {
+    return new Date(value._seconds * 1000).toISOString();
+  }
+  if (typeof value?.seconds === 'number') {
+    return new Date(value.seconds * 1000).toISOString();
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => serializeForApi(entry));
+  }
+  if (typeof value === 'object') {
+    const output = {};
+    Object.entries(value).forEach(([key, entry]) => {
+      output[key] = serializeForApi(entry);
+    });
+    return output;
+  }
+  return value;
 }
 
 function startOfRollingWindow(referenceDate, days) {
@@ -75,6 +136,28 @@ function arraysEqual(a = [], b = []) {
     if (a[i] !== b[i]) return false;
   }
   return true;
+}
+
+function isActiveAdminUser(userData = {}) {
+  const isAdmin = userData.isAdmin === true || userData.role === 'admin';
+  const isActive = userData.isActive !== false;
+  const accountStatus = String(userData.accountStatus || 'active').trim().toLowerCase();
+  return isAdmin && isActive && accountStatus !== 'suspended';
+}
+
+async function getActiveAdminCount(db) {
+  const [adminsByRole, adminsByFlag] = await Promise.all([
+    db.collection('users').where('role', '==', 'admin').get(),
+    db.collection('users').where('isAdmin', '==', true).get(),
+  ]);
+  const adminMap = new Map();
+  adminsByRole.docs.forEach((docSnap) => {
+    adminMap.set(docSnap.id, { ...(adminMap.get(docSnap.id) || {}), ...(docSnap.data() || {}) });
+  });
+  adminsByFlag.docs.forEach((docSnap) => {
+    adminMap.set(docSnap.id, { ...(adminMap.get(docSnap.id) || {}), ...(docSnap.data() || {}) });
+  });
+  return [...adminMap.values()].filter((userData) => isActiveAdminUser(userData)).length;
 }
 
 async function reconcileUserOutstandingState(db, userId) {
@@ -222,22 +305,45 @@ exports.adminGetDashboardStats = functions.region('asia-southeast1').https.onCal
   await verifyAdmin(context);
 
   const db = admin.firestore();
+  const asOf = new Date().toISOString();
 
   // Get counts
-  const usersSnap = await db.collection('users').count().get();
-  const cargoSnap = await db.collection('cargoListings').count().get();
-  const trucksSnap = await db.collection('truckListings').count().get();
-  const contractsSnap = await db.collection('contracts').count().get();
-  const shipmentsSnap = await db.collection('shipments')
-    .where('status', 'in', ['pending_pickup', 'picked_up', 'in_transit'])
-    .count()
-    .get();
-
-  // Get payment submissions count
-  const pendingPaymentsSnap = await db.collection('paymentSubmissions')
-    .where('status', '==', 'manual_review')
-    .count()
-    .get();
+  const [
+    usersSnap,
+    cargoSnap,
+    trucksSnap,
+    contractsSnap,
+    shipmentsSnap,
+    pendingPaymentsSnap,
+    openDisputesSnap,
+    pendingBrokerPayoutsSnap,
+    openSupportTicketsSnap,
+  ] = await Promise.all([
+    db.collection('users').count().get(),
+    db.collection('cargoListings').count().get(),
+    db.collection('truckListings').count().get(),
+    db.collection('contracts').count().get(),
+    db.collection('shipments')
+      .where('status', 'in', ['pending_pickup', 'picked_up', 'in_transit'])
+      .count()
+      .get(),
+    db.collection('paymentSubmissions')
+      .where('status', '==', 'manual_review')
+      .count()
+      .get(),
+    db.collection('disputes')
+      .where('status', 'in', ['open', 'investigating'])
+      .count()
+      .get(),
+    db.collection('brokerPayoutRequests')
+      .where('status', '==', 'pending')
+      .count()
+      .get(),
+    db.collection('supportConversations')
+      .where('status', 'in', ['open', 'pending'])
+      .count()
+      .get(),
+  ]);
 
   // Get total wallet balance (sum across all users, capped for safety)
   let totalWalletBalance = 0;
@@ -274,10 +380,198 @@ exports.adminGetDashboardStats = functions.region('asia-southeast1').https.onCal
     payments: {
       pendingReview: pendingPaymentsSnap.data().count,
     },
+    badges: {
+      pendingPayments: pendingPaymentsSnap.data().count,
+      openDisputes: openDisputesSnap.data().count,
+      pendingBrokerPayouts: pendingBrokerPayoutsSnap.data().count,
+      openSupportTickets: openSupportTicketsSnap.data().count,
+    },
     financial: {
       totalWalletBalance,
       platformFeesCollected: totalFees,
     },
+    meta: { asOf },
+  };
+});
+
+/**
+ * Server-authoritative dashboard overview payload for admin UI.
+ */
+exports.adminGetDashboardOverview = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const db = admin.firestore();
+  const asOf = new Date().toISOString();
+
+  const getStartOfManilaDay = () => {
+    const now = new Date();
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const manilaMs = utcMs + (8 * 60 * 60 * 1000);
+    const manilaDate = new Date(manilaMs);
+    manilaDate.setHours(0, 0, 0, 0);
+    const startUtcMs = manilaDate.getTime() - (8 * 60 * 60 * 1000);
+    return admin.firestore.Timestamp.fromDate(new Date(startUtcMs));
+  };
+
+  const parseAmount = (raw) => {
+    if (raw === null || raw === undefined) return 0;
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+    if (typeof raw === 'string') {
+      const normalized = raw.replace(/[^0-9.-]/g, '');
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
+
+  const startOfDay = getStartOfManilaDay();
+  const [
+    usersSnap,
+    shippersSnap,
+    truckersSnap,
+    cargoSnap,
+    openCargoSnap,
+    trucksSnap,
+    availableTrucksSnap,
+    contractsSnap,
+    activeContractsSnap,
+    pendingPaymentsSnap,
+    approvedTodaySnapshot,
+    rejectedTodaySnapshot,
+    openDisputesSnap,
+    pendingBrokerPayoutsSnap,
+    openSupportTicketsSnap,
+  ] = await Promise.all([
+    db.collection('users').count().get(),
+    db.collection('users').where('role', '==', 'shipper').count().get(),
+    db.collection('users').where('role', '==', 'trucker').count().get(),
+    db.collection('cargoListings').count().get(),
+    db.collection('cargoListings').where('status', '==', 'open').count().get(),
+    db.collection('truckListings').count().get(),
+    db.collection('truckListings').where('status', 'in', ['open', 'available']).count().get(),
+    db.collection('contracts').count().get(),
+    db.collection('contracts').where('status', 'in', ['signed', 'in_transit']).count().get(),
+    db.collection('paymentSubmissions').where('status', '==', 'manual_review').count().get(),
+    db.collection('paymentSubmissions')
+      .where('status', '==', 'approved')
+      .where('resolvedAt', '>=', startOfDay)
+      .get(),
+    db.collection('paymentSubmissions')
+      .where('status', '==', 'rejected')
+      .where('resolvedAt', '>=', startOfDay)
+      .get(),
+    db.collection('disputes').where('status', 'in', ['open', 'investigating']).count().get(),
+    db.collection('brokerPayoutRequests').where('status', '==', 'pending').count().get(),
+    db.collection('supportConversations').where('status', 'in', ['open', 'pending']).count().get(),
+  ]);
+
+  let totalAmountToday = 0;
+  const fallbackOrderIds = [];
+  approvedTodaySnapshot.docs.forEach((docSnap) => {
+    const submission = docSnap.data() || {};
+    const candidateAmount =
+      parseAmount(submission.orderAmount) ||
+      parseAmount(submission.amount) ||
+      parseAmount(submission.extractedData?.amount);
+    if (candidateAmount > 0) {
+      totalAmountToday += candidateAmount;
+    } else if (submission.orderId) {
+      fallbackOrderIds.push(submission.orderId);
+    }
+  });
+
+  if (fallbackOrderIds.length > 0) {
+    try {
+      const uniqueOrderIds = [...new Set(fallbackOrderIds)];
+      const orderDocs = await db.getAll(...uniqueOrderIds.map((orderId) => db.collection('orders').doc(orderId)));
+      orderDocs.forEach((orderDoc) => {
+        if (!orderDoc.exists) return;
+        const order = orderDoc.data() || {};
+        totalAmountToday += parseAmount(order.amount);
+      });
+    } catch (error) {
+      console.error('adminGetDashboardOverview: order amount fallback failed: %s', safeErrorMessage(error));
+    }
+  }
+
+  let kpiSummary = null;
+  try {
+    const kpiPayload = await exports.adminGetMarketplaceKpis.run({ weeks: 8 }, context);
+    kpiSummary = kpiPayload?.summary || null;
+  } catch (error) {
+    console.warn('adminGetDashboardOverview: failed to load KPI summary: %s', safeErrorMessage(error));
+  }
+
+  const [recentPayments, recentContracts, recentUsers] = await Promise.all([
+    db.collection('paymentSubmissions').orderBy('createdAt', 'desc').limit(2).get(),
+    db.collection('contracts').orderBy('createdAt', 'desc').limit(2).get(),
+    db.collection('users').orderBy('createdAt', 'desc').limit(2).get(),
+  ]);
+
+  const recentActivity = [];
+  recentPayments.forEach((docSnap) => {
+    const item = docSnap.data() || {};
+    const createdAt = toDateValue(item.createdAt);
+    recentActivity.push({
+      id: docSnap.id,
+      type: 'payment',
+      status: item.status || 'pending',
+      message: `Payment submission (${item.status || 'pending'})`,
+      createdAt: createdAt ? createdAt.toISOString() : null,
+      ts: createdAt ? createdAt.getTime() : 0,
+    });
+  });
+  recentContracts.forEach((docSnap) => {
+    const item = docSnap.data() || {};
+    const createdAt = toDateValue(item.createdAt);
+    recentActivity.push({
+      id: docSnap.id,
+      type: 'contract',
+      status: item.status || 'created',
+      message: `Contract ${item.status || 'created'}`,
+      createdAt: createdAt ? createdAt.toISOString() : null,
+      ts: createdAt ? createdAt.getTime() : 0,
+    });
+  });
+  recentUsers.forEach((docSnap) => {
+    const item = docSnap.data() || {};
+    const createdAt = toDateValue(item.createdAt);
+    recentActivity.push({
+      id: docSnap.id,
+      type: 'user',
+      status: item.role || 'user',
+      message: `New ${item.role || 'user'} registered`,
+      createdAt: createdAt ? createdAt.toISOString() : null,
+      ts: createdAt ? createdAt.getTime() : 0,
+    });
+  });
+
+  recentActivity.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+  return {
+    stats: {
+      totalUsers: usersSnap.data().count,
+      shippers: shippersSnap.data().count,
+      truckers: truckersSnap.data().count,
+      totalListings: cargoSnap.data().count + trucksSnap.data().count,
+      openCargo: openCargoSnap.data().count,
+      availableTrucks: availableTrucksSnap.data().count,
+      totalContracts: contractsSnap.data().count,
+      activeContracts: activeContractsSnap.data().count,
+      pendingPayments: pendingPaymentsSnap.data().count,
+      approvedToday: approvedTodaySnapshot.size,
+      rejectedToday: rejectedTodaySnapshot.size,
+      totalAmountToday,
+    },
+    badges: {
+      pendingPayments: pendingPaymentsSnap.data().count,
+      openDisputes: openDisputesSnap.data().count,
+      pendingBrokerPayouts: pendingBrokerPayoutsSnap.data().count,
+      openSupportTickets: openSupportTicketsSnap.data().count,
+    },
+    kpiSummary,
+    recentActivity: recentActivity.slice(0, 8).map(({ ts: _ts, ...item }) => item),
+    meta: { asOf },
   };
 });
 
@@ -308,7 +602,7 @@ exports.adminGetPendingPayments = functions.region('asia-southeast1').https.onCa
   const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
 
   // Batch-fetch related order and user data to avoid N+1 queries
-  const rawSubmissions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const rawSubmissions = snapshot.docs.map(doc => serializeForApi({ id: doc.id, ...doc.data() }));
   const orderIds = [...new Set(rawSubmissions.map(s => s.orderId).filter(Boolean))];
   const userIds = [...new Set(rawSubmissions.map(s => s.userId).filter(Boolean))];
 
@@ -348,11 +642,12 @@ exports.adminGetPendingPayments = functions.region('asia-southeast1').https.onCa
     return submission;
   });
 
-  return {
-    submissions,
+  return buildAdminListResponse({
+    items: submissions,
     total: submissions.length,
     nextCursor: submissions.length === safeLimit && lastDoc ? lastDoc.id : null,
-  };
+    legacyKey: 'submissions',
+  });
 });
 
 /**
@@ -380,13 +675,14 @@ exports.adminGetUsers = functions.region('asia-southeast1').https.onCall(async (
 
   const snapshot = await query.get();
   const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-  const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const users = snapshot.docs.map(doc => serializeForApi({ id: doc.id, ...doc.data() }));
 
-  return {
-    users,
+  return buildAdminListResponse({
+    items: users,
     total: users.length,
     nextCursor: users.length === safeLimit && lastDoc ? lastDoc.id : null,
-  };
+    legacyKey: 'users',
+  });
 });
 
 /**
@@ -637,8 +933,8 @@ exports.adminToggleAdmin = functions.region('asia-southeast1').https.onCall(asyn
 
   const { userId, grant } = data;
 
-  if (!userId) {
-    throw new functions.https.HttpsError('invalid-argument', 'User ID is required');
+  if (!userId || typeof grant !== 'boolean') {
+    throw new functions.https.HttpsError('invalid-argument', 'userId and grant (boolean) are required');
   }
 
   const db = admin.firestore();
@@ -648,30 +944,83 @@ exports.adminToggleAdmin = functions.region('asia-southeast1').https.onCall(asyn
   if (!userDoc.exists) {
     throw new functions.https.HttpsError('not-found', 'User not found');
   }
-  const previousData = userDoc.data();
+  const previousData = userDoc.data() || {};
+  const targetIsAdmin = previousData.isAdmin === true || previousData.role === 'admin';
+
+  if (grant && !ADMIN_GRANTS_ENABLED) {
+    await db.collection('adminLogs').add({
+      action: 'BLOCKED_ADMIN_GRANT_ATTEMPT',
+      targetUserId: userId,
+      performedBy: context.auth.uid,
+      reason: 'admin_grants_disabled',
+      performedAt: admin.firestore.FieldValue.serverTimestamp(),
+      ipAddress: context.rawRequest?.ip || null,
+      userAgent: context.rawRequest?.headers['user-agent'] || null,
+    });
+    throw new functions.https.HttpsError('failed-precondition', 'Granting new admins is currently disabled');
+  }
+
+  if (!grant && targetIsAdmin && isActiveAdminUser(previousData)) {
+    const activeAdminCount = await getActiveAdminCount(db);
+    if (activeAdminCount <= 1) {
+      await db.collection('adminLogs').add({
+        action: 'LAST_ADMIN_REVOKE_BLOCKED',
+        targetUserId: userId,
+        performedBy: context.auth.uid,
+        reason: 'cannot_revoke_last_admin',
+        activeAdminCount,
+        performedAt: admin.firestore.FieldValue.serverTimestamp(),
+        ipAddress: context.rawRequest?.ip || null,
+        userAgent: context.rawRequest?.headers['user-agent'] || null,
+      });
+      throw new functions.https.HttpsError('failed-precondition', 'Cannot revoke the last active admin');
+    }
+  }
+
+  const normalizedPreviousRole = String(previousData.role || '').trim().toLowerCase();
+  const normalizedPreviousNonAdminRole = String(previousData.previousNonAdminRole || '').trim().toLowerCase();
+  const resolvedPreviousNonAdminRole = ['shipper', 'trucker'].includes(normalizedPreviousNonAdminRole)
+    ? normalizedPreviousNonAdminRole
+    : ['shipper', 'trucker'].includes(normalizedPreviousRole)
+      ? normalizedPreviousRole
+      : 'shipper';
 
   if (grant) {
     // Grant admin
     await db.collection('users').doc(userId).update({
       isAdmin: true,
       role: 'admin',
+      previousNonAdminRole: resolvedPreviousNonAdminRole,
       adminGrantedAt: admin.firestore.FieldValue.serverTimestamp(),
       adminGrantedBy: context.auth.uid,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-
-    await admin.auth().setCustomUserClaims(userId, { admin: true });
   } else {
     // Revoke admin
     await db.collection('users').doc(userId).update({
       isAdmin: false,
-      role: 'shipper', // Default role
+      role: resolvedPreviousNonAdminRole,
       adminRevokedAt: admin.firestore.FieldValue.serverTimestamp(),
       adminRevokedBy: context.auth.uid,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+  }
 
-    await admin.auth().setCustomUserClaims(userId, { admin: false });
+  const authUser = await admin.auth().getUser(userId);
+  const currentClaims = authUser.customClaims || {};
+  await admin.auth().setCustomUserClaims(userId, {
+    ...currentClaims,
+    admin: grant,
+  });
+
+  if (!grant && targetIsAdmin) {
+    await db.collection(`users/${userId}/notifications`).doc().set({
+      type: 'ADMIN_ROLE_REVOKED',
+      title: 'Admin Access Revoked',
+      message: 'Your admin access has been revoked. Contact the account owner if this was unexpected.',
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
   }
 
   // Enhanced audit logging with context
@@ -684,7 +1033,7 @@ exports.adminToggleAdmin = functions.region('asia-southeast1').https.onCall(asyn
     userAgent: context.rawRequest?.headers['user-agent'] || null,
     previousRole: previousData.role || null,
     previousIsAdmin: previousData.isAdmin || false,
-    newRole: grant ? 'admin' : 'shipper',
+    newRole: grant ? 'admin' : resolvedPreviousNonAdminRole,
     newIsAdmin: grant,
   });
 
@@ -735,6 +1084,121 @@ exports.adminGetFinancialSummary = functions.region('asia-southeast1').https.onC
     totalFees,
     gmv,
     netRevenue: totalFees,
+    meta: {
+      asOf: new Date().toISOString(),
+    },
+  };
+});
+
+/**
+ * Admin financial overview payload (server-authoritative).
+ */
+exports.adminGetFinancialOverview = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const db = admin.firestore();
+  const safeLimit = parseLimit(data?.limit || 50, 50);
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const weekAgo = new Date(startOfToday.getTime() - (7 * 24 * 60 * 60 * 1000));
+  const monthAgo = new Date(startOfToday.getTime() - (30 * 24 * 60 * 60 * 1000));
+
+  const [platformFeesSnapshot, pendingPayoutsSnapshot, walletsSnapshot] = await Promise.all([
+    db.collection('platformFees')
+      .where('status', '==', 'completed')
+      .orderBy('createdAt', 'desc')
+      .limit(5000)
+      .get(),
+    db.collection('brokerPayoutRequests')
+      .where('status', '==', 'pending')
+      .get(),
+    db.collectionGroup('wallet').limit(10000).get(),
+  ]);
+
+  let totalRevenue = 0;
+  let todayRevenue = 0;
+  let weekRevenue = 0;
+  let monthRevenue = 0;
+
+  const transactions = [];
+  const recentRows = platformFeesSnapshot.docs.slice(0, safeLimit);
+  recentRows.forEach((docSnap) => {
+    const fee = docSnap.data() || {};
+    const amount = Number(fee.amount || 0);
+    const createdAt = toDateValue(fee.createdAt) || now;
+
+    transactions.push({
+      id: docSnap.id,
+      type: 'fee',
+      amount,
+      userId: fee.userId || '',
+      userName: fee.userName || null,
+      createdAt: createdAt.toISOString(),
+    });
+  });
+
+  platformFeesSnapshot.docs.forEach((docSnap) => {
+    const fee = docSnap.data() || {};
+    const amount = Number(fee.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+
+    totalRevenue += amount;
+    const createdAt = toDateValue(fee.createdAt);
+    if (!createdAt) return;
+    if (createdAt >= startOfToday) todayRevenue += amount;
+    if (createdAt >= weekAgo) weekRevenue += amount;
+    if (createdAt >= monthAgo) monthRevenue += amount;
+  });
+
+  let totalWalletBalance = 0;
+  walletsSnapshot.docs.forEach((docSnap) => {
+    const wallet = docSnap.data() || {};
+    totalWalletBalance += Number(wallet.balance || 0);
+  });
+
+  let pendingPayouts = 0;
+  pendingPayoutsSnapshot.docs.forEach((docSnap) => {
+    const request = docSnap.data() || {};
+    pendingPayouts += Number(request.amount || 0);
+  });
+
+  const userIds = [...new Set(transactions.map((item) => item.userId).filter(Boolean))];
+  if (userIds.length > 0) {
+    try {
+      const userDocs = await db.getAll(...userIds.map((userId) => db.collection('users').doc(userId)));
+      const userMap = {};
+      userDocs.forEach((docSnap) => {
+        if (!docSnap.exists) return;
+        const user = docSnap.data() || {};
+        userMap[docSnap.id] = user.displayName || user.name || user.email || docSnap.id.slice(0, 12);
+      });
+      transactions.forEach((item) => {
+        if (!item.userName && item.userId) {
+          item.userName = userMap[item.userId] || item.userId.slice(0, 12);
+        }
+      });
+    } catch (error) {
+      console.warn('adminGetFinancialOverview: user enrichment failed: %s', safeErrorMessage(error));
+    }
+  }
+
+  return {
+    stats: {
+      totalRevenue,
+      todayRevenue,
+      weekRevenue,
+      monthRevenue,
+      totalWalletBalance,
+      pendingPayouts,
+    },
+    items: transactions,
+    transactions,
+    total: transactions.length,
+    nextCursor: null,
+    meta: {
+      asOf: new Date().toISOString(),
+    },
   };
 });
 
@@ -744,18 +1208,26 @@ exports.adminGetFinancialSummary = functions.region('asia-southeast1').https.onC
 exports.adminResolveDispute = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   await verifyAdmin(context);
 
-  const { disputeId, resolution } = data;
+  const disputeId = typeof data?.disputeId === 'string' ? data.disputeId.trim() : '';
+  const resolution = typeof data?.resolution === 'string' ? data.resolution.trim().toLowerCase() : '';
+  const notes = typeof data?.notes === 'string' ? data.notes.trim() : '';
 
   if (!disputeId || !resolution) {
     throw new functions.https.HttpsError('invalid-argument', 'Dispute ID and resolution are required');
   }
 
   const db = admin.firestore();
+  const disputeRef = db.collection('disputes').doc(disputeId);
+  const disputeDoc = await disputeRef.get();
+  if (!disputeDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Dispute not found');
+  }
 
-  // Update dispute
-  await db.collection('disputes').doc(disputeId).update({
+  await disputeRef.update({
     status: 'resolved',
     resolution,
+    resolutionCode: resolution,
+    resolutionNotes: notes || null,
     resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
     resolvedBy: context.auth.uid,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -767,10 +1239,261 @@ exports.adminResolveDispute = functions.region('asia-southeast1').https.onCall(a
     targetId: disputeId,
     performedBy: context.auth.uid,
     resolution,
+    notes: notes || null,
     performedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  return { message: 'Dispute resolved successfully' };
+  return { success: true, message: 'Dispute resolved successfully' };
+});
+
+/**
+ * Canonical disputes list (server-authoritative).
+ */
+exports.adminGetDisputes = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const { status = 'all', limit = 100, cursor: cursorId } = data || {};
+  const db = admin.firestore();
+  const safeLimit = parseLimit(limit, 100);
+  const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : 'all';
+  const cursorDoc = await resolveCursor(db, 'disputes', cursorId);
+  const canUseCreatedAtCursor = !!cursorDoc?.get('createdAt');
+
+  let baseQuery = db.collection('disputes');
+  if (normalizedStatus && normalizedStatus !== 'all') {
+    baseQuery = baseQuery.where('status', '==', normalizedStatus);
+  }
+
+  let snapshot;
+  let usedFallbackQuery = false;
+  try {
+    let query = baseQuery.orderBy('createdAt', 'desc');
+    if (canUseCreatedAtCursor) {
+      query = query.startAfter(cursorDoc);
+    }
+    snapshot = await query.limit(safeLimit).get();
+  } catch (error) {
+    const code = error?.code;
+    const message = String(error?.message || '').toLowerCase();
+    const canFallback = (
+      code === 9 ||
+      code === 'failed-precondition' ||
+      message.includes('requires an index')
+    );
+    if (!canFallback) {
+      throw error;
+    }
+
+    let fallbackQuery = baseQuery.orderBy(admin.firestore.FieldPath.documentId());
+    if (cursorDoc) {
+      fallbackQuery = fallbackQuery.startAfter(cursorDoc.id);
+    }
+    snapshot = await fallbackQuery.limit(safeLimit).get();
+    usedFallbackQuery = true;
+  }
+
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+  const rawDisputes = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+  const contractIds = [...new Set(rawDisputes.map((item) => item.contractId).filter(Boolean))];
+  const [contractsDocs, summaryAll, summaryOpen, summaryInvestigating, summaryResolved] = await Promise.all([
+    contractIds.length
+      ? db.getAll(...contractIds.map((contractId) => db.collection('contracts').doc(contractId)))
+      : Promise.resolve([]),
+    db.collection('disputes').count().get(),
+    db.collection('disputes').where('status', '==', 'open').count().get(),
+    db.collection('disputes').where('status', '==', 'investigating').count().get(),
+    db.collection('disputes').where('status', '==', 'resolved').count().get(),
+  ]);
+
+  const contractMap = {};
+  contractsDocs.forEach((docSnap) => {
+    if (docSnap.exists) {
+      contractMap[docSnap.id] = docSnap.data() || {};
+    }
+  });
+
+  const userIds = [...new Set(
+    rawDisputes.flatMap((item) => {
+      const contract = item.contractId ? (contractMap[item.contractId] || {}) : {};
+      return [
+        item.shipperId,
+        item.truckerId,
+        item.openedBy,
+        item.resolvedBy,
+        contract.listingOwnerId,
+        contract.bidderId,
+      ].filter(Boolean);
+    })
+  )];
+
+  const userMap = {};
+  if (userIds.length > 0) {
+    try {
+      const userDocs = await db.getAll(...userIds.map((userId) => db.collection('users').doc(userId)));
+      userDocs.forEach((docSnap) => {
+        if (!docSnap.exists) return;
+        const userData = docSnap.data() || {};
+        userMap[docSnap.id] = {
+          id: docSnap.id,
+          name: userData.name || userData.displayName || userData.email || docSnap.id,
+          phone: userData.phone || null,
+          email: userData.email || null,
+        };
+      });
+    } catch (error) {
+      console.warn('adminGetDisputes: user enrichment failed: %s', safeErrorMessage(error));
+    }
+  }
+
+  const disputes = rawDisputes
+    .map((item) => {
+      const contract = item.contractId ? (contractMap[item.contractId] || {}) : {};
+      const shipperId = item.shipperId || contract.listingOwnerId || null;
+      const truckerId = item.truckerId || contract.bidderId || null;
+      const createdAt = toDateValue(item.createdAt || item.filedAt || item.updatedAt);
+      const updatedAt = toDateValue(item.updatedAt || item.createdAt);
+      const filedAt = toDateValue(item.filedAt || item.createdAt || item.updatedAt);
+
+      return {
+        id: item.id,
+        disputeId: item.id,
+        contractId: item.contractId || null,
+        contractNumber: item.contractNumber || contract.contractNumber || null,
+        status: String(item.status || 'open').toLowerCase(),
+        reason: item.reason || item.disputeReason || contract.disputeReason || 'No reason provided',
+        description: item.description || item.disputeDescription || contract.disputeDescription || '',
+        shipperId,
+        truckerId,
+        shipperName: item.shipperName || contract.listingOwnerName || userMap[shipperId]?.name || 'N/A',
+        truckerName: item.truckerName || contract.bidderName || userMap[truckerId]?.name || 'N/A',
+        openedBy: item.openedBy || null,
+        openedByName: item.openedBy ? (userMap[item.openedBy]?.name || item.openedBy) : null,
+        resolvedBy: item.resolvedBy || null,
+        resolvedByName: item.resolvedBy ? (userMap[item.resolvedBy]?.name || item.resolvedBy) : null,
+        resolution: item.resolution || item.resolutionCode || null,
+        resolutionCode: item.resolutionCode || item.resolution || null,
+        resolutionNotes: item.resolutionNotes || null,
+        filedAt: filedAt ? filedAt.toISOString() : null,
+        createdAt: createdAt ? createdAt.toISOString() : null,
+        updatedAt: updatedAt ? updatedAt.toISOString() : null,
+        resolvedAt: toDateValue(item.resolvedAt)?.toISOString() || null,
+      };
+    })
+    .sort((a, b) => {
+      if (usedFallbackQuery) return 0;
+      return toComparableTimestamp(b.createdAt, 0) - toComparableTimestamp(a.createdAt, 0);
+    });
+
+  return buildAdminListResponse({
+    items: disputes,
+    total: summaryAll.data().count,
+    nextCursor: snapshot.docs.length === safeLimit && lastDoc ? lastDoc.id : null,
+    legacyKey: 'disputes',
+    extra: {
+      summary: {
+        total: summaryAll.data().count,
+        open: summaryOpen.data().count,
+        investigating: summaryInvestigating.data().count,
+        resolved: summaryResolved.data().count,
+      },
+      meta: {
+        asOf: new Date().toISOString(),
+        queryFallback: usedFallbackQuery,
+      },
+    },
+  });
+});
+
+/**
+ * Optional migration helper: backfill disputes from legacy disputed contracts.
+ * Idempotent via deterministic dispute document IDs.
+ */
+exports.adminBackfillLegacyDisputes = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const db = admin.firestore();
+  const safeLimit = parseLimit(data?.limit || 200, 200);
+  const dryRun = data?.dryRun !== false;
+
+  const disputedContractsSnap = await db.collection('contracts')
+    .where('status', '==', 'disputed')
+    .orderBy('updatedAt', 'desc')
+    .limit(safeLimit)
+    .get();
+
+  let created = 0;
+  let skippedExisting = 0;
+  let failed = 0;
+  const touchedDisputeIds = [];
+
+  for (const contractDoc of disputedContractsSnap.docs) {
+    const contract = contractDoc.data() || {};
+    const disputeId = `legacy_contract_${contractDoc.id}`;
+    const disputeRef = db.collection('disputes').doc(disputeId);
+    // eslint-disable-next-line no-await-in-loop
+    const existing = await disputeRef.get();
+    if (existing.exists) {
+      skippedExisting += 1;
+      continue;
+    }
+
+    if (dryRun) {
+      created += 1;
+      touchedDisputeIds.push(disputeId);
+      continue;
+    }
+
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await disputeRef.set({
+        contractId: contractDoc.id,
+        contractNumber: contract.contractNumber || null,
+        status: 'open',
+        reason: contract.disputeReason || 'Legacy disputed contract',
+        description: contract.disputeDescription || null,
+        shipperId: contract.listingOwnerId || null,
+        truckerId: contract.bidderId || null,
+        shipperName: contract.listingOwnerName || null,
+        truckerName: contract.bidderName || null,
+        filedAt: contract.disputeFiledAt || contract.updatedAt || admin.firestore.FieldValue.serverTimestamp(),
+        source: 'legacy_contract_disputed_status',
+        sourceContractId: contractDoc.id,
+        migrationKey: `contract:${contractDoc.id}`,
+        migratedAt: admin.firestore.FieldValue.serverTimestamp(),
+        migratedBy: context.auth.uid,
+        createdAt: contract.disputeFiledAt || contract.updatedAt || admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      created += 1;
+      touchedDisputeIds.push(disputeId);
+    } catch (error) {
+      failed += 1;
+      console.error('adminBackfillLegacyDisputes: failed for contractId=%s: %s', contractDoc.id, safeErrorMessage(error));
+    }
+  }
+
+  await db.collection('adminLogs').add({
+    action: 'BACKFILL_LEGACY_DISPUTES',
+    performedBy: context.auth.uid,
+    performedAt: admin.firestore.FieldValue.serverTimestamp(),
+    dryRun,
+    scanned: disputedContractsSnap.size,
+    created,
+    skippedExisting,
+    failed,
+  });
+
+  return {
+    success: true,
+    dryRun,
+    scanned: disputedContractsSnap.size,
+    created,
+    skippedExisting,
+    failed,
+    touchedDisputeIds: touchedDisputeIds.slice(0, 50),
+    meta: { asOf: new Date().toISOString() },
+  };
 });
 
 /**
@@ -798,13 +1521,204 @@ exports.adminGetContracts = functions.region('asia-southeast1').https.onCall(asy
 
   const snapshot = await query.get();
   const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-  const contracts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const contracts = snapshot.docs.map(doc => serializeForApi({ id: doc.id, ...doc.data() }));
 
-  return {
-    contracts,
+  return buildAdminListResponse({
+    items: contracts,
     total: contracts.length,
     nextCursor: contracts.length === safeLimit && lastDoc ? lastDoc.id : null,
+    legacyKey: 'contracts',
+  });
+});
+
+/**
+ * Get Listings (Admin, callable-backed cutover source)
+ */
+exports.adminGetListings = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const db = admin.firestore();
+  const safeLimit = parseLimit(data?.limit || 100, 100);
+  const normalizedType = String(data?.type || 'all').trim().toLowerCase();
+  const normalizedStatus = String(data?.status || 'all').trim().toLowerCase();
+  const cursor = decodeCursor(data?.cursor);
+  const windowLimit = Math.min(Math.max(safeLimit * 5, safeLimit), 500);
+
+  const includeCargo = normalizedType === 'all' || normalizedType === 'cargo';
+  const includeTruck = normalizedType === 'all' || normalizedType === 'truck';
+  if (!includeCargo && !includeTruck) {
+    throw new functions.https.HttpsError('invalid-argument', 'type must be all, cargo, or truck');
+  }
+
+  const [cargoSnapshot, truckSnapshot] = await Promise.all([
+    includeCargo
+      ? db.collection('cargoListings').orderBy('createdAt', 'desc').limit(windowLimit).get()
+      : Promise.resolve({ docs: [] }),
+    includeTruck
+      ? db.collection('truckListings').orderBy('createdAt', 'desc').limit(windowLimit).get()
+      : Promise.resolve({ docs: [] }),
+  ]);
+
+  const combined = [
+    ...cargoSnapshot.docs.map((docSnap) => ({ id: docSnap.id, type: 'cargo', ...docSnap.data() })),
+    ...truckSnapshot.docs.map((docSnap) => ({ id: docSnap.id, type: 'truck', ...docSnap.data() })),
+  ]
+    .filter((item) => normalizedStatus === 'all' || String(item.status || '').toLowerCase() === normalizedStatus)
+    .map((item) => {
+      const createdAtMs = toComparableTimestamp(item.createdAt, toComparableTimestamp(item.updatedAt, 0));
+      return {
+        ...item,
+        createdAtMs,
+        cursorKey: `${item.type}:${item.id}`,
+      };
+    })
+    .sort((a, b) => {
+      if (b.createdAtMs !== a.createdAtMs) return b.createdAtMs - a.createdAtMs;
+      return String(b.cursorKey).localeCompare(String(a.cursorKey));
+    });
+
+  const filtered = cursor
+    ? combined.filter((item) => (
+      item.createdAtMs < Number(cursor.createdAtMs || 0)
+      || (
+        item.createdAtMs === Number(cursor.createdAtMs || 0)
+        && String(item.cursorKey) < String(cursor.key || '')
+      )
+    ))
+    : combined;
+
+  const pageItems = filtered.slice(0, safeLimit).map(({ createdAtMs: _createdAtMs, cursorKey: _cursorKey, ...item }) => item);
+  const lastItem = filtered[safeLimit - 1] || null;
+  const nextCursor = lastItem
+    ? encodeCursor({ createdAtMs: lastItem.createdAtMs, key: lastItem.cursorKey })
+    : null;
+
+  const countCollection = async (collectionName) => {
+    if (normalizedStatus === 'all') {
+      return db.collection(collectionName).count().get();
+    }
+    return db.collection(collectionName).where('status', '==', normalizedStatus).count().get();
   };
+  const [cargoCountSnap, truckCountSnap] = await Promise.all([
+    includeCargo ? countCollection('cargoListings') : Promise.resolve({ data: () => ({ count: 0 }) }),
+    includeTruck ? countCollection('truckListings') : Promise.resolve({ data: () => ({ count: 0 }) }),
+  ]);
+  const totalCount = (cargoCountSnap.data().count || 0) + (truckCountSnap.data().count || 0);
+
+  return buildAdminListResponse({
+    items: pageItems,
+    total: totalCount,
+    nextCursor,
+    legacyKey: 'listings',
+  });
+});
+
+/**
+ * Get Ratings (Admin, callable-backed cutover source)
+ */
+exports.adminGetRatings = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const db = admin.firestore();
+  const safeLimit = parseLimit(data?.limit || 100, 100);
+  const rawScoreFilter = data?.score;
+  const scoreFilter = Number.isFinite(Number(rawScoreFilter)) ? Number(rawScoreFilter) : null;
+  const cursorId = typeof data?.cursor === 'string' ? data.cursor : null;
+  const cursorDoc = await resolveCursor(db, 'ratings', cursorId);
+
+  let baseQuery = db.collection('ratings');
+  if (scoreFilter !== null) {
+    baseQuery = baseQuery.where('score', '==', scoreFilter);
+  }
+
+  let snapshot;
+  let usedFallbackQuery = false;
+  try {
+    let query = baseQuery.orderBy('createdAt', 'desc');
+    if (cursorDoc) query = query.startAfter(cursorDoc);
+    snapshot = await query.limit(safeLimit).get();
+  } catch (error) {
+    const code = error?.code;
+    const message = String(error?.message || '').toLowerCase();
+    const canFallback = (
+      code === 9 ||
+      code === 'failed-precondition' ||
+      message.includes('requires an index')
+    );
+    if (!canFallback) throw error;
+
+    let fallbackQuery = baseQuery.orderBy(admin.firestore.FieldPath.documentId());
+    if (cursorDoc) fallbackQuery = fallbackQuery.startAfter(cursorDoc.id);
+    snapshot = await fallbackQuery.limit(safeLimit).get();
+    usedFallbackQuery = true;
+  }
+
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+  const rawRatings = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+
+  const contractIds = [...new Set(rawRatings.map((item) => item.contractId).filter(Boolean))];
+  const userIds = [...new Set(rawRatings.flatMap((item) => [
+    item.raterId,
+    item.ratedUserId,
+    item.rateeId,
+    item.reviewerId,
+  ].filter(Boolean)))];
+
+  const [contractDocs, userDocs, totalCountSnap] = await Promise.all([
+    contractIds.length
+      ? db.getAll(...contractIds.map((contractId) => db.collection('contracts').doc(contractId)))
+      : Promise.resolve([]),
+    userIds.length
+      ? db.getAll(...userIds.map((userId) => db.collection('users').doc(userId)))
+      : Promise.resolve([]),
+    scoreFilter === null
+      ? db.collection('ratings').count().get()
+      : db.collection('ratings').where('score', '==', scoreFilter).count().get(),
+  ]);
+
+  const contractMap = {};
+  contractDocs.forEach((docSnap) => {
+    if (docSnap.exists) contractMap[docSnap.id] = docSnap.data() || {};
+  });
+  const userMap = {};
+  userDocs.forEach((docSnap) => {
+    if (!docSnap.exists) return;
+    const user = docSnap.data() || {};
+    userMap[docSnap.id] = user.name || user.displayName || user.email || docSnap.id;
+  });
+
+  const ratings = rawRatings
+    .map((item) => {
+      const contract = item.contractId ? (contractMap[item.contractId] || {}) : {};
+      const raterId = item.raterId || item.reviewerId || null;
+      const ratedUserId = item.ratedUserId || item.rateeId || null;
+      return {
+        ...item,
+        score: Number(item.score || 0),
+        raterId,
+        ratedUserId,
+        raterName: item.raterName || userMap[raterId] || 'Unknown',
+        ratedUserName: item.ratedUserName || userMap[ratedUserId] || 'Unknown',
+        contractNumber: item.contractNumber || contract.contractNumber || null,
+      };
+    })
+    .sort((a, b) => {
+      if (usedFallbackQuery) return 0;
+      return toComparableTimestamp(b.createdAt, 0) - toComparableTimestamp(a.createdAt, 0);
+    });
+
+  return buildAdminListResponse({
+    items: ratings,
+    total: totalCountSnap.data().count || ratings.length,
+    nextCursor: snapshot.docs.length === safeLimit && lastDoc ? lastDoc.id : null,
+    legacyKey: 'ratings',
+    extra: {
+      meta: {
+        asOf: new Date().toISOString(),
+        queryFallback: usedFallbackQuery,
+      },
+    },
+  });
 });
 
 /**
@@ -860,7 +1774,7 @@ exports.adminGetShipments = functions.region('asia-southeast1').https.onCall(asy
   const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
 
   const shipments = snapshot.docs
-    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .map((doc) => serializeForApi({ id: doc.id, ...doc.data() }))
     .sort((a, b) => {
       if (usedFallbackQuery) return 0;
       const aTs = toComparableTimestamp(a.createdAt, toComparableTimestamp(a.updatedAt, 0));
@@ -868,11 +1782,18 @@ exports.adminGetShipments = functions.region('asia-southeast1').https.onCall(asy
       return bTs - aTs;
     });
 
-  return {
-    shipments,
+  return buildAdminListResponse({
+    items: shipments,
     total: shipments.length,
     nextCursor: shipments.length === safeLimit && lastDoc ? lastDoc.id : null,
-  };
+    legacyKey: 'shipments',
+    extra: {
+      meta: {
+        asOf: new Date().toISOString(),
+        queryFallback: usedFallbackQuery,
+      },
+    },
+  });
 });
 
 /**
@@ -1051,19 +1972,22 @@ exports.adminGetOutstandingFees = functions.region('asia-southeast1').https.onCa
     };
   }).filter((user) => user.outstandingFees > 0 || user.contractIds.length > 0);
 
-  return {
-    contracts,
+  return buildAdminListResponse({
+    items: contracts,
     total: contracts.length,
     nextCursor: contracts.length === safeLimit && lastDoc ? lastDoc.id : null,
-    summary: {
-      totalContracts: contracts.length,
-      totalOutstanding,
-      overdueCount,
-      suspendedCount,
-      suspendedUsers: suspendedUsersList.length,
+    legacyKey: 'contracts',
+    extra: {
+      summary: {
+        totalContracts: contracts.length,
+        totalOutstanding,
+        overdueCount,
+        suspendedCount,
+        suspendedUsers: suspendedUsersList.length,
+      },
+      suspendedUsers: suspendedUsersList,
     },
-    suspendedUsers: suspendedUsersList,
-  };
+  });
 });
 
 /**
@@ -1277,5 +2201,8 @@ exports.adminGetMarketplaceKpis = functions.region('asia-southeast1').https.onCa
     to: now.toISOString(),
     weekly,
     summary,
+    meta: {
+      asOf: new Date().toISOString(),
+    },
   };
 });

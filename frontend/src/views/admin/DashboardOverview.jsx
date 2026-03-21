@@ -12,8 +12,6 @@ import {
   Clock,
   XCircle,
   ShieldCheck,
-  Database,
-  HardDrive,
 } from 'lucide-react';
 import { StatCard, StatCardSkeleton } from '@/components/admin/StatCard';
 import { AppCard } from '@/components/ui/app-card';
@@ -21,8 +19,6 @@ import { AppButton } from '@/components/ui/app-button';
 import { SectionHeader } from '@/components/ui/section-header';
 import { StatusChip } from '@/components/ui/status-chip';
 import api from '@/services/api';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
-import { db } from '@/firebase';
 
 function formatTimeAgo(date) {
   const now = new Date();
@@ -36,42 +32,12 @@ function formatTimeAgo(date) {
   return `${days}d ago`;
 }
 
-const PLATFORM_HEALTH = [
-  {
-    label: 'API Status',
-    status: 'Operational',
-    icon: ShieldCheck,
-    iconClassName: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
-    statusVariant: 'secure',
-  },
-  {
-    label: 'Database',
-    status: 'Connected',
-    icon: Database,
-    iconClassName: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
-    statusVariant: 'accepted',
-  },
-  {
-    label: 'Payments',
-    status: 'Active',
-    icon: CreditCard,
-    iconClassName: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
-    statusVariant: 'pending',
-  },
-  {
-    label: 'Storage',
-    status: 'Healthy',
-    icon: HardDrive,
-    iconClassName: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
-    statusVariant: 'completed',
-  },
-];
-
 export function DashboardOverview({ badges, onNavigate }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
   const [kpiSummary, setKpiSummary] = useState(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -80,106 +46,59 @@ export function DashboardOverview({ badges, onNavigate }) {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const paymentStats = await api.admin.getPaymentStats();
-      const marketplaceKpis = await api.admin.getMarketplaceKpis({ weeks: 8 });
-      const resolvedPaymentStats = paymentStats?.stats || paymentStats || {};
-
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const totalUsers = usersSnapshot.size;
-      let shippers = 0;
-      let truckers = 0;
-      usersSnapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.role === 'shipper') shippers++;
-        if (data.role === 'trucker') truckers++;
-      });
-
-      const cargoSnapshot = await getDocs(collection(db, 'cargoListings'));
-      const cargoCount = cargoSnapshot.size;
-      let openCargo = 0;
-      cargoSnapshot.forEach(doc => {
-        if (doc.data().status === 'open') openCargo++;
-      });
-
-      const truckSnapshot = await getDocs(collection(db, 'truckListings'));
-      const truckCount = truckSnapshot.size;
-      let availableTrucks = 0;
-      truckSnapshot.forEach(doc => {
-        if (doc.data().status === 'available' || doc.data().status === 'open') availableTrucks++;
-      });
-
-      const contractsSnapshot = await getDocs(collection(db, 'contracts'));
-      const contractCount = contractsSnapshot.size;
-      let activeContracts = 0;
-      contractsSnapshot.forEach(doc => {
-        const status = doc.data().status;
-        if (status === 'signed' || status === 'in_transit') activeContracts++;
-      });
+      const overview = await api.admin.getDashboardOverview();
+      const resolvedStats = overview?.stats || {};
+      const resolvedActivity = Array.isArray(overview?.recentActivity) ? overview.recentActivity : [];
 
       setStats({
-        totalUsers,
-        shippers,
-        truckers,
-        totalListings: cargoCount + truckCount,
-        openCargo,
-        availableTrucks,
-        totalContracts: contractCount,
-        activeContracts,
-        pendingPayments: resolvedPaymentStats.pendingReview || 0,
-        approvedToday: resolvedPaymentStats.approvedToday || 0,
-        rejectedToday: resolvedPaymentStats.rejectedToday || 0,
-        totalAmountToday: resolvedPaymentStats.totalAmountToday || 0,
+        totalUsers: resolvedStats.totalUsers || 0,
+        shippers: resolvedStats.shippers || 0,
+        truckers: resolvedStats.truckers || 0,
+        totalListings: resolvedStats.totalListings || 0,
+        openCargo: resolvedStats.openCargo || 0,
+        availableTrucks: resolvedStats.availableTrucks || 0,
+        totalContracts: resolvedStats.totalContracts || 0,
+        activeContracts: resolvedStats.activeContracts || 0,
+        pendingPayments: resolvedStats.pendingPayments || 0,
+        approvedToday: resolvedStats.approvedToday || 0,
+        rejectedToday: resolvedStats.rejectedToday || 0,
+        totalAmountToday: resolvedStats.totalAmountToday || 0,
       });
-      setKpiSummary(marketplaceKpis?.summary || null);
+      setKpiSummary(overview?.kpiSummary || null);
+      setLastUpdatedAt(overview?.meta?.asOf || null);
 
-      const activityItems = [];
-      try {
-        const [recentPayments, recentContracts, recentUsers] = await Promise.all([
-          getDocs(query(collection(db, 'paymentSubmissions'), orderBy('createdAt', 'desc'), limit(2))),
-          getDocs(query(collection(db, 'contracts'), orderBy('createdAt', 'desc'), limit(2))),
-          getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(2))),
-        ]);
-        recentPayments.forEach(doc => {
-          const d = doc.data();
-          activityItems.push({
+      const activityItems = resolvedActivity.map((item) => {
+        const createdAt = item?.createdAt ? new Date(item.createdAt) : new Date();
+        if (item.type === 'payment') {
+          return {
             type: 'payment',
-            message: `Payment submission (${d.status || 'pending'})`,
-            time: formatTimeAgo(d.createdAt?.toDate?.() || new Date()),
+            message: item.message || `Payment submission (${item.status || 'pending'})`,
+            time: formatTimeAgo(createdAt),
             icon: CreditCard,
             iconClassName: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
             chipVariant: 'secure',
-            ts: d.createdAt?.toMillis?.() || 0,
-          });
-        });
-        recentContracts.forEach(doc => {
-          const d = doc.data();
-          activityItems.push({
+          };
+        }
+        if (item.type === 'contract') {
+          return {
             type: 'contract',
-            message: `Contract ${d.status || 'created'}`,
-            time: formatTimeAgo(d.createdAt?.toDate?.() || new Date()),
+            message: item.message || `Contract ${item.status || 'created'}`,
+            time: formatTimeAgo(createdAt),
             icon: FileText,
             iconClassName: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
             chipVariant: 'completed',
-            ts: d.createdAt?.toMillis?.() || 0,
-          });
-        });
-        recentUsers.forEach(doc => {
-          const d = doc.data();
-          activityItems.push({
-            type: 'user',
-            message: `New ${d.role || 'user'} registered`,
-            time: formatTimeAgo(d.createdAt?.toDate?.() || new Date()),
-            icon: Users,
-            iconClassName: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
-            chipVariant: 'transit',
-            ts: d.createdAt?.toMillis?.() || 0,
-          });
-        });
-        activityItems.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-      } catch (e) {
-        console.error('Error fetching recent activity:', e);
-      }
-      setRecentActivity(activityItems.slice(0, 6));
+          };
+        }
+        return {
+          type: 'user',
+          message: item.message || `New ${item.status || 'user'} registered`,
+          time: formatTimeAgo(createdAt),
+          icon: Users,
+          iconClassName: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+          chipVariant: 'transit',
+        };
+      });
+      setRecentActivity(activityItems.slice(0, 8));
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -269,6 +188,9 @@ export function DashboardOverview({ badges, onNavigate }) {
           </>
         )}
       </div>
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Last updated: {lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : 'Unavailable'}
+      </p>
 
       {/* KPI Snapshot */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-6">
@@ -417,36 +339,6 @@ export function DashboardOverview({ badges, onNavigate }) {
         </AppCard>
       </div>
 
-      {/* Platform Health */}
-      <AppCard>
-        <SectionHeader
-          title="Platform Health"
-          titleClassName="text-lg font-semibold tracking-normal"
-        />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {PLATFORM_HEALTH.map(item => {
-            const ItemIcon = item.icon;
-            return (
-              <div
-                key={item.label}
-                className="flex items-center gap-3 rounded-[14px] border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50"
-              >
-                <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-[10px]', item.iconClassName)}>
-                  <ItemIcon className="size-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{item.label}</p>
-                  <div className="mt-1">
-                    <StatusChip variant={item.statusVariant} className="text-[11px]">
-                      {item.status}
-                    </StatusChip>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </AppCard>
     </div>
   );
 }

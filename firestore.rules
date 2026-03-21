@@ -14,11 +14,13 @@ service cloud.firestore {
 
     // Helper: is the requesting user an admin?
     function isAdmin() {
-      return isAuth() && (
-        request.auth.token.admin == true ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
-      );
+      return isAuth()
+        && request.auth.token.admin == true
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+        );
     }
 
     // Helper: block restricted marketplace actions for suspended users

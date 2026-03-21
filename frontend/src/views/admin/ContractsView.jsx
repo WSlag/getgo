@@ -26,8 +26,6 @@ import {
 } from '@/components/ui/dialog';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase';
 import api from '@/services/api';
 
 // Status badge
@@ -62,6 +60,7 @@ export function ContractsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [stats, setStats] = useState({ total: 0, active: 0, completed: 0, disputed: 0 });
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [viewTarget, setViewTarget] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -71,12 +70,10 @@ export function ContractsView() {
   const fetchContracts = async () => {
     setLoading(true);
     try {
-      const snapshot = await getDocs(query(collection(db, 'contracts'), orderBy('createdAt', 'desc')));
-      const contractsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const response = await api.admin.getContracts({ limit: 500 });
+      const contractsData = response?.items || response?.contracts || [];
       setContracts(contractsData);
+      setLastUpdatedAt(response?.meta?.asOf || null);
 
       // Calculate stats
       setStats({
@@ -272,6 +269,9 @@ export function ContractsView() {
           iconColor="bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30"
         />
       </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Last updated: {lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : 'Unavailable'}
+      </p>
 
       {/* Table */}
       <DataTable

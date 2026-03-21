@@ -1060,6 +1060,30 @@ exports.getPaymentStats = onCall(
   }
 );
 
+const ADMIN_GRANTS_ENABLED = String(process.env.ALLOW_ADMIN_GRANTS || '').trim().toLowerCase() === 'true';
+
+function isLegacyActiveAdminUser(userData = {}) {
+  const isAdmin = userData.isAdmin === true || userData.role === 'admin';
+  const isActive = userData.isActive !== false;
+  const accountStatus = String(userData.accountStatus || 'active').trim().toLowerCase();
+  return isAdmin && isActive && accountStatus !== 'suspended';
+}
+
+async function getActiveAdminCountForLegacy() {
+  const [adminsByRole, adminsByFlag] = await Promise.all([
+    db.collection('users').where('role', '==', 'admin').get(),
+    db.collection('users').where('isAdmin', '==', true).get(),
+  ]);
+  const adminMap = new Map();
+  adminsByRole.docs.forEach((docSnap) => {
+    adminMap.set(docSnap.id, { ...(adminMap.get(docSnap.id) || {}), ...(docSnap.data() || {}) });
+  });
+  adminsByFlag.docs.forEach((docSnap) => {
+    adminMap.set(docSnap.id, { ...(adminMap.get(docSnap.id) || {}), ...(docSnap.data() || {}) });
+  });
+  return [...adminMap.values()].filter((userData) => isLegacyActiveAdminUser(userData)).length;
+}
+
 /**
  * Set Admin Role
  *
@@ -1085,25 +1109,79 @@ exports.setAdminRole = onCall(
     if (!targetDoc.exists) {
       throw new functions.https.HttpsError('not-found', 'Target user not found');
     }
+    const targetData = targetDoc.data() || {};
+    const targetIsAdmin = targetData.isAdmin === true || targetData.role === 'admin';
+
+    if (isAdmin && !ADMIN_GRANTS_ENABLED) {
+      await db.collection('adminLogs').add({
+        action: 'BLOCKED_ADMIN_GRANT_ATTEMPT',
+        targetUserId,
+        performedBy: context.auth.uid,
+        reason: 'admin_grants_disabled',
+        performedAt: FieldValue.serverTimestamp()
+      });
+      throw new functions.https.HttpsError('failed-precondition', 'Granting new admins is currently disabled');
+    }
+
+    if (!isAdmin && targetIsAdmin && isLegacyActiveAdminUser(targetData)) {
+      const activeAdminCount = await getActiveAdminCountForLegacy();
+      if (activeAdminCount <= 1) {
+        await db.collection('adminLogs').add({
+          action: 'LAST_ADMIN_REVOKE_BLOCKED',
+          targetUserId,
+          performedBy: context.auth.uid,
+          reason: 'cannot_revoke_last_admin',
+          activeAdminCount,
+          performedAt: FieldValue.serverTimestamp()
+        });
+        throw new functions.https.HttpsError('failed-precondition', 'Cannot revoke the last active admin');
+      }
+    }
+
+    const normalizedPreviousRole = String(targetData.role || '').trim().toLowerCase();
+    const normalizedPreviousNonAdminRole = String(targetData.previousNonAdminRole || '').trim().toLowerCase();
+    const resolvedPreviousNonAdminRole = ['shipper', 'trucker'].includes(normalizedPreviousNonAdminRole)
+      ? normalizedPreviousNonAdminRole
+      : ['shipper', 'trucker'].includes(normalizedPreviousRole)
+        ? normalizedPreviousRole
+        : 'shipper';
 
     try {
-      // Update Firestore document (bypasses security rules since this is server-side)
-      await db.collection('users').doc(targetUserId).update({
+      const userUpdates = {
         isAdmin: isAdmin,
-        role: isAdmin ? 'admin' : (targetDoc.data().role === 'admin' ? 'shipper' : targetDoc.data().role),
-        adminGrantedBy: context.auth.uid,
-        adminGrantedAt: FieldValue.serverTimestamp()
-      });
+        role: isAdmin ? 'admin' : resolvedPreviousNonAdminRole,
+        previousNonAdminRole: resolvedPreviousNonAdminRole,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      if (isAdmin) {
+        userUpdates.adminGrantedBy = context.auth.uid;
+        userUpdates.adminGrantedAt = FieldValue.serverTimestamp();
+      } else {
+        userUpdates.adminRevokedBy = context.auth.uid;
+        userUpdates.adminRevokedAt = FieldValue.serverTimestamp();
+      }
+
+      // Update Firestore document (bypasses security rules since this is server-side)
+      await db.collection('users').doc(targetUserId).update(userUpdates);
 
       // Set Firebase Custom Claims for secure verification in rules
-      await admin.auth().setCustomUserClaims(targetUserId, { admin: isAdmin });
+      const targetAuthUser = await admin.auth().getUser(targetUserId);
+      const currentClaims = targetAuthUser.customClaims || {};
+      await admin.auth().setCustomUserClaims(targetUserId, {
+        ...currentClaims,
+        admin: isAdmin
+      });
 
       // Log the admin action
       await db.collection('adminLogs').add({
         action: isAdmin ? 'GRANT_ADMIN' : 'REVOKE_ADMIN',
         targetUserId,
         performedBy: context.auth.uid,
-        performedAt: FieldValue.serverTimestamp()
+        performedAt: FieldValue.serverTimestamp(),
+        previousRole: targetData.role || null,
+        previousIsAdmin: targetData.isAdmin === true,
+        newRole: isAdmin ? 'admin' : resolvedPreviousNonAdminRole,
+        newIsAdmin: isAdmin,
       });
 
       return {
@@ -1414,6 +1492,7 @@ exports.updateBidAgreedPrice = bidFunctions.updateBidAgreedPrice;
 
 const adminFunctions = require('./src/api/admin');
 exports.adminGetDashboardStats = adminFunctions.adminGetDashboardStats;
+exports.adminGetDashboardOverview = adminFunctions.adminGetDashboardOverview;
 exports.adminGetSystemSettings = adminFunctions.adminGetSystemSettings;
 exports.adminUpdateSystemSettings = adminFunctions.adminUpdateSystemSettings;
 exports.adminGetPendingPayments = adminFunctions.adminGetPendingPayments;
@@ -1425,8 +1504,13 @@ exports.adminGetTruckerCancellationStatus = adminFunctions.adminGetTruckerCancel
 exports.adminVerifyUser = adminFunctions.adminVerifyUser;
 exports.adminToggleAdmin = adminFunctions.adminToggleAdmin;
 exports.adminGetFinancialSummary = adminFunctions.adminGetFinancialSummary;
+exports.adminGetFinancialOverview = adminFunctions.adminGetFinancialOverview;
 exports.adminResolveDispute = adminFunctions.adminResolveDispute;
+exports.adminGetDisputes = adminFunctions.adminGetDisputes;
+exports.adminBackfillLegacyDisputes = adminFunctions.adminBackfillLegacyDisputes;
 exports.adminGetContracts = adminFunctions.adminGetContracts;
+exports.adminGetListings = adminFunctions.adminGetListings;
+exports.adminGetRatings = adminFunctions.adminGetRatings;
 exports.adminDeactivateListing = adminFunctions.adminDeactivateListing;
 exports.adminDeleteRating = adminFunctions.adminDeleteRating;
 exports.adminGetOutstandingFees = adminFunctions.adminGetOutstandingFees;

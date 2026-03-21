@@ -21,8 +21,6 @@ import {
 } from '@/components/ui/dialog';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase';
 import api from '@/services/api';
 
 // Status badge
@@ -170,6 +168,7 @@ export function ListingsManagement() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [stats, setStats] = useState({ cargo: 0, trucks: 0, openCargo: 0, availableTrucks: 0 });
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [selectedListing, setSelectedListing] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
@@ -177,30 +176,19 @@ export function ListingsManagement() {
   const fetchListings = async () => {
     setLoading(true);
     try {
-      // Fetch cargo listings
-      const cargoSnapshot = await getDocs(query(collection(db, 'cargoListings'), orderBy('createdAt', 'desc')));
-      const cargoListings = cargoSnapshot.docs.map(doc => ({
-        id: doc.id,
-        type: 'cargo',
-        ...doc.data(),
-      }));
+      const response = await api.admin.getListings({ limit: 500, type: 'all', status: 'all' });
+      const allListings = response?.items || response?.listings || [];
+      const cargoListings = allListings.filter((item) => item.type === 'cargo');
+      const truckListings = allListings.filter((item) => item.type === 'truck');
+      setLastUpdatedAt(response?.meta?.asOf || null);
 
-      // Fetch truck listings
-      const truckSnapshot = await getDocs(query(collection(db, 'truckListings'), orderBy('createdAt', 'desc')));
-      const truckListings = truckSnapshot.docs.map(doc => ({
-        id: doc.id,
-        type: 'truck',
-        ...doc.data(),
-      }));
-
-      // Combine and sort
-      const allListings = [...cargoListings, ...truckListings].sort((a, b) => {
+      const sortedListings = [...allListings].sort((a, b) => {
         const aDate = a.createdAt?.toDate?.() || new Date(a.createdAt);
         const bDate = b.createdAt?.toDate?.() || new Date(b.createdAt);
         return bDate - aDate;
       });
 
-      setListings(allListings);
+      setListings(sortedListings);
 
       // Calculate stats
       setStats({
@@ -389,6 +377,9 @@ export function ListingsManagement() {
           iconColor="bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30"
         />
       </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Last updated: {lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : 'Unavailable'}
+      </p>
 
       {/* Table */}
       <DataTable

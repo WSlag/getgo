@@ -22,8 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { DataTable, FilterButton } from '@/components/admin/DataTable';
 import { StatCard } from '@/components/admin/StatCard';
-import { collection, getDocs, doc, updateDoc, query, where, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase';
+import api from '@/services/api';
 
 // Status badge
 function StatusBadge({ status }) {
@@ -81,6 +80,10 @@ function DisputeDetailModal({ open, onClose, dispute, onResolve, loading }) {
             <span className="text-sm text-gray-500 dark:text-gray-400">
               Filed {formatDate(dispute.filedAt)}
             </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <p>Opened by: {dispute.openedByName || dispute.openedBy || 'Unknown'}</p>
+            <p>Updated: {formatDate(dispute.updatedAt)}</p>
           </div>
 
           {/* Reason */}
@@ -157,6 +160,9 @@ function DisputeDetailModal({ open, onClose, dispute, onResolve, loading }) {
               <p className="text-xs text-green-500 dark:text-green-500 mt-2">
                 Resolved on {formatDate(dispute.resolvedAt)}
               </p>
+              <p className="text-xs text-green-500 dark:text-green-500 mt-1">
+                Resolved by {dispute.resolvedByName || dispute.resolvedBy || 'Unknown'}
+              </p>
             </div>
           )}
         </div>
@@ -175,39 +181,24 @@ export function DisputesManagement() {
   const [selectedDispute, setSelectedDispute] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [stats, setStats] = useState({ total: 0, open: 0, investigating: 0, resolved: 0 });
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
   // Fetch disputes
   const fetchDisputes = async () => {
     setLoading(true);
     try {
-      // In production, this would fetch from a disputes collection
-      // For now, we'll check contracts with disputed status
-      const contractsSnapshot = await getDocs(
-        query(collection(db, 'contracts'), where('status', '==', 'disputed'))
-      );
-
-      const disputesData = contractsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          contractId: doc.id,
-          contractNumber: data.contractNumber,
-          reason: data.disputeReason || 'Cargo damage',
-          description: data.disputeDescription,
-          status: 'open',
-          filedAt: data.disputeFiledAt || data.updatedAt,
-          shipperName: 'Shipper Name', // Would be fetched from users
-          truckerName: 'Trucker Name',
-        };
-      });
+      const response = await api.admin.getDisputes({ limit: 300, status: 'all' });
+      const disputesData = response?.items || response?.disputes || [];
+      const summary = response?.summary || {};
 
       setDisputes(disputesData);
       setStats({
-        total: disputesData.length,
-        open: disputesData.filter(d => d.status === 'open').length,
-        investigating: disputesData.filter(d => d.status === 'investigating').length,
-        resolved: disputesData.filter(d => d.status === 'resolved').length,
+        total: summary.total ?? disputesData.length,
+        open: summary.open ?? disputesData.filter((item) => item.status === 'open').length,
+        investigating: summary.investigating ?? disputesData.filter((item) => item.status === 'investigating').length,
+        resolved: summary.resolved ?? disputesData.filter((item) => item.status === 'resolved').length,
       });
+      setLastUpdatedAt(response?.meta?.asOf || null);
     } catch (error) {
       console.error('Error fetching disputes:', error);
     } finally {
@@ -223,10 +214,9 @@ export function DisputesManagement() {
   const handleResolve = async (disputeId, resolution, notes) => {
     setActionLoading(true);
     try {
-      // Update dispute status
-      // In production, this would update the disputes collection
+      await api.admin.resolveDispute(disputeId, { resolution, notes });
       setShowDetailModal(false);
-      fetchDisputes();
+      await fetchDisputes();
     } catch (error) {
       console.error('Error resolving dispute:', error);
     } finally {
@@ -241,6 +231,7 @@ export function DisputesManagement() {
     const query = searchQuery.toLowerCase();
     return (
       dispute.contractNumber?.toLowerCase().includes(query) ||
+      dispute.id?.toLowerCase().includes(query) ||
       dispute.reason?.toLowerCase().includes(query)
     );
   });
@@ -251,9 +242,12 @@ export function DisputesManagement() {
       key: 'contract',
       header: 'Contract',
       render: (_, row) => (
-        <span className="font-mono font-medium text-gray-900 dark:text-white">
-          {row.contractNumber || row.contractId?.slice(0, 8)}
-        </span>
+        <div>
+          <span className="font-mono font-medium text-gray-900 dark:text-white">
+            {row.contractNumber || row.contractId?.slice(0, 8)}
+          </span>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Dispute ID: {row.id}</p>
+        </div>
       ),
     },
     {
@@ -284,6 +278,15 @@ export function DisputesManagement() {
       render: (_, row) => (
         <span className="text-sm text-gray-500 dark:text-gray-400">
           {formatDate(row.filedAt, { year: undefined, hour: undefined, minute: undefined })}
+        </span>
+      ),
+    },
+    {
+      key: 'updatedAt',
+      header: 'Updated',
+      render: (_, row) => (
+        <span className="text-sm text-gray-500 dark:text-gray-400">
+          {formatDate(row.updatedAt, { year: undefined, hour: undefined, minute: undefined })}
         </span>
       ),
     },
@@ -337,6 +340,9 @@ export function DisputesManagement() {
           iconColor="bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30"
         />
       </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Last updated: {lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : 'Unavailable'}
+      </p>
 
       {/* Table */}
       <DataTable
@@ -352,7 +358,7 @@ export function DisputesManagement() {
         searchable
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search by contract number or reason..."
+        searchPlaceholder="Search by dispute ID, contract, or reason..."
         filters={
           <>
             <FilterButton active={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>
