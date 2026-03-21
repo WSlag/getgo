@@ -53,7 +53,7 @@ export function NotificationsModal({
     const filterMap = {
       'Bids': ['bid', 'bid_accepted', 'bid_rejected', 'new_bid'],
       'Contracts': ['contract', 'contract_ready', 'contract_created', 'contract_signed', 'platform_fee', 'account_restricted'],
-      'Messages': ['message', 'chat', 'new_message'],
+      'Messages': ['message', 'chat', 'new_message', 'admin_message', 'welcome_message'],
       'Shipments': ['shipment', 'delivery', 'tracking', 'pickup', 'delivered'],
     };
 

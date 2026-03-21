@@ -16,6 +16,9 @@ const TRUCKER_CANCELLATION_THRESHOLD = 5;
 const TRUCKER_CANCELLATION_WINDOW_DAYS = 30;
 const TRUCKER_CANCELLATION_BLOCK_DAYS = 7;
 const ADMIN_GRANTS_ENABLED = String(process.env.ALLOW_ADMIN_GRANTS || '').trim().toLowerCase() === 'true';
+const BROADCAST_TITLE_MAX_LENGTH = 120;
+const BROADCAST_MESSAGE_MAX_LENGTH = 2000;
+const BROADCAST_JOB_COLLECTION = 'adminBroadcastJobs';
 
 function safeErrorMessage(error) {
   if (!error) return 'Unknown error';
@@ -255,6 +258,33 @@ async function resolveCursor(db, collectionName, cursorId) {
   return cursorDoc.exists ? cursorDoc : null;
 }
 
+function normalizeTrimmedText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function validateBoundedText(value, label, maxLength) {
+  const normalized = normalizeTrimmedText(value);
+  if (!normalized) {
+    throw new functions.https.HttpsError('invalid-argument', `${label} is required`);
+  }
+  if (normalized.length > maxLength) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      `${label} must be ${maxLength} characters or less`
+    );
+  }
+  return normalized;
+}
+
+function serializeBroadcastJob(docSnap) {
+  if (!docSnap || !docSnap.exists) return null;
+  const data = docSnap.data() || {};
+  return serializeForApi({
+    id: docSnap.id,
+    ...data,
+  });
+}
+
 /**
  * Get platform/system settings.
  */
@@ -296,6 +326,89 @@ exports.adminUpdateSystemSettings = functions.region('asia-southeast1').https.on
   });
 
   return { success: true, settings: saved };
+});
+
+/**
+ * Queue a broadcast message for all active users.
+ */
+exports.adminQueueBroadcastMessage = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const title = validateBoundedText(data?.title, 'title', BROADCAST_TITLE_MAX_LENGTH);
+  const message = validateBoundedText(data?.message, 'message', BROADCAST_MESSAGE_MAX_LENGTH);
+  const db = admin.firestore();
+  const settings = await loadPlatformSettings(db, { forceRefresh: true });
+  if (settings?.communications?.broadcastEnabled === false) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Broadcast messaging is currently disabled in system settings'
+    );
+  }
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const jobRef = db.collection(BROADCAST_JOB_COLLECTION).doc();
+
+  await jobRef.set({
+    type: 'broadcast',
+    status: 'queued',
+    title,
+    message,
+    audience: 'all_active_users',
+    createdBy: context.auth.uid,
+    createdAt: now,
+    queuedAt: now,
+    updatedAt: now,
+    totalUsers: 0,
+    processedUsers: 0,
+    deliveredUsers: 0,
+    skippedUsers: 0,
+    failedUsers: 0,
+    progress: {
+      totalUsers: 0,
+      processedUsers: 0,
+      deliveredUsers: 0,
+      skippedUsers: 0,
+      failedUsers: 0,
+    },
+    error: null,
+  });
+
+  await db.collection('adminLogs').add({
+    action: 'QUEUE_BROADCAST_MESSAGE',
+    targetId: jobRef.id,
+    performedBy: context.auth.uid,
+    performedAt: now,
+    changes: {
+      title,
+      messageLength: message.length,
+    },
+  });
+
+  return {
+    success: true,
+    jobId: jobRef.id,
+    status: 'queued',
+  };
+});
+
+/**
+ * Get broadcast job processing status.
+ */
+exports.adminGetBroadcastJobStatus = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const jobId = normalizeTrimmedText(data?.jobId);
+  if (!jobId) {
+    throw new functions.https.HttpsError('invalid-argument', 'jobId is required');
+  }
+
+  const db = admin.firestore();
+  const jobDoc = await db.collection(BROADCAST_JOB_COLLECTION).doc(jobId).get();
+  if (!jobDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Broadcast job not found');
+  }
+
+  return { job: serializeBroadcastJob(jobDoc) };
 });
 
 /**

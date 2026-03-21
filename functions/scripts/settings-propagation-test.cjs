@@ -74,6 +74,14 @@ async function run() {
     maintenance: {
       enabled: true,
     },
+    communications: {
+      broadcastEnabled: true,
+      welcome: {
+        enabled: true,
+        title: 'Welcome to GetGo',
+        message: 'Welcome test message from settings propagation script.',
+      },
+    },
   };
 
   const merged = mergePlatformSettings(initial, patch);
@@ -109,6 +117,26 @@ async function run() {
     'autoApproveLowRiskPayments toggle should be updated'
   );
   assert.equal(reloaded.maintenance.enabled, true, 'maintenance toggle should be updated');
+  assert.equal(
+    reloaded.communications.broadcastEnabled,
+    true,
+    'broadcastEnabled toggle should be updated'
+  );
+  assert.equal(
+    reloaded.communications.welcome.enabled,
+    true,
+    'welcome.enabled toggle should be updated'
+  );
+  assert.equal(
+    reloaded.communications.welcome.title,
+    'Welcome to GetGo',
+    'welcome.title should be updated'
+  );
+  assert.equal(
+    reloaded.communications.welcome.message,
+    'Welcome test message from settings propagation script.',
+    'welcome.message should be updated'
+  );
 
   assert.equal(
     calculatePlatformFeeAmount(10000, reloaded),

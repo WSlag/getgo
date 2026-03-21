@@ -279,6 +279,8 @@ const api = {
       callFunction('adminGetDashboardOverview', {}, { retryCount: 2, retryDelayMs: 400 }),
     getSystemSettings: () => callFunction('adminGetSystemSettings', {}),
     updateSystemSettings: (settings) => callFunction('adminUpdateSystemSettings', { settings }),
+    queueBroadcastMessage: (payload = {}) => callFunction('adminQueueBroadcastMessage', payload || {}),
+    getBroadcastJobStatus: (jobId) => callFunction('adminGetBroadcastJobStatus', { jobId }),
 
     getPendingPayments: (params) => callFunction('adminGetPendingPayments', params || {}),
     getPaymentStats: () => callFunction('getPaymentStats', {}),

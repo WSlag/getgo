@@ -1495,6 +1495,8 @@ exports.adminGetDashboardStats = adminFunctions.adminGetDashboardStats;
 exports.adminGetDashboardOverview = adminFunctions.adminGetDashboardOverview;
 exports.adminGetSystemSettings = adminFunctions.adminGetSystemSettings;
 exports.adminUpdateSystemSettings = adminFunctions.adminUpdateSystemSettings;
+exports.adminQueueBroadcastMessage = adminFunctions.adminQueueBroadcastMessage;
+exports.adminGetBroadcastJobStatus = adminFunctions.adminGetBroadcastJobStatus;
 exports.adminGetPendingPayments = adminFunctions.adminGetPendingPayments;
 exports.adminGetUsers = adminFunctions.adminGetUsers;
 exports.adminSuspendUser = adminFunctions.adminSuspendUser;
@@ -1616,6 +1618,12 @@ exports.onChatMessageCreated = chatTriggers.onChatMessageCreated;
 
 const truckerComplianceTriggers = require('./src/triggers/truckerComplianceTriggers');
 exports.onTruckerProfileCreated = truckerComplianceTriggers.onTruckerProfileCreated;
+
+const adminBroadcastTriggers = require('./src/triggers/adminBroadcastTriggers');
+exports.onAdminBroadcastJobCreated = adminBroadcastTriggers.onAdminBroadcastJobCreated;
+
+const userCommunicationTriggers = require('./src/triggers/userCommunicationTriggers');
+exports.onUserCreatedSendWelcomeMessage = userCommunicationTriggers.onUserCreatedSendWelcomeMessage;
 
 // =============================================================================
 // SCHEDULED FUNCTIONS
