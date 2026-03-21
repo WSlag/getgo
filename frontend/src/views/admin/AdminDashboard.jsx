@@ -19,6 +19,7 @@ import { ReferralManagement } from './ReferralManagement';
 import { BrokerPayoutsView } from './BrokerPayoutsView';
 import { RatingsManagement } from './RatingsManagement';
 import { SystemSettings } from './SystemSettings';
+import { AnnouncementsView } from './AnnouncementsView';
 import { ContractVerificationView } from '../ContractVerificationView';
 import { SupportMessagesView } from './SupportMessagesView';
 
@@ -35,6 +36,7 @@ const sectionTitles = {
   financial: { title: 'Financial Overview', subtitle: 'Platform revenue and transactions' },
   disputes: { title: 'Disputes', subtitle: 'Handle and resolve disputes' },
   support: { title: 'Support Messages', subtitle: 'Manage user support conversations' },
+  announcements: { title: 'Announcements', subtitle: 'Send broadcast messages and manage welcome communications' },
   referrals: { title: 'Referral Program', subtitle: 'Manage brokers and referrals' },
   brokerPayouts: { title: 'Broker Payouts', subtitle: 'Review and approve broker payout requests' },
   ratings: { title: 'Ratings & Reviews', subtitle: 'Monitor platform quality' },
@@ -146,6 +148,8 @@ export function AdminDashboard({ onBackToApp }) {
         return <DisputesManagement />;
       case 'support':
         return <SupportMessagesView />;
+      case 'announcements':
+        return <AnnouncementsView />;
       case 'referrals':
         return <ReferralManagement />;
       case 'brokerPayouts':

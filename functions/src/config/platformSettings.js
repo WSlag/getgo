@@ -29,6 +29,14 @@ const DEFAULT_PLATFORM_SETTINGS = Object.freeze({
   maintenance: {
     enabled: false,
   },
+  communications: {
+    broadcastEnabled: true,
+    welcome: {
+      enabled: true,
+      title: 'Welcome to GetGo',
+      message: 'Welcome to GetGo. We are glad to have you onboard. You can check Help & Support anytime for tips and assistance.',
+    },
+  },
 });
 
 let cachedSettings = null;
@@ -49,6 +57,11 @@ function sanitizeText(value, fallback) {
   return normalized || fallback;
 }
 
+function sanitizeBoundedText(value, fallback, maxLength) {
+  const normalized = sanitizeText(value, fallback);
+  return normalized.length > maxLength ? normalized.slice(0, maxLength) : normalized;
+}
+
 function roundCurrency(value) {
   return Math.round(Number(value || 0));
 }
@@ -64,6 +77,8 @@ function normalizePlatformSettings(raw = {}) {
   const referralRaw = raw.referralCommission || {};
   const featuresRaw = raw.features || {};
   const maintenanceRaw = raw.maintenance || {};
+  const communicationsRaw = raw.communications || {};
+  const welcomeRaw = communicationsRaw.welcome || {};
 
   const percentage = clamp(
     toFiniteNumber(platformFeeRaw.percentage, defaults.platformFee.percentage),
@@ -116,6 +131,28 @@ function normalizePlatformSettings(raw = {}) {
           ? defaults.maintenance.enabled
           : Boolean(maintenanceRaw.enabled),
     },
+    communications: {
+      broadcastEnabled:
+        communicationsRaw.broadcastEnabled === undefined
+          ? defaults.communications.broadcastEnabled
+          : Boolean(communicationsRaw.broadcastEnabled),
+      welcome: {
+        enabled:
+          welcomeRaw.enabled === undefined
+            ? defaults.communications.welcome.enabled
+            : Boolean(welcomeRaw.enabled),
+        title: sanitizeBoundedText(
+          welcomeRaw.title,
+          defaults.communications.welcome.title,
+          120
+        ),
+        message: sanitizeBoundedText(
+          welcomeRaw.message,
+          defaults.communications.welcome.message,
+          2000
+        ),
+      },
+    },
   };
 }
 
@@ -143,7 +180,22 @@ function mergePlatformSettings(base = {}, patch = {}) {
       ...(base.maintenance || {}),
       ...(patch.maintenance || {}),
     },
+    communications: {
+      ...(base.communications || {}),
+      ...(patch.communications || {}),
+      welcome: {
+        ...((base.communications && base.communications.welcome) || {}),
+        ...((patch.communications && patch.communications.welcome) || {}),
+      },
+    },
   };
+}
+
+function getNestedValue(value, path = []) {
+  return path.reduce((current, key) => {
+    if (!current || typeof current !== 'object') return undefined;
+    return current[key];
+  }, value);
 }
 
 function validatePlatformSettingsPatch(patch = {}) {
@@ -161,10 +213,14 @@ function validatePlatformSettingsPatch(patch = {}) {
     ['features', 'referralProgramEnabled'],
     ['features', 'autoApproveLowRiskPayments'],
     ['maintenance', 'enabled'],
+    ['communications', 'broadcastEnabled'],
+    ['communications', 'welcome', 'enabled'],
   ];
   const textPaths = [
     ['gcash', 'accountNumber'],
     ['gcash', 'accountName'],
+    ['communications', 'welcome', 'title'],
+    ['communications', 'welcome', 'message'],
   ];
 
   for (const [group, key] of numericPaths) {
@@ -176,17 +232,38 @@ function validatePlatformSettingsPatch(patch = {}) {
     }
   }
 
-  for (const [group, key] of booleanPaths) {
-    if (patch[group] && key in patch[group] && typeof patch[group][key] !== 'boolean') {
-      throw new Error(`${group}.${key} must be a boolean`);
+  for (const path of booleanPaths) {
+    const parentPath = path.slice(0, -1);
+    const key = path[path.length - 1];
+    const parentValue = getNestedValue(patch, parentPath);
+    if (
+      parentValue
+      && typeof parentValue === 'object'
+      && Object.prototype.hasOwnProperty.call(parentValue, key)
+      && typeof parentValue[key] !== 'boolean'
+    ) {
+      throw new Error(`${path.join('.')} must be a boolean`);
     }
   }
 
-  for (const [group, key] of textPaths) {
-    if (patch[group] && key in patch[group]) {
-      const value = String(patch[group][key] || '').trim();
+  for (const path of textPaths) {
+    const parentPath = path.slice(0, -1);
+    const key = path[path.length - 1];
+    const parentValue = getNestedValue(patch, parentPath);
+    if (
+      parentValue
+      && typeof parentValue === 'object'
+      && Object.prototype.hasOwnProperty.call(parentValue, key)
+    ) {
+      const value = String(parentValue[key] || '').trim();
       if (!value) {
-        throw new Error(`${group}.${key} is required`);
+        throw new Error(`${path.join('.')} is required`);
+      }
+      if (path.join('.') === 'communications.welcome.title' && value.length > 120) {
+        throw new Error('communications.welcome.title must be 120 characters or less');
+      }
+      if (path.join('.') === 'communications.welcome.message' && value.length > 2000) {
+        throw new Error('communications.welcome.message must be 2000 characters or less');
       }
     }
   }

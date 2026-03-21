@@ -12,3 +12,4 @@ export { BrokerPayoutsView } from './BrokerPayoutsView';
 export { RatingsManagement } from './RatingsManagement';
 export { SystemSettings } from './SystemSettings';
 export { SupportMessagesView } from './SupportMessagesView';
+export { AnnouncementsView } from './AnnouncementsView';
