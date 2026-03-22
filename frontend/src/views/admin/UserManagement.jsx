@@ -17,6 +17,8 @@ import {
   UserCheck,
   UserX,
   RefreshCw,
+  AlertTriangle,
+  FileText,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -253,6 +255,7 @@ function UserDetailModal({
 
 export function UserManagement() {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const [activeTab, setActiveTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -268,6 +271,12 @@ export function UserManagement() {
   const [cancellationStatusError, setCancellationStatusError] = useState('');
   const selectedUserId = selectedUser?.id || '';
   const selectedUserRole = selectedUser?.role || '';
+
+  // Review queue state
+  const [reviewQueue, setReviewQueue] = useState([]);
+  const [reviewQueueLoading, setReviewQueueLoading] = useState(false);
+  const [reviewQueueError, setReviewQueueError] = useState('');
+  const [clearingReviewUid, setClearingReviewUid] = useState(null);
 
   // Fetch users
   const fetchUsers = async () => {
@@ -291,9 +300,42 @@ export function UserManagement() {
     }
   };
 
+  // Fetch review queue
+  const fetchReviewQueue = async () => {
+    setReviewQueueLoading(true);
+    setReviewQueueError('');
+    try {
+      const response = await api.admin.getReviewQueue({ pageSize: 50 });
+      setReviewQueue(response?.items || []);
+    } catch (error) {
+      console.error('Error fetching review queue:', error);
+      setReviewQueueError('Could not load review queue.');
+    } finally {
+      setReviewQueueLoading(false);
+    }
+  };
+
+  const handleClearReview = async (uid) => {
+    setClearingReviewUid(uid);
+    try {
+      await api.admin.clearTruckerReview(uid, '');
+      setReviewQueue(prev => prev.filter(item => item.uid !== uid));
+    } catch (error) {
+      console.error('Error clearing review:', error);
+    } finally {
+      setClearingReviewUid(null);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'review') {
+      fetchReviewQueue();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -481,61 +523,204 @@ export function UserManagement() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: isDesktop ? '28px' : '20px' }}>
-      <DataTable
-        columns={columns}
-        data={filteredUsers}
-        loading={loading}
-        emptyMessage="No users found"
-        emptyIcon={Users}
-        onRowClick={(row) => {
-          setSelectedUser(row);
-          setShowDetailModal(true);
-        }}
-        searchable
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        searchPlaceholder="Search by name, phone, or email..."
-        filters={
-          <>
-            <FilterButton active={roleFilter === 'all'} onClick={() => setRoleFilter('all')}>
-              All
-            </FilterButton>
-            <FilterButton active={roleFilter === 'shipper'} onClick={() => setRoleFilter('shipper')}>
-              Shippers
-            </FilterButton>
-            <FilterButton active={roleFilter === 'trucker'} onClick={() => setRoleFilter('trucker')}>
-              Truckers
-            </FilterButton>
-            <FilterButton active={roleFilter === 'admin'} onClick={() => setRoleFilter('admin')}>
-              Admins
-            </FilterButton>
-          </>
-        }
-      />
+      {/* Tab switcher */}
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-800 pb-0">
+        <button
+          onClick={() => setActiveTab('users')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+            activeTab === 'users'
+              ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          )}
+        >
+          <Users className="size-4" />
+          All Users
+        </button>
+        <button
+          onClick={() => setActiveTab('review')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+            activeTab === 'review'
+              ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          )}
+        >
+          <AlertTriangle className="size-4" />
+          Review Queue
+          {reviewQueue.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-xs bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400">
+              {reviewQueue.length}
+            </span>
+          )}
+        </button>
+      </div>
 
-      <UserDetailModal
-        open={showDetailModal}
-        onClose={() => {
-          setShowDetailModal(false);
-          setSelectedUser(null);
-          setCancellationStatus(null);
-          setCancellationStatusLoading(false);
-          setCancellationStatusError('');
-        }}
-        user={selectedUser}
-        onSuspend={(userId) => setConfirmAction({ type: 'suspend', userId })}
-        onActivate={(userId) => setConfirmAction({ type: 'activate', userId })}
-        onVerify={handleVerify}
-        onToggleAdmin={handleToggleAdmin}
-        onResetCancellationBlock={(userId) => {
-          setResetTargetUserId(userId);
-          setResetReason('');
-        }}
-        loading={actionLoading}
-        cancellationStatus={cancellationStatus}
-        cancellationStatusLoading={cancellationStatusLoading}
-        cancellationStatusError={cancellationStatusError}
-      />
+      {activeTab === 'review' ? (
+        <div>
+          {reviewQueueLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="size-6 animate-spin text-gray-400" />
+            </div>
+          ) : reviewQueueError ? (
+            <div className="text-center py-12 text-red-500 text-sm">{reviewQueueError}</div>
+          ) : reviewQueue.length === 0 ? (
+            <div className="text-center py-16 text-gray-400 text-sm flex flex-col items-center gap-2">
+              <CheckCircle2 className="size-8 text-green-400" />
+              No accounts pending review
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {reviewQueue.map(item => (
+                <div
+                  key={item.uid}
+                  className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-4 flex flex-col gap-3"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {item.displayName || 'Unknown'}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{item.phone || item.email || item.uid}</p>
+                      {item.reviewReason && (
+                        <p className="mt-1 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                          <AlertTriangle className="size-3 shrink-0" />
+                          {item.reviewReason}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSuspend(item.uid)}
+                        disabled={!!clearingReviewUid || actionLoading}
+                        className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
+                      >
+                        {actionLoading ? <Loader2 className="size-3 animate-spin" /> : <Ban className="size-3 mr-1" />}
+                        Suspend
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleClearReview(item.uid)}
+                        disabled={clearingReviewUid === item.uid || actionLoading}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {clearingReviewUid === item.uid
+                          ? <Loader2 className="size-3 animate-spin mr-1" />
+                          : <CheckCircle2 className="size-3 mr-1" />}
+                        Clear Review
+                      </Button>
+                    </div>
+                  </div>
+                  {item.truckerProfile && (
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs border-t border-amber-200 dark:border-amber-800 pt-3">
+                      {item.truckerProfile.licenseNumber && (
+                        <div>
+                          <span className="text-gray-500">License:</span>{' '}
+                          <span className="font-mono text-gray-800 dark:text-gray-200">{item.truckerProfile.licenseNumber}</span>
+                        </div>
+                      )}
+                      {item.truckerProfile.plateNumber && (
+                        <div>
+                          <span className="text-gray-500">Plate (OCR):</span>{' '}
+                          <span className="font-mono text-gray-800 dark:text-gray-200">{item.truckerProfile.plateNumber}</span>
+                        </div>
+                      )}
+                      {item.truckerProfile.driverLicenseCopy && (
+                        <div className="col-span-2 flex gap-3 pt-1">
+                          <a
+                            href={typeof item.truckerProfile.driverLicenseCopy === 'string'
+                              ? item.truckerProfile.driverLicenseCopy
+                              : item.truckerProfile.driverLicenseCopy?.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            <FileText className="size-3" />
+                            Driver&apos;s License
+                          </a>
+                          {item.truckerProfile.ltoRegistrationCopy && (
+                            <a
+                              href={typeof item.truckerProfile.ltoRegistrationCopy === 'string'
+                                ? item.truckerProfile.ltoRegistrationCopy
+                                : item.truckerProfile.ltoRegistrationCopy?.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              <FileText className="size-3" />
+                              LTO Registration
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <DataTable
+            columns={columns}
+            data={filteredUsers}
+            loading={loading}
+            emptyMessage="No users found"
+            emptyIcon={Users}
+            onRowClick={(row) => {
+              setSelectedUser(row);
+              setShowDetailModal(true);
+            }}
+            searchable
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="Search by name, phone, or email..."
+            filters={
+              <>
+                <FilterButton active={roleFilter === 'all'} onClick={() => setRoleFilter('all')}>
+                  All
+                </FilterButton>
+                <FilterButton active={roleFilter === 'shipper'} onClick={() => setRoleFilter('shipper')}>
+                  Shippers
+                </FilterButton>
+                <FilterButton active={roleFilter === 'trucker'} onClick={() => setRoleFilter('trucker')}>
+                  Truckers
+                </FilterButton>
+                <FilterButton active={roleFilter === 'admin'} onClick={() => setRoleFilter('admin')}>
+                  Admins
+                </FilterButton>
+              </>
+            }
+          />
+
+          <UserDetailModal
+            open={showDetailModal}
+            onClose={() => {
+              setShowDetailModal(false);
+              setSelectedUser(null);
+              setCancellationStatus(null);
+              setCancellationStatusLoading(false);
+              setCancellationStatusError('');
+            }}
+            user={selectedUser}
+            onSuspend={(userId) => setConfirmAction({ type: 'suspend', userId })}
+            onActivate={(userId) => setConfirmAction({ type: 'activate', userId })}
+            onVerify={handleVerify}
+            onToggleAdmin={handleToggleAdmin}
+            onResetCancellationBlock={(userId) => {
+              setResetTargetUserId(userId);
+              setResetReason('');
+            }}
+            loading={actionLoading}
+            cancellationStatus={cancellationStatus}
+            cancellationStatusLoading={cancellationStatusLoading}
+            cancellationStatusError={cancellationStatusError}
+          />
+        </>
+      )}
 
       <ConfirmDialog
         open={!!confirmAction}

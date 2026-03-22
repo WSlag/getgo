@@ -364,6 +364,22 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "updatedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "suspendedIdentifiers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "value", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "requiresAdminReview", "order": "ASCENDING" },
+        { "fieldPath": "reviewFlaggedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

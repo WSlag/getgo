@@ -1501,6 +1501,10 @@ exports.adminGetPendingPayments = adminFunctions.adminGetPendingPayments;
 exports.adminGetUsers = adminFunctions.adminGetUsers;
 exports.adminSuspendUser = adminFunctions.adminSuspendUser;
 exports.adminActivateUser = adminFunctions.adminActivateUser;
+exports.adminClearTruckerReview = adminFunctions.adminClearTruckerReview;
+exports.adminGetReviewQueue = adminFunctions.adminGetReviewQueue;
+exports.adminAddSuspendedIdentifier = adminFunctions.adminAddSuspendedIdentifier;
+exports.adminBackfillSuspendedIdentifiers = adminFunctions.adminBackfillSuspendedIdentifiers;
 exports.adminUnblockTruckerCancellationBlock = adminFunctions.adminUnblockTruckerCancellationBlock;
 exports.adminGetTruckerCancellationStatus = adminFunctions.adminGetTruckerCancellationStatus;
 exports.adminVerifyUser = adminFunctions.adminVerifyUser;
@@ -1618,6 +1622,8 @@ exports.onChatMessageCreated = chatTriggers.onChatMessageCreated;
 
 const truckerComplianceTriggers = require('./src/triggers/truckerComplianceTriggers');
 exports.onTruckerProfileCreated = truckerComplianceTriggers.onTruckerProfileCreated;
+exports.onTruckerProfileUpdated = truckerComplianceTriggers.onTruckerProfileUpdated;
+exports.onTruckListingCreated = truckerComplianceTriggers.onTruckListingCreated;
 
 const adminBroadcastTriggers = require('./src/triggers/adminBroadcastTriggers');
 exports.onAdminBroadcastJobCreated = adminBroadcastTriggers.onAdminBroadcastJobCreated;

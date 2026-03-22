@@ -240,6 +240,29 @@ exports.createTruckListing = functions.region('asia-southeast1').https.onCall(as
     throw new functions.https.HttpsError('permission-denied', 'Only trucker accounts can create truck listings');
   }
 
+  // Block suspended accounts from creating listings
+  if (user.isActive === false || user.accountStatus === 'suspended') {
+    throw new functions.https.HttpsError('permission-denied', 'Your account is suspended and cannot create listings');
+  }
+
+  // Block listings with a suspended vehicle plate
+  const newPlate = toTrimmedString(data?.plateNumber);
+  if (newPlate) {
+    const normalizedPlate = newPlate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (normalizedPlate) {
+      const plateMatch = await db.collection('suspendedIdentifiers')
+        .where('type', '==', 'plateNumber')
+        .where('value', '==', normalizedPlate)
+        .limit(1)
+        .get();
+      if (!plateMatch.empty) {
+        throw new functions.https.HttpsError('failed-precondition',
+          'This vehicle is associated with a suspended account.',
+          { reason: 'suspended-vehicle-plate' });
+      }
+    }
+  }
+
   const truckerProfileDoc = await db.collection('users').doc(userId).collection('truckerProfile').doc('profile').get();
   const truckerProfile = truckerProfileDoc.exists ? (truckerProfileDoc.data() || {}) : {};
 
@@ -341,7 +364,24 @@ exports.updateTruckListing = functions.region('asia-southeast1').https.onCall(as
   if (data?.capacityUnit !== undefined || data?.unit !== undefined) {
     updates.capacityUnit = toTrimmedString(data.capacityUnit || data.unit) || 'tons';
   }
-  if (data?.plateNumber !== undefined) updates.plateNumber = toTrimmedString(data.plateNumber);
+  if (data?.plateNumber !== undefined) {
+    const updatedPlate = toTrimmedString(data.plateNumber);
+    const normalizedUpdatedPlate = updatedPlate ? updatedPlate.toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
+    const existingPlate = toTrimmedString(listing.plateNumber);
+    if (normalizedUpdatedPlate && normalizedUpdatedPlate !== (existingPlate ? existingPlate.toUpperCase().replace(/[^A-Z0-9]/g, '') : '')) {
+      const plateMatch = await db.collection('suspendedIdentifiers')
+        .where('type', '==', 'plateNumber')
+        .where('value', '==', normalizedUpdatedPlate)
+        .limit(1)
+        .get();
+      if (!plateMatch.empty) {
+        throw new functions.https.HttpsError('failed-precondition',
+          'This vehicle is associated with a suspended account.',
+          { reason: 'suspended-vehicle-plate' });
+      }
+    }
+    updates.plateNumber = updatedPlate;
+  }
   if (data?.askingPrice !== undefined) updates.askingPrice = toFiniteNumber(data.askingPrice, 0);
   if (data?.description !== undefined) {
     const nextDescription = toTrimmedString(data.description);
