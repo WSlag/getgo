@@ -510,7 +510,7 @@ exports.adminGetDashboardStats = functions.region('asia-southeast1').https.onCal
 /**
  * Server-authoritative dashboard overview payload for admin UI.
  */
-exports.adminGetDashboardOverview = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+exports.adminGetDashboardOverview = functions.region('asia-southeast1').runWith({ timeoutSeconds: 300, memory: '512MB' }).https.onCall(async (data, context) => {
   await verifyAdmin(context);
 
   const db = admin.firestore();
@@ -800,8 +800,11 @@ exports.adminGetUsers = functions.region('asia-southeast1').https.onCall(async (
 
 /**
  * Suspend User
+ * - Syncs both isActive and accountStatus
+ * - Harvests trucker identifiers (license number, plate numbers, doc hashes)
+ *   and writes them to suspendedIdentifiers for cross-account detection
  */
-exports.adminSuspendUser = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+exports.adminSuspendUser = functions.region('asia-southeast1').runWith({ timeoutSeconds: 120 }).https.onCall(async (data, context) => {
   await verifyAdmin(context);
 
   const { userId, reason } = data;
@@ -811,13 +814,16 @@ exports.adminSuspendUser = functions.region('asia-southeast1').https.onCall(asyn
   }
 
   const db = admin.firestore();
+  const suspendedAt = admin.firestore.FieldValue.serverTimestamp();
+  const suspensionReason = reason || 'No reason provided';
 
-  // Update user status
+  // Update user status — sync both suspension fields
   await db.collection('users').doc(userId).update({
     isActive: false,
-    suspendedAt: admin.firestore.FieldValue.serverTimestamp(),
+    accountStatus: 'suspended',
+    suspendedAt,
     suspendedBy: context.auth.uid,
-    suspensionReason: reason || 'No reason provided',
+    suspensionReason,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -828,12 +834,81 @@ exports.adminSuspendUser = functions.region('asia-southeast1').https.onCall(asyn
     console.error('Error disabling auth account [userId=%s]: %s', userId, safeErrorMessage(error));
   }
 
+  // Harvest trucker identifiers for cross-account detection
+  try {
+    const [truckerProfileSnap, listingsSnap, contractsSnap] = await Promise.all([
+      db.collection('users').doc(userId).collection('truckerProfile').doc('profile').get(),
+      db.collection('truckListings').where('userId', '==', userId).get(),
+      db.collection('contracts').where('truckerId', '==', userId).get(),
+    ]);
+
+    const nowTs = admin.firestore.FieldValue.serverTimestamp();
+    const batch = db.batch();
+    const addedValues = new Set();
+
+    const addIdentifier = (type, value, docType = null) => {
+      if (!value || typeof value !== 'string') return;
+      const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+      if (!normalized || addedValues.has(`${type}:${normalized}`)) return;
+      addedValues.add(`${type}:${normalized}`);
+      const ref = db.collection('suspendedIdentifiers').doc();
+      batch.set(ref, {
+        type,
+        value: normalized,
+        docType: docType || null,
+        originalUserId: userId,
+        suspendedAt: nowTs,
+        addedBy: context.auth.uid,
+        notes: null,
+      });
+    };
+
+    // Extract from truckerProfile
+    if (truckerProfileSnap.exists) {
+      const profile = truckerProfileSnap.data() || {};
+      addIdentifier('licenseNumber', profile.licenseNumber, 'driver_license');
+      addIdentifier('plateNumber', profile.plateNumber, 'lto_registration');
+      addIdentifier('docImageHash', profile.driverLicenseHash, 'driver_license');
+      addIdentifier('docImageHash', profile.ltoRegistrationHash, 'lto_registration');
+
+      // Update documentHashRegistry entries to mark accountStatus as suspended
+      const hashesToUpdate = [profile.driverLicenseHash, profile.ltoRegistrationHash].filter(Boolean);
+      if (hashesToUpdate.length > 0) {
+        const registrySnap = await db.collection('documentHashRegistry')
+          .where('userId', '==', userId)
+          .get();
+        registrySnap.forEach(doc => {
+          batch.update(doc.ref, { accountStatus: 'suspended' });
+        });
+      }
+    }
+
+    // Extract plate numbers from all truck listings
+    listingsSnap.forEach(doc => {
+      const plate = (doc.data() || {}).plateNumber;
+      addIdentifier('plateNumber', plate);
+    });
+
+    // Extract plate numbers from contracts
+    contractsSnap.forEach(doc => {
+      const plate = (doc.data() || {}).vehiclePlateNumber;
+      addIdentifier('plateNumber', plate);
+    });
+
+    if (addedValues.size > 0) {
+      await batch.commit();
+    }
+  } catch (harvestError) {
+    // Non-fatal: suspension already applied; log and continue
+    console.error('adminSuspendUser: identifier harvest failed [userId=%s]: %s', userId, safeErrorMessage(harvestError));
+  }
+
   // Log admin action
   await db.collection('adminLogs').add({
     action: 'SUSPEND_USER',
     targetUserId: userId,
     performedBy: context.auth.uid,
-    reason: reason || 'No reason provided',
+    reason: suspensionReason,
     performedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -854,9 +929,10 @@ exports.adminActivateUser = functions.region('asia-southeast1').https.onCall(asy
 
   const db = admin.firestore();
 
-  // Update user status
+  // Update user status — sync both suspension fields
   await db.collection('users').doc(userId).update({
     isActive: true,
+    accountStatus: 'active',
     suspendedAt: null,
     suspendedBy: null,
     suspensionReason: null,
@@ -881,6 +957,286 @@ exports.adminActivateUser = functions.region('asia-southeast1').https.onCall(asy
   });
 
   return { message: 'User activated successfully' };
+});
+
+/**
+ * Clear admin review flag on a trucker account.
+ * Call this after an admin manually reviews the flagged document match.
+ */
+exports.adminClearTruckerReview = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const userId = typeof data?.userId === 'string' ? data.userId.trim() : '';
+  const notes = typeof data?.notes === 'string' ? data.notes.trim() : '';
+
+  if (!userId) {
+    throw new functions.https.HttpsError('invalid-argument', 'User ID is required');
+  }
+
+  const db = admin.firestore();
+  const userRef = db.collection('users').doc(userId);
+  const userDoc = await userRef.get();
+  if (!userDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'User not found');
+  }
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  await userRef.update({
+    requiresAdminReview: false,
+    reviewClearedAt: now,
+    reviewClearedBy: context.auth.uid,
+    reviewClearedNotes: notes || null,
+    updatedAt: now,
+  });
+
+  await db.collection('adminLogs').add({
+    action: 'CLEAR_TRUCKER_REVIEW',
+    targetUserId: userId,
+    performedBy: context.auth.uid,
+    notes: notes || null,
+    performedAt: now,
+  });
+
+  return { message: 'Review flag cleared' };
+});
+
+/**
+ * Get paginated list of trucker accounts flagged for admin review.
+ * Returns user doc + truckerProfile for each flagged account.
+ */
+exports.adminGetReviewQueue = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const db = admin.firestore();
+  const pageSize = Math.min(typeof data?.pageSize === 'number' ? data.pageSize : 20, 50);
+  const startAfterUid = typeof data?.startAfterUid === 'string' ? data.startAfterUid.trim() : null;
+
+  let query = db.collection('users')
+    .where('requiresAdminReview', '==', true)
+    .orderBy('reviewFlaggedAt', 'desc')
+    .limit(pageSize);
+
+  if (startAfterUid) {
+    const cursorDoc = await db.collection('users').doc(startAfterUid).get();
+    if (cursorDoc.exists) {
+      query = query.startAfter(cursorDoc);
+    }
+  }
+
+  const snap = await query.get();
+
+  const results = await Promise.all(
+    snap.docs.map(async (userDoc) => {
+      const uid = userDoc.id;
+      const userData = userDoc.data() || {};
+
+      const profileSnap = await db.collection('users').doc(uid)
+        .collection('truckerProfile').doc('profile').get();
+      const profile = profileSnap.exists ? profileSnap.data() : null;
+
+      return {
+        uid,
+        displayName: userData.displayName || null,
+        email: userData.email || null,
+        phone: userData.phone || null,
+        accountStatus: userData.accountStatus || null,
+        requiresAdminReview: userData.requiresAdminReview || false,
+        reviewReason: userData.reviewReason || null,
+        reviewFlaggedAt: userData.reviewFlaggedAt || null,
+        reviewClearedAt: userData.reviewClearedAt || null,
+        truckerProfile: profile ? {
+          licenseNumber: profile.licenseNumber || null,
+          licenseExpiry: profile.licenseExpiry || null,
+          plateNumber: profile.plateNumber || null,
+          driverLicenseHash: profile.driverLicenseHash || null,
+          ltoRegistrationHash: profile.ltoRegistrationHash || null,
+          driverLicenseCopy: profile.driverLicenseCopy || null,
+          ltoRegistrationCopy: profile.ltoRegistrationCopy || null,
+          ocrLicenseConfidence: profile.ocrLicenseConfidence || null,
+          ocrPlateConfidence: profile.ocrPlateConfidence || null,
+        } : null,
+      };
+    })
+  );
+
+  return {
+    items: results,
+    hasMore: snap.docs.length === pageSize,
+    lastUid: snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null,
+  };
+});
+
+/**
+ * Manually add a license number, plate number, or doc image hash
+ * to the suspendedIdentifiers blocklist.
+ */
+exports.adminAddSuspendedIdentifier = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const VALID_TYPES = ['licenseNumber', 'plateNumber', 'docImageHash'];
+  const type = typeof data?.type === 'string' ? data.type.trim() : '';
+  const rawValue = typeof data?.value === 'string' ? data.value.trim() : '';
+  const docType = typeof data?.docType === 'string' ? data.docType.trim() : null;
+  const originalUserId = typeof data?.originalUserId === 'string' ? data.originalUserId.trim() : null;
+  const notes = typeof data?.notes === 'string' ? data.notes.trim() : null;
+
+  if (!VALID_TYPES.includes(type)) {
+    throw new functions.https.HttpsError('invalid-argument', `type must be one of: ${VALID_TYPES.join(', ')}`);
+  }
+  if (!rawValue) {
+    throw new functions.https.HttpsError('invalid-argument', 'value is required');
+  }
+
+  // Normalize value consistently with the harvest logic
+  const value = rawValue.toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+  if (!value) {
+    throw new functions.https.HttpsError('invalid-argument', 'value normalized to empty string');
+  }
+
+  const db = admin.firestore();
+
+  // Avoid duplicates
+  const existing = await db.collection('suspendedIdentifiers')
+    .where('type', '==', type)
+    .where('value', '==', value)
+    .limit(1)
+    .get();
+
+  if (!existing.empty) {
+    return { message: 'Identifier already exists in blocklist', alreadyExisted: true };
+  }
+
+  await db.collection('suspendedIdentifiers').add({
+    type,
+    value,
+    docType: docType || null,
+    originalUserId: originalUserId || null,
+    suspendedAt: admin.firestore.FieldValue.serverTimestamp(),
+    addedBy: context.auth.uid,
+    notes: notes || null,
+  });
+
+  await db.collection('adminLogs').add({
+    action: 'ADD_SUSPENDED_IDENTIFIER',
+    type,
+    value,
+    originalUserId: originalUserId || null,
+    performedBy: context.auth.uid,
+    performedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { message: 'Identifier added to blocklist', alreadyExisted: false };
+});
+
+/**
+ * One-time backfill: harvest identifiers from all existing suspended accounts
+ * and write them to suspendedIdentifiers. Safe to re-run (deduplicates by value).
+ */
+exports.adminBackfillSuspendedIdentifiers = functions.region('asia-southeast1').runWith({ timeoutSeconds: 540 }).https.onCall(async (data, context) => {
+  await verifyAdmin(context);
+
+  const db = admin.firestore();
+
+  // Query all suspended users (either field may be set depending on when they were suspended)
+  const [byIsActive, byAccountStatus] = await Promise.all([
+    db.collection('users').where('isActive', '==', false).get(),
+    db.collection('users').where('accountStatus', '==', 'suspended').get(),
+  ]);
+
+  // Deduplicate user IDs across both queries
+  const uidSet = new Set();
+  byIsActive.forEach(doc => uidSet.add(doc.id));
+  byAccountStatus.forEach(doc => uidSet.add(doc.id));
+
+  const userIds = Array.from(uidSet);
+
+  let totalAdded = 0;
+  let totalSkipped = 0;
+  let errors = 0;
+
+  // Load existing blocklist values to avoid duplicates
+  const existingSnap = await db.collection('suspendedIdentifiers').get();
+  const existingKeys = new Set();
+  existingSnap.forEach(doc => {
+    const d = doc.data() || {};
+    if (d.type && d.value) existingKeys.add(`${d.type}:${d.value}`);
+  });
+
+  const nowTs = admin.firestore.FieldValue.serverTimestamp();
+
+  for (const userId of userIds) {
+    try {
+      const [profileSnap, listingsSnap, contractsSnap] = await Promise.all([
+        db.collection('users').doc(userId).collection('truckerProfile').doc('profile').get(),
+        db.collection('truckListings').where('userId', '==', userId).get(),
+        db.collection('contracts').where('truckerId', '==', userId).get(),
+      ]);
+
+      const batch = db.batch();
+      let batchHasWrites = false;
+
+      const addIdentifier = (type, value, docType) => {
+        if (!value || typeof value !== 'string') return;
+        const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+        if (!normalized) return;
+        const key = `${type}:${normalized}`;
+        if (existingKeys.has(key)) { totalSkipped++; return; }
+        existingKeys.add(key);
+        const ref = db.collection('suspendedIdentifiers').doc();
+        batch.set(ref, {
+          type,
+          value: normalized,
+          docType: docType || null,
+          originalUserId: userId,
+          suspendedAt: nowTs,
+          addedBy: 'backfill',
+          notes: 'backfilled by adminBackfillSuspendedIdentifiers',
+        });
+        batchHasWrites = true;
+        totalAdded++;
+      };
+
+      if (profileSnap.exists) {
+        const p = profileSnap.data() || {};
+        addIdentifier('licenseNumber', p.licenseNumber, 'driver_license');
+        addIdentifier('plateNumber', p.plateNumber, 'lto_registration');
+        addIdentifier('docImageHash', p.driverLicenseHash, 'driver_license');
+        addIdentifier('docImageHash', p.ltoRegistrationHash, 'lto_registration');
+      }
+
+      listingsSnap.forEach(doc => {
+        addIdentifier('plateNumber', (doc.data() || {}).plateNumber, null);
+      });
+
+      contractsSnap.forEach(doc => {
+        addIdentifier('plateNumber', (doc.data() || {}).vehiclePlateNumber, null);
+      });
+
+      if (batchHasWrites) await batch.commit();
+    } catch (err) {
+      errors++;
+      console.error('adminBackfillSuspendedIdentifiers: error for userId=%s: %s', userId, safeErrorMessage(err));
+    }
+  }
+
+  await db.collection('adminLogs').add({
+    action: 'BACKFILL_SUSPENDED_IDENTIFIERS',
+    performedBy: context.auth.uid,
+    suspendedUsersFound: userIds.length,
+    identifiersAdded: totalAdded,
+    identifiersSkipped: totalSkipped,
+    errors,
+    performedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return {
+    message: 'Backfill complete',
+    suspendedUsersFound: userIds.length,
+    identifiersAdded: totalAdded,
+    identifiersSkipped: totalSkipped,
+    errors,
+  };
 });
 
 /**
@@ -1700,7 +2056,7 @@ exports.adminGetListings = functions.region('asia-southeast1').https.onCall(asyn
     ))
     : combined;
 
-  const pageItems = filtered.slice(0, safeLimit).map(({ createdAtMs: _createdAtMs, cursorKey: _cursorKey, ...item }) => item);
+  const pageItems = filtered.slice(0, safeLimit).map(({ createdAtMs: _createdAtMs, cursorKey: _cursorKey, ...item }) => serializeForApi(item));
   const lastItem = filtered[safeLimit - 1] || null;
   const nextCursor = lastItem
     ? encodeCursor({ createdAtMs: lastItem.createdAtMs, key: lastItem.cursorKey })
@@ -2165,7 +2521,7 @@ exports.adminReconcileOutstandingFees = functions.region('asia-southeast1').http
 /**
  * Weekly Marketplace KPI Trends (Growth + Collections)
  */
-exports.adminGetMarketplaceKpis = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+exports.adminGetMarketplaceKpis = functions.region('asia-southeast1').runWith({ timeoutSeconds: 300, memory: '512MB' }).https.onCall(async (data, context) => {
   await verifyAdmin(context);
 
   const db = admin.firestore();

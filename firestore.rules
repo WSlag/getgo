@@ -433,7 +433,7 @@ service cloud.firestore {
     // Truck Listings
     match /truckListings/{listingId} {
       allow read: if isAuth();
-      allow create: if isAuth()
+      allow create: if isAccountActive()
         && request.resource.data.userId == request.auth.uid
         && effectivePostingRole(request.auth.uid) == 'trucker'
         && hasValidListingRouteBounds(request.resource.data)
@@ -871,6 +871,17 @@ service cloud.firestore {
 
       // Server-authoritative writes only (Cloud Functions/Admin SDK).
       allow create, update, delete: if false;
+    }
+
+    // Suspended identifier blocklist — admin read/write only; writes done via Cloud Functions.
+    match /suspendedIdentifiers/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Document hash registry — admin read only; all writes are server-authoritative.
+    match /documentHashRegistry/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
   }

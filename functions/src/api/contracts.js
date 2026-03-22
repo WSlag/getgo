@@ -700,13 +700,24 @@ exports.signContract = functions.region('asia-southeast1').https.onCall(async (d
     const complianceTruckerId = userId;
     const complianceRef = getTruckerComplianceRef(db, complianceTruckerId);
     const truckerProfileRef = db.collection('users').doc(complianceTruckerId).collection('truckerProfile').doc('profile');
-    const [complianceDoc, truckerProfileDoc] = await Promise.all([
+    const [complianceDoc, truckerProfileDoc, truckerUserDoc] = await Promise.all([
       complianceRef.get(),
       truckerProfileRef.get(),
+      db.collection('users').doc(complianceTruckerId).get(),
     ]);
     const complianceData = complianceDoc.exists ? (complianceDoc.data() || {}) : {};
     const truckerProfile = truckerProfileDoc.exists ? (truckerProfileDoc.data() || {}) : {};
+    const truckerUserData = truckerUserDoc.exists ? (truckerUserDoc.data() || {}) : {};
     const now = new Date();
+
+    // Block contract signing if trucker account is flagged for admin review
+    if (truckerUserData.requiresAdminReview === true) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Your account requires admin review before you can sign contracts. Please contact support.',
+        { reason: 'pending-admin-review' }
+      );
+    }
     const blockUntilDate = toDateValue(complianceData.cancellationBlockUntil);
 
     if (blockUntilDate && now.getTime() < blockUntilDate.getTime()) {

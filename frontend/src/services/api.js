@@ -291,6 +291,10 @@ const api = {
     getUsers: (params) => callFunction('adminGetUsers', params || {}),
     suspendUser: (userId, data) => callFunction('adminSuspendUser', { userId, ...data }),
     activateUser: (userId) => callFunction('adminActivateUser', { userId }),
+    getReviewQueue: (params = {}) => callFunction('adminGetReviewQueue', params || {}),
+    clearTruckerReview: (userId, notes) => callFunction('adminClearTruckerReview', { userId, notes }),
+    addSuspendedIdentifier: (data) => callFunction('adminAddSuspendedIdentifier', data || {}),
+    backfillSuspendedIdentifiers: () => callFunction('adminBackfillSuspendedIdentifiers', {}),
     getTruckerCancellationStatus: (userId) =>
       callFunction('adminGetTruckerCancellationStatus', { userId }),
     unblockTruckerCancellationBlock: (userId, reason) =>
