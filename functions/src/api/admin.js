@@ -607,14 +607,6 @@ exports.adminGetDashboardOverview = functions.region('asia-southeast1').runWith(
     }
   }
 
-  let kpiSummary = null;
-  try {
-    const kpiPayload = await exports.adminGetMarketplaceKpis.run({ weeks: 8 }, context);
-    kpiSummary = kpiPayload?.summary || null;
-  } catch (error) {
-    console.warn('adminGetDashboardOverview: failed to load KPI summary: %s', safeErrorMessage(error));
-  }
-
   const [recentPayments, recentContracts, recentUsers] = await Promise.all([
     db.collection('paymentSubmissions').orderBy('createdAt', 'desc').limit(2).get(),
     db.collection('contracts').orderBy('createdAt', 'desc').limit(2).get(),
@@ -682,7 +674,6 @@ exports.adminGetDashboardOverview = functions.region('asia-southeast1').runWith(
       pendingBrokerPayouts: pendingBrokerPayoutsSnap.data().count,
       openSupportTickets: openSupportTicketsSnap.data().count,
     },
-    kpiSummary,
     recentActivity: recentActivity.slice(0, 8).map(({ ts: _ts, ...item }) => item),
     meta: { asOf },
   };

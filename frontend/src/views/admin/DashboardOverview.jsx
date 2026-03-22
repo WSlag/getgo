@@ -41,7 +41,17 @@ export function DashboardOverview({ badges, onNavigate }) {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchKpiData();
   }, []);
+
+  const fetchKpiData = async () => {
+    try {
+      const kpiPayload = await api.admin.getMarketplaceKpis({ weeks: 8 });
+      setKpiSummary(kpiPayload?.summary || null);
+    } catch (error) {
+      console.warn('Error fetching KPI summary:', error);
+    }
+  };
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -64,7 +74,6 @@ export function DashboardOverview({ badges, onNavigate }) {
         rejectedToday: resolvedStats.rejectedToday || 0,
         totalAmountToday: resolvedStats.totalAmountToday || 0,
       });
-      setKpiSummary(overview?.kpiSummary || null);
       setLastUpdatedAt(overview?.meta?.asOf || null);
 
       const activityItems = resolvedActivity.map((item) => {
