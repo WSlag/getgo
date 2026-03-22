@@ -1116,6 +1116,15 @@ export default function GetGoApp() {
       }
       return 'Contract signing is temporarily blocked due to frequent cancellations.';
     }
+    if (reason === 'suspended-vehicle-plate' || message.includes('suspended account and cannot')) {
+      return 'This vehicle is associated with a suspended account and cannot be listed.';
+    }
+    if (reason === 'pending-admin-review') {
+      return 'Your account is currently under admin review. Please contact support before signing contracts.';
+    }
+    if (message.includes('suspended and cannot create') || message.includes('account is suspended')) {
+      return 'Your account is suspended. Please contact support.';
+    }
     if (reason === 'self-referral-not-allowed' || message.includes('self-referral')) {
       return 'You cannot use your own referral code. Use a referral code from a different broker.';
     }
