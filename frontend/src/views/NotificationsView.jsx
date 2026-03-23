@@ -99,7 +99,7 @@ export function NotificationsView({
             </p>
             <button
               onClick={onEnablePush}
-              className="mt-2 text-sm font-semibold bg-orange-500 text-white rounded-full px-7 py-2.5 hover:bg-orange-600 active:bg-orange-700 transition-colors"
+              className="mt-2 text-sm font-semibold bg-orange-500 text-white rounded-xl px-8 py-2.5 hover:bg-orange-600 active:bg-orange-700 transition-colors"
             >
               Activate
             </button>

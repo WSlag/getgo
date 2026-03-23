@@ -48,7 +48,7 @@ export function PushNotificationBanner({ onEnable, onDismiss }) {
         <div className="mt-2 flex items-center gap-3">
           <button
             onClick={onEnable}
-            className="text-sm font-semibold bg-orange-500 text-white rounded-full px-7 py-2.5 hover:bg-orange-600 active:bg-orange-700 transition-colors"
+            className="text-sm font-semibold bg-orange-500 text-white rounded-xl px-8 py-2.5 hover:bg-orange-600 active:bg-orange-700 transition-colors"
           >
             Activate
           </button>
