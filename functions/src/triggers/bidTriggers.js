@@ -6,6 +6,7 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 const { FieldValue } = require('firebase-admin/firestore');
+const { sendPushToUser } = require('../services/fcmService');
 const {
   ACTIVE_LISTING_REFERRAL_STATUSES,
   LISTING_REFERRAL_COLLECTION,
@@ -206,6 +207,16 @@ exports.onBidCreated = onDocumentCreated(
         });
     }
 
+    try {
+      await sendPushToUser(db, authoritativeListingOwnerId, {
+        title: 'New Bid Received',
+        body: `${bidderName} placed a bid of PHP ${Number(bid.price || 0).toLocaleString()} on your listing`,
+        data: { type: 'NEW_BID', bidId, listingId: listingReference.listingId, bidderId: bid.bidderId },
+      });
+    } catch (pushErr) {
+      console.error('[bidTriggers] Push notification failed (non-fatal):', pushErr.message);
+    }
+
     // Broker referred-activity + acted referral marker.
     try {
       const [referral, ownerDoc] = await Promise.all([
@@ -326,6 +337,16 @@ exports.onBidStatusChanged = onDocumentUpdated(
         isRead: false,
         createdAt: FieldValue.serverTimestamp(),
       });
+
+      try {
+        await sendPushToUser(db, after.bidderId, {
+          title: 'Bid Accepted!',
+          body: `${ownerName} accepted your bid of ₱${after.price.toLocaleString()}`,
+          data: { type: 'BID_ACCEPTED', bidId, listingId: listingId || '' },
+        });
+      } catch (pushErr) {
+        console.error('[bidTriggers] Push notification failed (non-fatal):', pushErr.message);
+      }
     } else if (after.status === 'rejected') {
       // Notify bidder
       await db.collection(`users/${after.bidderId}/notifications`).doc().set({
@@ -340,6 +361,16 @@ exports.onBidStatusChanged = onDocumentUpdated(
         isRead: false,
         createdAt: FieldValue.serverTimestamp(),
       });
+
+      try {
+        await sendPushToUser(db, after.bidderId, {
+          title: 'Bid Rejected',
+          body: `${ownerName} rejected your bid of ₱${after.price.toLocaleString()}`,
+          data: { type: 'BID_REJECTED', bidId, listingId: listingId || '' },
+        });
+      } catch (pushErr) {
+        console.error('[bidTriggers] Push notification failed (non-fatal):', pushErr.message);
+      }
     }
 
     // Keep broker activity bid status in sync.

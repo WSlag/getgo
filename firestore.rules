@@ -397,6 +397,15 @@ service cloud.firestore {
         allow delete: if isOwner(uid);
       }
 
+      // FCM push token subcollection
+      match /fcmTokens/{tokenId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['token', 'createdAt', 'updatedAt', 'platform', 'userAgent'])
+          && request.resource.data.token is string
+          && request.resource.data.token.size() > 0;
+      }
+
       // Broker Onboarding subcollection
       match /brokerOnboarding/{docId} {
         allow read: if isOwner(uid) || isAdmin();

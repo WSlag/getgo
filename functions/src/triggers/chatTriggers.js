@@ -7,6 +7,7 @@ const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 const { FieldValue } = require('firebase-admin/firestore');
 const { sanitizeContactText, sanitizePublicName } = require('../utils/contactModeration');
+const { sendPushToUser } = require('../services/fcmService');
 
 function normalizeId(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -124,6 +125,16 @@ exports.onChatMessageCreated = onDocumentCreated(
       read: false,
       createdAt: FieldValue.serverTimestamp(),
     }, { merge: true });
+
+    try {
+      await sendPushToUser(db, recipientId, {
+        title: 'New Message',
+        body: `${senderName}: "${messagePreview}"`,
+        data: { type: 'NEW_MESSAGE', bidId, messageId, senderId },
+      });
+    } catch (pushErr) {
+      console.error('[chatTriggers] Push notification failed (non-fatal):', pushErr.message);
+    }
 
     return null;
   }

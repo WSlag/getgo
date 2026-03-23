@@ -7,6 +7,7 @@ const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 const { FieldValue } = require('firebase-admin/firestore');
 const { loadPlatformSettings } = require('../config/platformSettings');
+const { sendPushToUser } = require('../services/fcmService');
 
 const REGION = 'asia-southeast1';
 const WELCOME_NOTIFICATION_DOC_ID = 'welcome_default';
@@ -93,6 +94,16 @@ exports.onUserCreatedSendWelcomeMessage = onDocumentCreated(
         return null;
       }
       throw error;
+    }
+
+    try {
+      await sendPushToUser(db, userId, {
+        title,
+        body: message,
+        data: { type: 'WELCOME_MESSAGE' },
+      });
+    } catch (pushErr) {
+      console.error('[userCommunicationTriggers] Push notification failed (non-fatal):', pushErr.message);
     }
 
     return null;

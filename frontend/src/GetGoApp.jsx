@@ -46,8 +46,10 @@ import { useAuthGuard } from './hooks/useAuthGuard';
 import { useToast } from './contexts/ToastContext';
 import { useBrokerOnboarding } from './hooks/useBrokerOnboarding';
 import { usePWAInstall } from './hooks/usePWAInstall';
+import { usePushNotifications } from './hooks/usePushNotifications';
 import { InAppBrowserOverlay } from '@/components/shared/InAppBrowserOverlay';
 import { PWAInstallPrompt } from '@/components/shared/PWAInstallPrompt';
+import { PushNotificationBanner, wasDismissedRecently } from '@/components/shared/PushNotificationBanner';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { buildAndroidIntentUrl } from './utils/browserDetect';
 import { useCallSignaling, deriveAgoraUid } from './hooks/useCallSignaling';
@@ -230,6 +232,12 @@ export default function GetGoApp() {
     enabled: shouldSubscribeListings,
   });
   const { notifications: firebaseNotifications } = useNotifications(activeUserId, 50, shouldSubscribeNotifications);
+  const {
+    permissionStatus: pushPermission,
+    isRegistered: isPushRegistered,
+    requestAndRegister: requestPushRegistration,
+    unregisterToken: unregisterPushToken,
+  } = usePushNotifications(activeUserId, currentRole);
   const { bids: myBids } = useMyBids(activeUserId, shouldSubscribeBids);
   const { bids: ownerListingBids } = useBidsOnMyListings(activeUserId, shouldSubscribeOwnerListingBids);
   const { conversations, loading: conversationsLoading } = useConversations(activeUserId, shouldSubscribeConversations);
@@ -943,6 +951,18 @@ export default function GetGoApp() {
     markEngagement,
     resetInstallCooldownOnMilestone,
   } = usePWAInstall();
+
+  // Push notification soft banner state
+  const [showPushBanner, setShowPushBanner] = useState(false);
+  useEffect(() => {
+    if (!activeUserId || isPushRegistered || pushPermission !== 'default' || wasDismissedRecently()) return;
+    const timer = setTimeout(() => setShowPushBanner(true), 5000);
+    return () => clearTimeout(timer);
+  }, [activeUserId, isPushRegistered, pushPermission]);
+  // Auto-hide banner once push is activated
+  useEffect(() => {
+    if (isPushRegistered) setShowPushBanner(false);
+  }, [isPushRegistered]);
 
   // Loading states for form submissions
   const [postLoading, setPostLoading] = useState(false);
@@ -2101,6 +2121,7 @@ export default function GetGoApp() {
 
   const handleLogout = async () => {
     if (logout) {
+      await unregisterPushToken(activeUserId).catch(() => {});
       await logout();
       // Reset to home tab and show auth modal with welcome message
       setActiveTab('home');
@@ -2971,6 +2992,9 @@ export default function GetGoApp() {
               onBrowseMarketplace={() => setActiveTab('home')}
               onOpenActivity={() => handleTabChange('activity')}
               darkMode={darkMode}
+              pushPermission={pushPermission}
+              isPushRegistered={isPushRegistered}
+              onEnablePush={() => requestPushRegistration(activeUserId)}
             />
           </ErrorBoundary>
         )}
@@ -3795,6 +3819,19 @@ export default function GetGoApp() {
         onConfirm={handleConfirmPendingCall}
         onCancel={handleCancelPendingCall}
       />
+
+      {/* Push notification soft banner — shown after 5s if permission not yet decided */}
+      {showPushBanner && (
+        <div className="fixed bottom-24 left-0 right-0 z-40 px-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          <PushNotificationBanner
+            onEnable={() => {
+              requestPushRegistration(activeUserId);
+              setShowPushBanner(false);
+            }}
+            onDismiss={() => setShowPushBanner(false)}
+          />
+        </div>
+      )}
 
       {/* PWA Install Prompt (Android/Desktop banner or iOS Safari instructions) */}
       <PWAInstallPrompt

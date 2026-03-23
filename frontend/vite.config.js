@@ -131,6 +131,7 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globIgnores: ['firebase-messaging-sw.js'],
         // Keep SPA navigations on the app shell. Using offline.html here causes
         // controlled hard-refresh navigations to render the offline page.
         navigateFallback: '/index.html',
@@ -193,6 +194,7 @@ export default defineConfig({
             if (inPkg('@firebase/storage') || id.includes('firebase/storage')) return 'firebase-storage'
             if (inPkg('@firebase/app-check') || id.includes('firebase/app-check')) return 'firebase-app-check'
             if (inPkg('@firebase/analytics') || id.includes('firebase/analytics')) return 'firebase-analytics'
+            if (inPkg('@firebase/messaging') || id.includes('firebase/messaging')) return 'firebase-messaging'
             return 'firebase-core'
           }
 

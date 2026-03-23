@@ -6,6 +6,7 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 const { FieldValue } = require('firebase-admin/firestore');
+const { sendPushToUser } = require('../services/fcmService');
 
 const REGION = 'asia-southeast1';
 const BROADCAST_JOB_COLLECTION = 'adminBroadcastJobs';
@@ -132,6 +133,7 @@ async function processBroadcastJob({ db, jobId, jobRef, jobData, stats }) {
 
     const batch = db.batch();
     let batchWriteCount = 0;
+    const pushRecipientIds = [];
 
     usersSnap.docs.forEach((userDoc) => {
       const userData = userDoc.data() || {};
@@ -158,11 +160,21 @@ async function processBroadcastJob({ db, jobId, jobRef, jobData, stats }) {
       );
       batchWriteCount += 1;
       stats.deliveredUsers += 1;
+      pushRecipientIds.push(userDoc.id);
     });
 
     if (batchWriteCount > 0) {
       await batch.commit();
     }
+
+    // Fire push notifications for this page — non-fatal, run after Firestore commit
+    await Promise.allSettled(
+      pushRecipientIds.map((uid) =>
+        sendPushToUser(db, uid, { title, body: message, data: { type: 'ADMIN_MESSAGE', jobId } }).catch((pushErr) => {
+          console.error(`[adminBroadcastTriggers] Push failed for uid=${uid} (non-fatal):`, pushErr.message);
+        })
+      )
+    );
 
     cursorDoc = usersSnap.docs[usersSnap.docs.length - 1] || null;
     await updateJobProgress(jobRef, stats, {

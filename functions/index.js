@@ -1631,6 +1631,17 @@ exports.onAdminBroadcastJobCreated = adminBroadcastTriggers.onAdminBroadcastJobC
 const userCommunicationTriggers = require('./src/triggers/userCommunicationTriggers');
 exports.onUserCreatedSendWelcomeMessage = userCommunicationTriggers.onUserCreatedSendWelcomeMessage;
 
+const listingNotificationTriggers = require('./src/triggers/listingNotificationTriggers');
+exports.onCargoListingCreatedNotify = listingNotificationTriggers.onCargoListingCreatedNotify;
+exports.onTruckListingCreatedNotify = listingNotificationTriggers.onTruckListingCreatedNotify;
+
+// =============================================================================
+// PUSH NOTIFICATION CALLABLES
+// =============================================================================
+
+const pushTopics = require('./src/api/pushTopics');
+exports.subscribeToListingTopics = pushTopics.subscribeToListingTopics;
+
 // =============================================================================
 // SCHEDULED FUNCTIONS
 // =============================================================================
