@@ -93,15 +93,15 @@ export function NotificationsView({
             </svg>
           </span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-800 mb-0.5">I-aktibo ang Push Notifications</p>
+            <p className="text-sm font-semibold text-gray-800 mb-0.5">Activate Push Notifications</p>
             <p className="text-xs text-gray-600 leading-snug">
-              Matanggap ang mga alerto kahit sarado ang app — para sa bids, mensahe, at shipment updates.
+              Activate push notifications para malaman mo agad kapag may bagong bid, mensahe, o update sa shipment mo.
             </p>
             <button
               onClick={onEnablePush}
-              className="mt-2 text-xs font-semibold bg-orange-500 text-white rounded-lg px-3 py-1.5 hover:bg-orange-600 active:bg-orange-700 transition-colors"
+              className="mt-2 text-sm font-semibold bg-orange-500 text-white rounded-lg px-5 py-2.5 hover:bg-orange-600 active:bg-orange-700 transition-colors"
             >
-              I-aktibo
+              Activate
             </button>
           </div>
         </div>
