@@ -14,7 +14,7 @@ import { useState, useEffect, useRef } from 'react';
 import { getToken, onMessage, deleteToken } from 'firebase/messaging';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { messaging, db, functions } from '../firebase';
+import { messaging, db, functions, waitForAppCheckInitialization, shouldInitializeAppCheck } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
@@ -56,7 +56,28 @@ export function usePushNotifications(userId, userRole) {
 
   async function saveTokenToFirestore(uid) {
     if (!messaging || !VAPID_KEY || !uid) return;
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+
+    // FCM registration requires an App Check token when enforcement is active.
+    // Wait up to 6s for App Check to initialize before calling getToken().
+    if (shouldInitializeAppCheck) {
+      await waitForAppCheckInitialization(6000).catch(() => {});
+    }
+
+    // Pass the SW registration explicitly so FCM uses our /firebase-messaging-sw.js
+    // and doesn't fall back to registering a generic SW on a different scope.
+    let swReg;
+    if ('serviceWorker' in navigator) {
+      try {
+        swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      } catch {
+        // If SW registration fails, let getToken() handle it
+      }
+    }
+
+    const token = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      ...(swReg ? { serviceWorkerRegistration: swReg } : {}),
+    });
     if (!token) return;
 
     await setDoc(
