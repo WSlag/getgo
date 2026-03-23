@@ -16,6 +16,7 @@ const {
 } = require('../services/brokerListingReferralService');
 
 const FirestoreFieldValue = admin.firestore?.FieldValue || AdminFieldValue;
+const { sendPushToUser } = require('../services/fcmService');
 
 async function resolveParticipantIds(db, shipment) {
   let shipperId = shipment.shipperId || null;
@@ -188,6 +189,16 @@ exports.onShipmentLocationUpdate = onDocumentUpdated(
       createdAt: FirestoreFieldValue.serverTimestamp(),
     });
 
+    try {
+      await sendPushToUser(db, shipperId, {
+        title: 'Shipment Location Updated',
+        body: `${truckerName} updated the location. Progress: ${Math.round(after.progress || 0)}%`,
+        data: { type: 'SHIPMENT_UPDATE', shipmentId, trackingNumber: String(after.trackingNumber || '') },
+      });
+    } catch (pushErr) {
+      console.error('[shipmentTriggers] Push notification failed (non-fatal):', pushErr.message);
+    }
+
     return null;
   }
 );
@@ -242,6 +253,16 @@ exports.onShipmentStatusChanged = onDocumentUpdated(
         isRead: false,
         createdAt: FirestoreFieldValue.serverTimestamp(),
       });
+
+      try {
+        await sendPushToUser(db, shipperId, {
+          title: 'Shipment Status Update',
+          body: `${message} - Tracking: ${after.trackingNumber}`,
+          data: { type: 'SHIPMENT_STATUS', shipmentId, status: after.status, trackingNumber: String(after.trackingNumber || '') },
+        });
+      } catch (pushErr) {
+        console.error('[shipmentTriggers] Push notification failed (non-fatal):', pushErr.message);
+      }
     }
 
     // Notify trucker
@@ -259,6 +280,16 @@ exports.onShipmentStatusChanged = onDocumentUpdated(
         isRead: false,
         createdAt: FirestoreFieldValue.serverTimestamp(),
       });
+
+      try {
+        await sendPushToUser(db, truckerId, {
+          title: 'Shipment Status Update',
+          body: `${message} - Tracking: ${after.trackingNumber}`,
+          data: { type: 'SHIPMENT_STATUS', shipmentId, status: after.status, trackingNumber: String(after.trackingNumber || '') },
+        });
+      } catch (pushErr) {
+        console.error('[shipmentTriggers] Push notification failed (non-fatal):', pushErr.message);
+      }
     }
 
     if (after.contractId) {

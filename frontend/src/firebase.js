@@ -370,6 +370,24 @@ if (useEmulator) {
 // Intentionally do not expose admin bootstrap callables on window.
 // First-admin initialization must be done through secure operational tooling.
 
+// Initialize FCM Messaging (only in browser, only when not in emulator mode — emulator has no FCM)
+let messaging = null;
+async function initializeMessagingRuntime() {
+  try {
+    const { getMessaging } = await import('firebase/messaging');
+    messaging = getMessaging(app);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[firebase] FCM Messaging initialization failed:', error?.message || error);
+    }
+  }
+}
+
+if (typeof window !== 'undefined' && !useEmulator) {
+  void initializeMessagingRuntime();
+}
+export { messaging };
+
 // Initialize Analytics (only in browser and not in test mode)
 let analytics = null;
 async function initializeAnalyticsRuntime() {

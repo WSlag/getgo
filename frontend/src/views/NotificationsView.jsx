@@ -38,6 +38,9 @@ export function NotificationsView({
   onBrowseMarketplace,
   onOpenActivity,
   darkMode = false,
+  pushPermission = 'unsupported',
+  isPushRegistered = false,
+  onEnablePush,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const workspaceLabel = getWorkspaceLabel(workspaceRole);
@@ -79,6 +82,47 @@ export function NotificationsView({
           </Button>
         )}
       </div>
+
+      {/* Push notification opt-in card — hidden once push is active or unsupported */}
+      {pushPermission === 'default' && !isPushRegistered && (
+        <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 flex items-start gap-3">
+          <span className="text-orange-500 mt-0.5 shrink-0" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-800 mb-0.5">I-aktibo ang Push Notifications</p>
+            <p className="text-xs text-gray-600 leading-snug">
+              Matanggap ang mga alerto kahit sarado ang app — para sa bids, mensahe, at shipment updates.
+            </p>
+            <button
+              onClick={onEnablePush}
+              className="mt-2 text-xs font-semibold bg-orange-500 text-white rounded-lg px-3 py-1.5 hover:bg-orange-600 active:bg-orange-700 transition-colors"
+            >
+              I-aktibo
+            </button>
+          </div>
+        </div>
+      )}
+      {pushPermission === 'denied' && (
+        <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 flex items-start gap-3">
+          <span className="text-yellow-600 mt-0.5 shrink-0" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-800 mb-0.5">Notifications Blocked</p>
+            <p className="text-xs text-gray-600 leading-snug">
+              I-allow ang notifications sa settings ng iyong browser para matanggap ang mga push alerts.
+            </p>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-center text-gray-500" style={{ padding: isMobile ? '48px 16px' : '64px 24px' }}>
