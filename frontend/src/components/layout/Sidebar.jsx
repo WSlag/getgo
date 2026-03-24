@@ -97,7 +97,7 @@ export function Sidebar({
             style={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '16px', paddingRight: '16px' }}
           >
             <Package className="size-5" />
-            <span className="font-medium flex-1 text-left">Cargo</span>
+            <span className="font-medium flex-1 text-left">{displayRole === 'broker' ? 'Cargo' : displayRole === 'trucker' ? 'Find Cargo' : 'My Cargo'}</span>
             <span className={cn(
               "text-xs px-2 py-0.5 rounded-full",
               activeMarket === 'cargo'
@@ -119,7 +119,7 @@ export function Sidebar({
             style={{ paddingTop: '12px', paddingBottom: '12px', paddingLeft: '16px', paddingRight: '16px' }}
           >
             <Truck className="size-5" />
-            <span className="font-medium flex-1 text-left">Trucks</span>
+            <span className="font-medium flex-1 text-left">{displayRole === 'broker' ? 'Trucks' : displayRole === 'trucker' ? 'My Trucks' : 'Find Truck'}</span>
             <span className={cn(
               "text-xs px-2 py-0.5 rounded-full",
               activeMarket === 'trucks'
