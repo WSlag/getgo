@@ -417,7 +417,7 @@ export function HomeView({
             )}
             style={{ padding: '12px 16px' }}
           >
-            {currentRole === 'shipper' && activeWorkspace !== 'broker' ? 'My Cargo' : 'Cargo'}
+            {activeWorkspace === 'broker' ? 'Cargo' : currentRole === 'trucker' ? 'Find Cargo' : 'My Cargo'}
           </button>
           <button
             onClick={() => onMarketChange?.('trucks')}
@@ -429,7 +429,7 @@ export function HomeView({
             )}
             style={{ padding: '12px 16px' }}
           >
-            {currentRole === 'trucker' && activeWorkspace !== 'broker' ? 'My Trucks' : 'Trucks'}
+            {activeWorkspace === 'broker' ? 'Trucks' : currentRole === 'trucker' ? 'My Trucks' : 'Find Truck'}
           </button>
         </div>
 
