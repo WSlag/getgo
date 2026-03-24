@@ -370,9 +370,15 @@ if (useEmulator) {
 // Intentionally do not expose admin bootstrap callables on window.
 // First-admin initialization must be done through secure operational tooling.
 
-// Initialize FCM Messaging (only in browser, only when not in emulator mode — emulator has no FCM)
+// Initialize FCM Messaging lazily — only when the app explicitly requests push notifications.
+// Eager initialization causes the Firebase Functions client SDK to call getToken() on every
+// callable function invocation (via getContext → getMessagingToken), which triggers a spurious
+// FCM registration request that fails with 401 when App Check is enforced for FCM.
 let messaging = null;
+let messagingInitPromise = null;
+
 async function initializeMessagingRuntime() {
+  if (typeof window === 'undefined' || useEmulator) return null;
   try {
     const { getMessaging } = await import('firebase/messaging');
     messaging = getMessaging(app);
@@ -381,11 +387,17 @@ async function initializeMessagingRuntime() {
       console.warn('[firebase] FCM Messaging initialization failed:', error?.message || error);
     }
   }
+  return messaging;
 }
 
-if (typeof window !== 'undefined' && !useEmulator) {
-  void initializeMessagingRuntime();
+export async function getOrInitMessaging() {
+  if (messaging) return messaging;
+  if (!messagingInitPromise) {
+    messagingInitPromise = initializeMessagingRuntime();
+  }
+  return messagingInitPromise;
 }
+
 export { messaging };
 
 // Initialize Analytics (only in browser and not in test mode)

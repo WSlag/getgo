@@ -14,7 +14,7 @@ import { useState, useEffect, useRef } from 'react';
 import { getToken, onMessage, deleteToken } from 'firebase/messaging';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { messaging, db, functions, waitForAppCheckInitialization, shouldInitializeAppCheck } from '../firebase';
+import { getOrInitMessaging, db, functions, waitForAppCheckInitialization, shouldInitializeAppCheck } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
@@ -36,7 +36,7 @@ export function usePushNotifications(userId, userRole) {
 
   // Auto-register when userId is available and permission is already granted
   useEffect(() => {
-    if (!userId || !messaging || permissionStatus !== 'granted') return;
+    if (!userId || permissionStatus !== 'granted') return;
     if (registeredForUid.current === userId) return;
     registeredForUid.current = userId;
     saveTokenToFirestore(userId).catch(() => {
@@ -44,24 +44,36 @@ export function usePushNotifications(userId, userRole) {
     });
   }, [userId, permissionStatus]);
 
-  // Foreground message handler — show in-app toast
+  // Foreground message handler — show in-app toast.
+  // Only initialize messaging when permission is already granted; this prevents the Firebase
+  // Functions client SDK from discovering the messaging instance (via getImmediate) and issuing
+  // spurious FCM registration requests on every callable function invocation.
   useEffect(() => {
-    if (!messaging) return undefined;
-    return onMessage(messaging, (payload) => {
-      const { title, body } = payload.notification || {};
-      if (!title) return;
-      showToast({ title, message: body || '', type: payload.data?.type || 'default' });
+    if (permissionStatus !== 'granted') return;
+    let unsubscribe;
+    getOrInitMessaging().then((m) => {
+      if (!m) return;
+      unsubscribe = onMessage(m, (payload) => {
+        const { title, body } = payload.notification || {};
+        if (!title) return;
+        showToast({ title, message: body || '', type: payload.data?.type || 'default' });
+      });
     });
-  }, [showToast]);
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [showToast, permissionStatus]);
 
   async function saveTokenToFirestore(uid) {
-    if (!messaging || !VAPID_KEY || !uid) return;
+    if (!VAPID_KEY || !uid) return;
 
     // FCM registration requires an App Check token when enforcement is active.
     // Wait up to 6s for App Check to initialize before calling getToken().
     if (shouldInitializeAppCheck) {
       await waitForAppCheckInitialization(6000).catch(() => {});
     }
+
+    // Lazily initialize messaging only when we actually need it for push registration.
+    const messagingInstance = await getOrInitMessaging();
+    if (!messagingInstance) return;
 
     // Pass the SW registration explicitly so FCM uses our /firebase-messaging-sw.js
     // and doesn't fall back to registering a generic SW on a different scope.
@@ -74,7 +86,7 @@ export function usePushNotifications(userId, userRole) {
       }
     }
 
-    const token = await getToken(messaging, {
+    const token = await getToken(messagingInstance, {
       vapidKey: VAPID_KEY,
       ...(swReg ? { serviceWorkerRegistration: swReg } : {}),
     });
@@ -119,12 +131,15 @@ export function usePushNotifications(userId, userRole) {
   }
 
   async function unregisterToken(uid) {
-    if (!messaging || !uid) return;
+    if (!uid) return;
     try {
-      const token = await getToken(messaging, { vapidKey: VAPID_KEY }).catch(() => null);
-      if (token) {
-        await deleteToken(messaging);
-        await deleteDoc(doc(db, 'users', uid, 'fcmTokens', token)).catch(() => {});
+      const messagingInstance = await getOrInitMessaging();
+      if (messagingInstance) {
+        const token = await getToken(messagingInstance, { vapidKey: VAPID_KEY }).catch(() => null);
+        if (token) {
+          await deleteToken(messagingInstance);
+          await deleteDoc(doc(db, 'users', uid, 'fcmTokens', token)).catch(() => {});
+        }
       }
     } catch {
       // Non-fatal — proceed with local cleanup regardless
