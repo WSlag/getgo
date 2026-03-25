@@ -4,6 +4,18 @@ import App from './App.jsx'
 import './index.css'
 /* global __APP_BUILD_ID__ */
 
+// Patch: agora-rtc-sdk-ng@4.24.3 revokes WebRTC Worker blob URLs via setTimeout(0).
+// With the Workbox SW active, the SW event-loop round-trip causes setTimeout(0) to
+// fire before the blob URL fetch completes, resulting in ERR_FILE_NOT_FOUND on calls.
+// Delay all revokeObjectURL calls by 5 s so Workers have time to initialize.
+// Agora captures URL.revokeObjectURL during its polyfill setup, so this patch also
+// applies to Qf.revokeObjectURL inside the SDK (Agora is lazily loaded, so the patch
+// is always in place before the first call).
+;(function () {
+  const _revoke = URL.revokeObjectURL.bind(URL)
+  URL.revokeObjectURL = (url) => setTimeout(() => _revoke(url), 5000)
+})()
+
 const APP_BUILD_ID = typeof __APP_BUILD_ID__ === 'string' ? __APP_BUILD_ID__ : 'dev';
 const CHUNK_RELOAD_WINDOW_MS = 30000;
 const CHUNK_RELOAD_KEY = 'karga_chunk_reload_ts';
