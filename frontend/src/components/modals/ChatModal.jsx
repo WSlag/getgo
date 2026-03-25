@@ -16,6 +16,7 @@ import { useChat } from '@/hooks/useChat';
 import { sendChatMessage, markMessagesRead } from '@/services/firestoreService';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { isClosedBidStatus, normalizeBidStatus } from '@/utils/bidStatus';
+import { parseTimestampSafely } from '@/utils/activitySorting';
 import api from '@/services/api';
 import { db } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -102,7 +103,7 @@ export function ChatModal({
         senderId: resolvedBid.bidderId,
         senderName: resolvedBid.bidderName || 'Bidder',
         message: resolvedBid.message,
-        createdAt: resolvedBid.createdAt,
+        createdAt: parseTimestampSafely(resolvedBid.createdAt).date,
         isInitialBid: true,
       });
     }
