@@ -12,9 +12,11 @@ const DialogPortal = DialogPrimitive.Portal;
 const DialogClose = DialogPrimitive.Close;
 
 function hasDialogDescriptionChild(children) {
+  const descName = DialogPrimitive.Description.displayName;
   return React.Children.toArray(children).some((child) => {
     if (!React.isValidElement(child)) return false;
     if (child.type === DialogPrimitive.Description) return true;
+    if (descName && child.type?.displayName === descName) return true;
     if (child.props?.children) return hasDialogDescriptionChild(child.props.children);
     return false;
   });
@@ -34,26 +36,24 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef(
   ({ className, children, 'aria-describedby': ariaDescribedBy, ...props }, ref) => {
-    const fallbackDescriptionId = React.useId();
     const hasDescription = hasDialogDescriptionChild(children);
-    const resolvedDescribedBy = ariaDescribedBy ?? (hasDescription ? undefined : fallbackDescriptionId);
 
     return (
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
           ref={ref}
-          aria-describedby={resolvedDescribedBy}
           style={{ padding: '28px' }}
           className={cn(
             "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-2xl max-h-[90vh] overflow-y-auto",
             className
           )}
+          {...(ariaDescribedBy !== undefined ? { 'aria-describedby': ariaDescribedBy } : {})}
           {...props}
         >
           {children}
-          {!hasDescription && !ariaDescribedBy && (
-            <DialogPrimitive.Description id={fallbackDescriptionId} className="sr-only">
+          {!hasDescription && (
+            <DialogPrimitive.Description className="sr-only">
               Dialog content.
             </DialogPrimitive.Description>
           )}
@@ -71,9 +71,7 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 // Bottom Sheet variant - slides up from bottom on mobile
 const DialogBottomSheet = React.forwardRef(
   ({ className, children, hideCloseButton = false, 'aria-describedby': ariaDescribedBy, ...props }, ref) => {
-    const fallbackDescriptionId = React.useId();
     const hasDescription = hasDialogDescriptionChild(children);
-    const resolvedDescribedBy = ariaDescribedBy ?? (hasDescription ? undefined : fallbackDescriptionId);
     // Separate children into scrollable content and fixed footer
     const childrenArray = React.Children.toArray(children);
     const scrollableContent = [];
@@ -92,7 +90,6 @@ const DialogBottomSheet = React.forwardRef(
         <DialogOverlay />
         <DialogPrimitive.Content
           ref={ref}
-          aria-describedby={resolvedDescribedBy}
           className={cn(
             // Mobile: Bottom sheet that slides up
             "fixed inset-x-0 bottom-0 z-50 w-full border-t bg-background shadow-2xl duration-300",
@@ -108,6 +105,7 @@ const DialogBottomSheet = React.forwardRef(
             "lg:data-[state=closed]:zoom-out-95 lg:data-[state=open]:zoom-in-95",
             className
           )}
+          {...(ariaDescribedBy !== undefined ? { 'aria-describedby': ariaDescribedBy } : {})}
           {...props}
         >
           {/* Drag Handle for mobile */}
@@ -117,8 +115,8 @@ const DialogBottomSheet = React.forwardRef(
           <div className="flex-1 overflow-y-auto min-h-0">
             {scrollableContent}
           </div>
-          {!hasDescription && !ariaDescribedBy && (
-            <DialogPrimitive.Description id={fallbackDescriptionId} className="sr-only">
+          {!hasDescription && (
+            <DialogPrimitive.Description className="sr-only">
               Dialog content.
             </DialogPrimitive.Description>
           )}
