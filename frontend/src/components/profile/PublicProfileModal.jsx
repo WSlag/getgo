@@ -14,11 +14,10 @@ import { Dialog, DialogBottomSheet, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { db, storage } from '@/firebase';
 import {
-  doc, getDoc, collection, query, where,
-  orderBy, limit, getDocs
+  doc, getDoc
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { updateUserProfile } from '@/services/firestoreService';
+import { getRatingsForUser, updateUserProfile } from '@/services/firestoreService';
 
 const BADGE_CONFIG = {
   ELITE:    { color: 'from-yellow-400 to-amber-500',  text: 'text-amber-900', icon: '👑', label: 'Elite'    },
@@ -267,9 +266,9 @@ export function PublicProfileModal({ open, onClose, userId, currentUserId, onGoT
         setCargoPhotos(data?.cargoPhotos || []);
         const tSnap = await getDoc(doc(db, 'users', userId, 'truckerProfile', 'profile'));
         if (tSnap.exists()) setTruckerProfile(tSnap.data());
-        const rQuery = query(collection(db, 'ratings'), where('rateeId', '==', userId), orderBy('createdAt', 'desc'), limit(10));
-        const rSnap = await getDocs(rQuery);
-        setReviews(rSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const ratingsResult = await getRatingsForUser(userId);
+        const recentReviews = (ratingsResult?.ratings || []).slice(0, 10);
+        setReviews(recentReviews);
       } catch (e) {
         console.error('[PublicProfileModal]', e);
       } finally {
@@ -577,7 +576,7 @@ export function PublicProfileModal({ open, onClose, userId, currentUserId, onGoT
                     <div className="text-center">
                       <p className="text-4xl font-bold text-gray-900 dark:text-white">{avgRating.toFixed(1)}</p>
                       <RatingStars rating={avgRating} />
-                      <p className="text-xs text-gray-400 mt-1">{totalRatings} reviews</p>
+                      <p className="text-xs text-gray-400 mt-1">Showing latest {reviews.length} of {totalRatings} reviews</p>
                     </div>
                     <div className="flex-1 space-y-1.5">
                       {[5,4,3,2,1].map(star => {

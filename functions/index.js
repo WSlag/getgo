@@ -1603,6 +1603,7 @@ exports.onShipmentStatusChanged = shipmentTriggers.onShipmentStatusChanged;
 
 const ratingTriggers = require('./src/triggers/ratingTriggers');
 exports.onRatingCreated = ratingTriggers.onRatingCreated;
+exports.onRatingDeleted = ratingTriggers.onRatingDeleted;
 
 const referralTriggers = require('./src/triggers/referralTriggers');
 exports.onPlatformFeeCompleted = referralTriggers.onPlatformFeeCompleted;
