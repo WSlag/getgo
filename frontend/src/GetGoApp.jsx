@@ -19,7 +19,6 @@ import {
   uploadListingPhotos,
   uploadTruckerComplianceDocument,
   acceptBid,
-  rejectBid,
   reopenListing,
   markNotificationRead,
   markAllNotificationsRead,
@@ -2155,7 +2154,7 @@ export default function GetGoApp() {
     setActiveTab(fallbackTab);
   };
 
-  // Accept/Reject bid handlers
+  // Accept bid handler
   const handleAcceptBid = async (bid, listing, listingType) => {
     try {
       // Use Firestore service for bid acceptance
@@ -2176,26 +2175,6 @@ export default function GetGoApp() {
         title: 'Error',
         message: getUserErrorMessage(error, 'Failed to accept bid. Please try again.'),
       });
-    }
-  };
-
-  const handleRejectBid = async (bid, listing, listingType) => {
-    try {
-      // Use Firestore service for bid rejection
-      await rejectBid(bid.id, bid, listing, listingType);
-      showToast({
-        type: 'info',
-        title: 'Bid Rejected',
-        message: `You rejected the bid from ${bid.bidderName || 'the bidder'}`,
-      });
-    } catch (error) {
-      console.error('Error rejecting bid:', error);
-      showToast({
-        type: 'error',
-        title: 'Error',
-        message: getUserErrorMessage(error, 'Failed to reject bid. Please try again.'),
-      });
-      throw error;
     }
   };
 
@@ -3427,7 +3406,6 @@ export default function GetGoApp() {
           openModal('chat', { bid, listing, type: 'cargo', bidId: bid.id });
         }}
         onAcceptBid={handleAcceptBid}
-        onRejectBid={handleRejectBid}
         onReopenListing={handleReopenListing}
         onCreateContract={(bid, listing) => {
           closeModal('cargoDetails');
@@ -3477,7 +3455,6 @@ export default function GetGoApp() {
           openModal('chat', { bid, listing, type: 'truck', bidId: bid.id });
         }}
         onAcceptBid={handleAcceptBid}
-        onRejectBid={handleRejectBid}
         onReopenListing={handleReopenListing}
         onCreateContract={(bid, listing) => {
           closeModal('truckDetails');
