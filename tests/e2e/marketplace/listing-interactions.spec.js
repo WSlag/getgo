@@ -378,6 +378,98 @@ test.describe('Marketplace Listing Interactions', () => {
     await page.keyboard.press('Escape');
   });
 
+  test('should open and close cargo photo viewer from details modal', async ({
+    page,
+    authHelper,
+    testPhoneNumbers,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await authHelper.login(testPhoneNumbers.trucker);
+    const userData = generateTestUser('trucker', 9);
+    await authHelper.register(userData);
+    await page.waitForTimeout(1800);
+
+    const bodyButtons = page.getByTestId('cargo-compact-body');
+    const detailsButtons = page.getByTestId('cargo-compact-details');
+    const bodyCount = await bodyButtons.count();
+    const detailsCount = await detailsButtons.count();
+
+    if (bodyCount > 0) {
+      await bodyButtons.first().click();
+    } else if (detailsCount > 0) {
+      await detailsButtons.first().click();
+    } else {
+      test.skip(true, 'No cargo card available for details modal.');
+    }
+
+    await expect(page.locator('[role="dialog"]').first()).toBeVisible();
+
+    const photoThumbs = page.getByTestId('cargo-details-photo-thumb');
+    const photoCount = await photoThumbs.count();
+    test.skip(photoCount === 0, 'No cargo photos available in selected listing.');
+
+    await photoThumbs.first().click();
+    const viewer = page.getByTestId('cargo-details-photo-viewer');
+    await expect(viewer).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(viewer).toHaveCount(0);
+
+    await photoThumbs.first().click();
+    await expect(viewer).toBeVisible();
+    await viewer.click({ position: { x: 8, y: 8 } });
+    await expect(viewer).toHaveCount(0);
+
+    await page.keyboard.press('Escape');
+  });
+
+  test('should open and close truck photo viewer from details modal', async ({
+    page,
+    authHelper,
+    testPhoneNumbers,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await authHelper.login(testPhoneNumbers.shipper);
+    const userData = generateTestUser('shipper', 9);
+    await authHelper.register(userData);
+
+    await authHelper.navigateTo('trucks');
+    await page.waitForTimeout(1200);
+
+    const bodyButtons = page.getByTestId('truck-compact-body');
+    const detailsButtons = page.getByTestId('truck-compact-details');
+    const bodyCount = await bodyButtons.count();
+    const detailsCount = await detailsButtons.count();
+
+    if (bodyCount > 0) {
+      await bodyButtons.first().click();
+    } else if (detailsCount > 0) {
+      await detailsButtons.first().click();
+    } else {
+      test.skip(true, 'No truck card available for details modal.');
+    }
+
+    await expect(page.locator('[role="dialog"]').first()).toBeVisible();
+
+    const photoThumbs = page.getByTestId('truck-details-photo-thumb');
+    const photoCount = await photoThumbs.count();
+    test.skip(photoCount === 0, 'No truck photos available in selected listing.');
+
+    await photoThumbs.first().click();
+    const viewer = page.getByTestId('truck-details-photo-viewer');
+    await expect(viewer).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(viewer).toHaveCount(0);
+
+    await photoThumbs.first().click();
+    await expect(viewer).toBeVisible();
+    await viewer.click({ position: { x: 8, y: 8 } });
+    await expect(viewer).toHaveCount(0);
+
+    await page.keyboard.press('Escape');
+  });
+
   test('should show Details-only compact cargo actions when primary action is unavailable', async ({
     page,
     authHelper,
