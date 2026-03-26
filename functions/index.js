@@ -1484,6 +1484,7 @@ exports.endVoiceCall = callFunctions.endVoiceCall;
 
 const bidFunctions = require('./src/api/bids');
 exports.acceptBid = bidFunctions.acceptBid;
+exports.reopenListing = bidFunctions.reopenListing;
 exports.updateBidAgreedPrice = bidFunctions.updateBidAgreedPrice;
 
 // =============================================================================

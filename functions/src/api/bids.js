@@ -51,6 +51,16 @@ function resolveListingRef(db, bidData = {}) {
   return null;
 }
 
+function resolveListingRefByType(db, listingType, listingId) {
+  if (listingType === 'cargo') {
+    return db.collection('cargoListings').doc(listingId);
+  }
+  if (listingType === 'truck') {
+    return db.collection('truckListings').doc(listingId);
+  }
+  return null;
+}
+
 /**
  * Accept bid
  * Validates ownership + fee-cap constraints and updates listing/bids atomically.
@@ -178,6 +188,107 @@ exports.acceptBid = functions.region('asia-southeast1').https.onCall(async (data
     success: true,
     bidId,
     ...result,
+  };
+});
+
+/**
+ * Reopen listing for bidding/booking.
+ * Listing owner only, and blocked once acceptance lifecycle has started.
+ */
+exports.reopenListing = functions.region('asia-southeast1').https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const listingId = String(data?.listingId || '').trim();
+  const listingType = String(data?.listingType || '').trim().toLowerCase();
+
+  if (!listingId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Listing ID is required');
+  }
+  if (!['cargo', 'truck'].includes(listingType)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Listing type must be cargo or truck');
+  }
+
+  const userId = context.auth.uid;
+  const db = admin.firestore();
+  await enforceUserRateLimit({
+    db,
+    userId,
+    operation: 'reopenListing',
+    maxAttempts: 10,
+    windowMs: 60 * 1000,
+  });
+
+  const listingRef = resolveListingRefByType(db, listingType, listingId);
+  if (!listingRef) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid listing reference');
+  }
+
+  const bidsQuery = listingType === 'cargo'
+    ? db.collection('bids').where('cargoListingId', '==', listingId)
+    : db.collection('bids').where('truckListingId', '==', listingId);
+  const contractsQuery = db.collection('contracts')
+    .where('listingId', '==', listingId);
+  const activeContractStatuses = new Set(['draft', 'signed', 'in_transit']);
+  await db.runTransaction(async (tx) => {
+    const listingDoc = await tx.get(listingRef);
+    if (!listingDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Listing not found');
+    }
+    const listingData = listingDoc.data() || {};
+    if (listingData.userId !== userId) {
+      throw new functions.https.HttpsError('permission-denied', 'Only the listing owner can reopen this listing');
+    }
+
+    const listingStatus = String(listingData.status || '').trim().toLowerCase();
+    if (listingStatus !== 'negotiating') {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Only negotiating listings can be reopened'
+      );
+    }
+
+    const bidsSnap = await tx.get(bidsQuery);
+    const hasAcceptedLifecycleBid = bidsSnap.docs.some((snap) => {
+      const status = String(snap.data()?.status || '').trim().toLowerCase();
+      return status === 'accepted' || status === 'contracted';
+    });
+
+    if (hasAcceptedLifecycleBid) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Cannot reopen listing after bid acceptance lifecycle has started',
+        { reason: 'has-accepted-lifecycle-bid' }
+      );
+    }
+
+    const contractsSnap = await tx.get(contractsQuery);
+    const hasActiveContract = contractsSnap.docs.some((snap) => {
+      const contract = snap.data() || {};
+      const contractType = String(contract.listingType || '').trim().toLowerCase();
+      const contractStatus = String(contract.status || '').trim().toLowerCase();
+      return contractType === listingType && activeContractStatuses.has(contractStatus);
+    });
+
+    if (hasActiveContract) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Cannot reopen listing with an active contract',
+        { reason: 'has-active-contract' }
+      );
+    }
+
+    tx.update(listingRef, {
+      status: 'open',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  return {
+    success: true,
+    listingId,
+    listingType,
   };
 });
 

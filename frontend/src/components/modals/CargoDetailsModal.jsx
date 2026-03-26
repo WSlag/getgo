@@ -116,6 +116,13 @@ export function CargoDetailsModal({
     () => fetchedBids.filter((bid) => isActiveBidStatus(bid.status)),
     [fetchedBids]
   );
+  const hasAcceptedLifecycleBid = React.useMemo(
+    () => fetchedBids.some((bid) => {
+      const status = normalizeBidStatus(bid.status);
+      return status === 'accepted' || status === 'contracted';
+    }),
+    [fetchedBids]
+  );
 
   React.useEffect(() => {
     const fetchAcceptedBidContracts = async () => {
@@ -215,6 +222,10 @@ export function CargoDetailsModal({
   const displayImages = cargo.images?.length > 0 ? cargo.images : cargo.cargoPhotos || [];
   const selectedPhoto = displayImages[selectedPhotoIndex] || displayImages[0] || null;
   const displayWeight = cargo.weight ? (cargo.unit && cargo.unit !== 'kg' ? `${cargo.weight} ${cargo.unit}` : `${cargo.weight} tons`) : '';
+  const canReopen = isOwner
+    && cargo.status === 'negotiating'
+    && !bidsLoading
+    && !hasAcceptedLifecycleBid;
   const canShowContractButton = currentRole === 'trucker'
     && Boolean(contractId && onOpenContract)
     && normalizeBidStatus(contractStatus) !== 'cancelled';
@@ -665,7 +676,7 @@ export function CargoDetailsModal({
         {/* Action Buttons */}
         <div style={{ paddingTop: isMobile ? '16px' : '20px' }}>
           {(!isOwner && currentRole === 'trucker' && canBidCargoStatus(cargo.status)) ||
-           (isOwner && cargo.status === 'negotiating') ? (
+           canReopen ? (
             <div className="flex gap-3 mb-3">
               {!isOwner && currentRole === 'trucker' && canBidCargoStatus(cargo.status) && (
                 <Button
@@ -677,7 +688,7 @@ export function CargoDetailsModal({
                   Place Bid
                 </Button>
               )}
-              {isOwner && cargo.status === 'negotiating' && (
+              {canReopen && (
                 <Button
                   variant="outline"
                   className="flex-1 gap-2 border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"

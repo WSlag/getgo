@@ -1155,6 +1155,15 @@ export default function GetGoApp() {
     if (code.includes('payer-account-restricted') || message.includes('fee payer account is restricted')) {
       return 'Cannot accept this bid because the fee payer account is currently restricted.';
     }
+    if (reason === 'has-accepted-lifecycle-bid') {
+      return 'This listing cannot be reopened because a bid has already been accepted for contract flow.';
+    }
+    if (reason === 'has-active-contract') {
+      return 'This listing cannot be reopened because it already has an active contract.';
+    }
+    if (message.includes('cannot reopen listing')) {
+      return 'This listing cannot be reopened in its current state.';
+    }
     if (code.includes('failed-precondition')) {
       return 'This action cannot be completed in the current state. Please refresh and try again.';
     }
@@ -2181,10 +2190,13 @@ export default function GetGoApp() {
   const handleReopenListing = async (listingId, listingType) => {
     try {
       await reopenListing(listingId, listingType);
+      const reopenTarget = String(listingType || '').toLowerCase() === 'truck'
+        ? 'booking'
+        : 'bidding';
       showToast({
         type: 'success',
         title: 'Listing Reopened',
-        message: 'The listing has been reopened for bidding',
+        message: `The listing has been reopened for ${reopenTarget}`,
       });
       // Close modal - data will refresh via Firestore real-time updates
       closeModal('cargoDetails');
