@@ -63,7 +63,13 @@ export function useCallSignaling(currentUserId) {
         setIncomingCall(calls[0]);
       },
       (err) => {
-        console.warn('[useCallSignaling] listener error:', err);
+        const code = String(err?.code || '').toLowerCase();
+        const isPermissionDenied = code.includes('permission-denied');
+        if (!isPermissionDenied) {
+          console.warn('[useCallSignaling] listener error:', err);
+        } else if (import.meta.env.DEV) {
+          console.warn('[useCallSignaling] permission denied listener (suppressed in prod):', err?.message || err);
+        }
         setIncomingCall(null);
       }
     );

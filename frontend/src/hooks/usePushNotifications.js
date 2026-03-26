@@ -4,10 +4,10 @@
  * foreground message handling.
  *
  * Returns:
- *   permissionStatus  — 'default' | 'granted' | 'denied' | 'unsupported'
- *   isRegistered      — true once a token is saved to Firestore
- *   requestAndRegister(uid) — requests OS permission, saves token, subscribes to topics
- *   unregisterToken(uid)    — deletes token locally and from Firestore (call on logout)
+ *   permissionStatus  - 'default' | 'granted' | 'denied' | 'unsupported'
+ *   isRegistered      - true once a token is saved to Firestore
+ *   requestAndRegister(uid) - requests OS permission, saves token, subscribes to topics
+ *   unregisterToken(uid)    - deletes token locally and from Firestore (call on logout)
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -19,6 +19,7 @@ import { useToast } from '../contexts/ToastContext';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 const REGISTERED_KEY = 'karga.push.registered';
+const REGISTERED_TOKEN_KEY = 'karga.push.token';
 
 function getInitialPermission() {
   if (typeof Notification === 'undefined') return 'unsupported';
@@ -26,7 +27,6 @@ function getInitialPermission() {
 }
 
 export function usePushNotifications(userId, userRole) {
-  // useToast() returns showToast directly — do NOT destructure
   const showToast = useToast();
   const [permissionStatus, setPermissionStatus] = useState(getInitialPermission);
   const [isRegistered, setIsRegistered] = useState(
@@ -34,20 +34,23 @@ export function usePushNotifications(userId, userRole) {
   );
   const registeredForUid = useRef(null);
 
-  // Auto-register when userId is available and permission is already granted
+  function clearLocalPushState() {
+    setIsRegistered(false);
+    registeredForUid.current = null;
+    localStorage.removeItem(REGISTERED_KEY);
+    localStorage.removeItem(REGISTERED_TOKEN_KEY);
+  }
+
   useEffect(() => {
     if (!userId || permissionStatus !== 'granted') return;
     if (registeredForUid.current === userId) return;
     registeredForUid.current = userId;
     saveTokenToFirestore(userId).catch(() => {
       registeredForUid.current = null;
+      clearLocalPushState();
     });
   }, [userId, permissionStatus]);
 
-  // Foreground message handler — show in-app toast.
-  // Only initialize messaging when permission is already granted; this prevents the Firebase
-  // Functions client SDK from discovering the messaging instance (via getImmediate) and issuing
-  // spurious FCM registration requests on every callable function invocation.
   useEffect(() => {
     if (permissionStatus !== 'granted') return;
     let unsubscribe;
@@ -59,30 +62,30 @@ export function usePushNotifications(userId, userRole) {
         showToast({ title, message: body || '', type: payload.data?.type || 'default' });
       });
     });
-    return () => { if (unsubscribe) unsubscribe(); };
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [showToast, permissionStatus]);
 
   async function saveTokenToFirestore(uid) {
     if (!VAPID_KEY || !uid) return;
 
-    // FCM registration requires an App Check token when enforcement is active.
-    // Wait up to 6s for App Check to initialize before calling getToken().
     if (shouldInitializeAppCheck) {
-      await waitForAppCheckInitialization(6000).catch(() => {});
+      const appCheckReady = await waitForAppCheckInitialization(6000).catch(() => false);
+      if (!appCheckReady) {
+        throw new Error('App Check is not ready for FCM registration.');
+      }
     }
 
-    // Lazily initialize messaging only when we actually need it for push registration.
     const messagingInstance = await getOrInitMessaging();
     if (!messagingInstance) return;
 
-    // Pass the SW registration explicitly so FCM uses our /firebase-messaging-sw.js
-    // and doesn't fall back to registering a generic SW on a different scope.
     let swReg;
     if ('serviceWorker' in navigator) {
       try {
         swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
       } catch {
-        // If SW registration fails, let getToken() handle it
+        // If SW registration fails, let getToken() handle it.
       }
     }
 
@@ -90,7 +93,11 @@ export function usePushNotifications(userId, userRole) {
       vapidKey: VAPID_KEY,
       ...(swReg ? { serviceWorkerRegistration: swReg } : {}),
     });
-    if (!token) return;
+    if (!token) {
+      throw new Error('FCM registration returned no token.');
+    }
+
+    const previousToken = localStorage.getItem(REGISTERED_TOKEN_KEY) || '';
 
     await setDoc(
       doc(db, 'users', uid, 'fcmTokens', token),
@@ -104,10 +111,14 @@ export function usePushNotifications(userId, userRole) {
       { merge: true }
     );
 
+    if (previousToken && previousToken !== token) {
+      await deleteDoc(doc(db, 'users', uid, 'fcmTokens', previousToken)).catch(() => {});
+    }
+
     setIsRegistered(true);
     localStorage.setItem(REGISTERED_KEY, '1');
+    localStorage.setItem(REGISTERED_TOKEN_KEY, token);
 
-    // Subscribe to listing topic for this role (broker role → no-op on backend)
     if (userRole) {
       try {
         await httpsCallable(functions, 'subscribeToListingTopics')({ role: userRole });
@@ -123,30 +134,53 @@ export function usePushNotifications(userId, userRole) {
     if (typeof Notification === 'undefined') return 'unsupported';
     const permission = await Notification.requestPermission();
     setPermissionStatus(permission);
+
     if (permission === 'granted') {
       registeredForUid.current = uid;
-      await saveTokenToFirestore(uid);
+      try {
+        await saveTokenToFirestore(uid);
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[usePushNotifications] Push registration failed:', error?.message || error);
+        }
+        clearLocalPushState();
+        showToast({
+          title: 'Push not activated',
+          message: 'Try again in a moment. If this continues, refresh and retry.',
+          type: 'warning',
+        });
+      }
     }
+
     return permission;
   }
 
   async function unregisterToken(uid) {
     if (!uid) return;
+    const storedToken = localStorage.getItem(REGISTERED_TOKEN_KEY) || '';
+
     try {
       const messagingInstance = await getOrInitMessaging();
       if (messagingInstance) {
-        const token = await getToken(messagingInstance, { vapidKey: VAPID_KEY }).catch(() => null);
-        if (token) {
-          await deleteToken(messagingInstance);
-          await deleteDoc(doc(db, 'users', uid, 'fcmTokens', token)).catch(() => {});
+        let appCheckReadyForDelete = true;
+        if (shouldInitializeAppCheck) {
+          appCheckReadyForDelete = await waitForAppCheckInitialization(2000).catch(() => false);
+        }
+
+        // Avoid deleteToken() when App Check is unavailable to prevent logout churn.
+        if (appCheckReadyForDelete) {
+          await deleteToken(messagingInstance).catch(() => {});
         }
       }
     } catch {
-      // Non-fatal — proceed with local cleanup regardless
+      // Non-fatal: continue local cleanup.
     }
-    setIsRegistered(false);
-    registeredForUid.current = null;
-    localStorage.removeItem(REGISTERED_KEY);
+
+    if (storedToken) {
+      await deleteDoc(doc(db, 'users', uid, 'fcmTokens', storedToken)).catch(() => {});
+    }
+
+    clearLocalPushState();
   }
 
   return { permissionStatus, isRegistered, requestAndRegister, unregisterToken };

@@ -16,7 +16,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'AIzaSyAnC80DcEGsq30csD_Gy5pD8okkRUWZ9nk',
+  apiKey: 'AIzaSyB9c2Ftm9WVdBHyaA8uqHWJy_lZFMFPAB4',
   authDomain: 'karga-ph.firebaseapp.com',
   projectId: 'karga-ph',
   storageBucket: 'karga-ph.firebasestorage.app',
