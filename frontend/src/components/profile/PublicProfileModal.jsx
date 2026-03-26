@@ -31,6 +31,16 @@ const BADGE_CONFIG = {
 const MAX_PHOTOS     = 6;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
+function getUploadErrorMessage(error) {
+  if (error?.code === 'storage/unauthorized') {
+    return 'Upload failed: permission denied. Please sign in again and retry.';
+  }
+  if (error?.code === 'storage/canceled') {
+    return 'Upload canceled.';
+  }
+  return 'Upload failed. Please try again.';
+}
+
 function formatMemberSince(ts) {
   if (!ts) return 'New member';
   const d      = ts.toDate ? ts.toDate() : new Date(ts);
@@ -240,11 +250,13 @@ export function PublicProfileModal({ open, onClose, userId, currentUserId, onGoT
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [saveSuccess,     setSaveSuccess]     = useState(false);
+  const [uploadError,     setUploadError]     = useState('');
 
   useEffect(() => {
     if (!open || !userId) return;
     setLoading(true);
     setActiveTab('about');
+    setUploadError('');
     (async () => {
       try {
         const snap = await getDoc(doc(db, 'users', userId));
@@ -269,18 +281,23 @@ export function PublicProfileModal({ open, onClose, userId, currentUserId, onGoT
   const handleAvatarUpload = useCallback(async (file) => {
     if (!isOwner || !currentUserId) return;
     setUploadingAvatar(true);
+    setUploadError('');
     try {
       const path = `profile-photos/${currentUserId}/${Date.now()}_${file.name}`;
       const snap = await uploadBytes(ref(storage, path), file);
       const url  = await getDownloadURL(snap.ref);
       await updateUserProfile(currentUserId, { profileImage: url });
       setAvatarSrc(url);
+    } catch (error) {
+      console.error('[PublicProfileModal] avatar upload failed', error);
+      setUploadError(getUploadErrorMessage(error));
     } finally { setUploadingAvatar(false); }
   }, [isOwner, currentUserId]);
 
   const handleAddPhotos = useCallback(async (files, type) => {
     if (!isOwner || !currentUserId) return;
     setUploadingPhotos(true);
+    setUploadError('');
     try {
       const urls = await Promise.all(files.map(async file => {
         const path = `profile-gallery/${currentUserId}/${type}/${Date.now()}_${file.name}`;
@@ -298,6 +315,9 @@ export function PublicProfileModal({ open, onClose, userId, currentUserId, onGoT
       }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (error) {
+      console.error('[PublicProfileModal] gallery upload failed', error);
+      setUploadError(getUploadErrorMessage(error));
     } finally { setUploadingPhotos(false); }
   }, [isOwner, currentUserId, truckPhotos, cargoPhotos]);
 
@@ -442,6 +462,13 @@ export function PublicProfileModal({ open, onClose, userId, currentUserId, onGoT
             <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl px-4 py-3 mb-4 animate-in fade-in slide-in-from-top-2">
               <CheckCircle2 className="size-4 text-green-500 flex-shrink-0" />
               <p className="text-sm text-green-700 dark:text-green-400 font-medium">Photo saved successfully!</p>
+            </div>
+          )}
+
+          {uploadError && (
+            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl px-4 py-3 mb-4">
+              <X className="size-4 text-red-500 flex-shrink-0" />
+              <p className="text-sm text-red-700 dark:text-red-400 font-medium">{uploadError}</p>
             </div>
           )}
 
