@@ -538,43 +538,21 @@ export const withdrawBid = async (bidId) => {
 };
 
 export const reopenListing = async (listingId, listingType) => {
-  const batch = writeBatch(db);
   const currentUserId = auth.currentUser?.uid;
 
   if (!currentUserId) {
     throw new Error('Must be signed in to reopen listing');
   }
 
-  // Update listing status back to open
-  const listingRef = listingType === 'cargo'
-    ? doc(db, 'cargoListings', listingId)
-    : doc(db, 'truckListings', listingId);
+  const normalizedType = String(listingType || '').trim().toLowerCase();
+  if (!listingId || !['cargo', 'truck'].includes(normalizedType)) {
+    const err = new Error('Invalid listing reference');
+    err.code = 'invalid-argument';
+    throw err;
+  }
 
-  batch.update(listingRef, {
-    status: 'open',
-    updatedAt: serverTimestamp()
-  });
-
-  // Reject all accepted bids (if any) for this listing
-  const bidsQuery = query(
-    collection(db, 'bids'),
-    where('listingOwnerId', '==', currentUserId)
-  );
-
-  const bidsSnapshot = await getDocs(bidsQuery);
-  bidsSnapshot.forEach((bidDoc) => {
-    const bidData = bidDoc.data();
-    const isSameListing = bidData.listingId === listingId && bidData.listingType === listingType;
-    if (isSameListing && bidData.status === 'accepted') {
-      const bidRef = doc(db, 'bids', bidDoc.id);
-      batch.update(bidRef, {
-        status: 'rejected',
-        updatedAt: serverTimestamp()
-      });
-    }
-  });
-
-  await batch.commit();
+  const reopenListingCallable = httpsCallable(functions, 'reopenListing');
+  await reopenListingCallable({ listingId, listingType: normalizedType });
 };
 
 // ============================================================

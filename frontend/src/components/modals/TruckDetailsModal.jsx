@@ -15,7 +15,7 @@ import { useBidsForListing } from '@/hooks/useBids';
 import { sanitizeMessage } from '@/utils/messageUtils';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { canBookTruckStatus, toTruckUiStatus } from '@/utils/listingStatus';
-import { canOpenBidChat, isActiveBidStatus } from '@/utils/bidStatus';
+import { canOpenBidChat, isActiveBidStatus, normalizeBidStatus } from '@/utils/bidStatus';
 import api from '@/services/api';
 
 const LazyRouteMap = React.lazy(() => import('@/components/maps/RouteMap'));
@@ -80,6 +80,13 @@ export function TruckDetailsModal({
     () => fetchedBids.filter((bid) => isActiveBidStatus(bid.status)),
     [fetchedBids]
   );
+  const hasAcceptedLifecycleBid = React.useMemo(
+    () => fetchedBids.some((bid) => {
+      const status = normalizeBidStatus(bid.status);
+      return status === 'accepted' || status === 'contracted';
+    }),
+    [fetchedBids]
+  );
 
   React.useEffect(() => {
     const fetchAcceptedBidContracts = async () => {
@@ -137,7 +144,10 @@ export function TruckDetailsModal({
   if (!truck) return null;
   const displayStatus = truck.uiStatus || toTruckUiStatus(truck.status);
   const canBookNow = !isOwner && currentRole === 'shipper' && canBookTruckStatus(truck.status);
-  const canReopen = isOwner && truck.status === 'negotiating';
+  const canReopen = isOwner
+    && truck.status === 'negotiating'
+    && !bidsLoading
+    && !hasAcceptedLifecycleBid;
   const canReferListing = isBroker && !isOwner && canRefer && onRefer;
   const hasPrimaryFooterActions = canBookNow || canReopen || canReferListing;
 
