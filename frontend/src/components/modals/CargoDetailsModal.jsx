@@ -31,7 +31,6 @@ export function CargoDetailsModal({
   onBid,
   onOpenChat,
   onAcceptBid,
-  onRejectBid,
   onCreateContract,
   onReopenListing,
   onOpenContract,
@@ -48,7 +47,7 @@ export function CargoDetailsModal({
   const [contractStatus, setContractStatus] = React.useState(null);
   const [loadingContract, setLoadingContract] = React.useState(false);
   const [bidContracts, setBidContracts] = React.useState({});
-  const [confirmAction, setConfirmAction] = React.useState(null); // { type: 'accept'|'reject', bid }
+  const [confirmAction, setConfirmAction] = React.useState(null); // { bid }
   const [showRouteMap, setShowRouteMap] = React.useState(false);
   const [isPhotoViewerOpen, setIsPhotoViewerOpen] = React.useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = React.useState(0);
@@ -66,31 +65,15 @@ export function CargoDetailsModal({
     }
   };
 
-  const handleRejectBid = async (bid) => {
-    if (!onRejectBid) return;
-    setProcessingBidId(bid.id);
-    setProcessingAction('reject');
-    try {
-      await onRejectBid(bid, cargo, 'cargo');
-    } finally {
-      setProcessingBidId(null);
-      setProcessingAction(null);
-    }
-  };
-
-  const requestConfirmAction = (type, bid) => {
-    setConfirmAction({ type, bid });
+  const requestConfirmAction = (bid) => {
+    setConfirmAction({ bid });
   };
 
   const executeConfirmedAction = async () => {
     if (!confirmAction) return;
-    const { type, bid } = confirmAction;
+    const { bid } = confirmAction;
     setConfirmAction(null);
-    if (type === 'accept') {
-      await handleAcceptBid(bid);
-    } else {
-      await handleRejectBid(bid);
-    }
+    await handleAcceptBid(bid);
   };
 
   // Fetch contract for trucker's bid when they view the modal
@@ -633,36 +616,20 @@ export function CargoDetailsModal({
                         </Button>
                       )}
                       {bid.status === 'pending' && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
-                            onClick={() => requestConfirmAction('accept', bid._original)}
-                            disabled={processingBidId === bid.id}
-                          >
-                            {processingBidId === bid.id && processingAction === 'accept' ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Check className="size-4" />
-                            )}
-                            Accept
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            onClick={() => requestConfirmAction('reject', bid._original)}
-                            disabled={processingBidId === bid.id}
-                          >
-                            {processingBidId === bid.id && processingAction === 'reject' ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <X className="size-4" />
-                            )}
-                            Reject
-                          </Button>
-                        </>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+                          onClick={() => requestConfirmAction(bid._original)}
+                          disabled={processingBidId === bid.id}
+                        >
+                          {processingBidId === bid.id && processingAction === 'accept' ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Check className="size-4" />
+                          )}
+                          Accept
+                        </Button>
                       )}
                       {bid.status === 'accepted' && (
                         <Button
@@ -797,14 +764,10 @@ export function CargoDetailsModal({
 
     <ConfirmDialog
       open={!!confirmAction}
-      title={confirmAction?.type === 'accept' ? 'Accept this bid?' : 'Reject this bid?'}
-      description={
-        confirmAction?.type === 'accept'
-          ? 'Accepting this bid will create a contract with this trucker. Other pending bids will remain open.'
-          : 'This bid will be rejected and the trucker will be notified.'
-      }
-      confirmLabel={confirmAction?.type === 'accept' ? 'Accept Bid' : 'Reject Bid'}
-      variant={confirmAction?.type === 'reject' ? 'destructive' : 'default'}
+      title="Accept this bid?"
+      description="Accepting this bid will create a contract with this trucker. Other pending bids will remain open."
+      confirmLabel="Accept Bid"
+      variant="default"
       onConfirm={executeConfirmedAction}
       onCancel={() => setConfirmAction(null)}
     />

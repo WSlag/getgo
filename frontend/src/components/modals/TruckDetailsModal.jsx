@@ -30,7 +30,6 @@ export function TruckDetailsModal({
   onBook,
   onOpenChat,
   onAcceptBid,
-  onRejectBid,
   onCreateContract,
   onOpenContract,
   onReopenListing,
@@ -61,31 +60,15 @@ export function TruckDetailsModal({
     }
   };
 
-  const handleRejectBid = async (bid) => {
-    if (!onRejectBid) return;
-    setProcessingBidId(bid.id);
-    setProcessingAction('reject');
-    try {
-      await onRejectBid(bid, truck, 'truck');
-    } finally {
-      setProcessingBidId(null);
-      setProcessingAction(null);
-    }
-  };
-
-  const requestConfirmAction = (type, bid) => {
-    setConfirmAction({ type, bid });
+  const requestConfirmAction = (bid) => {
+    setConfirmAction({ bid });
   };
 
   const executeConfirmedAction = async () => {
     if (!confirmAction) return;
-    const { type, bid } = confirmAction;
+    const { bid } = confirmAction;
     setConfirmAction(null);
-    if (type === 'accept') {
-      await handleAcceptBid(bid);
-    } else {
-      await handleRejectBid(bid);
-    }
+    await handleAcceptBid(bid);
   };
 
   // Fetch booking requests (bids) for this truck when owner views the modal
@@ -674,36 +657,20 @@ export function TruckDetailsModal({
                         </Button>
                       )}
                       {booking.status === 'pending' && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size={isMobile ? "sm" : "default"}
-                            className="gap-1 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
-                            onClick={() => requestConfirmAction('accept', booking._original)}
-                            disabled={processingBidId === booking.id}
-                          >
-                            {processingBidId === booking.id && processingAction === 'accept' ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Check className="size-4" />
-                            )}
-                            Accept
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size={isMobile ? "sm" : "default"}
-                            className="gap-1 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            onClick={() => requestConfirmAction('reject', booking._original)}
-                            disabled={processingBidId === booking.id}
-                          >
-                            {processingBidId === booking.id && processingAction === 'reject' ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <X className="size-4" />
-                            )}
-                            Reject
-                          </Button>
-                        </>
+                        <Button
+                          variant="outline"
+                          size={isMobile ? "sm" : "default"}
+                          className="gap-1 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+                          onClick={() => requestConfirmAction(booking._original)}
+                          disabled={processingBidId === booking.id}
+                        >
+                          {processingBidId === booking.id && processingAction === 'accept' ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Check className="size-4" />
+                          )}
+                          Accept
+                        </Button>
                       )}
                       {booking.status === 'accepted' && (
                         <Button
@@ -818,14 +785,10 @@ export function TruckDetailsModal({
 
     <ConfirmDialog
       open={!!confirmAction}
-      title={confirmAction?.type === 'accept' ? 'Accept this booking?' : 'Reject this booking?'}
-      description={
-        confirmAction?.type === 'accept'
-          ? 'Accepting this booking will create a contract with this shipper. Other pending bookings will remain open.'
-          : 'This booking will be rejected and the shipper will be notified.'
-      }
-      confirmLabel={confirmAction?.type === 'accept' ? 'Accept Booking' : 'Reject Booking'}
-      variant={confirmAction?.type === 'reject' ? 'destructive' : 'default'}
+      title="Accept this booking?"
+      description="Accepting this booking will create a contract with this shipper. Other pending bookings will remain open."
+      confirmLabel="Accept Booking"
+      variant="default"
       onConfirm={executeConfirmedAction}
       onCancel={() => setConfirmAction(null)}
     />
