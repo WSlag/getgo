@@ -39,6 +39,7 @@ export function CargoDetailsModal({
   userBidId,
   isBroker = false,
   canRefer = false,
+  onViewProfile,
   darkMode = false,
 }) {
   const [processingBidId, setProcessingBidId] = React.useState(null);
@@ -310,14 +311,30 @@ export function CargoDetailsModal({
         </div>
 
         {/* Shipper Info */}
-        <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
-          <h3 style={{ fontWeight: 'bold', fontSize: isMobile ? '15px' : '18px', color: darkMode ? '#fff' : '#111827', marginBottom: '4px' }}>
-            {cargo.company || cargo.shipper}
-          </h3>
-          {cargo.shipperTransactions > 0 && (
-            <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>
-              {cargo.shipperTransactions} successful transactions
-            </p>
+        <div
+          className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700"
+          style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}
+        >
+          <div>
+            <h3 style={{ fontWeight: 'bold', fontSize: isMobile ? '15px' : '18px', color: darkMode ? '#fff' : '#111827', marginBottom: '4px' }}>
+              {cargo.company || cargo.shipper}
+            </h3>
+            {cargo.shipperTransactions > 0 && (
+              <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>
+                {cargo.shipperTransactions} successful transactions
+              </p>
+            )}
+          </div>
+
+          {!isOwner && (cargo.userId || cargo.shipperId) && (
+            <button
+              type="button"
+              onClick={() => onViewProfile?.(cargo.userId || cargo.shipperId)}
+              className="shrink-0 rounded-xl shadow-lg bg-gradient-to-r from-blue-400 to-blue-600 text-white font-bold"
+              style={{ padding: isMobile ? '8px 16px' : '12px 20px', fontSize: isMobile ? '13px' : '14px', whiteSpace: 'nowrap' }}
+            >
+              View Profile
+            </button>
           )}
         </div>
 

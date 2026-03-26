@@ -1313,6 +1313,9 @@ export function AuthProvider({ children }) {
       if (profileData.name) userUpdates.name = profileData.name;
       if (profileData.email !== undefined) userUpdates.email = profileData.email;
       if (profileData.facebookUrl !== undefined) userUpdates.facebookUrl = profileData.facebookUrl;
+      if (profileData.bio !== undefined) userUpdates.bio = profileData.bio;
+      if (profileData.city !== undefined) userUpdates.city = profileData.city;
+      if (profileData.businessName !== undefined) userUpdates.businessName = profileData.businessName;
 
       await setDoc(userRef, userUpdates, { merge: true });
 

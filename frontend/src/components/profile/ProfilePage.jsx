@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,8 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallApp
     name: '',
     email: '',
     facebookUrl: '',
+    bio: '',
+    city: '',
     businessName: '',
     businessAddress: '',
     businessType: ''
@@ -74,6 +77,8 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallApp
       name: userProfile?.name || '',
       email: userProfile?.email || '',
       facebookUrl: userProfile?.facebookUrl || '',
+      bio: userProfile?.bio || '',
+      city: userProfile?.city || '',
       businessName: currentRole === 'shipper'
         ? shipperProfile?.businessName || ''
         : truckerProfile?.businessName || '',
@@ -882,6 +887,36 @@ export function ProfilePage({ onNavigateToActivity, onInstallApp, showInstallApp
                 value={editForm.facebookUrl}
                 onChange={(e) => setEditForm({ ...editForm, facebookUrl: e.target.value })}
                 placeholder="https://facebook.com/yourprofile"
+              />
+            </div>
+
+            {/* Bio */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                Bio
+              </label>
+              <Textarea
+                value={editForm.bio}
+                onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                placeholder="Tell others about yourself..."
+                maxLength={300}
+                rows={3}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                Shown on your public profile. Max 300 characters.
+              </p>
+            </div>
+
+            {/* City / Region */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                City / Region
+              </label>
+              <Input
+                type="text"
+                value={editForm.city}
+                onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                placeholder="e.g., Cebu City"
               />
             </div>
 
