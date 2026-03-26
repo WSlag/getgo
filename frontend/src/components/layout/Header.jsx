@@ -22,7 +22,7 @@ export function Header({
   onNotificationClick,
   onProfileClick,
   onBrokerClick,
-  onEditProfile,
+  onMyProfile,
   onNotificationSettings,
   onHelpSupport,
   onAdminDashboard,
@@ -148,7 +148,7 @@ export function Header({
               isAdmin={isAdmin}
               onMyActivity={() => onTabChange?.('activity')}
               onBrokerDashboard={onBrokerClick}
-              onEditProfile={onEditProfile}
+              onMyProfile={onMyProfile}
               onNotificationSettings={onNotificationSettings}
               onHelpSupport={onHelpSupport}
               onAdminDashboard={onAdminDashboard}

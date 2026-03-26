@@ -37,6 +37,7 @@ export function TruckDetailsModal({
   onRefer,
   isBroker = false,
   canRefer = false,
+  onViewProfile,
   darkMode = false,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
@@ -294,41 +295,54 @@ export function TruckDetailsModal({
 
         {/* Trucker Info */}
         <div className="border-b border-gray-200 dark:border-gray-700" style={{ paddingTop: isMobile ? '16px' : '20px', paddingBottom: isMobile ? '16px' : '20px' }}>
-          <div className="flex items-center" style={{ gap: isMobile ? '12px' : '16px' }}>
-            <div style={{
-              width: isMobile ? '48px' : '56px',
-              height: isMobile ? '48px' : '56px',
-              borderRadius: '50%',
-              background: 'linear-gradient(to bottom right, #60a5fa, #2563eb)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontSize: isMobile ? '18px' : '20px',
-              fontWeight: 'bold',
-              boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)'
-            }}>
-              {truck.trucker?.[0]?.toUpperCase() || 'T'}
-            </div>
-            <div>
-              <h3 style={{ fontSize: isMobile ? '15px' : '18px', fontWeight: 'bold', color: darkMode ? '#fff' : '#111827' }}>
-                {truck.trucker}
-              </h3>
-              <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px', fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>
-                {truck.truckerRating > 0 && (
-                  <div className="flex items-center" style={{ gap: '4px' }}>
-                    <Star style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#eab308', fill: '#eab308' }} />
-                    <span>{truck.truckerRating.toFixed(1)}</span>
-                  </div>
-                )}
-                {truck.truckerTransactions > 0 && (
-                  <>
-                    <span className="text-gray-300 dark:text-gray-600">|</span>
-                    <span>{truck.truckerTransactions} trips</span>
-                  </>
-                )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center" style={{ gap: isMobile ? '12px' : '16px' }}>
+              <div style={{
+                width: isMobile ? '48px' : '56px',
+                height: isMobile ? '48px' : '56px',
+                borderRadius: '50%',
+                background: 'linear-gradient(to bottom right, #60a5fa, #2563eb)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: isMobile ? '18px' : '20px',
+                fontWeight: 'bold',
+                boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)'
+              }}>
+                {truck.trucker?.[0]?.toUpperCase() || 'T'}
+              </div>
+              <div>
+                <h3 style={{ fontSize: isMobile ? '15px' : '18px', fontWeight: 'bold', color: darkMode ? '#fff' : '#111827' }}>
+                  {truck.trucker}
+                </h3>
+                <div className="flex items-center" style={{ gap: isMobile ? '8px' : '12px', fontSize: isMobile ? '12px' : '14px', color: '#6b7280' }}>
+                  {truck.truckerRating > 0 && (
+                    <div className="flex items-center" style={{ gap: '4px' }}>
+                      <Star style={{ width: isMobile ? '14px' : '16px', height: isMobile ? '14px' : '16px', color: '#eab308', fill: '#eab308' }} />
+                      <span>{truck.truckerRating.toFixed(1)}</span>
+                    </div>
+                  )}
+                  {truck.truckerTransactions > 0 && (
+                    <>
+                      <span className="text-gray-300 dark:text-gray-600">|</span>
+                      <span>{truck.truckerTransactions} trips</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
+
+            {!isOwner && (truck.truckerId || truck.userId) && (
+              <button
+                type="button"
+                onClick={() => onViewProfile?.(truck.truckerId || truck.userId)}
+                className="shrink-0 rounded-xl shadow-lg bg-gradient-to-r from-blue-400 to-blue-600 text-white font-bold"
+                style={{ padding: isMobile ? '8px 16px' : '12px 20px', fontSize: isMobile ? '13px' : '14px', whiteSpace: 'nowrap' }}
+              >
+                View Profile
+              </button>
+            )}
           </div>
         </div>
 

@@ -226,6 +226,18 @@ export const shouldInitializeAppCheck =
   typeof window !== 'undefined' &&
   appCheckProviderConfigured;
 
+// Pre-create a secondary Firebase app for messaging so it is isolated from the default app.
+// The Functions client SDK (which uses the default app) calls getImmediate('messaging') in
+// getContext() on every callable invocation — if messaging lives on the default app, it
+// triggers a spurious FCM token registration that fails with 401.
+// By using a separate named app, the Functions SDK cannot discover the messaging instance.
+// Created eagerly (before messaging is initialized) so App Check can be started on it in
+// initializeAppCheckRuntime(), ensuring tokens are ready before any FCM call.
+const messagingFirebaseApp =
+  typeof window !== 'undefined' && !useEmulator
+    ? getOrInitializeApp(firebaseConfig, 'karga-messaging')
+    : app;
+
 async function initializeAppCheckRuntime() {
   try {
     const appCheckModule = await import('firebase/app-check');
@@ -254,6 +266,18 @@ async function initializeAppCheckRuntime() {
           provider: new ProviderCtor(candidate.siteKey),
           isTokenAutoRefreshEnabled: true,
         });
+        // Mirror App Check onto the messaging app so FCM token requests
+        // include proper attestation when the project enforces App Check.
+        if (messagingFirebaseApp !== app) {
+          try {
+            appCheckModule.initializeAppCheck(messagingFirebaseApp, {
+              provider: new ProviderCtor(candidate.siteKey),
+              isTokenAutoRefreshEnabled: true,
+            });
+          } catch {
+            // Non-fatal — messaging still works; App Check attestation won't be included
+          }
+        }
         return true;
       } catch (error) {
         const hasFallback = index < appCheckCandidates.length - 1;
@@ -381,7 +405,11 @@ async function initializeMessagingRuntime() {
   if (typeof window === 'undefined' || useEmulator) return null;
   try {
     const { getMessaging } = await import('firebase/messaging');
-    messaging = getMessaging(app);
+    // messagingFirebaseApp is a pre-created secondary app (see above). App Check is
+    // already initialized on it by initializeAppCheckRuntime(), so FCM token requests
+    // will include proper attestation. The Functions SDK uses the default app and cannot
+    // discover this messaging instance, preventing spurious FCM registration calls.
+    messaging = getMessaging(messagingFirebaseApp);
   } catch (error) {
     if (import.meta.env.DEV) {
       console.warn('[firebase] FCM Messaging initialization failed:', error?.message || error);

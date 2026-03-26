@@ -92,6 +92,7 @@ const RouteOptimizerModal = lazy(() => import('@/components/modals/RouteOptimize
 const ContractModal = lazy(() => import('@/components/modals/ContractModal'));
 import ReferListingModal from '@/components/broker/ReferListingModal';
 const FullMapModal = lazy(() => import('@/components/maps/FullMapModal'));
+const PublicProfileModal = lazy(() => import('@/components/profile/PublicProfileModal'));
 import AuthModal from '@/components/auth/AuthModal';
 import { OnboardingGuideModal } from '@/components/modals/OnboardingGuideModal';
 import { BrokerOnboardingGuideModal } from '@/components/broker/BrokerOnboardingGuideModal';
@@ -1000,6 +1001,7 @@ export default function GetGoApp() {
   // Toast notifications via context
   const [ratingTarget, setRatingTarget] = useState(null);
   const [ratingLoading, setRatingLoading] = useState(false);
+  const [viewingUserId, setViewingUserId] = useState(null);
   const [savedSearches, setSavedSearches] = useState([]);
   const [savedRoutes, setSavedRoutes] = useState([]);
 
@@ -2827,7 +2829,10 @@ export default function GetGoApp() {
         onNotificationClick={handleNotificationClick}
         onProfileClick={handleProfileClick}
         onBrokerClick={handleBrokerClick}
-        onEditProfile={handleEditProfile}
+        onMyProfile={() => {
+          if (!authUser) { requireAuth(() => setViewingUserId(authUser?.uid), 'Sign in to view your profile'); return; }
+          setViewingUserId(authUser.uid);
+        }}
         onNotificationSettings={handleNotificationSettings}
         onHelpSupport={handleHelpSupport}
         onAdminDashboard={handlePaymentReviewClick}
@@ -3021,7 +3026,6 @@ export default function GetGoApp() {
             <ProfilePage
               onInstallApp={handleProfileInstallClick}
               showInstallAppButton={!isInstallAlreadySatisfied}
-              onNavigateToActivity={() => handleTabChange('activity')}
             />
           </ErrorBoundary>
         )}
@@ -3430,6 +3434,7 @@ export default function GetGoApp() {
           handleCreateContract(bid, listing);
         }}
         onOpenContract={handleOpenContract}
+        onViewProfile={(uid) => setViewingUserId(uid)}
         userBidId={(() => {
           const cargo = cargoDetailsData;
           if (!cargo || !authUser || interactionRole !== 'trucker') return null;
@@ -3479,6 +3484,7 @@ export default function GetGoApp() {
           handleCreateContract(bid, listing);
         }}
         onOpenContract={handleOpenContract}
+        onViewProfile={(uid) => setViewingUserId(uid)}
         darkMode={darkMode}
       />
       )}
@@ -3715,6 +3721,22 @@ export default function GetGoApp() {
           )} />
           {socketConnected ? 'Socket Connected' : 'Socket Disconnected'}
         </div>
+      )}
+
+      {/* Public Profile Modal */}
+      {viewingUserId && (
+        <Suspense fallback={null}>
+          <PublicProfileModal
+            open={!!viewingUserId}
+            onClose={() => setViewingUserId(null)}
+            userId={viewingUserId}
+            currentUserId={authUser?.uid}
+            onGoToEditProfile={() => {
+              setViewingUserId(null);
+              setActiveTab('profile');
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Auth Modal - shown when unauthenticated user tries protected action */}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Bell, Moon, Sun, HelpCircle, LogOut, ChevronRight, Star, Truck, Package, Users, ClipboardList, Shield } from 'lucide-react';
+import { UserCircle, Bell, Moon, Sun, HelpCircle, LogOut, ChevronRight, Star, Truck, Package, Users, ClipboardList, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -20,7 +20,7 @@ export function ProfileDropdown({
   onToggleDarkMode,
   onMyActivity,
   onBrokerDashboard,
-  onEditProfile,
+  onMyProfile,
   onNotificationSettings,
   onHelpSupport,
   onAdminDashboard,
@@ -162,13 +162,13 @@ export function ProfileDropdown({
             </div>
           </DropdownMenuItem>
 
-          {/* Edit Profile */}
-          <DropdownMenuItem onSelect={onEditProfile} className={menuItemClass}>
+          {/* My Profile */}
+          <DropdownMenuItem onSelect={onMyProfile} className={menuItemClass}>
             <div className="flex w-full min-w-0 items-center gap-3">
-              <div className="size-8 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                <User className="size-4 text-gray-500 dark:text-gray-400" />
+              <div className="size-8 shrink-0 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                <UserCircle className="size-4 text-orange-600 dark:text-orange-400" />
               </div>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-700 dark:text-gray-300">Edit Profile</span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-700 dark:text-gray-300">My Profile</span>
               <ChevronRight className="size-4 shrink-0 text-gray-300 dark:text-gray-600" />
             </div>
           </DropdownMenuItem>

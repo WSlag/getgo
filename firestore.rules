@@ -279,8 +279,9 @@ service cloud.firestore {
 
     // Users collection
     match /users/{uid} {
-      // Only owners/admins can read full user documents (contains sensitive fields)
-      allow read: if isOwner(uid) || isAdmin();
+      // Any authenticated user can read a user profile (required for public profile feature)
+      // Owners and admins retain full access
+      allow read: if isAuth();
 
       // Users can create their own document but cannot set admin privileges
       allow create: if isOwner(uid)
@@ -320,6 +321,11 @@ service cloud.firestore {
           'email',
           'profileImage',
           'facebookUrl',
+          'bio',
+          'city',
+          'businessName',
+          'truckPhotos',
+          'cargoPhotos',
           'onboardingComplete',
           'onboardingDismissedAt',
           'onboardingCompletedAt',
@@ -346,7 +352,8 @@ service cloud.firestore {
 
       // Trucker Profile subcollection
       match /truckerProfile/{docId} {
-        allow read: if isOwner(uid) || isAdmin();
+        // Any authenticated user can read trucker profile (for public profile feature)
+        allow read: if isAuth();
         allow write: if isOwner(uid);
       }
 
