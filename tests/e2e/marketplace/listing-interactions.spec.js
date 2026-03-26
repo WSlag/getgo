@@ -311,6 +311,95 @@ test.describe('Marketplace Listing Interactions', () => {
     }
   });
 
+  test('should show Bid Now and Details on compact cargo cards for trucker mobile view', async ({
+    page,
+    authHelper,
+    testPhoneNumbers,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await authHelper.login(testPhoneNumbers.trucker);
+    const userData = generateTestUser('trucker', 7);
+    await authHelper.register(userData);
+
+    await page.waitForTimeout(1800);
+
+    const bidButtons = page.getByTestId('cargo-compact-bid-now');
+    const detailsButtons = page.getByTestId('cargo-compact-details');
+    const bodyButtons = page.getByTestId('cargo-compact-body');
+
+    const bidCount = await bidButtons.count();
+    test.skip(bidCount === 0, 'No bid-eligible compact cargo cards found in this run.');
+
+    await expect(bidButtons.first()).toBeVisible();
+    await expect(detailsButtons.first()).toBeVisible();
+    await expect(bodyButtons.first()).toBeVisible();
+
+    await bodyButtons.first().click();
+    await expect(page.locator('[role="dialog"]').first()).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
+
+    await bidButtons.first().click();
+    await expect(page.getByText(/Place Your Bid/i)).toBeVisible();
+    await page.keyboard.press('Escape');
+  });
+
+  test('should show Book Now and Details on compact truck cards for shipper mobile view', async ({
+    page,
+    authHelper,
+    testPhoneNumbers,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await authHelper.login(testPhoneNumbers.shipper);
+    const userData = generateTestUser('shipper', 7);
+    await authHelper.register(userData);
+
+    await authHelper.navigateTo('trucks');
+    await page.waitForTimeout(1000);
+
+    const bookButtons = page.getByTestId('truck-compact-book-now');
+    const detailsButtons = page.getByTestId('truck-compact-details');
+    const bodyButtons = page.getByTestId('truck-compact-body');
+
+    const bookCount = await bookButtons.count();
+    test.skip(bookCount === 0, 'No book-eligible compact truck cards found in this run.');
+
+    await expect(bookButtons.first()).toBeVisible();
+    await expect(detailsButtons.first()).toBeVisible();
+    await expect(bodyButtons.first()).toBeVisible();
+
+    await bodyButtons.first().click();
+    await expect(page.locator('[role="dialog"]').first()).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
+
+    await bookButtons.first().click();
+    await expect(page.getByText(/Book This Truck/i)).toBeVisible();
+    await page.keyboard.press('Escape');
+  });
+
+  test('should show Details-only compact cargo actions when primary action is unavailable', async ({
+    page,
+    authHelper,
+    testPhoneNumbers,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await authHelper.login(testPhoneNumbers.shipper);
+    const userData = generateTestUser('shipper', 8);
+    await authHelper.register(userData);
+
+    await page.waitForTimeout(1500);
+
+    const detailsButtons = page.getByTestId('cargo-compact-details');
+    const bidButtons = page.getByTestId('cargo-compact-bid-now');
+
+    const detailsCount = await detailsButtons.count();
+    test.skip(detailsCount === 0, 'No compact cargo cards found for details-only verification.');
+
+    await expect(detailsButtons.first()).toBeVisible();
+    await expect(bidButtons).toHaveCount(0);
+  });
+
   test('should persist server route distance after submitting cargo listing', async ({
     page,
     authHelper,
