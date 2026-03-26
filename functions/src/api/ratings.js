@@ -6,27 +6,6 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
-function mergeRatingDocs(...snapshots) {
-  const merged = new Map();
-  snapshots.forEach((snapshot) => {
-    snapshot.docs.forEach((doc) => {
-      if (!merged.has(doc.id)) {
-        merged.set(doc.id, doc);
-      }
-    });
-  });
-  return Array.from(merged.values());
-}
-
-async function getRatingsForRatee(db, rateeId) {
-  const [canonicalSnap, legacySnap] = await Promise.all([
-    db.collection('ratings').where('rateeId', '==', rateeId).get(),
-    db.collection('ratings').where('ratedUserId', '==', rateeId).get(),
-  ]);
-
-  return mergeRatingDocs(canonicalSnap, legacySnap);
-}
-
 /**
  * Submit Rating
  */
@@ -100,63 +79,6 @@ exports.submitRating = functions.region('asia-southeast1').https.onCall(async (d
     comment: comment || '',
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
-
-  // Update user's average rating immediately (trigger also maintains this).
-  const ratingDocs = await getRatingsForRatee(db, ratedUserId);
-
-  let totalScore = 0;
-  ratingDocs.forEach(doc => {
-    totalScore += doc.data().score;
-  });
-
-  const totalRatings = ratingDocs.length;
-  const avgRating = totalRatings > 0 ? (totalScore / totalRatings) : 0;
-
-  // Update user profile
-  await db.collection('users').doc(ratedUserId).update({
-    averageRating: avgRating,
-    totalRatings,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  // Update trucker/shipper profile if applicable
-  const ratedUser = ratedUserDoc.data();
-  if (ratedUser && ratedUser.role === 'trucker') {
-    const truckerProfileRef = db.collection('users')
-      .doc(ratedUserId)
-      .collection('truckerProfile')
-      .doc('profile');
-    const truckerProfileDoc = await truckerProfileRef.get();
-
-    if (truckerProfileDoc.exists) {
-      const truckerData = truckerProfileDoc.data();
-      const totalTrips = truckerData.totalTrips || 0;
-
-      // Calculate badge
-      let badge = 'STARTER';
-      if (avgRating >= 4.8 && totalTrips >= 100) badge = 'ELITE';
-      else if (avgRating >= 4.5 && totalTrips >= 50) badge = 'PRO';
-      else if (avgRating >= 4.0 && totalTrips >= 20) badge = 'VERIFIED';
-      else if (totalTrips >= 5) badge = 'ACTIVE';
-
-      await truckerProfileRef.update({
-        badge,
-        rating: avgRating,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      // Notify of badge upgrade if changed
-      if (badge !== truckerData.badge) {
-        await db.collection(`users/${ratedUserId}/notifications`).doc().set({
-          type: 'BADGE_UPGRADE',
-          title: 'Badge Upgraded!',
-          message: `Congratulations! You've earned the ${badge} badge!`,
-          isRead: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      }
-    }
-  }
 
   return {
     message: 'Rating submitted successfully',

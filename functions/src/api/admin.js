@@ -2332,7 +2332,7 @@ exports.adminDeleteRating = functions.region('asia-southeast1').https.onCall(asy
     performedBy: context.auth.uid,
     relatedContractId: ratingData.contractId || null,
     raterId: ratingData.raterId || null,
-    ratedUserId: ratingData.ratedUserId || null,
+    ratedUserId: ratingData.ratedUserId || ratingData.rateeId || null,
     performedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
