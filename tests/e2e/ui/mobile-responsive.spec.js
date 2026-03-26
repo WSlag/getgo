@@ -59,6 +59,78 @@ test.describe('Mobile Responsiveness', () => {
     expect(bodyWidth).toBeLessThanOrEqual(viewportWidth + 20); // 20px tolerance
   });
 
+  test('should keep compact action pills visible and aligned at 320 and 375 widths', async ({ page }) => {
+    const widths = [320, 375];
+
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 812 });
+      await page.reload();
+      await page.waitForFunction(
+        () => !document.querySelector('.animate-spin'),
+        { timeout: 15000 }
+      );
+      await page.waitForTimeout(800);
+
+      const geometry = await page.evaluate(() => {
+        const cards = Array.from(
+          document.querySelectorAll('[data-testid="cargo-compact-card"], [data-testid="truck-compact-card"]')
+        );
+
+        if (cards.length === 0) {
+          return { cardCount: 0, overflows: 0, pillIssues: 0, alignIssues: 0 };
+        }
+
+        let overflows = 0;
+        let pillIssues = 0;
+        let alignIssues = 0;
+
+        cards.forEach((card) => {
+          const cardRect = card.getBoundingClientRect();
+          const detailsButton = card.querySelector('[data-testid$="-compact-details"]');
+          const primaryButton = card.querySelector('[data-testid$="-compact-bid-now"], [data-testid$="-compact-book-now"]');
+
+          if (cardRect.left < -1 || cardRect.right > window.innerWidth + 1) {
+            overflows += 1;
+          }
+
+          if (!detailsButton) {
+            pillIssues += 1;
+          } else {
+            const detailsRect = detailsButton.getBoundingClientRect();
+            if (
+              detailsRect.left < cardRect.left - 1
+              || detailsRect.right > cardRect.right + 1
+              || detailsRect.bottom > cardRect.bottom + 1
+            ) {
+              pillIssues += 1;
+            }
+          }
+
+          if (primaryButton && detailsButton) {
+            const primaryRect = primaryButton.getBoundingClientRect();
+            const detailsRect = detailsButton.getBoundingClientRect();
+            if (
+              Math.abs(primaryRect.top - detailsRect.top) > 1
+              || Math.abs(primaryRect.height - detailsRect.height) > 2
+            ) {
+              alignIssues += 1;
+            }
+          }
+        });
+
+        return { cardCount: cards.length, overflows, pillIssues, alignIssues };
+      });
+
+      expect(geometry.cardCount).toBeGreaterThan(0);
+      expect(geometry.overflows).toBe(0);
+      expect(geometry.pillIssues).toBe(0);
+      expect(geometry.alignIssues).toBe(0);
+
+      const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
+      expect(bodyWidth).toBeLessThanOrEqual(width + 20);
+    }
+  });
+
   test('should enforce locked viewport settings for app shell on mobile', async ({ page }) => {
     const viewportContent = await page.locator('meta[name="viewport"]').getAttribute('content');
     expect(viewportContent).toBeTruthy();

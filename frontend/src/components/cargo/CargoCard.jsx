@@ -92,63 +92,106 @@ export function CargoCard({
 
   // Compact card variant for mobile - ~100px height
   if (compact) {
+    const canShowBidAction = Boolean(canBid && !isOwner && onBid);
+
     return (
-      <button
-        type="button"
+      <article
         className={cn(
-          "group relative bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] border border-gray-200/50 dark:border-gray-800/50 cursor-pointer",
+          "group relative bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 border border-gray-200/50 dark:border-gray-800/50",
           className
         )}
-        onClick={onViewDetails}
-        aria-label={`View cargo from ${displayOrigin} to ${displayDestination}`}
+        data-testid="cargo-compact-card"
       >
         {/* Gradient Accent Bar */}
         <div className={cn("h-1", currentGradient)} />
 
-        <div style={{ padding: '16px 20px' }}>
-          {/* Row 1: Status Badge + Price */}
-          <div className="flex items-center justify-between mb-2">
-            <Badge
-              className={cn("uppercase tracking-wide text-[10px] font-semibold px-2 py-0.5", compactStatusStyles[status] || compactStatusStyles.open)}
-            >
-              {status === 'negotiating' ? 'NEGOTIATING' : status.toUpperCase()}
-            </Badge>
-            <div className={cn("shrink-0 rounded-lg", currentGradient)} style={{ padding: '4px 14px' }}>
-              <span className="text-sm font-bold text-white">{formatPrice(displayPrice)}</span>
+        <button
+          type="button"
+          className="w-full text-left active:scale-[0.995] transition-transform duration-150"
+          onClick={onViewDetails}
+          aria-label={`View cargo from ${displayOrigin} to ${displayDestination}`}
+          data-testid="cargo-compact-body"
+        >
+          <div style={{ padding: '16px 20px' }}>
+            {/* Row 1: Status Badge + Price */}
+            <div className="flex min-w-0 items-center justify-between mb-2">
+              <Badge
+                className={cn("uppercase tracking-wide text-[10px] font-semibold px-2 py-0.5", compactStatusStyles[status] || compactStatusStyles.open)}
+              >
+                {status === 'negotiating' ? 'NEGOTIATING' : status.toUpperCase()}
+              </Badge>
+              <div className={cn("ml-2 shrink-0 rounded-lg", currentGradient)} style={{ padding: '4px 14px' }}>
+                <span className="text-sm font-bold text-white">{formatPrice(displayPrice)}</span>
+              </div>
+            </div>
+
+            {/* Row 2: Company + Weight */}
+            <div className="flex min-w-0 items-center gap-2 mb-2">
+              <span className="font-semibold text-gray-900 dark:text-white text-sm truncate">{displayCompany}</span>
+              {displayWeight && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400 shrink-0">{displayWeight}</span>
+                </>
+              )}
+            </div>
+
+            {/* Row 3: Route */}
+            <div className="flex min-w-0 items-center gap-1.5">
+              <div className="size-2 rounded-full bg-green-500 shrink-0" />
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayOrigin}</span>
+              <span className="text-orange-500 shrink-0">→</span>
+              <div className="size-2 rounded-full bg-red-500 shrink-0" />
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayDestination}</span>
+            </div>
+
+            {/* Row 4: Metrics */}
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {displayTimeAgo && <span className="shrink-0">{displayTimeAgo}</span>}
+              {distance && <span className="shrink-0">{distance}</span>}
+              {displayTime && <span className="shrink-0">• {displayTime}</span>}
+              {bidCount > 0 && (
+                <span className="text-orange-600 dark:text-orange-400 font-semibold shrink-0">• {bidCount} {bidCount === 1 ? 'bid' : 'bids'}</span>
+              )}
             </div>
           </div>
+        </button>
 
-          {/* Row 2: Company + Weight */}
-          <div className="flex items-center gap-2 mb-2">
-            <span className="font-semibold text-gray-900 dark:text-white text-sm truncate">{displayCompany}</span>
-            {displayWeight && (
-              <>
-                <span className="text-gray-400">•</span>
-                <span className="text-sm text-gray-600 dark:text-gray-400">{displayWeight}</span>
-              </>
-            )}
-          </div>
-
-          {/* Row 3: Route */}
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="size-2 rounded-full bg-green-500 flex-shrink-0" />
-            <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayOrigin}</span>
-            <span className="text-orange-500 flex-shrink-0">→</span>
-            <div className="size-2 rounded-full bg-red-500 flex-shrink-0" />
-            <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayDestination}</span>
-          </div>
-
-          {/* Row 4: Metrics */}
-          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {displayTimeAgo && <span>{displayTimeAgo}</span>}
-            {distance && <span>{distance}</span>}
-            {displayTime && <span>• {displayTime}</span>}
-            {bidCount > 0 && (
-              <span className="text-orange-600 dark:text-orange-400 font-semibold">• {bidCount} {bidCount === 1 ? 'bid' : 'bids'}</span>
-            )}
-          </div>
+        <div className="flex items-center gap-2 px-5 pb-4 -mt-2">
+          {canShowBidAction ? (
+            <>
+              <button
+                type="button"
+                onClick={onBid}
+                className="flex-1 rounded-lg bg-gradient-to-r from-green-400 to-green-600 text-white shadow-lg shadow-green-500/25 text-sm font-bold transition-all duration-200 active:scale-95"
+                style={{ padding: '4px 14px' }}
+                data-testid="cargo-compact-bid-now"
+              >
+                Bid Now
+              </button>
+              <button
+                type="button"
+                onClick={onViewDetails}
+                className="rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-100 text-sm font-bold transition-all duration-200 active:scale-95"
+                style={{ padding: '4px 14px' }}
+                data-testid="cargo-compact-details"
+              >
+                Details
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onViewDetails}
+              className="rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-100 text-sm font-bold transition-all duration-200 active:scale-95"
+              style={{ padding: '4px 14px' }}
+              data-testid="cargo-compact-details"
+            >
+              Details
+            </button>
+          )}
         </div>
-      </button>
+      </article>
     );
   }
 
@@ -416,4 +459,3 @@ export function CargoCard({
 }
 
 export default CargoCard;
-

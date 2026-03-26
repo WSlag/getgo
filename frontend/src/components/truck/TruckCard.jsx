@@ -92,76 +92,119 @@ export function TruckCard({
 
   // Compact card variant for mobile - ~100px height
   if (compact) {
+    const canShowBookAction = Boolean(canBook && !isOwner && onBook);
+
     return (
-      <button
-        type="button"
+      <article
         className={cn(
-          "group relative bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] border border-gray-200/50 dark:border-gray-800/50 cursor-pointer",
+          "group relative bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 border border-gray-200/50 dark:border-gray-800/50",
           className
         )}
-        onClick={onViewDetails}
-        aria-label={`View truck route from ${displayOrigin} to ${displayDestination}`}
+        data-testid="truck-compact-card"
       >
         {/* Gradient Accent Bar */}
         <div className={cn("h-1", currentGradient)} />
 
-        <div style={{ padding: '16px 20px' }}>
-          {/* Row 1: Status Badge + Vehicle Type + Rate */}
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                  <Badge
-                    className={cn("shrink-0 uppercase tracking-wide text-[10px] font-semibold px-2 py-0.5", compactStatusStyles[displayStatus] || compactStatusStyles.available)}
-                  >
-                    {statusLabels[displayStatus] || 'AVAILABLE'}
-                  </Badge>
-              {vehicleType && (
-                <Badge className="!whitespace-normal bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase text-[10px] px-2 py-0.5">
-                  {vehicleType}
+        <button
+          type="button"
+          className="w-full text-left active:scale-[0.995] transition-transform duration-150"
+          onClick={onViewDetails}
+          aria-label={`View truck route from ${displayOrigin} to ${displayDestination}`}
+          data-testid="truck-compact-body"
+        >
+          <div style={{ padding: '16px 20px' }}>
+            {/* Row 1: Status Badge + Vehicle Type + Rate */}
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                <Badge
+                  className={cn("shrink-0 uppercase tracking-wide text-[10px] font-semibold px-2 py-0.5", compactStatusStyles[displayStatus] || compactStatusStyles.available)}
+                >
+                  {statusLabels[displayStatus] || 'AVAILABLE'}
                 </Badge>
+                {vehicleType && (
+                  <Badge className="!whitespace-normal bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase text-[10px] px-2 py-0.5">
+                    {vehicleType}
+                  </Badge>
+                )}
+              </div>
+              <div className={cn("shrink-0 ml-2 rounded-lg", currentGradient)} style={{ padding: '4px 14px' }}>
+                <span className="text-sm font-bold text-white">{formatPrice(askingRate)}</span>
+              </div>
+            </div>
+
+            {/* Row 2: Trucker + Capacity + Rating */}
+            <div className="flex min-w-0 items-center gap-2 mb-2">
+              <span className="font-semibold text-gray-900 dark:text-white text-sm truncate">{displayTrucker}</span>
+              {displayCapacity && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400 shrink-0">{displayCapacity}</span>
+                </>
+              )}
+              {truckerRating > 0 && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <span className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-0.5 shrink-0">
+                    <Star className="size-3 fill-yellow-500 text-yellow-500" />
+                    {truckerRating.toFixed(1)}
+                  </span>
+                </>
               )}
             </div>
-            <div className={cn("shrink-0 ml-2 rounded-lg", currentGradient)} style={{ padding: '4px 14px' }}>
-              <span className="text-sm font-bold text-white">{formatPrice(askingRate)}</span>
+
+            {/* Row 3: Route */}
+            <div className="flex min-w-0 items-center gap-1.5">
+              <div className="size-2 rounded-full bg-green-500 shrink-0" />
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayOrigin}</span>
+              <span className="text-orange-500 shrink-0">→</span>
+              <div className="size-2 rounded-full bg-red-500 shrink-0" />
+              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayDestination}</span>
+            </div>
+
+            {/* Row 4: Metrics */}
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {displayTimeAgo && <span className="shrink-0">{displayTimeAgo}</span>}
+              {distance && <span className="shrink-0">{distance}</span>}
+              {estimatedTime && <span className="shrink-0">• {estimatedTime}</span>}
             </div>
           </div>
+        </button>
 
-          {/* Row 2: Trucker + Capacity + Rating */}
-          <div className="flex items-center gap-2 mb-2">
-            <span className="font-semibold text-gray-900 dark:text-white text-sm truncate">{displayTrucker}</span>
-            {displayCapacity && (
-              <>
-                <span className="text-gray-400">•</span>
-                <span className="text-sm text-gray-600 dark:text-gray-400">{displayCapacity}</span>
-              </>
-            )}
-            {truckerRating > 0 && (
-              <>
-                <span className="text-gray-400">•</span>
-                <span className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-0.5">
-                  <Star className="size-3 fill-yellow-500 text-yellow-500" />
-                  {truckerRating.toFixed(1)}
-                </span>
-              </>
-            )}
-          </div>
-
-          {/* Row 3: Route */}
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="size-2 rounded-full bg-green-500 flex-shrink-0" />
-            <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayOrigin}</span>
-            <span className="text-orange-500 flex-shrink-0">→</span>
-            <div className="size-2 rounded-full bg-red-500 flex-shrink-0" />
-            <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{displayDestination}</span>
-          </div>
-
-          {/* Row 4: Metrics */}
-          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {displayTimeAgo && <span>{displayTimeAgo}</span>}
-            {distance && <span>{distance}</span>}
-            {estimatedTime && <span>• {estimatedTime}</span>}
-          </div>
+        <div className="flex items-center gap-2 px-5 pb-4 -mt-2">
+          {canShowBookAction ? (
+            <>
+              <button
+                type="button"
+                onClick={onBook}
+                className="flex-1 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 text-white shadow-lg shadow-blue-500/25 text-sm font-bold transition-all duration-200 active:scale-95"
+                style={{ padding: '4px 14px' }}
+                data-testid="truck-compact-book-now"
+              >
+                Book Now
+              </button>
+              <button
+                type="button"
+                onClick={onViewDetails}
+                className="rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-100 text-sm font-bold transition-all duration-200 active:scale-95"
+                style={{ padding: '4px 14px' }}
+                data-testid="truck-compact-details"
+              >
+                Details
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onViewDetails}
+              className="rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-100 text-sm font-bold transition-all duration-200 active:scale-95"
+              style={{ padding: '4px 14px' }}
+              data-testid="truck-compact-details"
+            >
+              Details
+            </button>
+          )}
         </div>
-      </button>
+      </article>
     );
   }
 
