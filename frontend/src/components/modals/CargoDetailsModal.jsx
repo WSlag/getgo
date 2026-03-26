@@ -50,6 +50,8 @@ export function CargoDetailsModal({
   const [bidContracts, setBidContracts] = React.useState({});
   const [confirmAction, setConfirmAction] = React.useState(null); // { type: 'accept'|'reject', bid }
   const [showRouteMap, setShowRouteMap] = React.useState(false);
+  const [isPhotoViewerOpen, setIsPhotoViewerOpen] = React.useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = React.useState(0);
   const isMobile = useMediaQuery('(max-width: 1023px)');
 
   const handleAcceptBid = async (bid) => {
@@ -165,8 +167,25 @@ export function CargoDetailsModal({
   React.useEffect(() => {
     if (!open) {
       setShowRouteMap(false);
+      setIsPhotoViewerOpen(false);
+      setSelectedPhotoIndex(0);
     }
   }, [open, cargo?.id]);
+
+  React.useEffect(() => {
+    if (!isPhotoViewerOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsPhotoViewerOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isPhotoViewerOpen]);
 
   if (!cargo) return null;
 
@@ -211,6 +230,7 @@ export function CargoDetailsModal({
   const currentGradient = cargo.gradientClass || gradientColors[cargo.status] || gradientColors.open;
   const displayPrice = cargo.price || cargo.askingPrice;
   const displayImages = cargo.images?.length > 0 ? cargo.images : cargo.cargoPhotos || [];
+  const selectedPhoto = displayImages[selectedPhotoIndex] || displayImages[0] || null;
   const displayWeight = cargo.weight ? (cargo.unit && cargo.unit !== 'kg' ? `${cargo.weight} ${cargo.unit}` : `${cargo.weight} tons`) : '';
   const canShowContractButton = currentRole === 'trucker'
     && Boolean(contractId && onOpenContract)
@@ -233,7 +253,14 @@ export function CargoDetailsModal({
   return (
     <>
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm">
+      <DialogBottomSheet
+        className="max-w-2xl backdrop-blur-sm"
+        onEscapeKeyDown={(event) => {
+          if (isPhotoViewerOpen) {
+            event.preventDefault();
+          }
+        }}
+      >
         <div style={{ padding: isMobile ? '16px' : '24px' }}>
         <DialogHeader>
           <div className="flex items-center justify-between">
@@ -453,9 +480,16 @@ export function CargoDetailsModal({
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Photos</h4>
             <div className="flex gap-3 flex-wrap">
               {displayImages.map((image, idx) => (
-                <div
+                <button
+                  type="button"
                   key={idx}
-                  className="relative size-24 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700"
+                  data-testid="cargo-details-photo-thumb"
+                  className="relative size-24 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 p-0 bg-transparent cursor-pointer"
+                  onClick={() => {
+                    setSelectedPhotoIndex(idx);
+                    setIsPhotoViewerOpen(true);
+                  }}
+                  aria-label={`View cargo photo ${idx + 1}`}
                 >
                   <img
                     src={image}
@@ -465,7 +499,7 @@ export function CargoDetailsModal({
                       e.target.style.display = 'none';
                     }}
                   />
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -733,6 +767,33 @@ export function CargoDetailsModal({
         </div>
       </DialogBottomSheet>
     </Dialog>
+
+    {isPhotoViewerOpen && selectedPhoto && (
+      <div
+        className="fixed inset-0 z-[120] bg-black/90 flex items-center justify-center p-4 pointer-events-auto"
+        data-testid="cargo-details-photo-viewer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Cargo photo viewer"
+        onClick={() => setIsPhotoViewerOpen(false)}
+      >
+        <div className="relative flex items-center justify-center pointer-events-auto" onClick={(event) => event.stopPropagation()}>
+          <img
+            src={selectedPhoto}
+            alt={`Cargo photo ${selectedPhotoIndex + 1}`}
+            className="max-w-[96vw] max-h-[90vh] rounded-xl object-contain shadow-2xl"
+          />
+          <button
+            type="button"
+            onClick={() => setIsPhotoViewerOpen(false)}
+            className="absolute top-3 right-3 size-10 rounded-full bg-black/65 hover:bg-black/80 flex items-center justify-center pointer-events-auto"
+            aria-label="Close photo viewer"
+          >
+            <X className="size-5 text-white" />
+          </button>
+        </div>
+      </div>
+    )}
 
     <ConfirmDialog
       open={!!confirmAction}

@@ -46,6 +46,8 @@ export function TruckDetailsModal({
   const [bidContracts, setBidContracts] = React.useState({});
   const [confirmAction, setConfirmAction] = React.useState(null);
   const [showRouteMap, setShowRouteMap] = React.useState(false);
+  const [isPhotoViewerOpen, setIsPhotoViewerOpen] = React.useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = React.useState(0);
 
   const handleAcceptBid = async (bid) => {
     if (!onAcceptBid) return;
@@ -129,8 +131,25 @@ export function TruckDetailsModal({
   React.useEffect(() => {
     if (!open) {
       setShowRouteMap(false);
+      setIsPhotoViewerOpen(false);
+      setSelectedPhotoIndex(0);
     }
   }, [open, truck?.id]);
+
+  React.useEffect(() => {
+    if (!isPhotoViewerOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsPhotoViewerOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isPhotoViewerOpen]);
 
   if (!truck) return null;
   const displayStatus = truck.uiStatus || toTruckUiStatus(truck.status);
@@ -197,6 +216,7 @@ export function TruckDetailsModal({
 
   const currentGradient = gradientColors[displayStatus] || gradientColors.available;
   const truckPhotos = truck.truckPhotos || [];
+  const selectedPhoto = truckPhotos[selectedPhotoIndex] || truckPhotos[0] || null;
 
   // Map fetched bids to booking display format (keep full bid data for chat)
   const bookings = activeFetchedBids.map((bid) => ({
@@ -216,7 +236,14 @@ export function TruckDetailsModal({
   return (
     <>
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogBottomSheet className="max-w-2xl backdrop-blur-sm">
+      <DialogBottomSheet
+        className="max-w-2xl backdrop-blur-sm"
+        onEscapeKeyDown={(event) => {
+          if (isPhotoViewerOpen) {
+            event.preventDefault();
+          }
+        }}
+      >
         <div style={{ padding: isMobile ? '16px' : '24px' }}>
         <DialogHeader>
           <div className="flex items-center justify-between">
@@ -484,10 +511,17 @@ export function TruckDetailsModal({
             <h4 style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '600', color: darkMode ? '#d1d5db' : '#374151', marginBottom: isMobile ? '8px' : '12px' }}>Photos</h4>
             <div className="flex flex-wrap" style={{ gap: isMobile ? '8px' : '12px' }}>
               {truckPhotos.map((photo, idx) => (
-                <div
+                <button
+                  type="button"
                   key={idx}
-                  className="relative rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700"
+                  data-testid="truck-details-photo-thumb"
+                  className="relative rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 p-0 bg-transparent cursor-pointer"
                   style={{ width: isMobile ? '80px' : '96px', height: isMobile ? '80px' : '96px' }}
+                  onClick={() => {
+                    setSelectedPhotoIndex(idx);
+                    setIsPhotoViewerOpen(true);
+                  }}
+                  aria-label={`View truck photo ${idx + 1}`}
                 >
                   <img
                     src={photo}
@@ -497,7 +531,7 @@ export function TruckDetailsModal({
                       e.target.style.display = 'none';
                     }}
                   />
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -754,6 +788,33 @@ export function TruckDetailsModal({
         </div>
       </DialogBottomSheet>
     </Dialog>
+
+    {isPhotoViewerOpen && selectedPhoto && (
+      <div
+        className="fixed inset-0 z-[120] bg-black/90 flex items-center justify-center p-4 pointer-events-auto"
+        data-testid="truck-details-photo-viewer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Truck photo viewer"
+        onClick={() => setIsPhotoViewerOpen(false)}
+      >
+        <div className="relative flex items-center justify-center pointer-events-auto" onClick={(event) => event.stopPropagation()}>
+          <img
+            src={selectedPhoto}
+            alt={`Truck photo ${selectedPhotoIndex + 1}`}
+            className="max-w-[96vw] max-h-[90vh] rounded-xl object-contain shadow-2xl"
+          />
+          <button
+            type="button"
+            onClick={() => setIsPhotoViewerOpen(false)}
+            className="absolute top-3 right-3 size-10 rounded-full bg-black/65 hover:bg-black/80 flex items-center justify-center pointer-events-auto"
+            aria-label="Close photo viewer"
+          >
+            <X className="size-5 text-white" />
+          </button>
+        </div>
+      </div>
+    )}
 
     <ConfirmDialog
       open={!!confirmAction}
