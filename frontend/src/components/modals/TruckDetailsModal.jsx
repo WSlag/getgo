@@ -17,6 +17,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { canBookTruckStatus, toTruckUiStatus } from '@/utils/listingStatus';
 import { canOpenBidChat, isActiveBidStatus, normalizeBidStatus } from '@/utils/bidStatus';
 import api from '@/services/api';
+import { formatListingPostedAge, formatListingScheduleDate } from '@/utils/listingDateFormatting';
 
 const LazyRouteMap = React.lazy(() => import('@/components/maps/RouteMap'));
 
@@ -156,20 +157,6 @@ export function TruckDetailsModal({
     return `PHP ${Number(price).toLocaleString()}`;
   };
 
-  const formatTimeAgo = (timestamp) => {
-    if (!timestamp) return '';
-    const now = Date.now();
-    const diff = now - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (days > 0) return `${days} days ago`;
-    if (hours > 0) return `${hours} hours ago`;
-    if (minutes > 0) return `${minutes} minutes ago`;
-    return 'Just now';
-  };
-
   // Status badge styles
   const statusStyles = {
     available: 'bg-gradient-to-br from-green-400 to-green-600 text-white shadow-lg',
@@ -210,6 +197,8 @@ export function TruckDetailsModal({
   const currentGradient = gradientColors[displayStatus] || gradientColors.available;
   const truckPhotos = truck.truckPhotos || [];
   const selectedPhoto = truckPhotos[selectedPhotoIndex] || truckPhotos[0] || null;
+  const postedAtDisplay = truck.postedAtDisplay || formatListingPostedAge(truck.postedAt, truck.timeAgo);
+  const availableDateDisplay = truck.availableDateDisplay || formatListingScheduleDate(truck.availableDate);
 
   // Map fetched bids to booking display format (keep full bid data for chat)
   const bookings = activeFetchedBids.map((bid) => ({
@@ -256,7 +245,7 @@ export function TruckDetailsModal({
               <div>
                 <DialogTitle style={{ fontSize: isMobile ? '16px' : '20px' }}>Truck Details</DialogTitle>
                 <DialogDescription style={{ fontSize: isMobile ? '11px' : '14px', color: '#6b7280' }}>
-                  Posted {formatTimeAgo(truck.postedAt)}
+                  Posted {postedAtDisplay}
                 </DialogDescription>
               </div>
             </div>
@@ -478,12 +467,12 @@ export function TruckDetailsModal({
                 </div>
               </div>
             )}
-            {truck.availableDate && (
+            {availableDateDisplay && (
               <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
                 <Calendar style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#10b981', flexShrink: 0 }} />
                 <div>
                   <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#6b7280' }}>Available Date</p>
-                  <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{truck.availableDate}</p>
+                  <p style={{ fontSize: isMobile ? '13px' : '14px', fontWeight: '500', color: darkMode ? '#fff' : '#111827' }}>{availableDateDisplay}</p>
                 </div>
               </div>
             )}

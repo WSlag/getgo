@@ -5,6 +5,7 @@ import { normalizeListingStatus } from '../utils/listingStatus';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 import { sanitizeMessage, sanitizePublicName } from '../utils/messageUtils';
+import { formatListingPostedAge, formatListingScheduleDate } from '../utils/listingDateFormatting';
 
 export function useCargoListings(options = {}) {
   const {
@@ -81,6 +82,9 @@ export function useCargoListings(options = {}) {
 
           // Estimate time based on distance (assuming 50km/h average for trucks)
           const estimatedTime = distance ? `${Math.ceil(distance / 50)} hrs` : null;
+          const postedAtSource = createdAt.hasTimestamp ? createdAt.date : docData.postedAt;
+          const postedAtDisplay = formatListingPostedAge(postedAtSource, docData.timeAgo);
+          const pickupDateDisplay = formatListingScheduleDate(docData.pickupDate);
 
           return {
             id: doc.id,
@@ -95,6 +99,8 @@ export function useCargoListings(options = {}) {
             destination: sanitizeMessage(docData.destination || ''),
             description: sanitizeMessage(docData.description || ''),
             postedAt: createdAt.timestamp,
+            postedAtDisplay,
+            timeAgo: postedAtDisplay,
             cargoPhotos: docData.photos || [],
             images: docData.photos || [],
             unit: docData.weightUnit || 'tons',
@@ -105,6 +111,8 @@ export function useCargoListings(options = {}) {
             createdAt: createdAt.date,
             updatedAt: updatedAt.date,
             pickupDate: docData.pickupDate,
+            pickupDateRaw: docData.pickupDate,
+            pickupDateDisplay,
             originCoords: { lat: docData.originLat, lng: docData.originLng },
             destCoords: { lat: docData.destLat, lng: docData.destLng },
           };

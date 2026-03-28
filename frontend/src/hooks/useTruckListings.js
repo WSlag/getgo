@@ -5,6 +5,7 @@ import { normalizeListingStatus, toTruckUiStatus } from '../utils/listingStatus'
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
 import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
 import { sanitizeMessage, sanitizePublicName } from '../utils/messageUtils';
+import { formatListingPostedAge, formatListingScheduleDate } from '../utils/listingDateFormatting';
 
 export function useTruckListings(options = {}) {
   const {
@@ -82,6 +83,9 @@ export function useTruckListings(options = {}) {
 
           // Estimate time based on distance (assuming 50km/h average for trucks)
           const estimatedTime = distance ? `${Math.ceil(distance / 50)} hrs` : null;
+          const postedAtSource = createdAt.hasTimestamp ? createdAt.date : docData.postedAt;
+          const postedAtDisplay = formatListingPostedAge(postedAtSource, docData.timeAgo);
+          const availableDateDisplay = formatListingScheduleDate(docData.availableDate);
 
           return {
             id: doc.id,
@@ -97,6 +101,8 @@ export function useTruckListings(options = {}) {
             destination: sanitizeMessage(docData.destination || ''),
             description: sanitizeMessage(docData.description || ''),
             postedAt: createdAt.timestamp,
+            postedAtDisplay,
+            timeAgo: postedAtDisplay,
             truckPhotos: docData.photos || [],
             capacity: docData.capacity ? `${docData.capacity} ${docData.capacityUnit || 'tons'}` : null,
             askingRate: docData.askingPrice,
@@ -106,15 +112,9 @@ export function useTruckListings(options = {}) {
             // Keep original fields
             createdAt: createdAt.date,
             updatedAt: updatedAt.date,
-            availableDate: (() => {
-              const raw = docData.availableDate;
-              if (!raw) return null;
-              if (typeof raw === 'string') return raw;
-              const parsed = parseTimestampSafely(raw);
-              return parsed.hasTimestamp
-                ? parsed.date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
-                : null;
-            })(),
+            availableDate: availableDateDisplay || null,
+            availableDateRaw: docData.availableDate,
+            availableDateDisplay,
             originCoords: { lat: docData.originLat, lng: docData.originLng },
             destCoords: { lat: docData.destLat, lng: docData.destLng },
           };
