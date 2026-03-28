@@ -2,7 +2,7 @@ import React from 'react';
 import { MapPin, Clock, Navigation, Star, Calendar, Users, Truck as TruckIcon, Eye, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { formatTimeAgo } from '@/utils/dateFormatting';
+import { formatListingPostedAge, formatListingScheduleDate } from '@/utils/listingDateFormatting';
 import { sanitizeMessage, sanitizePublicName } from '@/utils/messageUtils';
 
 export function TruckCard({
@@ -19,10 +19,12 @@ export function TruckCard({
   capacity,
   askingRate,
   availableDate,
+  availableDateDisplay,
   description,
   status = 'available',
   uiStatus,
   postedAt,
+  postedAtDisplay,
   truckPhotos = [],
   bidCount = 0,
   onViewDetails,
@@ -76,7 +78,8 @@ export function TruckCard({
     return `₱${Number(price).toLocaleString()}`;
   };
 
-  const displayTimeAgo = timeAgo || formatTimeAgo(postedAt);
+  const displayTimeAgo = postedAtDisplay || timeAgo || formatListingPostedAge(postedAt, timeAgo);
+  const displayAvailableDate = availableDateDisplay || formatListingScheduleDate(availableDate);
 
   // Format capacity display
   const displayCapacity = capacity ? `${capacity}` : '';
@@ -323,10 +326,10 @@ export function TruckCard({
               <span>{estimatedTime}</span>
             </div>
           )}
-          {availableDate && (
+          {displayAvailableDate && (
             <div className="flex items-center gap-1.5">
               <Calendar className="size-4 text-green-500" />
-              <span>Available: {availableDate}</span>
+              <span>Available: {displayAvailableDate}</span>
             </div>
           )}
         </div>

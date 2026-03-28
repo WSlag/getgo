@@ -2,7 +2,7 @@ import React from 'react';
 import { MapPin, Clock, Navigation, Gavel, Package, Eye, Share2, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { formatTimeAgo } from '@/utils/dateFormatting';
+import { formatListingPostedAge, formatListingScheduleDate } from '@/utils/listingDateFormatting';
 import { sanitizeMessage, sanitizePublicName } from '@/utils/messageUtils';
 
 export function CargoCard({
@@ -22,8 +22,10 @@ export function CargoCard({
   price,
   description,
   pickupDate,
+  pickupDateDisplay,
   status = 'open',
   postedAt,
+  postedAtDisplay,
   timeAgo,
   cargoPhotos = [],
   images = [],
@@ -72,10 +74,11 @@ export function CargoCard({
   // Support both naming conventions
   const displayCompany = sanitizePublicName(company || shipper, 'Unknown');
   const displayPrice = price || askingPrice;
-  const displayTimeAgo = timeAgo || formatTimeAgo(postedAt);
+  const displayTimeAgo = postedAtDisplay || timeAgo || formatListingPostedAge(postedAt, timeAgo);
   const displayTime = time || estimatedTime;
   const displayImages = images.length > 0 ? images : cargoPhotos;
   const displayWeight = weight ? (unit && unit !== 'kg' ? `${weight} ${unit}` : `${weight} tons`) : '';
+  const displayPickupDate = pickupDateDisplay || formatListingScheduleDate(pickupDate);
   const displayOrigin = sanitizeMessage(origin || '');
   const displayDestination = sanitizeMessage(destination || '');
   const displayDescription = sanitizeMessage(description || '');
@@ -291,10 +294,10 @@ export function CargoCard({
               <span>{displayTime}</span>
             </div>
           )}
-          {pickupDate && (
+          {displayPickupDate && (
             <div className="flex items-center gap-1.5">
               <Calendar className="size-4 text-green-500" />
-              <span>Pickup: {pickupDate}</span>
+              <span>Pickup: {displayPickupDate}</span>
             </div>
           )}
         </div>

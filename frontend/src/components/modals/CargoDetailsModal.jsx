@@ -18,6 +18,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import api from '@/services/api';
 import { canBidCargoStatus } from '@/utils/listingStatus';
 import { canOpenBidChat, isActiveBidStatus, normalizeBidStatus } from '@/utils/bidStatus';
+import { formatListingPostedAge, formatListingScheduleDate } from '@/utils/listingDateFormatting';
 
 const LazyRouteMap = React.lazy(() => import('@/components/maps/RouteMap'));
 
@@ -185,21 +186,6 @@ export function CargoDetailsModal({
     return `PHP ${Number(price).toLocaleString()}`;
   };
 
-  const formatTimeAgo = (timestamp) => {
-    if (!timestamp) return '';
-    if (typeof timestamp === 'string') return timestamp;
-    const now = Date.now();
-    const diff = now - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (days > 0) return `${days} days ago`;
-    if (hours > 0) return `${hours} hours ago`;
-    if (minutes > 0) return `${minutes} minutes ago`;
-    return 'Just now';
-  };
-
   // Status badge styles
   const statusStyles = {
     open: 'bg-gradient-to-br from-green-400 to-green-600 text-white shadow-lg',
@@ -222,6 +208,8 @@ export function CargoDetailsModal({
   const displayImages = cargo.images?.length > 0 ? cargo.images : cargo.cargoPhotos || [];
   const selectedPhoto = displayImages[selectedPhotoIndex] || displayImages[0] || null;
   const displayWeight = cargo.weight ? (cargo.unit && cargo.unit !== 'kg' ? `${cargo.weight} ${cargo.unit}` : `${cargo.weight} tons`) : '';
+  const postedAtDisplay = cargo.postedAtDisplay || formatListingPostedAge(cargo.postedAt, cargo.timeAgo);
+  const pickupDateDisplay = cargo.pickupDateDisplay || formatListingScheduleDate(cargo.pickupDate);
   const canReopen = isOwner
     && cargo.status === 'negotiating'
     && !bidsLoading
@@ -274,7 +262,7 @@ export function CargoDetailsModal({
               <div>
                 <DialogTitle style={{ fontSize: isMobile ? '16px' : '20px' }}>Cargo Details</DialogTitle>
                 <DialogDescription style={{ fontSize: isMobile ? '11px' : '14px', color: '#6b7280' }}>
-                  Posted {formatTimeAgo(cargo.postedAt)}
+                  Posted {postedAtDisplay}
                 </DialogDescription>
               </div>
             </div>
@@ -448,12 +436,12 @@ export function CargoDetailsModal({
                 </div>
               </div>
             )}
-            {cargo.pickupDate && (
+            {pickupDateDisplay && (
               <div className="flex items-center" style={{ gap: isMobile ? '6px' : '8px' }}>
                 <Calendar style={{ width: isMobile ? '18px' : '20px', height: isMobile ? '18px' : '20px', color: '#10b981' }} />
                 <div>
                   <p style={{ fontSize: '11px', color: '#6b7280' }}>Pickup Date</p>
-                  <p style={{ fontWeight: '500', fontSize: isMobile ? '13px' : '14px', color: darkMode ? '#fff' : '#111827' }}>{cargo.pickupDate}</p>
+                  <p style={{ fontWeight: '500', fontSize: isMobile ? '13px' : '14px', color: darkMode ? '#fff' : '#111827' }}>{pickupDateDisplay}</p>
                 </div>
               </div>
             )}
