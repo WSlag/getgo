@@ -35,6 +35,7 @@ import { useTruckListings } from './hooks/useTruckListings';
 import { useNotifications } from './hooks/useNotifications';
 import { useBidsOnMyListings, useMyBids } from './hooks/useBids';
 import { useConversations } from './hooks/useConversations';
+import { usePendingRatings } from './hooks/useRatings';
 // Wallet removed - using direct GCash payment
 import { useShipments } from './hooks/useShipments';
 import { useTheme } from './hooks/useTheme';
@@ -116,6 +117,11 @@ import {
 } from '@/utils/workspace';
 import { isChatNotificationType, sanitizeMessage } from '@/utils/messageUtils';
 import { isActiveBidStatus, normalizeBidStatus } from '@/utils/bidStatus';
+import {
+  isCompletedContractStatus,
+  isRatingRequestNotification,
+  resolveRatingTargetFromContract,
+} from '@/utils/ratingFlow';
 
 const SAVED_SEARCHES_KEY_PREFIX = 'karga.savedSearches.v1';
 const SAVED_ROUTES_KEY_PREFIX = 'karga.savedRoutes.v1';
@@ -232,6 +238,7 @@ export default function GetGoApp() {
     enabled: shouldSubscribeListings,
   });
   const { notifications: firebaseNotifications } = useNotifications(activeUserId, 50, shouldSubscribeNotifications);
+  const { pendingRatings, refetch: refetchPendingRatings } = usePendingRatings(activeUserId);
   const {
     permissionStatus: pushPermission,
     isRegistered: isPushRegistered,
@@ -977,6 +984,7 @@ export default function GetGoApp() {
   // Admin: preserve last non-admin tab so "Back to App" returns users to context.
   const lastNonAdminTabRef = useRef('home');
   const installStatusToastRef = useRef({ key: '', shownAt: 0 });
+  const ratingRequestNotificationIdsRef = useRef(new Set());
 
   // Onboarding Guide Modal
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
@@ -1186,6 +1194,38 @@ export default function GetGoApp() {
   };
 
   const isNotificationRead = (notification) => notification?.isRead === true || notification?.read === true;
+
+  useEffect(() => {
+    if (!authUser?.uid) return;
+    refetchPendingRatings().catch((error) => {
+      console.error('Failed to refresh pending ratings on app load:', error);
+    });
+  }, [authUser?.uid, refetchPendingRatings]);
+
+  useEffect(() => {
+    if (!authUser?.uid) {
+      ratingRequestNotificationIdsRef.current = new Set();
+      return;
+    }
+
+    let hasNewRatingRequest = false;
+    const nextSeenIds = new Set(ratingRequestNotificationIdsRef.current);
+
+    firebaseNotifications.forEach((notification) => {
+      if (!isRatingRequestNotification(notification)) return;
+      const notificationId = String(notification?.id || '').trim();
+      if (!notificationId || nextSeenIds.has(notificationId)) return;
+      nextSeenIds.add(notificationId);
+      hasNewRatingRequest = true;
+    });
+
+    ratingRequestNotificationIdsRef.current = nextSeenIds;
+    if (!hasNewRatingRequest) return;
+
+    refetchPendingRatings().catch((error) => {
+      console.error('Failed to refresh pending ratings from notifications:', error);
+    });
+  }, [authUser?.uid, firebaseNotifications, refetchPendingRatings]);
 
   // Handle socket notifications
   useEffect(() => {
@@ -1485,6 +1525,13 @@ export default function GetGoApp() {
     Number(userProfile?.tripsCompleted || 0),
     deliveredTripsAsTrucker
   );
+  const pendingRatingContractIds = useMemo(() => {
+    return new Set(
+      (pendingRatings || [])
+        .map((item) => item?.contractId)
+        .filter((contractId) => typeof contractId === 'string' && contractId.trim().length > 0)
+    );
+  }, [pendingRatings]);
   const matchWorkspaceForShipment = useCallback((shipment, workspace) => {
     if (workspace === 'broker') return true;
     if (!authUser?.uid) return workspace === userRole;
@@ -2447,6 +2494,59 @@ export default function GetGoApp() {
     return uploadTruckerComplianceDocument(docType, file);
   };
 
+  const setRatingTargetFromContract = useCallback((contract) => {
+    const ratingTarget = resolveRatingTargetFromContract(contract, authUser?.uid);
+    if (!ratingTarget) return false;
+    setRatingTarget(ratingTarget);
+    return true;
+  }, [authUser?.uid]);
+
+  const openRatingForContract = useCallback(async (contractId) => {
+    const normalizedContractId = String(contractId || '').trim();
+    if (!normalizedContractId || !authUser?.uid) return false;
+
+    try {
+      const response = await api.contracts.getById(normalizedContractId);
+      const contract = response?.contract;
+      if (!contract) {
+        showToast({
+          type: 'error',
+          title: 'Unable to open rating',
+          message: 'The contract is no longer available.',
+        });
+        return false;
+      }
+
+      if (!isCompletedContractStatus(contract.status)) {
+        showToast({
+          type: 'info',
+          title: 'Rating unavailable',
+          message: 'You can rate only after the contract is completed.',
+        });
+        return false;
+      }
+
+      if (!setRatingTargetFromContract(contract)) {
+        showToast({
+          type: 'error',
+          title: 'Unable to open rating',
+          message: 'Could not resolve the participant to rate for this contract.',
+        });
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error opening rating flow:', error);
+      showToast({
+        type: 'error',
+        title: 'Unable to open rating',
+        message: getUserErrorMessage(error, 'Unable to load the rating flow right now.'),
+      });
+      return false;
+    }
+  }, [authUser?.uid, getUserErrorMessage, setRatingTargetFromContract, showToast]);
+
   // Handler: Complete contract (delivery confirmation)
   const handleCompleteContract = async (contractId) => {
     setContractLoading(true);
@@ -2463,24 +2563,10 @@ export default function GetGoApp() {
         : null;
       const resolvedContract = completedContract || (await api.contracts.getById(contractId))?.contract;
 
-      if (resolvedContract && authUser?.uid) {
-        const otherUserId = resolvedContract.listingOwnerId === authUser.uid
-          ? resolvedContract.bidderId
-          : resolvedContract.listingOwnerId;
-        const otherUserName = resolvedContract.listingOwnerId === authUser.uid
-          ? (resolvedContract.bidderName || 'Counterparty')
-          : (resolvedContract.listingOwnerName || 'Counterparty');
-
-        if (otherUserId) {
-          setRatingTarget({
-            contract: resolvedContract,
-            userToRate: {
-              id: otherUserId,
-              name: otherUserName,
-            },
-          });
-        }
+      if (resolvedContract && isCompletedContractStatus(resolvedContract.status)) {
+        setRatingTargetFromContract(resolvedContract);
       }
+      await refetchPendingRatings();
     } catch (error) {
       console.error('Error completing contract:', error);
       showToast({
@@ -2498,6 +2584,7 @@ export default function GetGoApp() {
     try {
       await api.ratings.submit(ratingData);
       setRatingTarget(null);
+      await refetchPendingRatings();
       showToast({
         type: 'success',
         title: 'Rating Submitted',
@@ -2511,6 +2598,7 @@ export default function GetGoApp() {
 
       if (alreadyRated) {
         setRatingTarget(null);
+        await refetchPendingRatings();
         showToast({
           type: 'info',
           title: 'Already Rated',
@@ -2984,6 +3072,7 @@ export default function GetGoApp() {
               onOpenChat={handleOpenChatFromNotification}
               onOpenListing={handleOpenListingFromNotification}
               onOpenContract={handleOpenContract}
+              onRateContract={openRatingForContract}
               onPayPlatformFee={handlePayPlatformFee}
               onBrowseMarketplace={() => setActiveTab('home')}
               onOpenActivity={() => handleTabChange('activity')}
@@ -3560,6 +3649,8 @@ export default function GetGoApp() {
           onSign={handleSignContract}
           onCancel={handleCancelContract}
           onComplete={handleCompleteContract}
+          onRate={openRatingForContract}
+          showRateAction={pendingRatingContractIds.has(contractModalData?.id)}
           onPayPlatformFee={handlePayPlatformFee}
           onUploadTruckerDocument={handleUploadTruckerDocument}
           loading={contractLoading}

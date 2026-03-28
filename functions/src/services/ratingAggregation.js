@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 
 const BADGE_RANK = {
   STARTER: 0,
@@ -7,6 +8,13 @@ const BADGE_RANK = {
   PRO: 3,
   ELITE: 4,
 };
+
+function serverTimestamp() {
+  if (admin?.firestore?.FieldValue?.serverTimestamp) {
+    return admin.firestore.FieldValue.serverTimestamp();
+  }
+  return FieldValue.serverTimestamp();
+}
 
 function normalizeUserId(value) {
   if (typeof value !== 'string') return null;
@@ -132,7 +140,7 @@ async function recomputeUserRatingAggregate({
     await userRef.set({
       averageRating: aggregate.averageRating,
       totalRatings: aggregate.totalRatings,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: serverTimestamp(),
     }, { merge: true });
   }
 
@@ -160,7 +168,7 @@ async function recomputeUserRatingAggregate({
         await truckerProfileRef.set({
           badge: nextBadge,
           rating: aggregate.averageRating,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: serverTimestamp(),
         }, { merge: true });
       }
 
@@ -176,7 +184,7 @@ async function recomputeUserRatingAggregate({
             totalTrips,
           },
           isRead: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: serverTimestamp(),
         });
       }
     }

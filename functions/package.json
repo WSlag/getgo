@@ -27,6 +27,7 @@
     "test:anti-contact:unit": "node scripts/anti-contact-unit.cjs",
     "test:anti-contact:rules": "firebase emulators:exec --only firestore \"node scripts/anti-contact-rules.cjs\"",
     "test:anti-contact:functions": "firebase emulators:exec --only auth,firestore,functions \"node scripts/anti-contact-functions-integration.cjs\"",
+    "test:ratings:integration": "firebase emulators:exec --only auth,firestore,functions \"node scripts/ratings-integration.cjs\"",
     "test:anti-contact": "npm run test:anti-contact:unit && npm run test:anti-contact:rules && npm run test:anti-contact:functions",
     "test": "npm run lint && node scripts/smoke-test.cjs && npm run test:settings",
     "serve": "firebase emulators:start --only functions",
