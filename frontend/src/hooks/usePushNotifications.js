@@ -10,16 +10,35 @@
  *   unregisterToken(uid)    - deletes token locally and from Firestore (call on logout)
  */
 
-import { useState, useEffect, useRef } from 'react';
-import { getToken, onMessage, deleteToken } from 'firebase/messaging';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { getOrInitMessaging, db, functions, waitForAppCheckInitialization, shouldInitializeAppCheck } from '../firebase';
+import {
+  getOrInitMessaging,
+  db,
+  functions,
+  hasValidAppCheckToken,
+  shouldInitializeAppCheck,
+} from '../firebase';
 import { useToast } from '../contexts/ToastContext';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 const REGISTERED_KEY = 'karga.push.registered';
 const REGISTERED_TOKEN_KEY = 'karga.push.token';
+const APP_CHECK_TOKEN_ERROR_CODE = 'app-check-token-unavailable';
+
+let messagingModulePromise = null;
+
+function isAppCheckTokenError(error) {
+  return error?.code === APP_CHECK_TOKEN_ERROR_CODE;
+}
+
+async function getMessagingModule() {
+  if (!messagingModulePromise) {
+    messagingModulePromise = import('firebase/messaging');
+  }
+  return messagingModulePromise;
+}
 
 function getInitialPermission() {
   if (typeof Notification === 'undefined') return 'unsupported';
@@ -41,39 +60,15 @@ export function usePushNotifications(userId, userRole) {
     localStorage.removeItem(REGISTERED_TOKEN_KEY);
   }
 
-  useEffect(() => {
-    if (!userId || permissionStatus !== 'granted') return;
-    if (registeredForUid.current === userId) return;
-    registeredForUid.current = userId;
-    saveTokenToFirestore(userId).catch(() => {
-      registeredForUid.current = null;
-      clearLocalPushState();
-    });
-  }, [userId, permissionStatus]);
-
-  useEffect(() => {
-    if (permissionStatus !== 'granted') return;
-    let unsubscribe;
-    getOrInitMessaging().then((m) => {
-      if (!m) return;
-      unsubscribe = onMessage(m, (payload) => {
-        const { title, body } = payload.notification || {};
-        if (!title) return;
-        showToast({ title, message: body || '', type: payload.data?.type || 'default' });
-      });
-    });
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [showToast, permissionStatus]);
-
-  async function saveTokenToFirestore(uid) {
+  const saveTokenToFirestore = useCallback(async (uid) => {
     if (!VAPID_KEY || !uid) return;
 
     if (shouldInitializeAppCheck) {
-      const appCheckReady = await waitForAppCheckInitialization(6000).catch(() => false);
+      const appCheckReady = await hasValidAppCheckToken(6000).catch(() => false);
       if (!appCheckReady) {
-        throw new Error('App Check is not ready for FCM registration.');
+        const error = new Error('App Check token is unavailable for FCM registration.');
+        error.code = APP_CHECK_TOKEN_ERROR_CODE;
+        throw error;
       }
     }
 
@@ -89,7 +84,8 @@ export function usePushNotifications(userId, userRole) {
       }
     }
 
-    const token = await getToken(messagingInstance, {
+    const messagingModule = await getMessagingModule();
+    const token = await messagingModule.getToken(messagingInstance, {
       vapidKey: VAPID_KEY,
       ...(swReg ? { serviceWorkerRegistration: swReg } : {}),
     });
@@ -128,7 +124,48 @@ export function usePushNotifications(userId, userRole) {
         }
       }
     }
-  }
+  }, [userRole]);
+
+  useEffect(() => {
+    if (!userId || permissionStatus !== 'granted') return;
+    if (registeredForUid.current === userId) return;
+    registeredForUid.current = userId;
+    saveTokenToFirestore(userId).catch((error) => {
+      registeredForUid.current = null;
+      if (isAppCheckTokenError(error)) {
+        if (import.meta.env.DEV) {
+          console.warn('[usePushNotifications] Skipping push registration until App Check token is ready.');
+        }
+        return;
+      }
+      clearLocalPushState();
+    });
+  }, [userId, permissionStatus, saveTokenToFirestore]);
+
+  useEffect(() => {
+    if (permissionStatus !== 'granted') return;
+    let unsubscribe;
+    let cancelled = false;
+
+    (async () => {
+      const m = await getOrInitMessaging();
+      if (!m || cancelled) return;
+
+      const messagingModule = await getMessagingModule();
+      if (cancelled) return;
+
+      unsubscribe = messagingModule.onMessage(m, (payload) => {
+        const { title, body } = payload.notification || {};
+        if (!title) return;
+        showToast({ title, message: body || '', type: payload.data?.type || 'default' });
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
+  }, [showToast, permissionStatus]);
 
   async function requestAndRegister(uid) {
     if (typeof Notification === 'undefined') return 'unsupported';
@@ -143,10 +180,16 @@ export function usePushNotifications(userId, userRole) {
         if (import.meta.env.DEV) {
           console.warn('[usePushNotifications] Push registration failed:', error?.message || error);
         }
-        clearLocalPushState();
+
+        if (!isAppCheckTokenError(error)) {
+          clearLocalPushState();
+        }
+
         showToast({
           title: 'Push not activated',
-          message: 'Try again in a moment. If this continues, refresh and retry.',
+          message: isAppCheckTokenError(error)
+            ? 'Security checks are still warming up. Please try again in a moment.'
+            : 'Try again in a moment. If this continues, refresh and retry.',
           type: 'warning',
         });
       }
@@ -164,12 +207,15 @@ export function usePushNotifications(userId, userRole) {
       if (messagingInstance) {
         let appCheckReadyForDelete = true;
         if (shouldInitializeAppCheck) {
-          appCheckReadyForDelete = await waitForAppCheckInitialization(2000).catch(() => false);
+          appCheckReadyForDelete = await hasValidAppCheckToken(2500).catch(() => false);
         }
 
         // Avoid deleteToken() when App Check is unavailable to prevent logout churn.
         if (appCheckReadyForDelete) {
-          await deleteToken(messagingInstance).catch(() => {});
+          const messagingModule = await getMessagingModule();
+          await messagingModule.deleteToken(messagingInstance).catch(() => {});
+        } else if (import.meta.env.DEV) {
+          console.warn('[usePushNotifications] Skipping deleteToken() because App Check token is unavailable.');
         }
       }
     } catch {

@@ -338,6 +338,50 @@ export async function waitForAppCheckInitialization(timeoutMs = 4000) {
   return Boolean(appCheck);
 }
 
+async function raceWithTimeout(promise, timeoutMs = 0) {
+  if (!(timeoutMs > 0)) {
+    return promise;
+  }
+
+  let timeoutId = null;
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => resolve(null), timeoutMs);
+  });
+
+  const result = await Promise.race([promise, timeoutPromise]);
+  if (timeoutId !== null) {
+    clearTimeout(timeoutId);
+  }
+  return result;
+}
+
+export async function hasValidAppCheckToken(timeoutMs = 4000) {
+  if (!shouldInitializeAppCheck) {
+    return true;
+  }
+
+  const initialized = await waitForAppCheckInitialization(timeoutMs).catch(() => false);
+  if (!initialized || !appCheck) {
+    return false;
+  }
+
+  try {
+    const appCheckModule = await import('firebase/app-check');
+    const tokenResult = await raceWithTimeout(
+      appCheckModule.getToken(appCheck, false),
+      timeoutMs
+    );
+
+    if (!tokenResult) {
+      return false;
+    }
+
+    return Boolean(tokenResult.token) && !tokenResult.error;
+  } catch {
+    return false;
+  }
+}
+
 if (shouldInitializeAppCheck) {
   void startAppCheckInitialization();
 } else if (import.meta.env.DEV && !useEmulator) {

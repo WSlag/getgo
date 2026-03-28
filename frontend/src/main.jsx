@@ -20,7 +20,6 @@ const APP_BUILD_ID = typeof __APP_BUILD_ID__ === 'string' ? __APP_BUILD_ID__ : '
 const CHUNK_RELOAD_WINDOW_MS = 30000;
 const CHUNK_RELOAD_KEY = 'karga_chunk_reload_ts';
 const BUILD_ID_STORAGE_KEY = 'getgo_build_id';
-const BUILD_REFRESH_GUARD_KEY = 'getgo_build_refresh_guard';
 const STARTUP_DEFER_MS = 3000;
 const SENTRY_INIT_KEY = 'getgo_sentry_initialized';
 
@@ -81,34 +80,11 @@ function syncBuildVersionAndRefreshCaches() {
   if (typeof window === 'undefined') return;
 
   const previousBuildId = window.localStorage.getItem(BUILD_ID_STORAGE_KEY);
-  if (!previousBuildId) {
-    window.localStorage.setItem(BUILD_ID_STORAGE_KEY, APP_BUILD_ID);
-    return;
-  }
-
   if (previousBuildId === APP_BUILD_ID) {
-    window.sessionStorage.removeItem(BUILD_REFRESH_GUARD_KEY);
     return;
   }
 
   window.localStorage.setItem(BUILD_ID_STORAGE_KEY, APP_BUILD_ID);
-
-  // Prevent reload loops if cache clearing fails for any reason.
-  if (window.sessionStorage.getItem(BUILD_REFRESH_GUARD_KEY) === APP_BUILD_ID) {
-    return;
-  }
-  window.sessionStorage.setItem(BUILD_REFRESH_GUARD_KEY, APP_BUILD_ID);
-
-  // In-app browsers can briefly report offline during navigation.
-  // Avoid aggressive cache clears; do a single soft refresh when online.
-  if (!navigator.onLine) {
-    window.addEventListener('online', () => window.location.reload(), { once: true });
-    return;
-  }
-
-  const refreshedUrl = new URL(window.location.href);
-  refreshedUrl.searchParams.set('build', APP_BUILD_ID.slice(0, 19));
-  window.location.replace(refreshedUrl.toString());
 }
 
 if (typeof window !== 'undefined') {
@@ -161,7 +137,6 @@ function registerServiceWorkerWhenIdle() {
         const updateSW = registerSW({
           immediate: true,
           onNeedRefresh() {
-            updateSW(true);
             window.dispatchEvent(new CustomEvent('sw-update-available', {
               detail: { updateSW }
             }));

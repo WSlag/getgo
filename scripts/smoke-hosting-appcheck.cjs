@@ -244,7 +244,7 @@ function shouldTrackPermissionSignal(text) {
 }
 
 async function run() {
-  const url = getArgValue('--url', 'https://getgoph.com/');
+  const url = getArgValue('--url', getArgValue('--base-url', 'https://getgoph.com/'));
   const phone = getArgValue('--phone', '9171234567');
   const otp = getArgValue('--otp', '123456');
   const settleMs = Number(getArgValue('--settle-ms', '12000')) || 12000;
