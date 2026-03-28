@@ -1,10 +1,11 @@
 import React from 'react';
-import { Bell, Clock, FileText, MessageSquare, Package, Wallet, MapPin } from 'lucide-react';
+import { Bell, Clock, FileText, MessageSquare, Package, Wallet, MapPin, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isChatNotificationType, sanitizeMessage } from '@/utils/messageUtils';
 import { getWorkspaceLabel } from '@/utils/workspace';
+import { isRatingRequestNotification } from '@/utils/ratingFlow';
 
 function isNotificationRead(notification) {
   return notification?.isRead === true || notification?.read === true;
@@ -34,6 +35,7 @@ export function NotificationsView({
   onOpenChat,
   onOpenListing,
   onOpenContract,
+  onRateContract,
   onPayPlatformFee,
   onBrowseMarketplace,
   onOpenActivity,
@@ -176,6 +178,7 @@ export function NotificationsView({
               actionRequired === 'PAY_PLATFORM_FEE'
               || normalizedType.includes('PLATFORM_FEE')
             );
+            const isRatingRequest = isRatingRequestNotification(notification);
             const isBrokerListingReferral = normalizedType === 'BROKER_LISTING_REFERRAL';
             const canOpenListing = hasListing && isBrokerListingReferral;
             const notificationMessage = isChatNotificationType(notification.type)
@@ -254,6 +257,21 @@ export function NotificationsView({
                     >
                       <FileText className="size-4" />
                       Open Contract
+                    </Button>
+                  )}
+                  {isRatingRequest && hasContract && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="gap-1"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleMarkRead(notification);
+                        onRateContract?.(notification.data.contractId);
+                      }}
+                    >
+                      <Star className="size-4" />
+                      Rate Now
                     </Button>
                   )}
                   {isPaymentType && hasContract && (

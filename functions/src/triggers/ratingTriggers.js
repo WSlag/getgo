@@ -5,10 +5,18 @@
 
 const { onDocumentCreated, onDocumentDeleted } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 const {
   resolveRatedUserId,
   recomputeUserRatingAggregate,
 } = require('../services/ratingAggregation');
+
+function serverTimestamp() {
+  if (admin?.firestore?.FieldValue?.serverTimestamp) {
+    return admin.firestore.FieldValue.serverTimestamp();
+  }
+  return FieldValue.serverTimestamp();
+}
 
 /**
  * Update user's average rating and badge when a new rating is submitted
@@ -59,7 +67,7 @@ exports.onRatingCreated = onDocumentCreated(
         comment: rating.comment || '',
       },
       isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: serverTimestamp(),
     });
 
     return null;

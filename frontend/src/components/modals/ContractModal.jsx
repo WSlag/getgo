@@ -20,6 +20,7 @@ import {
   Phone,
   Upload,
   XCircle,
+  Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PesoIcon } from '@/components/ui/PesoIcon';
@@ -54,6 +55,8 @@ export function ContractModal({
   onSign,
   onCancel,
   onComplete,
+  onRate,
+  showRateAction = false,
   onPayPlatformFee,
   onUploadTruckerDocument,
   loading = false,
@@ -1033,10 +1036,24 @@ export function ContractModal({
           )}
 
           {contract.status === 'completed' && (
+            <>
+              {showRateAction && (
+                <Button
+                  variant="outline"
+                  size={isMobile ? "default" : "lg"}
+                  onClick={() => onRate?.(contract.id)}
+                  disabled={loading}
+                  className="gap-2 w-full"
+                >
+                  <Star className="size-4" />
+                  Rate Experience
+                </Button>
+              )}
             <Badge variant="outline" className="self-center bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300" style={{ fontSize: isMobile ? '12px' : '13px', padding: isMobile ? '6px 12px' : '8px 16px' }}>
               <CheckCircle2 className="size-4 mr-2" />
               Contract Completed
             </Badge>
+            </>
           )}
 
           <Button variant="ghost" size={isMobile ? "default" : "lg"} onClick={handleClose} className="w-full">
