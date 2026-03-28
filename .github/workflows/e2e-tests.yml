@@ -67,6 +67,9 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
 
+      - name: Run Push Reliability Sanity Checks
+        run: npm run test:smoke:push:ci
+
       - name: Upload test report
         uses: actions/upload-artifact@v4
         if: always()

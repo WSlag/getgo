@@ -48,6 +48,7 @@ function parseArgs(argv) {
     runtimeCheck: false,
     runtimeSkipAuth: false,
     runtimeStrictAuth: false,
+    skipSdkconfig: false,
   };
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -66,6 +67,10 @@ function parseArgs(argv) {
     }
     if (token === '--runtime-strict-auth') {
       args.runtimeStrictAuth = true;
+      continue;
+    }
+    if (token === '--skip-sdkconfig') {
+      args.skipSdkconfig = true;
       continue;
     }
     if (!token.startsWith('--')) continue;
@@ -226,22 +231,33 @@ async function main() {
 
   info('Step 1: Firebase source-of-truth check');
   let expectedKey = '';
-  try {
-    const sdkRaw = runCommand(
-      `firebase apps:sdkconfig WEB ${args.appId} --project ${args.project} --json`
-    );
-    const sdkJsonString = extractFirstJsonObject(sdkRaw);
-    const sdk = JSON.parse(sdkJsonString);
-    expectedKey = sdk?.result?.sdkConfig?.apiKey || '';
+  if (args.skipSdkconfig) {
+    expectedKey = parseEnvValue(envProdPath, 'VITE_FIREBASE_API_KEY');
     if (!expectedKey) {
-      errors.push('Could not read sdkConfig.apiKey from firebase apps:sdkconfig output.');
-      fail('Could not read expected apiKey from Firebase source-of-truth.');
+      errors.push('Step 1 skipped but frontend/.env.production has no VITE_FIREBASE_API_KEY.');
+      fail('Cannot resolve expected API key when --skip-sdkconfig is used.');
     } else {
-      pass(`Firebase sdkConfig apiKey resolved: ${expectedKey}`);
+      warning('Skipping firebase apps:sdkconfig lookup (--skip-sdkconfig).');
+      pass(`Expected API key resolved from frontend/.env.production: ${expectedKey}`);
     }
-  } catch (error) {
-    errors.push(`firebase apps:sdkconfig failed: ${error.message || error}`);
-    fail(`firebase apps:sdkconfig failed: ${error.message || error}`);
+  } else {
+    try {
+      const sdkRaw = runCommand(
+        `firebase apps:sdkconfig WEB ${args.appId} --project ${args.project} --json`
+      );
+      const sdkJsonString = extractFirstJsonObject(sdkRaw);
+      const sdk = JSON.parse(sdkJsonString);
+      expectedKey = sdk?.result?.sdkConfig?.apiKey || '';
+      if (!expectedKey) {
+        errors.push('Could not read sdkConfig.apiKey from firebase apps:sdkconfig output.');
+        fail('Could not read expected apiKey from Firebase source-of-truth.');
+      } else {
+        pass(`Firebase sdkConfig apiKey resolved: ${expectedKey}`);
+      }
+    } catch (error) {
+      errors.push(`firebase apps:sdkconfig failed: ${error.message || error}`);
+      fail(`firebase apps:sdkconfig failed: ${error.message || error}`);
+    }
   }
 
   info('Step 2: Local config consistency check');

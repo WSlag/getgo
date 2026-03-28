@@ -1,12 +1,39 @@
 /**
  * FCM Service
  * Sends targeted push notifications to a specific user via their registered FCM tokens.
- * Push failures are always non-fatal — the caller must catch errors independently.
+ * Push failures are always non-fatal - the caller must catch errors independently.
  */
 
 const admin = require('firebase-admin');
 
 const MAX_TOKENS_PER_USER = 5;
+const TOKEN_FETCH_LIMIT = 20;
+
+function toDateSafe(value) {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') {
+    const converted = value.toDate();
+    return converted instanceof Date ? converted : null;
+  }
+  if (value instanceof Date) return value;
+  return null;
+}
+
+function sortTokenDocsByRecency(tokenDocs = []) {
+  return [...tokenDocs].sort((a, b) => {
+    const aUpdatedAt = toDateSafe(a.get('updatedAt'));
+    const bUpdatedAt = toDateSafe(b.get('updatedAt'));
+    const aCreatedAt = toDateSafe(a.get('createdAt'));
+    const bCreatedAt = toDateSafe(b.get('createdAt'));
+
+    const aTimestamp = (aUpdatedAt || aCreatedAt || new Date(0)).getTime();
+    const bTimestamp = (bUpdatedAt || bCreatedAt || new Date(0)).getTime();
+    if (aTimestamp !== bTimestamp) {
+      return bTimestamp - aTimestamp;
+    }
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
 
 /**
  * Send a push notification to all FCM tokens registered for a user.
@@ -23,18 +50,21 @@ async function sendPushToUser(db, userId, { title, body, data = {} }) {
     .collection('users')
     .doc(userId)
     .collection('fcmTokens')
-    .limit(MAX_TOKENS_PER_USER)
+    .limit(TOKEN_FETCH_LIMIT)
     .get();
 
   if (tokensSnap.empty) return;
 
-  const tokens = tokensSnap.docs.map((d) => d.id);
+  const sortedDocs = sortTokenDocsByRecency(tokensSnap.docs);
+  const tokens = sortedDocs.slice(0, MAX_TOKENS_PER_USER).map((doc) => doc.id);
+
+  if (tokens.length === 0) return;
 
   // Ensure all data values are strings (FCM requirement)
   const safeData = Object.fromEntries(
     Object.entries(data)
-      .filter(([, v]) => v != null)
-      .map(([k, v]) => [k, String(v)])
+      .filter(([, value]) => value != null)
+      .map(([key, value]) => [key, String(value)])
   );
 
   const response = await admin.messaging().sendEachForMulticast({
@@ -52,14 +82,14 @@ async function sendPushToUser(db, userId, { title, body, data = {} }) {
 
   // Clean up stale / invalid tokens
   const staleTokenIds = [];
-  response.responses.forEach((r, i) => {
-    if (!r.success) {
-      const code = r.error?.code || '';
+  response.responses.forEach((result, index) => {
+    if (!result.success) {
+      const code = result.error?.code || '';
       if (
         code === 'messaging/registration-token-not-registered' ||
         code === 'messaging/invalid-registration-token'
       ) {
-        staleTokenIds.push(tokens[i]);
+        staleTokenIds.push(tokens[index]);
       }
     }
   });

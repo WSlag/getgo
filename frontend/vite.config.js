@@ -130,6 +130,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
+        importScripts: ['firebase-messaging-sw.js'],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         globIgnores: ['firebase-messaging-sw.js'],
         // Keep SPA navigations on the app shell. Using offline.html here causes
