@@ -1,13 +1,10 @@
 /**
- * Firebase Cloud Messaging Service Worker
- * Handles push notifications when the app is in the background or closed.
+ * Firebase Cloud Messaging helper for the app service worker.
  *
- * Uses Firebase compat CDN v10.12.0 via importScripts because service workers
- * cannot use ES module syntax (import/export). This SW runs in its own context
- * completely separate from the frontend app — version mismatch with frontend v12 is safe.
+ * This file is imported by /sw.js so push + notification click handling live
+ * in a single active service worker lifecycle.
  *
- * Firebase config values are intentionally hardcoded here (standard Firebase pattern).
- * These are public keys already embedded in the frontend bundle.
+ * It remains safe if loaded directly as a worker script.
  */
 
 /* global firebase */
@@ -26,14 +23,70 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+function resolveNotificationUrl(data = {}) {
+  const direct = data.url || data.link || data.route || data.href;
+  if (direct) {
+    return String(direct);
+  }
+
+  const type = String(data.type || '').toUpperCase();
+  if (
+    type.includes('BID') ||
+    type.includes('MESSAGE') ||
+    type.includes('SHIPMENT') ||
+    type.includes('CONTRACT') ||
+    type.includes('PAYMENT') ||
+    type.includes('ADMIN')
+  ) {
+    return '/#notifications';
+  }
+
+  if (type === 'NEW_CARGO_LISTING' || type === 'NEW_TRUCK_LISTING') {
+    return '/#home';
+  }
+
+  return '/#notifications';
+}
+
 messaging.onBackgroundMessage((payload) => {
   const { title, body } = payload.notification || {};
   if (!title) return;
+
+  const data = payload.data || {};
+  const targetUrl = resolveNotificationUrl(data);
 
   self.registration.showNotification(title, {
     body: body || '',
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-72x72.png',
-    data: payload.data || {},
+    data: {
+      ...data,
+      targetUrl,
+    },
   });
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetUrl = resolveNotificationUrl(event.notification?.data || {});
+
+  event.waitUntil((async () => {
+    const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+    for (const client of allClients) {
+      const clientUrl = new URL(client.url);
+      const target = new URL(targetUrl, clientUrl.origin);
+
+      if (clientUrl.origin === target.origin) {
+        await client.focus();
+        if (clientUrl.pathname + clientUrl.hash !== target.pathname + target.hash) {
+          await client.navigate(target.href);
+        }
+        return;
+      }
+    }
+
+    await clients.openWindow(targetUrl);
+  })());
 });

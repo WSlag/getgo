@@ -40,6 +40,7 @@ const {
 const { loadPlatformSettings } = require('./src/config/platformSettings');
 
 const { verifyAdmin } = require('./src/utils/adminAuth');
+const { sendPushToUser } = require('./src/services/fcmService');
 
 const db = admin.firestore();
 const warnedMissingEnvVars = new Set();
@@ -58,6 +59,15 @@ function safeErrorMessage(error) {
     return `HTTP ${error.response.status}: ${error.response.statusText || 'upstream error'}`;
   }
   return error.message || 'Unknown error';
+}
+
+async function safeSendPush(userId, payload, contextTag = 'push') {
+  if (!userId || !payload?.title) return;
+  try {
+    await sendPushToUser(db, userId, payload);
+  } catch (error) {
+    console.error(`[${contextTag}] Push notification failed (non-fatal):`, safeErrorMessage(error));
+  }
 }
 
 function getAllowedOrigins() {
@@ -635,16 +645,25 @@ async function approvePayment(submission, order, submissionId) {
                 isRead: false,
                 createdAt: FieldValue.serverTimestamp(),
               });
+              await safeSendPush(platformFeePayerId, {
+                title: 'Account Reactivated',
+                body: 'Your account has been reactivated. All platform fees have been paid.',
+                data: {
+                  type: 'ACCOUNT_UNSUSPENDED',
+                  contractId: order.contractId,
+                },
+              }, 'approvePayment');
             }
           }
 
           // Notify payer
+          const payerMessage = nextStatus === 'draft'
+            ? `Your platform fee payment has been verified for Contract #${contract.contractNumber}. The contract is ready for signing.`
+            : `Your platform fee payment has been verified for Contract #${contract.contractNumber}. Contract status remains ${humanStatus}.`;
           await db.collection(`users/${submission.userId}/notifications`).doc().set({
             type: 'PAYMENT_VERIFIED',
             title: 'Platform Fee Paid',
-            message: nextStatus === 'draft'
-              ? `Your platform fee payment has been verified for Contract #${contract.contractNumber}. The contract is ready for signing.`
-              : `Your platform fee payment has been verified for Contract #${contract.contractNumber}. Contract status remains ${humanStatus}.`,
+            message: payerMessage,
             data: {
               submissionId,
               contractId: order.contractId,
@@ -653,16 +672,30 @@ async function approvePayment(submission, order, submissionId) {
             isRead: false,
             createdAt: FieldValue.serverTimestamp(),
           });
+          await safeSendPush(submission.userId, {
+            title: 'Platform Fee Paid',
+            body: payerMessage,
+            data: {
+              type: 'PAYMENT_VERIFIED',
+              submissionId,
+              contractId: order.contractId,
+              bidId: order.bidId,
+            },
+          }, 'approvePayment');
 
           // Notify counterparty
           const listingOwnerId = contract.listingOwnerId;
           if (listingOwnerId && listingOwnerId !== submission.userId) {
+            const counterpartyTitle = nextStatus === 'draft'
+              ? 'Contract Ready for Signing'
+              : 'Platform Fee Settled';
+            const counterpartyMessage = nextStatus === 'draft'
+              ? `Contract #${contract.contractNumber} platform fee has been paid. Please review and sign the contract.`
+              : `Contract #${contract.contractNumber} platform fee has been paid. Contract status remains ${humanStatus}.`;
             await db.collection(`users/${listingOwnerId}/notifications`).doc().set({
               type: 'CONTRACT_READY',
-              title: nextStatus === 'draft' ? 'Contract Ready for Signing' : 'Platform Fee Settled',
-              message: nextStatus === 'draft'
-                ? `Contract #${contract.contractNumber} platform fee has been paid. Please review and sign the contract.`
-                : `Contract #${contract.contractNumber} platform fee has been paid. Contract status remains ${humanStatus}.`,
+              title: counterpartyTitle,
+              message: counterpartyMessage,
               data: {
                 contractId: order.contractId,
                 bidId: order.bidId,
@@ -670,6 +703,15 @@ async function approvePayment(submission, order, submissionId) {
               isRead: false,
               createdAt: FieldValue.serverTimestamp(),
             });
+            await safeSendPush(listingOwnerId, {
+              title: counterpartyTitle,
+              body: counterpartyMessage,
+              data: {
+                type: 'CONTRACT_READY',
+                contractId: order.contractId,
+                bidId: order.bidId,
+              },
+            }, 'approvePayment');
           }
         }
       } else {
@@ -686,6 +728,14 @@ async function approvePayment(submission, order, submissionId) {
         isRead: false,
         createdAt: FieldValue.serverTimestamp(),
       });
+      await safeSendPush(submission.userId, {
+        title: 'Payment Verified',
+        body: 'Your payment has been verified, but there was an issue updating the contract. Our team will assist you.',
+        data: {
+          type: 'PAYMENT_STATUS',
+          submissionId,
+        },
+      }, 'approvePayment');
     }
   } else {
     // Legacy: wallet top-up flow (kept for backward compatibility)
@@ -787,6 +837,18 @@ async function sendUserNotification(userId, status, amount, submissionId, custom
     isRead: false,
     createdAt: FieldValue.serverTimestamp()
   });
+
+  await safeSendPush(userId, {
+    title,
+    body: message,
+    data: {
+      type: 'PAYMENT_STATUS',
+      submissionId,
+      status,
+      amount,
+      orderType: orderType || '',
+    },
+  }, 'sendUserNotification');
 }
 
 /**
@@ -1642,6 +1704,7 @@ exports.onTruckListingCreatedNotify = listingNotificationTriggers.onTruckListing
 // =============================================================================
 
 const pushTopics = require('./src/api/pushTopics');
+exports.syncListingTopics = pushTopics.syncListingTopics;
 exports.subscribeToListingTopics = pushTopics.subscribeToListingTopics;
 
 // =============================================================================
