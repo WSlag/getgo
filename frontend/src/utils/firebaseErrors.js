@@ -30,3 +30,20 @@ export function reportFirestoreListenerError(scope, error) {
 
   console.error(`Error listening to ${scope}:`, error);
 }
+
+export function isFirestoreInternalAssertionError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('firestore') &&
+    message.includes('internal assertion failed')
+  );
+}
+
+export function safeFirestoreUnsubscribe(unsubscribe, scope = 'firestore listener') {
+  if (typeof unsubscribe !== 'function') return;
+  try {
+    unsubscribe();
+  } catch (error) {
+    reportFirestoreListenerError(`${scope} unsubscribe`, error);
+  }
+}

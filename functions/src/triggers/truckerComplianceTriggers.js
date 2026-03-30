@@ -1,5 +1,6 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 const {
   computeDocumentHash,
   extractDocumentIdentifiers,
@@ -35,8 +36,8 @@ exports.onTruckerProfileCreated = onDocumentCreated(
       cancellationResetAt: null,
       cancellationResetBy: null,
       cancellationResetReason: null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
     return null;
@@ -68,7 +69,7 @@ exports.onTruckerProfileUpdated = onDocumentUpdated(
 
     const db = admin.firestore();
     const profileRef = db.collection('users').doc(userId).collection('truckerProfile').doc('profile');
-    const profileUpdates = { ocrExtractedAt: admin.firestore.FieldValue.serverTimestamp() };
+    const profileUpdates = { ocrExtractedAt: FieldValue.serverTimestamp() };
 
     let licenseNumber = after.licenseNumber || null;
     let plateNumber = after.plateNumber || null;
@@ -92,7 +93,7 @@ exports.onTruckerProfileUpdated = onDocumentUpdated(
             docType: 'driver_license',
             userId,
             accountStatus: 'active',
-            uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+            uploadedAt: FieldValue.serverTimestamp(),
           });
         }
 
@@ -126,7 +127,7 @@ exports.onTruckerProfileUpdated = onDocumentUpdated(
             docType: 'lto_registration',
             userId,
             accountStatus: 'active',
-            uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+            uploadedAt: FieldValue.serverTimestamp(),
           });
         }
 
@@ -160,7 +161,7 @@ exports.onTruckerProfileUpdated = onDocumentUpdated(
         await db.collection('users').doc(userId).update({
           requiresAdminReview: true,
           reviewReason,
-          reviewFlaggedAt: admin.firestore.FieldValue.serverTimestamp(),
+          reviewFlaggedAt: FieldValue.serverTimestamp(),
           reviewClearedAt: null,
           reviewClearedBy: null,
         });
@@ -172,7 +173,7 @@ exports.onTruckerProfileUpdated = onDocumentUpdated(
           matchedValue: checkResult.matchedValue,
           reviewReason,
           performedBy: 'system',
-          performedAt: admin.firestore.FieldValue.serverTimestamp(),
+          performedAt: FieldValue.serverTimestamp(),
         });
       }
     } catch (err) {
@@ -209,7 +210,7 @@ exports.onTruckListingCreated = onDocumentCreated(
     if (!profileDoc.exists) return null;
 
     await profileRef.update({
-      lastKnownPlateNumbers: admin.firestore.FieldValue.arrayUnion(normalized),
+      lastKnownPlateNumbers: FieldValue.arrayUnion(normalized),
     });
 
     return null;

@@ -3,7 +3,11 @@ import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/f
 import { db } from '../firebase';
 import { normalizeListingStatus } from '../utils/listingStatus';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
-import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
+import {
+  isPermissionDeniedError,
+  reportFirestoreListenerError,
+  safeFirestoreUnsubscribe,
+} from '../utils/firebaseErrors';
 import { sanitizeMessage, sanitizePublicName } from '../utils/messageUtils';
 import { formatListingPostedAge, formatListingScheduleDate } from '../utils/listingDateFormatting';
 
@@ -52,13 +56,15 @@ export function useCargoListings(options = {}) {
 
     q = query(q, ...constraints);
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const data = snapshot.docs.map((doc) => {
-          const docData = doc.data();
-          const createdAt = parseTimestampSafely(docData.createdAt);
-          const updatedAt = parseTimestampSafely(docData.updatedAt);
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const data = snapshot.docs.map((doc) => {
+            const docData = doc.data();
+            const createdAt = parseTimestampSafely(docData.createdAt);
+            const updatedAt = parseTimestampSafely(docData.updatedAt);
 
           // Prefer server-authoritative route distance, fallback to local coordinate math.
           let distance = Number.isFinite(Number(docData.routeDistanceKm))
@@ -86,50 +92,56 @@ export function useCargoListings(options = {}) {
           const postedAtDisplay = formatListingPostedAge(postedAtSource, docData.timeAgo);
           const pickupDateDisplay = formatListingScheduleDate(docData.pickupDate);
 
-          return {
-            id: doc.id,
-            type: 'cargo',
-            ...docData,
-            status: normalizeListingStatus(docData.status),
-            // Map Firebase field names to CargoCard expected names
-            shipper: sanitizePublicName(docData.userName, 'Unknown Shipper'),
-            company: sanitizePublicName(docData.userName, 'Unknown Shipper'),
-            shipperTransactions: docData.userTransactions || 0,
-            origin: sanitizeMessage(docData.origin || ''),
-            destination: sanitizeMessage(docData.destination || ''),
-            description: sanitizeMessage(docData.description || ''),
-            postedAt: createdAt.timestamp,
-            postedAtDisplay,
-            timeAgo: postedAtDisplay,
-            cargoPhotos: docData.photos || [],
-            images: docData.photos || [],
-            unit: docData.weightUnit || 'tons',
-            distance: distance ? `${distance} km` : null,
-            estimatedTime: estimatedTime,
-            bidCount: docData.bidCount || 0,
-            // Keep original fields
-            createdAt: createdAt.date,
-            updatedAt: updatedAt.date,
-            pickupDate: docData.pickupDate,
-            pickupDateRaw: docData.pickupDate,
-            pickupDateDisplay,
-            originCoords: { lat: docData.originLat, lng: docData.originLng },
-            destCoords: { lat: docData.destLat, lng: docData.destLng },
-          };
-        });
-        setListings(sortEntitiesNewestFirst(data, { fallbackKeys: ['postedAt'] }));
-        setLoading(false);
-        setError(null);
-      },
-      (err) => {
-        reportFirestoreListenerError('cargo listings', err);
-        setListings([]);
-        setError(isPermissionDeniedError(err) ? null : err.message);
-        setLoading(false);
-      }
-    );
+            return {
+              id: doc.id,
+              type: 'cargo',
+              ...docData,
+              status: normalizeListingStatus(docData.status),
+              // Map Firebase field names to CargoCard expected names
+              shipper: sanitizePublicName(docData.userName, 'Unknown Shipper'),
+              company: sanitizePublicName(docData.userName, 'Unknown Shipper'),
+              shipperTransactions: docData.userTransactions || 0,
+              origin: sanitizeMessage(docData.origin || ''),
+              destination: sanitizeMessage(docData.destination || ''),
+              description: sanitizeMessage(docData.description || ''),
+              postedAt: createdAt.timestamp,
+              postedAtDisplay,
+              timeAgo: postedAtDisplay,
+              cargoPhotos: docData.photos || [],
+              images: docData.photos || [],
+              unit: docData.weightUnit || 'tons',
+              distance: distance ? `${distance} km` : null,
+              estimatedTime: estimatedTime,
+              bidCount: docData.bidCount || 0,
+              // Keep original fields
+              createdAt: createdAt.date,
+              updatedAt: updatedAt.date,
+              pickupDate: docData.pickupDate,
+              pickupDateRaw: docData.pickupDate,
+              pickupDateDisplay,
+              originCoords: { lat: docData.originLat, lng: docData.originLng },
+              destCoords: { lat: docData.destLat, lng: docData.destLng },
+            };
+          });
+          setListings(sortEntitiesNewestFirst(data, { fallbackKeys: ['postedAt'] }));
+          setLoading(false);
+          setError(null);
+        },
+        (err) => {
+          reportFirestoreListenerError('cargo listings', err);
+          setListings([]);
+          setError(isPermissionDeniedError(err) ? null : err.message);
+          setLoading(false);
+        }
+      );
+    } catch (err) {
+      reportFirestoreListenerError('cargo listings subscribe', err);
+      setListings([]);
+      setError(isPermissionDeniedError(err) ? null : err.message);
+      setLoading(false);
+    }
 
-    return () => unsubscribe();
+    return () => safeFirestoreUnsubscribe(unsubscribe, 'cargo listings');
   }, [status, userId, maxResults, authUser, enabled]);
 
   return { listings, loading, error };
