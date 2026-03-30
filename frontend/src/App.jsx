@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import RegisterScreen from './components/auth/RegisterScreen';
 import GetGoApp from './GetGoApp';
@@ -10,10 +11,15 @@ import ErrorBoundary from '@/components/shared/ErrorBoundary';
 import { ToastProvider } from './contexts/ToastContext';
 import { LiveRegionProvider } from './contexts/LiveRegionContext';
 import { getPublicRouteByPath } from '@/config/publicRouteManifest';
+import { getAppRouteByPath, isAppShellPath } from '@/config/appRouteManifest';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 function isValidAppPath(pathname) {
   if (getPublicRouteByPath(pathname)) {
+    return true;
+  }
+
+  if (getAppRouteByPath(pathname) || isAppShellPath(pathname)) {
     return true;
   }
 
@@ -75,6 +81,7 @@ function ProfileLoadRecovery({ message, onRetry, onSignOut }) {
 }
 
 function AppContent() {
+  const location = useLocation();
   const {
     loading,
     isNewUser,
@@ -84,7 +91,7 @@ function AppContent() {
     retryProfileLoad,
     logout,
   } = useAuth();
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const pathname = location?.pathname || '/';
   const isPathValid = isValidAppPath(pathname);
   usePageMeta(pathname);
 

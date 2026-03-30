@@ -23,10 +23,34 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+function normalizeNotificationUrl(rawUrl) {
+  const fallback = '/app/notifications';
+  if (!rawUrl) return fallback;
+
+  try {
+    const scope = self.registration?.scope || self.location?.origin || 'https://getgoph.com';
+    const scopeUrl = new URL(scope);
+    const parsed = new URL(String(rawUrl), scopeUrl.origin);
+    parsed.hash = '';
+
+    if (parsed.pathname === '/app') {
+      parsed.pathname = '/app/home';
+    }
+
+    if (parsed.origin === scopeUrl.origin) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+
+    return parsed.toString();
+  } catch {
+    return fallback;
+  }
+}
+
 function resolveNotificationUrl(data = {}) {
   const direct = data.url || data.link || data.route || data.href;
   if (direct) {
-    return String(direct);
+    return normalizeNotificationUrl(direct);
   }
 
   const type = String(data.type || '').toUpperCase();
@@ -38,14 +62,14 @@ function resolveNotificationUrl(data = {}) {
     type.includes('PAYMENT') ||
     type.includes('ADMIN')
   ) {
-    return '/#notifications';
+    return '/app/notifications';
   }
 
   if (type === 'NEW_CARGO_LISTING' || type === 'NEW_TRUCK_LISTING') {
-    return '/#home';
+    return '/app/home';
   }
 
-  return '/#notifications';
+  return '/app/notifications';
 }
 
 messaging.onBackgroundMessage((payload) => {
@@ -80,7 +104,10 @@ self.addEventListener('notificationclick', (event) => {
 
       if (clientUrl.origin === target.origin) {
         await client.focus();
-        if (clientUrl.pathname + clientUrl.hash !== target.pathname + target.hash) {
+        if (
+          clientUrl.pathname + clientUrl.search + clientUrl.hash
+          !== target.pathname + target.search + target.hash
+        ) {
           await client.navigate(target.href);
         }
         return;

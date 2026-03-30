@@ -114,14 +114,14 @@ export default defineConfig({
             name: 'Post Cargo',
             short_name: 'Post',
             description: 'Post a new cargo listing',
-            url: '/?action=post-cargo',
+            url: '/app/home?action=post-cargo',
             icons: [{ src: 'icons/icon-96x96.png', sizes: '96x96' }]
           },
           {
             name: 'Find Trucks',
             short_name: 'Trucks',
             description: 'Browse available trucks',
-            url: '/?tab=trucks',
+            url: '/app/home?tab=trucks',
             icons: [{ src: 'icons/icon-96x96.png', sizes: '96x96' }]
           }
         ]

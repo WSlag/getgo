@@ -202,7 +202,9 @@ async function signInWithTestPhone(page, phone, otp) {
 
 async function assertProfileHydratedAfterAuth(page, baseUrl, timeoutMs) {
   const profileUrl = new URL(baseUrl);
-  profileUrl.hash = 'profile';
+  profileUrl.pathname = '/app/profile';
+  profileUrl.search = '';
+  profileUrl.hash = '';
 
   await page.goto(profileUrl.toString(), { waitUntil: 'domcontentloaded', timeout: timeoutMs });
   await waitForSpinnerToClear(page, timeoutMs).catch(() => {});

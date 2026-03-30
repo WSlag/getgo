@@ -1,15 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getAppPathByTab, getAppTabByPath, normalizeAppPath } from '@/config/appRouteManifest';
 
 const STORAGE_KEY = 'karga.marketplace.preferences.v1';
 const LEGACY_WORKSPACE_QUERY_KEY = 'workspace';
-
-const HASH_TABS = ['home', 'tracking', 'contracts', 'messages', 'notifications', 'profile', 'bids', 'broker', 'activity', 'help', 'admin'];
-
-function getTabFromHash() {
-  if (typeof window === 'undefined') return null;
-  const hash = window.location.hash.replace('#', '');
-  return HASH_TABS.includes(hash) ? hash : null;
-}
+const NOT_FOUND_TAB = '__not_found__';
+const HOME_PATH = getAppPathByTab('home');
 
 function clearLegacyWorkspaceFromUrl() {
   if (typeof window === 'undefined') return null;
@@ -24,12 +20,9 @@ function clearLegacyWorkspaceFromUrl() {
   }
 }
 
-function loadPreferences(initialTab, initialMarket, initialWorkspace) {
-  const hashTab = getTabFromHash();
-
+function loadPreferences(initialMarket, initialWorkspace) {
   if (typeof window === 'undefined') {
     return {
-      activeTab: initialTab,
       activeMarket: initialMarket,
       workspaceRole: initialWorkspace,
       filterStatus: 'all',
@@ -42,7 +35,6 @@ function loadPreferences(initialTab, initialMarket, initialWorkspace) {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       return {
-        activeTab: hashTab || initialTab,
         activeMarket: initialMarket,
         workspaceRole: initialWorkspace,
         filterStatus: 'all',
@@ -53,7 +45,6 @@ function loadPreferences(initialTab, initialMarket, initialWorkspace) {
 
     const parsed = JSON.parse(raw);
     return {
-      activeTab: hashTab || parsed.activeTab || initialTab,
       activeMarket: parsed.activeMarket || initialMarket,
       workspaceRole: initialWorkspace,
       filterStatus: parsed.filterStatus || 'all',
@@ -63,7 +54,6 @@ function loadPreferences(initialTab, initialMarket, initialWorkspace) {
   } catch (error) {
     console.warn('Failed to load marketplace preferences:', error);
     return {
-      activeTab: hashTab || initialTab,
       activeMarket: initialMarket,
       workspaceRole: initialWorkspace,
       filterStatus: 'all',
@@ -78,44 +68,39 @@ function loadPreferences(initialTab, initialMarket, initialWorkspace) {
  * Handles tab navigation, market selection, filters, etc.
  */
 export function useMarketplace(initialTab = 'home', initialMarket = 'cargo', initialWorkspace = 'shipper') {
-  const [initialPreferences] = useState(() => loadPreferences(initialTab, initialMarket, initialWorkspace));
-  const [activeTab, setActiveTab] = useState(initialPreferences.activeTab);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [initialPreferences] = useState(() => loadPreferences(initialMarket, initialWorkspace));
+  const resolvedTabFromPath = useMemo(() => {
+    const routeTab = getAppTabByPath(location.pathname, initialTab);
+    if (routeTab) return routeTab;
+    if (normalizeAppPath(location.pathname).startsWith('/app/')) {
+      return NOT_FOUND_TAB;
+    }
+    return initialTab;
+  }, [location.pathname, initialTab]);
+  const [activeTab, setActiveTabState] = useState(resolvedTabFromPath);
   const [activeMarket, setActiveMarket] = useState(initialPreferences.activeMarket);
   const [workspaceRole, setWorkspaceRole] = useState(initialPreferences.workspaceRole);
   const [filterStatus, setFilterStatus] = useState(initialPreferences.filterStatus);
   const [searchQuery, setSearchQuery] = useState(initialPreferences.searchQuery);
   const [sortBy, setSortBy] = useState(initialPreferences.sortBy);
 
-  // Sync URL hash with active tab
+  // Canonicalize /app to /app/home without adding a history entry.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const currentUrl = new URL(window.location.href);
-    const targetHash = activeTab === 'home' ? '' : `#${activeTab}`;
-    if (currentUrl.hash === targetHash) return;
+    if (normalizeAppPath(location.pathname) !== '/app') return;
+    navigate(HOME_PATH, { replace: true });
+  }, [location.pathname, navigate]);
 
-    currentUrl.hash = targetHash;
-    window.history.replaceState(null, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
-  }, [activeTab]);
+  useEffect(() => {
+    if (activeTab === resolvedTabFromPath) return;
+    setActiveTabState(resolvedTabFromPath);
+  }, [activeTab, resolvedTabFromPath]);
 
   // Remove stale legacy workspace query params from old versions.
   useEffect(() => {
     clearLegacyWorkspaceFromUrl();
   }, []);
-
-  // Listen for browser back/forward hash changes
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleHashChange = () => {
-      const tab = getTabFromHash();
-      if (tab && tab !== activeTab) {
-        setActiveTab(tab);
-      } else if (!window.location.hash) {
-        setActiveTab('home');
-      }
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [activeTab]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -123,7 +108,6 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo', ini
     }
 
     const payload = {
-      activeTab,
       activeMarket,
       filterStatus,
       searchQuery,
@@ -135,7 +119,30 @@ export function useMarketplace(initialTab = 'home', initialMarket = 'cargo', ini
     } catch (error) {
       console.warn('Failed to persist marketplace preferences:', error);
     }
-  }, [activeTab, activeMarket, filterStatus, searchQuery, sortBy]);
+  }, [activeMarket, filterStatus, searchQuery, sortBy]);
+
+  const setActiveTab = useCallback((tab, options = {}) => {
+    if (tab === NOT_FOUND_TAB) {
+      setActiveTabState(NOT_FOUND_TAB);
+      return;
+    }
+
+    const targetPath = getAppPathByTab(tab, null);
+    if (!targetPath) {
+      setActiveTabState(tab);
+      return;
+    }
+
+    const currentPath = normalizeAppPath(location.pathname);
+    if (currentPath === targetPath) {
+      if (activeTab !== tab) {
+        setActiveTabState(tab);
+      }
+      return;
+    }
+
+    navigate(targetPath, { replace: Boolean(options.replace) });
+  }, [navigate, location.pathname, activeTab]);
 
   const navigateTo = useCallback((tab) => {
     setActiveTab(tab);
