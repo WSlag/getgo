@@ -208,7 +208,9 @@ async function signInWithTestPhone(page, phone, otp) {
 
 async function openNotificationsTab(page, baseUrl, timeoutMs) {
   const target = new URL(baseUrl);
-  target.hash = 'notifications';
+  target.pathname = '/app/notifications';
+  target.search = '';
+  target.hash = '';
   await page.goto(target.toString(), { waitUntil: 'domcontentloaded', timeout: timeoutMs });
   await waitForSpinnerToClear(page, timeoutMs).catch(() => {});
   await dismissBlockingDialogs(page);
