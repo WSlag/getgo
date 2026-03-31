@@ -18,14 +18,25 @@ import {
   functions,
   hasValidAppCheckToken,
   shouldInitializeAppCheck,
+  messagingClientIdentity,
 } from '../firebase';
 import { useToast } from '../contexts/ToastContext';
+import {
+  getStoredRegistration,
+  getStoredToken,
+  persistLocalRegistration,
+  clearStoredRegistration,
+  migrateLegacyKeysForUid,
+  ensureMessagingIdentityMigration,
+  classifyPushRegistrationError,
+  buildPushRegistrationDiagnostics,
+  isInUnauthorizedSessionCooldown,
+  markUnauthorizedSessionCooldown,
+  clearUnauthorizedSessionCooldown,
+  cleanupPushRegistrationOnLogout,
+} from './pushNotificationUtils';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-const REGISTERED_KEY_PREFIX = 'karga.push.registered';
-const REGISTERED_TOKEN_KEY_PREFIX = 'karga.push.token';
-const LEGACY_REGISTERED_KEY = 'karga.push.registered';
-const LEGACY_REGISTERED_TOKEN_KEY = 'karga.push.token';
 const APP_CHECK_TOKEN_ERROR_CODE = 'app-check-token-unavailable';
 
 const MAX_AUTO_RETRIES = 5;
@@ -42,93 +53,6 @@ function isMissingFunctionError(error) {
   const code = String(error?.code || '').toLowerCase();
   const message = String(error?.message || '').toLowerCase();
   return code === 'functions/not-found' || message.includes('not found');
-}
-
-function isRetryableRegistrationError(error) {
-  if (isAppCheckTokenError(error)) return true;
-
-  const code = String(error?.code || '').toLowerCase();
-  const message = String(error?.message || '').toLowerCase();
-  if (!code && !message) return false;
-
-  return (
-    code.includes('unavailable') ||
-    code.includes('deadline-exceeded') ||
-    code.includes('internal') ||
-    code.includes('aborted') ||
-    message.includes('network') ||
-    message.includes('failed to fetch') ||
-    message.includes('service worker') ||
-    message.includes('messaging')
-  );
-}
-
-function getRegisteredKey(uid) {
-  return `${REGISTERED_KEY_PREFIX}.${uid}`;
-}
-
-function getRegisteredTokenKey(uid) {
-  return `${REGISTERED_TOKEN_KEY_PREFIX}.${uid}`;
-}
-
-function getInitialPermission() {
-  if (typeof Notification === 'undefined') return 'unsupported';
-  return Notification.permission;
-}
-
-function getStoredRegistration(uid) {
-  if (!uid) return false;
-  try {
-    return localStorage.getItem(getRegisteredKey(uid)) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function getStoredToken(uid) {
-  if (!uid) return '';
-  try {
-    return localStorage.getItem(getRegisteredTokenKey(uid)) || '';
-  } catch {
-    return '';
-  }
-}
-
-function persistLocalRegistration(uid, token) {
-  if (!uid || !token) return;
-  try {
-    localStorage.setItem(getRegisteredKey(uid), '1');
-    localStorage.setItem(getRegisteredTokenKey(uid), token);
-  } catch {
-    // Storage unavailable; rely on in-memory state.
-  }
-}
-
-function clearStoredRegistration(uid) {
-  if (!uid) return;
-  try {
-    localStorage.removeItem(getRegisteredKey(uid));
-    localStorage.removeItem(getRegisteredTokenKey(uid));
-  } catch {
-    // Ignore storage cleanup failures.
-  }
-}
-
-function migrateLegacyKeysForUid(uid) {
-  if (!uid) return;
-  try {
-    const legacyRegistered = localStorage.getItem(LEGACY_REGISTERED_KEY);
-    const legacyToken = localStorage.getItem(LEGACY_REGISTERED_TOKEN_KEY);
-
-    if (legacyRegistered === '1' && legacyToken) {
-      persistLocalRegistration(uid, legacyToken);
-    }
-
-    localStorage.removeItem(LEGACY_REGISTERED_KEY);
-    localStorage.removeItem(LEGACY_REGISTERED_TOKEN_KEY);
-  } catch {
-    // Best effort migration.
-  }
 }
 
 async function getMessagingModule() {
@@ -166,6 +90,21 @@ async function ensureAppServiceWorkerRegistration() {
   }
 }
 
+function getInitialPermission() {
+  if (typeof Notification === 'undefined') return 'unsupported';
+  return Notification.permission;
+}
+
+function buildPushErrorWithMeta(error, meta) {
+  if (error instanceof Error) {
+    error.pushMeta = { ...(error.pushMeta || {}), ...(meta || {}) };
+    return error;
+  }
+  const wrapped = new Error(String(error || 'Push registration failed.'));
+  wrapped.pushMeta = { ...(meta || {}) };
+  return wrapped;
+}
+
 export function usePushNotifications(userId, userRole) {
   const showToast = useToast();
   const [permissionStatus, setPermissionStatus] = useState(getInitialPermission);
@@ -177,6 +116,7 @@ export function usePushNotifications(userId, userRole) {
   const latestPermissionRef = useRef(permissionStatus);
   const latestUserIdRef = useRef(userId);
   const topicSyncSignatureRef = useRef('');
+  const identityMigrationCheckedRef = useRef(false);
 
   useEffect(() => {
     latestPermissionRef.current = permissionStatus;
@@ -195,6 +135,7 @@ export function usePushNotifications(userId, userRole) {
 
   const clearLocalPushState = useCallback((uid) => {
     clearStoredRegistration(uid);
+    clearUnauthorizedSessionCooldown(uid);
     setIsRegistered(false);
     registeredForUid.current = null;
     retryAttemptRef.current = 0;
@@ -244,14 +185,9 @@ export function usePushNotifications(userId, userRole) {
       throw error;
     }
 
-    if (shouldInitializeAppCheck) {
-      const appCheckReady = await hasValidAppCheckToken(6000).catch(() => false);
-      if (!appCheckReady) {
-        const error = new Error('App Check token is unavailable for FCM registration.');
-        error.code = APP_CHECK_TOKEN_ERROR_CODE;
-        throw error;
-      }
-    }
+    const appCheckReady = shouldInitializeAppCheck
+      ? await hasValidAppCheckToken(3000).catch(() => false)
+      : true;
 
     const messagingInstance = await getOrInitMessaging();
     if (!messagingInstance) {
@@ -263,13 +199,24 @@ export function usePushNotifications(userId, userRole) {
     const swReg = await ensureAppServiceWorkerRegistration();
     const messagingModule = await getMessagingModule();
 
-    const token = await messagingModule.getToken(messagingInstance, {
-      vapidKey: VAPID_KEY,
-      ...(swReg ? { serviceWorkerRegistration: swReg } : {}),
-    });
+    let token = '';
+    try {
+      token = await messagingModule.getToken(messagingInstance, {
+        vapidKey: VAPID_KEY,
+        ...(swReg ? { serviceWorkerRegistration: swReg } : {}),
+      });
+    } catch (error) {
+      throw buildPushErrorWithMeta(error, {
+        appCheckReady,
+        swScope: swReg?.scope || '',
+      });
+    }
 
     if (!token) {
-      throw new Error('FCM registration returned no token.');
+      throw buildPushErrorWithMeta(new Error('FCM registration returned no token.'), {
+        appCheckReady,
+        swScope: swReg?.scope || '',
+      });
     }
 
     const previousToken = getStoredToken(uid);
@@ -291,6 +238,7 @@ export function usePushNotifications(userId, userRole) {
     }
 
     persistLocalRegistration(uid, token);
+    clearUnauthorizedSessionCooldown(uid);
     setIsRegistered(true);
     retryAttemptRef.current = 0;
     clearRetryTimer();
@@ -313,6 +261,7 @@ export function usePushNotifications(userId, userRole) {
     retryTimerRef.current = setTimeout(() => {
       if (latestUserIdRef.current !== uid) return;
       if (latestPermissionRef.current !== 'granted') return;
+      if (isInUnauthorizedSessionCooldown(uid)) return;
       void attemptFn();
     }, delayMs);
 
@@ -322,6 +271,17 @@ export function usePushNotifications(userId, userRole) {
   const registerWithRecovery = useCallback(async (uid, options = {}) => {
     if (!uid) return;
 
+    if (isInUnauthorizedSessionCooldown(uid)) {
+      if (options.interactive) {
+        showToast({
+          title: 'Push temporarily unavailable',
+          message: 'Push registration is cooling down for this session. Refresh and try again.',
+          type: 'warning',
+        });
+      }
+      return;
+    }
+
     registeredForUid.current = uid;
     try {
       await saveTokenToFirestore(uid);
@@ -330,28 +290,82 @@ export function usePushNotifications(userId, userRole) {
     } catch (error) {
       registeredForUid.current = null;
 
-      if (import.meta.env.DEV) {
-        console.warn('[usePushNotifications] Push registration failed:', error?.message || error);
+      if (isAppCheckTokenError(error)) {
+        const scheduled = scheduleRetry(uid, () => registerWithRecovery(uid));
+        if (options.interactive || !scheduled) {
+          showToast({
+            title: 'Push not activated',
+            message: 'Security checks are still warming up. Please try again in a moment.',
+            type: 'warning',
+          });
+        }
+        return;
       }
 
-      const retryable = isRetryableRegistrationError(error);
-      const scheduled = retryable && scheduleRetry(uid, () => registerWithRecovery(uid));
+      const classification = classifyPushRegistrationError(error);
+      const diagnostics = buildPushRegistrationDiagnostics({
+        permissionStatus: latestPermissionRef.current,
+        appCheckReady: error?.pushMeta?.appCheckReady,
+        swRegistration: error?.pushMeta?.swScope ? { scope: error.pushMeta.swScope } : null,
+        classification,
+      });
+      console.warn('[usePushNotifications] Push registration diagnostics:', diagnostics);
 
-      if (!scheduled && !isAppCheckTokenError(error)) {
+      if (classification.shouldEnterSessionCooldown) {
+        markUnauthorizedSessionCooldown(uid);
+      }
+
+      if (classification.category === 'stale_cleanup') {
+        clearStoredRegistration(uid);
+        setIsRegistered(false);
+        retryAttemptRef.current = 0;
+        clearRetryTimer();
+        if (options.interactive) {
+          showToast({
+            title: 'Push state refreshed',
+            message: 'Stale push state was cleared. Try activating again.',
+            type: 'warning',
+          });
+        }
+        return;
+      }
+
+      const scheduled = classification.shouldRetry && scheduleRetry(uid, () => registerWithRecovery(uid));
+      if (!scheduled) {
         clearLocalPushState(uid);
       }
 
       if (options.interactive || !scheduled) {
+        const message = classification.category === 'unauthorized'
+          ? 'Push registration is blocked for this session. Refresh and retry.'
+          : 'Try again in a moment. If this continues, refresh and retry.';
+
         showToast({
           title: 'Push not activated',
-          message: isAppCheckTokenError(error)
-            ? 'Security checks are still warming up. Please try again in a moment.'
-            : 'Try again in a moment. If this continues, refresh and retry.',
+          message,
           type: 'warning',
         });
       }
     }
-  }, [clearLocalPushState, saveTokenToFirestore, scheduleRetry, showToast]);
+  }, [clearLocalPushState, clearRetryTimer, saveTokenToFirestore, scheduleRetry, showToast]);
+
+  useEffect(() => {
+    if (identityMigrationCheckedRef.current) return;
+    identityMigrationCheckedRef.current = true;
+
+    const migration = ensureMessagingIdentityMigration(messagingClientIdentity);
+    if (!migration.migrated) return;
+
+    setIsRegistered(false);
+    registeredForUid.current = null;
+    retryAttemptRef.current = 0;
+    topicSyncSignatureRef.current = '';
+    clearRetryTimer();
+
+    if (import.meta.env.DEV) {
+      console.info('[usePushNotifications] Messaging identity changed, cleared local push registration artifacts.');
+    }
+  }, [clearRetryTimer]);
 
   useEffect(() => {
     if (!userId) {
@@ -439,34 +453,16 @@ export function usePushNotifications(userId, userRole) {
 
   async function unregisterToken(uid) {
     if (!uid) return;
+
     const storedToken = getStoredToken(uid);
-
-    try {
-      const messagingInstance = await getOrInitMessaging();
-      if (messagingInstance) {
-        let appCheckReadyForDelete = true;
-        if (shouldInitializeAppCheck) {
-          appCheckReadyForDelete = await hasValidAppCheckToken(2500).catch(() => false);
-        }
-
-        // Avoid deleteToken() when App Check is unavailable to prevent logout churn.
-        if (appCheckReadyForDelete) {
-          const messagingModule = await getMessagingModule();
-          await messagingModule.deleteToken(messagingInstance).catch(() => {});
-        } else if (import.meta.env.DEV) {
-          console.warn('[usePushNotifications] Skipping deleteToken() because App Check token is unavailable.');
-        }
-      }
-    } catch {
-      // Non-fatal: continue local cleanup.
-    }
-
-    if (storedToken) {
-      await deleteDoc(doc(db, 'users', uid, 'fcmTokens', storedToken)).catch(() => {});
-    }
-
-    clearLocalPushState(uid);
+    await cleanupPushRegistrationOnLogout({
+      uid,
+      storedToken,
+      deleteStoredTokenDoc: async (token) => deleteDoc(doc(db, 'users', uid, 'fcmTokens', token)),
+      clearLocalPushState,
+    });
   }
 
   return { permissionStatus, isRegistered, requestAndRegister, unregisterToken };
 }
+
