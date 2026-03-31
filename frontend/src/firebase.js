@@ -143,6 +143,8 @@ if (import.meta.env.PROD) {
 
 // Detect emulator mode from environment variable
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+const forceFirestoreLongPolling = import.meta.env.VITE_FIRESTORE_FORCE_LONG_POLLING === 'true';
+const autoDetectFirestoreLongPolling = import.meta.env.VITE_FIRESTORE_AUTO_DETECT_LONG_POLLING === 'true';
 const appCheckEnabled = import.meta.env.VITE_ENABLE_APPCHECK !== 'false';
 const appCheckDebugEnabled = import.meta.env.VITE_APPCHECK_DEBUG === 'true' || import.meta.env.DEV;
 const configuredAppCheckProvider = (import.meta.env.VITE_APPCHECK_PROVIDER || 'auto').toLowerCase();
@@ -237,6 +239,7 @@ const messagingFirebaseApp =
   typeof window !== 'undefined' && !useEmulator
     ? getOrInitializeApp(firebaseConfig, 'karga-messaging')
     : app;
+export const messagingClientIdentity = `${messagingFirebaseApp.name}:${firebaseConfig.appId}`;
 
 async function initializeAppCheckRuntime() {
   try {
@@ -407,10 +410,20 @@ if (disableAuthAppVerificationForTesting) {
 }
 export const isAuthAppVerificationBypassed = disableAuthAppVerificationForTesting;
 export const db = (() => {
+  const emulatorFirestoreSettings = {
+    localCache: memoryLocalCache(),
+  };
+  if (forceFirestoreLongPolling) {
+    emulatorFirestoreSettings.experimentalForceLongPolling = true;
+    emulatorFirestoreSettings.useFetchStreams = false;
+  } else if (autoDetectFirestoreLongPolling) {
+    emulatorFirestoreSettings.experimentalAutoDetectLongPolling = true;
+  }
+
   try {
     // Use memory cache in emulator mode to avoid persistence conflicts
     if (useEmulator) {
-      return initializeFirestore(app, { localCache: memoryLocalCache() });
+      return initializeFirestore(app, emulatorFirestoreSettings);
     }
     return initializeFirestore(app, {
       localCache: persistentLocalCache({
