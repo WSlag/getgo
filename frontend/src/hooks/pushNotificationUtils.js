@@ -4,6 +4,8 @@ const LEGACY_REGISTERED_KEY = 'karga.push.registered';
 const LEGACY_REGISTERED_TOKEN_KEY = 'karga.push.token';
 const MESSAGING_IDENTITY_KEY = 'karga.push.messaging.identity';
 const UNAUTHORIZED_COOLDOWN_KEY_PREFIX = 'karga.push.cooldown.unauthorized';
+const MESSAGING_INDEXED_DB_NAMES = ['firebase-messaging-database'];
+const INSTALLATIONS_INDEXED_DB_NAMES = ['firebase-installations-database'];
 
 function getSafeStorageValue(storageLike, key) {
   if (!storageLike || !key) return '';
@@ -47,6 +49,22 @@ function truncateText(value, maxLength = 180) {
   return `${text.slice(0, maxLength - 3)}...`;
 }
 
+async function deleteIndexedDbIfPresent(name) {
+  if (!name) return false;
+  if (!globalThis?.indexedDB?.deleteDatabase) return false;
+
+  return new Promise((resolve) => {
+    try {
+      const request = globalThis.indexedDB.deleteDatabase(name);
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => resolve(false);
+      request.onblocked = () => resolve(false);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
 function getRegisteredKey(uid) {
   return `${REGISTERED_KEY_PREFIX}.${uid}`;
 }
@@ -79,6 +97,20 @@ export function clearStoredRegistration(uid, storageLike = globalThis?.localStor
   if (!uid) return;
   removeSafeStorageValue(storageLike, getRegisteredKey(uid));
   removeSafeStorageValue(storageLike, getRegisteredTokenKey(uid));
+}
+
+export async function purgeLocalMessagingRegistrationArtifacts({
+  includeInstallations = false,
+} = {}) {
+  const dbNames = includeInstallations
+    ? [...MESSAGING_INDEXED_DB_NAMES, ...INSTALLATIONS_INDEXED_DB_NAMES]
+    : [...MESSAGING_INDEXED_DB_NAMES];
+
+  const results = await Promise.allSettled(dbNames.map((name) => deleteIndexedDbIfPresent(name)));
+  return {
+    attempted: dbNames.length,
+    deleted: results.filter((entry) => entry.status === 'fulfilled' && entry.value === true).length,
+  };
 }
 
 export function migrateLegacyKeysForUid(uid, storageLike = globalThis?.localStorage) {
@@ -153,25 +185,31 @@ function inferHttpStatus(rawCode, rawMessage) {
 export function classifyPushRegistrationError(error) {
   const normalizedCode = normalizeErrorText(error?.code);
   const normalizedMessage = normalizeErrorText(error?.message || error);
-  const httpStatus = inferHttpStatus(normalizedCode, normalizedMessage);
+  const normalizedServerResponse = normalizeErrorText(
+    error?.customData?.serverResponse || error?.customData?._serverResponse
+  );
+  const searchableMessage = `${normalizedMessage} ${normalizedServerResponse}`.trim();
+  const httpStatus = inferHttpStatus(normalizedCode, searchableMessage);
 
   const isStaleUnsubscribe =
-    normalizedMessage.includes('token-unsubscribe-failed') &&
-    (httpStatus === 400 || normalizedMessage.includes('invalid argument'));
+    searchableMessage.includes('token-unsubscribe-failed') &&
+    (httpStatus === 400 || searchableMessage.includes('invalid argument'));
 
   const isUnauthorized =
     httpStatus === 401 ||
-    normalizedMessage.includes('missing required authentication credential') ||
-    normalizedMessage.includes('token-subscribe-failed') && normalizedMessage.includes('unauthorized');
+    searchableMessage.includes('missing required authentication credential') ||
+    searchableMessage.includes('unauthenticated') ||
+    searchableMessage.includes('request had invalid authentication credentials') ||
+    searchableMessage.includes('token-subscribe-failed') && searchableMessage.includes('unauthorized');
 
   const isTransient =
     normalizedCode.includes('unavailable') ||
     normalizedCode.includes('deadline-exceeded') ||
     normalizedCode.includes('internal') ||
     normalizedCode.includes('aborted') ||
-    normalizedMessage.includes('network') ||
-    normalizedMessage.includes('failed to fetch') ||
-    normalizedMessage.includes('service worker');
+    searchableMessage.includes('network') ||
+    searchableMessage.includes('failed to fetch') ||
+    searchableMessage.includes('service worker');
 
   const category = isStaleUnsubscribe
     ? 'stale_cleanup'
@@ -184,7 +222,7 @@ export function classifyPushRegistrationError(error) {
   return {
     category,
     normalizedCode,
-    normalizedMessage,
+    normalizedMessage: searchableMessage,
     httpStatus,
     shouldRetry: category === 'transient',
     shouldEnterSessionCooldown: category === 'unauthorized',
@@ -250,4 +288,3 @@ export async function cleanupPushRegistrationOnLogout({
   }
   clearLocalPushState(uid);
 }
-
