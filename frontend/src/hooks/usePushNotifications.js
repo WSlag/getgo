@@ -26,6 +26,7 @@ import {
   getStoredToken,
   persistLocalRegistration,
   clearStoredRegistration,
+  purgeLocalMessagingRegistrationArtifacts,
   migrateLegacyKeysForUid,
   ensureMessagingIdentityMigration,
   classifyPushRegistrationError,
@@ -311,11 +312,8 @@ export function usePushNotifications(userId, userRole) {
       });
       console.warn('[usePushNotifications] Push registration diagnostics:', diagnostics);
 
-      if (classification.shouldEnterSessionCooldown) {
-        markUnauthorizedSessionCooldown(uid);
-      }
-
       if (classification.category === 'stale_cleanup') {
+        await purgeLocalMessagingRegistrationArtifacts();
         clearStoredRegistration(uid);
         setIsRegistered(false);
         retryAttemptRef.current = 0;
@@ -333,6 +331,10 @@ export function usePushNotifications(userId, userRole) {
       const scheduled = classification.shouldRetry && scheduleRetry(uid, () => registerWithRecovery(uid));
       if (!scheduled) {
         clearLocalPushState(uid);
+      }
+      if (classification.shouldEnterSessionCooldown) {
+        await purgeLocalMessagingRegistrationArtifacts({ includeInstallations: true });
+        markUnauthorizedSessionCooldown(uid);
       }
 
       if (options.interactive || !scheduled) {
@@ -465,4 +467,3 @@ export function usePushNotifications(userId, userRole) {
 
   return { permissionStatus, isRegistered, requestAndRegister, unregisterToken };
 }
-
