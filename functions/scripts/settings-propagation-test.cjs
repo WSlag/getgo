@@ -76,6 +76,11 @@ async function run() {
     },
     communications: {
       broadcastEnabled: true,
+      smsBroadcastEnabled: true,
+      sms: {
+        maxRetries: 4,
+        retryBaseDelayMs: 2500,
+      },
       welcome: {
         enabled: true,
         title: 'Welcome to GetGo',
@@ -121,6 +126,21 @@ async function run() {
     reloaded.communications.broadcastEnabled,
     true,
     'broadcastEnabled toggle should be updated'
+  );
+  assert.equal(
+    reloaded.communications.smsBroadcastEnabled,
+    true,
+    'smsBroadcastEnabled toggle should be updated'
+  );
+  assert.equal(
+    reloaded.communications.sms.maxRetries,
+    4,
+    'communications.sms.maxRetries should be updated'
+  );
+  assert.equal(
+    reloaded.communications.sms.retryBaseDelayMs,
+    2500,
+    'communications.sms.retryBaseDelayMs should be updated'
   );
   assert.equal(
     reloaded.communications.welcome.enabled,

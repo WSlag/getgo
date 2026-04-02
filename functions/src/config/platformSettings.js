@@ -31,10 +31,15 @@ const DEFAULT_PLATFORM_SETTINGS = Object.freeze({
   },
   communications: {
     broadcastEnabled: true,
+    smsBroadcastEnabled: false,
+    sms: {
+      maxRetries: 3,
+      retryBaseDelayMs: 1000,
+    },
     welcome: {
       enabled: true,
-      title: 'Welcome to GetGo',
-      message: 'Welcome to GetGo. We are glad to have you onboard. You can check Help & Support anytime for tips and assistance.',
+      title: 'Welcome to GetgoPh',
+      message: 'Welcome to GetgoPh. We are glad to have you onboard. You can check Help & Support anytime for tips and assistance.',
     },
   },
 });
@@ -78,6 +83,7 @@ function normalizePlatformSettings(raw = {}) {
   const featuresRaw = raw.features || {};
   const maintenanceRaw = raw.maintenance || {};
   const communicationsRaw = raw.communications || {};
+  const smsRaw = communicationsRaw.sms || {};
   const welcomeRaw = communicationsRaw.welcome || {};
 
   const percentage = clamp(
@@ -136,6 +142,22 @@ function normalizePlatformSettings(raw = {}) {
         communicationsRaw.broadcastEnabled === undefined
           ? defaults.communications.broadcastEnabled
           : Boolean(communicationsRaw.broadcastEnabled),
+      smsBroadcastEnabled:
+        communicationsRaw.smsBroadcastEnabled === undefined
+          ? defaults.communications.smsBroadcastEnabled
+          : Boolean(communicationsRaw.smsBroadcastEnabled),
+      sms: {
+        maxRetries: clamp(
+          Math.round(toFiniteNumber(smsRaw.maxRetries, defaults.communications.sms.maxRetries)),
+          0,
+          10
+        ),
+        retryBaseDelayMs: clamp(
+          Math.round(toFiniteNumber(smsRaw.retryBaseDelayMs, defaults.communications.sms.retryBaseDelayMs)),
+          100,
+          60000
+        ),
+      },
       welcome: {
         enabled:
           welcomeRaw.enabled === undefined
@@ -183,6 +205,10 @@ function mergePlatformSettings(base = {}, patch = {}) {
     communications: {
       ...(base.communications || {}),
       ...(patch.communications || {}),
+      sms: {
+        ...((base.communications && base.communications.sms) || {}),
+        ...((patch.communications && patch.communications.sms) || {}),
+      },
       welcome: {
         ...((base.communications && base.communications.welcome) || {}),
         ...((patch.communications && patch.communications.welcome) || {}),
@@ -207,6 +233,8 @@ function validatePlatformSettingsPatch(patch = {}) {
     ['referralCommission', 'SILVER'],
     ['referralCommission', 'GOLD'],
     ['referralCommission', 'PLATINUM'],
+    ['communications', 'sms', 'maxRetries'],
+    ['communications', 'sms', 'retryBaseDelayMs'],
   ];
   const booleanPaths = [
     ['features', 'paymentVerificationEnabled'],
@@ -214,6 +242,7 @@ function validatePlatformSettingsPatch(patch = {}) {
     ['features', 'autoApproveLowRiskPayments'],
     ['maintenance', 'enabled'],
     ['communications', 'broadcastEnabled'],
+    ['communications', 'smsBroadcastEnabled'],
     ['communications', 'welcome', 'enabled'],
   ];
   const textPaths = [
@@ -223,11 +252,18 @@ function validatePlatformSettingsPatch(patch = {}) {
     ['communications', 'welcome', 'message'],
   ];
 
-  for (const [group, key] of numericPaths) {
-    if (patch[group] && key in patch[group]) {
-      const value = patch[group][key];
+  for (const path of numericPaths) {
+    const parentPath = path.slice(0, -1);
+    const key = path[path.length - 1];
+    const parentValue = getNestedValue(patch, parentPath);
+    if (
+      parentValue
+      && typeof parentValue === 'object'
+      && Object.prototype.hasOwnProperty.call(parentValue, key)
+    ) {
+      const value = parentValue[key];
       if (value === '' || value === null || value === undefined || !Number.isFinite(Number(value))) {
-        throw new Error(`${group}.${key} must be a valid number`);
+        throw new Error(`${path.join('.')} must be a valid number`);
       }
     }
   }
