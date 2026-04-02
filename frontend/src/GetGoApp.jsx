@@ -242,6 +242,7 @@ export default function GetGoApp() {
   const {
     permissionStatus: pushPermission,
     isRegistered: isPushRegistered,
+    isRegistrationStatusChecked: isPushRegistrationStatusChecked,
     requestAndRegister: requestPushRegistration,
     unregisterToken: unregisterPushToken,
   } = usePushNotifications(activeUserId, currentRole);
@@ -3078,6 +3079,7 @@ export default function GetGoApp() {
               onOpenActivity={() => handleTabChange('activity')}
               darkMode={darkMode}
               pushPermission={pushPermission}
+              isPushRegistrationStatusChecked={isPushRegistrationStatusChecked}
               isPushRegistered={isPushRegistered}
               onEnablePush={() => requestPushRegistration(activeUserId)}
             />

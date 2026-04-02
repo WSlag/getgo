@@ -3,6 +3,7 @@ import { Bell, Clock, FileText, MessageSquare, Package, Wallet, MapPin, Star } f
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { shouldShowPushActivationPending } from '@/hooks/pushNotificationUtils';
 import { isChatNotificationType, sanitizeMessage } from '@/utils/messageUtils';
 import { getWorkspaceLabel } from '@/utils/workspace';
 import { isRatingRequestNotification } from '@/utils/ratingFlow';
@@ -42,10 +43,16 @@ export function NotificationsView({
   darkMode = false,
   pushPermission = 'unsupported',
   isPushRegistered = false,
+  isPushRegistrationStatusChecked = true,
   onEnablePush,
 }) {
   const isMobile = useMediaQuery('(max-width: 1023px)');
   const workspaceLabel = getWorkspaceLabel(workspaceRole);
+  const showPushActivationPending = shouldShowPushActivationPending({
+    permissionStatus: pushPermission,
+    isRegistered: isPushRegistered,
+    isRegistrationStatusChecked: isPushRegistrationStatusChecked,
+  });
 
   const handleMarkRead = (notification) => {
     if (!currentUserId || !notification?.id || isNotificationRead(notification)) {
@@ -125,7 +132,7 @@ export function NotificationsView({
           </div>
         </div>
       )}
-      {pushPermission === 'granted' && !isPushRegistered && (
+      {showPushActivationPending && (
         <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex items-start gap-3">
           <span className="text-blue-600 mt-0.5 shrink-0" aria-hidden="true">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

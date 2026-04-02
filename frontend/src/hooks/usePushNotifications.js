@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import {
   getOrInitMessaging,
@@ -35,6 +35,7 @@ import {
   markUnauthorizedSessionCooldown,
   clearUnauthorizedSessionCooldown,
   cleanupPushRegistrationOnLogout,
+  reconcileBrowserTokenRegistration,
 } from './pushNotificationUtils';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
@@ -110,6 +111,9 @@ export function usePushNotifications(userId, userRole) {
   const showToast = useToast();
   const [permissionStatus, setPermissionStatus] = useState(getInitialPermission);
   const [isRegistered, setIsRegistered] = useState(() => getStoredRegistration(userId));
+  const [isRegistrationStatusChecked, setIsRegistrationStatusChecked] = useState(
+    () => !(userId && getInitialPermission() === 'granted')
+  );
 
   const registeredForUid = useRef(null);
   const retryAttemptRef = useRef(0);
@@ -249,6 +253,21 @@ export function usePushNotifications(userId, userRole) {
     return token;
   }, [clearRetryTimer, syncListingTopicsForRole, userRole]);
 
+  const resolveMessagingTokenForVerification = useCallback(async () => {
+    if (!VAPID_KEY) return '';
+
+    const messagingInstance = await getOrInitMessaging();
+    if (!messagingInstance) return '';
+
+    const swReg = await ensureAppServiceWorkerRegistration();
+    const messagingModule = await getMessagingModule();
+
+    return messagingModule.getToken(messagingInstance, {
+      vapidKey: VAPID_KEY,
+      ...(swReg ? { serviceWorkerRegistration: swReg } : {}),
+    });
+  }, []);
+
   const scheduleRetry = useCallback((uid, attemptFn) => {
     if (retryAttemptRef.current >= MAX_AUTO_RETRIES) {
       return false;
@@ -372,6 +391,7 @@ export function usePushNotifications(userId, userRole) {
   useEffect(() => {
     if (!userId) {
       setIsRegistered(false);
+      setIsRegistrationStatusChecked(true);
       registeredForUid.current = null;
       retryAttemptRef.current = 0;
       topicSyncSignatureRef.current = '';
@@ -381,18 +401,77 @@ export function usePushNotifications(userId, userRole) {
 
     migrateLegacyKeysForUid(userId);
     setIsRegistered(getStoredRegistration(userId));
+    setIsRegistrationStatusChecked(permissionStatus !== 'granted');
     registeredForUid.current = null;
     retryAttemptRef.current = 0;
     topicSyncSignatureRef.current = '';
     clearRetryTimer();
-  }, [clearRetryTimer, userId]);
+  }, [clearRetryTimer, permissionStatus, userId]);
+
+  useEffect(() => {
+    if (!userId || permissionStatus !== 'granted') {
+      setIsRegistrationStatusChecked(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    const reconcileRegistrationState = async () => {
+      setIsRegistrationStatusChecked(false);
+
+      const storedToken = getStoredToken(userId);
+      const reconciliation = await reconcileBrowserTokenRegistration({
+        storedToken,
+        resolveToken: resolveMessagingTokenForVerification,
+        hasTokenDocument: async (token) => {
+          const tokenDoc = await getDoc(doc(db, 'users', userId, 'fcmTokens', token));
+          return tokenDoc.exists();
+        },
+      });
+
+      if (cancelled) return;
+
+      if (reconciliation.isRegistered) {
+        persistLocalRegistration(userId, reconciliation.token);
+        clearUnauthorizedSessionCooldown(userId);
+        setIsRegistered(true);
+        registeredForUid.current = userId;
+        retryAttemptRef.current = 0;
+        clearRetryTimer();
+      } else {
+        setIsRegistered(false);
+        registeredForUid.current = null;
+        if (reconciliation.reason === 'token-doc-missing' && reconciliation.tokenSource === 'storage') {
+          clearStoredRegistration(userId);
+        }
+        if (import.meta.env.DEV && reconciliation.reason !== 'no-token') {
+          console.info('[usePushNotifications] Registration reconciliation result:', reconciliation.reason);
+        }
+      }
+
+      setIsRegistrationStatusChecked(true);
+    };
+
+    void reconcileRegistrationState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    clearRetryTimer,
+    permissionStatus,
+    resolveMessagingTokenForVerification,
+    userId,
+  ]);
 
   useEffect(() => {
     if (!userId || permissionStatus !== 'granted') return;
+    if (!isRegistrationStatusChecked) return;
+    if (isRegistered) return;
     if (registeredForUid.current === userId) return;
 
     void registerWithRecovery(userId);
-  }, [permissionStatus, registerWithRecovery, userId]);
+  }, [isRegistered, isRegistrationStatusChecked, permissionStatus, registerWithRecovery, userId]);
 
   useEffect(() => {
     if (!userId || permissionStatus !== 'granted' || !isRegistered) return;
@@ -465,5 +544,11 @@ export function usePushNotifications(userId, userRole) {
     });
   }
 
-  return { permissionStatus, isRegistered, requestAndRegister, unregisterToken };
+  return {
+    permissionStatus,
+    isRegistered,
+    isRegistrationStatusChecked,
+    requestAndRegister,
+    unregisterToken,
+  };
 }
