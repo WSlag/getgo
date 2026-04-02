@@ -1691,6 +1691,8 @@ exports.onTruckListingCreated = truckerComplianceTriggers.onTruckListingCreated;
 
 const adminBroadcastTriggers = require('./src/triggers/adminBroadcastTriggers');
 exports.onAdminBroadcastJobCreated = adminBroadcastTriggers.onAdminBroadcastJobCreated;
+const adminBroadcastSmsTriggers = require('./src/triggers/adminBroadcastSmsTriggers');
+exports.onAdminBroadcastSmsQueued = adminBroadcastSmsTriggers.onAdminBroadcastSmsQueued;
 
 const userCommunicationTriggers = require('./src/triggers/userCommunicationTriggers');
 exports.onUserCreatedSendWelcomeMessage = userCommunicationTriggers.onUserCreatedSendWelcomeMessage;
