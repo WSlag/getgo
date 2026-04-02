@@ -10,9 +10,21 @@ import api from '@/services/api';
 
 const BROADCAST_TITLE_MAX_LENGTH = 120;
 const BROADCAST_MESSAGE_MAX_LENGTH = 2000;
+const SMS_AUDIENCE_MODE_ALL = 'all';
+const SMS_AUDIENCE_MODE_PHONE_ALLOWLIST = 'phone_allowlist';
+const SMS_ALLOWLIST_MAX_COUNT = 50;
 
 function normalizeTrimmedText(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function parsePhoneAllowlistInput(value) {
+  if (typeof value !== 'string') return [];
+  const entries = value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return [...new Set(entries)];
 }
 
 function toCount(value) {
@@ -47,14 +59,18 @@ export function AnnouncementsView() {
   const [settingsError, setSettingsError] = useState('');
 
   const [broadcastEnabled, setBroadcastEnabled] = useState(true);
+  const [smsBroadcastEnabled, setSmsBroadcastEnabled] = useState(false);
   const [welcomeEnabled, setWelcomeEnabled] = useState(true);
-  const [welcomeTitle, setWelcomeTitle] = useState('Welcome to GetGo');
+  const [welcomeTitle, setWelcomeTitle] = useState('Welcome to GetgoPh');
   const [welcomeMessage, setWelcomeMessage] = useState(
-    'Welcome to GetGo. We are glad to have you onboard. You can check Help & Support anytime for tips and assistance.'
+    'Welcome to GetgoPh. We are glad to have you onboard. You can check Help & Support anytime for tips and assistance.'
   );
 
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [sendSmsToo, setSendSmsToo] = useState(false);
+  const [filterSmsRecipients, setFilterSmsRecipients] = useState(false);
+  const [smsPhoneAllowlistInput, setSmsPhoneAllowlistInput] = useState('');
   const [queuingBroadcast, setQueuingBroadcast] = useState(false);
   const [broadcastError, setBroadcastError] = useState('');
   const [broadcastSuccess, setBroadcastSuccess] = useState('');
@@ -85,9 +101,14 @@ export function AnnouncementsView() {
     const communications = settings?.communications || {};
     const welcome = communications?.welcome || {};
     setBroadcastEnabled(communications?.broadcastEnabled !== false);
+    setSmsBroadcastEnabled(communications?.smsBroadcastEnabled === true);
     setWelcomeEnabled(welcome?.enabled !== false);
-    setWelcomeTitle(String(welcome?.title || 'Welcome to GetGo'));
-    setWelcomeMessage(String(welcome?.message || 'Welcome to GetGo.'));
+    setWelcomeTitle(String(welcome?.title || 'Welcome to GetgoPh'));
+    setWelcomeMessage(String(welcome?.message || 'Welcome to GetgoPh. We are glad to have you onboard. You can check Help & Support anytime for tips and assistance.'));
+    if (communications?.smsBroadcastEnabled !== true) {
+      setSendSmsToo(false);
+      setFilterSmsRecipients(false);
+    }
   }, []);
 
   const loadSettings = useCallback(async () => {
@@ -142,6 +163,8 @@ export function AnnouncementsView() {
   const handleQueueBroadcast = async () => {
     const title = normalizeTrimmedText(broadcastTitle);
     const message = normalizeTrimmedText(broadcastMessage);
+    const smsPhoneAllowlist = parsePhoneAllowlistInput(smsPhoneAllowlistInput);
+    const smsFilterEnabled = sendSmsToo && filterSmsRecipients;
 
     setBroadcastError('');
     setBroadcastSuccess('');
@@ -158,6 +181,18 @@ export function AnnouncementsView() {
       setBroadcastError('Broadcast message is required.');
       return;
     }
+    if (sendSmsToo && !smsBroadcastEnabled) {
+      setBroadcastError('SMS broadcast is disabled. Enable it in Communication Settings first.');
+      return;
+    }
+    if (smsFilterEnabled && smsPhoneAllowlist.length === 0) {
+      setBroadcastError('Add at least one phone number when SMS recipient filter is enabled.');
+      return;
+    }
+    if (smsFilterEnabled && smsPhoneAllowlist.length > SMS_ALLOWLIST_MAX_COUNT) {
+      setBroadcastError(`SMS recipient filter supports up to ${SMS_ALLOWLIST_MAX_COUNT} phone numbers per broadcast.`);
+      return;
+    }
     if (title.length > BROADCAST_TITLE_MAX_LENGTH) {
       setBroadcastError(`Title must be ${BROADCAST_TITLE_MAX_LENGTH} characters or less.`);
       return;
@@ -169,17 +204,49 @@ export function AnnouncementsView() {
 
     setQueuingBroadcast(true);
     try {
-      const response = await api.admin.queueBroadcastMessage({ title, message });
+      const channels = {
+        inApp: true,
+        sms: sendSmsToo,
+      };
+      const smsAudience = sendSmsToo
+        ? (smsFilterEnabled
+          ? {
+            mode: SMS_AUDIENCE_MODE_PHONE_ALLOWLIST,
+            phoneAllowlist: smsPhoneAllowlist,
+          }
+          : { mode: SMS_AUDIENCE_MODE_ALL })
+        : undefined;
+      const response = await api.admin.queueBroadcastMessage({ title, message, channels, smsAudience });
       const jobId = response?.jobId;
       if (!jobId) {
         throw new Error('Broadcast queue request did not return a job ID');
       }
+      const responseSmsAudience = response?.smsAudience || null;
+      const activeSmsAudience = sendSmsToo
+        ? {
+          mode: String(
+            responseSmsAudience?.mode
+            || smsAudience?.mode
+            || SMS_AUDIENCE_MODE_ALL
+          ),
+          phoneAllowlistCount: Number(
+            responseSmsAudience?.phoneAllowlistCount
+            || (smsFilterEnabled ? smsPhoneAllowlist.length : 0)
+          ),
+        }
+        : {
+          mode: SMS_AUDIENCE_MODE_ALL,
+          phoneAllowlistCount: 0,
+        };
 
       setActiveJob({
         id: jobId,
         status: response?.status || 'queued',
         title,
         message,
+        channels: response?.channels || channels,
+        smsAudience: activeSmsAudience,
+        smsStatus: sendSmsToo ? 'queued' : 'disabled',
         progress: {
           totalUsers: 0,
           processedUsers: 0,
@@ -187,9 +254,26 @@ export function AnnouncementsView() {
           skippedUsers: 0,
           failedUsers: 0,
         },
+        smsProgress: {
+          totalUsers: 0,
+          queuedUsers: 0,
+          processedUsers: 0,
+          sentUsers: 0,
+          failedUsers: 0,
+          noPhoneUsers: 0,
+          retryAttempts: 0,
+          filteredOutUsers: 0,
+          unmatchedAllowlistPhones: 0,
+        },
       });
       setBroadcastMessage('');
-      setBroadcastSuccess('Broadcast queued. Delivery is now processing in the background.');
+      setBroadcastSuccess(
+        sendSmsToo && smsFilterEnabled
+          ? `Broadcast queued. SMS will target up to ${smsPhoneAllowlist.length} filtered recipients while in-app delivery continues normally.`
+          : sendSmsToo
+            ? 'Broadcast queued. In-app and SMS delivery are now processing in the background.'
+          : 'Broadcast queued. Delivery is now processing in the background.'
+      );
       startPollingJob(jobId);
     } catch (error) {
       setBroadcastError(error?.message || 'Failed to queue broadcast');
@@ -225,6 +309,7 @@ export function AnnouncementsView() {
       const response = await api.admin.updateSystemSettings({
         communications: {
           broadcastEnabled,
+          smsBroadcastEnabled,
           welcome: {
             enabled: welcomeEnabled,
             title: trimmedTitle,
@@ -252,6 +337,24 @@ export function AnnouncementsView() {
   const deliveredUsers = toCount(jobProgress.deliveredUsers ?? activeJob?.deliveredUsers);
   const skippedUsers = toCount(jobProgress.skippedUsers ?? activeJob?.skippedUsers);
   const failedUsers = toCount(jobProgress.failedUsers ?? activeJob?.failedUsers);
+  const smsProgress = activeJob?.smsProgress || {};
+  const smsTotalUsers = toCount(smsProgress.totalUsers);
+  const smsQueuedUsers = toCount(smsProgress.queuedUsers);
+  const smsProcessedUsers = toCount(smsProgress.processedUsers);
+  const smsSentUsers = toCount(smsProgress.sentUsers);
+  const smsFailedUsers = toCount(smsProgress.failedUsers);
+  const smsNoPhoneUsers = toCount(smsProgress.noPhoneUsers);
+  const smsRetryAttempts = toCount(smsProgress.retryAttempts);
+  const smsFilteredOutUsers = toCount(smsProgress.filteredOutUsers);
+  const smsUnmatchedAllowlistPhones = toCount(smsProgress.unmatchedAllowlistPhones);
+  const smsAllowlistPreviewCount = parsePhoneAllowlistInput(smsPhoneAllowlistInput).length;
+  const smsEnabledForJob = activeJob?.channels?.sms === true || activeJob?.smsStatus === 'processing' || activeJob?.smsStatus === 'completed';
+  const jobSmsAudience = activeJob?.smsAudience || {};
+  const jobSmsAudienceMode = String(jobSmsAudience?.mode || SMS_AUDIENCE_MODE_ALL).trim().toLowerCase();
+  const jobSmsAudienceAllowlistCount = toCount(
+    jobSmsAudience?.phoneAllowlistCount
+      ?? (Array.isArray(jobSmsAudience?.phoneAllowlist) ? jobSmsAudience.phoneAllowlist.length : 0)
+  );
 
   return (
     <div className="flex flex-col gap-5 lg:gap-7">
@@ -296,7 +399,7 @@ export function AnnouncementsView() {
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Broadcast Message</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Send one message to all active users. Delivery runs asynchronously to avoid blocking the dashboard.
+              Send one message to all active users. Optional SMS extends delivery to authenticated users with phone numbers.
             </p>
 
             {!broadcastEnabled && (
@@ -323,7 +426,7 @@ export function AnnouncementsView() {
               <AppInput
                 value={broadcastTitle}
                 onChange={(event) => setBroadcastTitle(event.target.value)}
-                placeholder="Example: Welcome to GetGo"
+                placeholder="Example: Welcome to GetgoPh"
                 disabled={queuingBroadcast || loadingSettings}
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -346,6 +449,79 @@ export function AnnouncementsView() {
                 {broadcastMessage.length}/{BROADCAST_MESSAGE_MAX_LENGTH}
               </p>
             </div>
+
+            <div className="mb-4 rounded-[12px] border border-gray-200 px-4 py-3 dark:border-gray-700">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Send SMS too</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Uses SMSGate + your phone SIM. Recipients will see your mobile number.
+                  </p>
+                </div>
+                <Switch
+                  checked={sendSmsToo}
+                  onCheckedChange={(checked) => {
+                    const enabled = Boolean(checked);
+                    setSendSmsToo(enabled);
+                    if (!enabled) {
+                      setFilterSmsRecipients(false);
+                    }
+                  }}
+                  disabled={queuingBroadcast || loadingSettings || !smsBroadcastEnabled}
+                  className={cn(
+                    'h-6 w-11 border-0 shadow-none',
+                    'data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'
+                  )}
+                />
+              </div>
+              {!smsBroadcastEnabled && (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                  Enable SMS Broadcast in Communication Settings first.
+                </p>
+              )}
+            </div>
+
+            {sendSmsToo && (
+              <div className="mb-4 rounded-[12px] border border-gray-200 px-4 py-3 dark:border-gray-700">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">Filter SMS recipients</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      One-time list for this broadcast only. Max {SMS_ALLOWLIST_MAX_COUNT} numbers.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={filterSmsRecipients}
+                    onCheckedChange={(checked) => setFilterSmsRecipients(Boolean(checked))}
+                    disabled={queuingBroadcast || loadingSettings || !sendSmsToo}
+                    className={cn(
+                      'h-6 w-11 border-0 shadow-none',
+                      'data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'
+                    )}
+                  />
+                </div>
+                {filterSmsRecipients && (
+                  <div className="mt-3">
+                    <Textarea
+                      value={smsPhoneAllowlistInput}
+                      onChange={(event) => setSmsPhoneAllowlistInput(event.target.value)}
+                      placeholder="Paste phone numbers separated by comma or new line"
+                      rows={4}
+                      disabled={queuingBroadcast || loadingSettings}
+                    />
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      Current entries: {smsAllowlistPreviewCount}/{SMS_ALLOWLIST_MAX_COUNT}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {sendSmsToo && (
+              <div className="mb-4 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                SMS recipients will receive this from your configured SIM sender. Your personal number may be visible.
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2">
               <AppButton
@@ -417,6 +593,61 @@ export function AnnouncementsView() {
               {activeJob.error}
             </div>
           )}
+
+          {smsEnabledForJob && (
+            <div className="mt-4 rounded-[12px] border border-orange-200 bg-orange-50/70 p-4 dark:border-orange-800 dark:bg-orange-900/20">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-orange-800 dark:text-orange-200">SMS Delivery</p>
+                <span className={cn('inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold', statusBadgeClass(activeJob?.smsStatus || 'processing'))}>
+                  {statusLabel(activeJob?.smsStatus || 'processing')}
+                </span>
+              </div>
+              <p className="mb-3 text-xs text-orange-700 dark:text-orange-300">
+                Audience mode:{' '}
+                {jobSmsAudienceMode === SMS_AUDIENCE_MODE_PHONE_ALLOWLIST
+                  ? `Phone allowlist (${jobSmsAudienceAllowlistCount})`
+                  : 'All authenticated users'}
+              </p>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-[12px] border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900/70">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Audience</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white">{smsTotalUsers}</p>
+                </div>
+                <div className="rounded-[12px] border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900/70">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Queued</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white">{smsQueuedUsers}</p>
+                </div>
+                <div className="rounded-[12px] border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-900/20">
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300">Sent</p>
+                  <p className="text-base font-semibold text-emerald-800 dark:text-emerald-200">{smsSentUsers}</p>
+                </div>
+                <div className="rounded-[12px] border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800 dark:bg-red-900/20">
+                  <p className="text-xs text-red-700 dark:text-red-300">Failed</p>
+                  <p className="text-base font-semibold text-red-800 dark:text-red-200">{smsFailedUsers}</p>
+                </div>
+                <div className="rounded-[12px] border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900/70">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Processed</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white">{smsProcessedUsers}</p>
+                </div>
+                <div className="rounded-[12px] border border-yellow-200 bg-yellow-50 px-3 py-2 dark:border-yellow-800 dark:bg-yellow-900/20">
+                  <p className="text-xs text-yellow-700 dark:text-yellow-300">No Phone</p>
+                  <p className="text-base font-semibold text-yellow-800 dark:text-yellow-200">{smsNoPhoneUsers}</p>
+                </div>
+                <div className="rounded-[12px] border border-orange-200 bg-orange-50 px-3 py-2 dark:border-orange-800 dark:bg-orange-900/20">
+                  <p className="text-xs text-orange-700 dark:text-orange-300">Retries</p>
+                  <p className="text-base font-semibold text-orange-800 dark:text-orange-200">{smsRetryAttempts}</p>
+                </div>
+                <div className="rounded-[12px] border border-sky-200 bg-sky-50 px-3 py-2 dark:border-sky-800 dark:bg-sky-900/20">
+                  <p className="text-xs text-sky-700 dark:text-sky-300">Filtered Out</p>
+                  <p className="text-base font-semibold text-sky-800 dark:text-sky-200">{smsFilteredOutUsers}</p>
+                </div>
+                <div className="rounded-[12px] border border-indigo-200 bg-indigo-50 px-3 py-2 dark:border-indigo-800 dark:bg-indigo-900/20">
+                  <p className="text-xs text-indigo-700 dark:text-indigo-300">Unmatched Phones</p>
+                  <p className="text-base font-semibold text-indigo-800 dark:text-indigo-200">{smsUnmatchedAllowlistPhones}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </AppCard>
       )}
 
@@ -437,6 +668,26 @@ export function AnnouncementsView() {
             <Switch
               checked={broadcastEnabled}
               onCheckedChange={setBroadcastEnabled}
+              disabled={loadingSettings || savingSettings}
+              className={cn(
+                'h-6 w-11 border-0 shadow-none',
+                'data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'
+              )}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-[12px] border border-gray-200 px-4 py-3 dark:border-gray-700">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">SMS Broadcast</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Allow admins to append SMS delivery to announcements.</p>
+            </div>
+            <Switch
+              checked={smsBroadcastEnabled}
+              onCheckedChange={(checked) => {
+                const enabled = Boolean(checked);
+                setSmsBroadcastEnabled(enabled);
+                if (!enabled) setSendSmsToo(false);
+              }}
               disabled={loadingSettings || savingSettings}
               className={cn(
                 'h-6 w-11 border-0 shadow-none',

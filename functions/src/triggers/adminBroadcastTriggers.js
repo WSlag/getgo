@@ -1,16 +1,21 @@
 /**
  * Admin Broadcast Triggers
- * Processes queued admin broadcast jobs and delivers notifications to active users.
+ * Processes queued admin broadcast jobs and delivers in-app notifications.
+ * Optional SMS delivery is fanned out into a dedicated queue collection.
  */
 
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 const { FieldValue } = require('firebase-admin/firestore');
 const { sendPushToUser } = require('../services/fcmService');
+const { normalizePhoneNumber } = require('../services/smsGateService');
 
 const REGION = 'asia-southeast1';
 const BROADCAST_JOB_COLLECTION = 'adminBroadcastJobs';
+const SMS_QUEUE_COLLECTION = 'adminBroadcastSmsQueue';
 const USER_BATCH_SIZE = 300;
+const SMS_AUDIENCE_MODE_ALL = 'all';
+const SMS_AUDIENCE_MODE_PHONE_ALLOWLIST = 'phone_allowlist';
 
 function safeErrorMessage(error) {
   if (!error) return 'Unknown error';
@@ -37,11 +42,29 @@ function resolveNotificationRole(userData = {}) {
   return null;
 }
 
-function isEligibleRecipient(userData = {}) {
+function isEligibleInAppRecipient(userData = {}) {
   if (userData.isActive === false) return false;
   const accountStatus = String(userData.accountStatus || 'active').trim().toLowerCase();
   if (accountStatus === 'suspended') return false;
   return true;
+}
+
+function resolveSmsAudience(rawSmsAudience = {}) {
+  const mode = String(rawSmsAudience?.mode || '').trim().toLowerCase();
+  const normalizedMode = mode === SMS_AUDIENCE_MODE_PHONE_ALLOWLIST
+    ? SMS_AUDIENCE_MODE_PHONE_ALLOWLIST
+    : SMS_AUDIENCE_MODE_ALL;
+  const phoneAllowlistSet = new Set(
+    (Array.isArray(rawSmsAudience?.phoneAllowlist) ? rawSmsAudience.phoneAllowlist : [])
+      .map((value) => normalizePhoneNumber(value))
+      .filter(Boolean)
+  );
+
+  return {
+    mode: normalizedMode,
+    phoneAllowlistSet,
+    phoneAllowlistCount: phoneAllowlistSet.size,
+  };
 }
 
 function buildProgress(stats = {}) {
@@ -89,6 +112,7 @@ async function claimQueuedJob(jobRef) {
 
     tx.update(jobRef, {
       status: 'processing',
+      smsStatus: data?.channels?.sms === true ? 'processing' : (data.smsStatus || 'disabled'),
       startedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       error: null,
@@ -111,12 +135,45 @@ async function updateJobProgress(jobRef, stats, extra = {}) {
   }, { merge: true });
 }
 
+async function incrementJobSmsProgress(jobRef, deltas = {}, extra = {}) {
+  const payload = {
+    ...extra,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  Object.entries(deltas).forEach(([key, delta]) => {
+    if (!Number.isFinite(delta) || delta === 0) return;
+    payload[`smsProgress.${key}`] = FieldValue.increment(delta);
+  });
+
+  await jobRef.set(payload, { merge: true });
+}
+
 async function processBroadcastJob({ db, jobId, jobRef, jobData, stats }) {
   const title = normalizeTrimmedText(jobData.title);
   const message = normalizeTrimmedText(jobData.message);
   if (!title || !message) {
     throw new Error('Broadcast job is missing title or message');
   }
+
+  const channels = jobData.channels || {};
+  const inAppEnabled = channels.inApp !== false;
+  const smsEnabled = channels.sms === true;
+  const smsConfig = jobData.smsConfig || {};
+  const smsAudience = resolveSmsAudience(jobData.smsAudience || {});
+  const smsPhoneAllowlistEnabled = smsEnabled && smsAudience.mode === SMS_AUDIENCE_MODE_PHONE_ALLOWLIST;
+  const matchedAllowlistPhones = new Set();
+  const smsStats = {
+    totalUsers: Number(jobData?.smsProgress?.totalUsers || 0),
+    queuedUsers: Number(jobData?.smsProgress?.queuedUsers || 0),
+    processedUsers: Number(jobData?.smsProgress?.processedUsers || 0),
+    sentUsers: Number(jobData?.smsProgress?.sentUsers || 0),
+    failedUsers: Number(jobData?.smsProgress?.failedUsers || 0),
+    noPhoneUsers: Number(jobData?.smsProgress?.noPhoneUsers || 0),
+    retryAttempts: Number(jobData?.smsProgress?.retryAttempts || 0),
+    filteredOutUsers: Number(jobData?.smsProgress?.filteredOutUsers || 0),
+    unmatchedAllowlistPhones: Number(jobData?.smsProgress?.unmatchedAllowlistPhones || 0),
+  };
 
   let cursorDoc = null;
   let hasMore = true;
@@ -134,55 +191,133 @@ async function processBroadcastJob({ db, jobId, jobRef, jobData, stats }) {
     const batch = db.batch();
     let batchWriteCount = 0;
     const pushRecipientIds = [];
+    const smsDelta = {
+      totalUsers: 0,
+      queuedUsers: 0,
+      noPhoneUsers: 0,
+      filteredOutUsers: 0,
+    };
 
     usersSnap.docs.forEach((userDoc) => {
       const userData = userDoc.data() || {};
-      stats.totalUsers += 1;
-      stats.processedUsers += 1;
 
-      if (!isEligibleRecipient(userData)) {
-        stats.skippedUsers += 1;
-        return;
+      if (inAppEnabled) {
+        stats.totalUsers += 1;
+        stats.processedUsers += 1;
+
+        if (!isEligibleInAppRecipient(userData)) {
+          stats.skippedUsers += 1;
+        } else {
+          const role = resolveNotificationRole(userData);
+          const notificationRef = userDoc.ref.collection('notifications').doc(`broadcast_${jobId}`);
+          batch.set(
+            notificationRef,
+            buildBroadcastNotification({
+              jobId,
+              title,
+              message,
+              createdBy: jobData.createdBy,
+              role,
+            }),
+            { merge: true }
+          );
+          batchWriteCount += 1;
+          stats.deliveredUsers += 1;
+          pushRecipientIds.push(userDoc.id);
+        }
       }
 
-      const role = resolveNotificationRole(userData);
-      const notificationRef = userDoc.ref.collection('notifications').doc(`broadcast_${jobId}`);
-      batch.set(
-        notificationRef,
-        buildBroadcastNotification({
+      if (smsEnabled) {
+        smsStats.totalUsers += 1;
+        smsDelta.totalUsers += 1;
+        const normalizedPhone = normalizePhoneNumber(userData.phone || null);
+        if (!normalizedPhone) {
+          smsStats.noPhoneUsers += 1;
+          smsDelta.noPhoneUsers += 1;
+          return;
+        }
+        if (smsPhoneAllowlistEnabled && !smsAudience.phoneAllowlistSet.has(normalizedPhone)) {
+          smsStats.filteredOutUsers += 1;
+          smsDelta.filteredOutUsers += 1;
+          return;
+        }
+        if (smsPhoneAllowlistEnabled) {
+          matchedAllowlistPhones.add(normalizedPhone);
+        }
+
+        const queueRef = db.collection(SMS_QUEUE_COLLECTION).doc(`${jobId}_${userDoc.id}`);
+        batch.set(queueRef, {
           jobId,
+          userId: userDoc.id,
+          phoneNumber: normalizedPhone,
           title,
           message,
-          createdBy: jobData.createdBy,
-          role,
-        }),
-        { merge: true }
-      );
-      batchWriteCount += 1;
-      stats.deliveredUsers += 1;
-      pushRecipientIds.push(userDoc.id);
+          status: 'queued',
+          attempts: 0,
+          maxRetries: Number(smsConfig.maxRetries || 3),
+          retryBaseDelayMs: Number(smsConfig.retryBaseDelayMs || 1000),
+          timeoutMs: Number(smsConfig.timeoutMs || 15000),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          lastError: null,
+        }, { merge: false });
+        batchWriteCount += 1;
+        smsStats.queuedUsers += 1;
+        smsDelta.queuedUsers += 1;
+      }
     });
 
     if (batchWriteCount > 0) {
       await batch.commit();
     }
 
-    // Fire push notifications for this page — non-fatal, run after Firestore commit
-    await Promise.allSettled(
-      pushRecipientIds.map((uid) =>
-        sendPushToUser(db, uid, { title, body: message, data: { type: 'ADMIN_MESSAGE', jobId } }).catch((pushErr) => {
-          console.error(`[adminBroadcastTriggers] Push failed for uid=${uid} (non-fatal):`, pushErr.message);
-        })
-      )
-    );
+    if (inAppEnabled) {
+      // Push notifications remain best-effort and non-fatal.
+      await Promise.allSettled(
+        pushRecipientIds.map((uid) =>
+          sendPushToUser(db, uid, { title, body: message, data: { type: 'ADMIN_MESSAGE', jobId } }).catch((pushErr) => {
+            console.error(`[adminBroadcastTriggers] Push failed for uid=${uid} (non-fatal):`, pushErr.message);
+          })
+        )
+      );
+    }
 
     cursorDoc = usersSnap.docs[usersSnap.docs.length - 1] || null;
     await updateJobProgress(jobRef, stats, {
       lastProcessedUserId: cursorDoc ? cursorDoc.id : null,
     });
+    if (smsEnabled) {
+      await incrementJobSmsProgress(jobRef, smsDelta, {
+        smsStatus: 'processing',
+        smsEnqueueComplete: false,
+      });
+    }
 
     hasMore = usersSnap.size === USER_BATCH_SIZE;
   }
+
+  if (smsPhoneAllowlistEnabled) {
+    smsStats.unmatchedAllowlistPhones = Math.max(
+      smsAudience.phoneAllowlistCount - matchedAllowlistPhones.size,
+      0
+    );
+    await jobRef.update({
+      updatedAt: FieldValue.serverTimestamp(),
+      'smsProgress.unmatchedAllowlistPhones': smsStats.unmatchedAllowlistPhones,
+    });
+  }
+
+  return {
+    inAppEnabled,
+    smsEnabled,
+    smsAudienceMode: smsAudience.mode,
+    smsAudienceAllowlistCount: smsAudience.phoneAllowlistCount,
+    smsFilteredOutUsers: smsStats.filteredOutUsers,
+    smsUnmatchedAllowlistPhones: smsStats.unmatchedAllowlistPhones,
+    smsQueuedUsers: smsStats.queuedUsers,
+    smsNoPhoneUsers: smsStats.noPhoneUsers,
+    smsTotalUsers: smsStats.totalUsers,
+  };
 }
 
 exports.onAdminBroadcastJobCreated = onDocumentCreated(
@@ -211,7 +346,7 @@ exports.onAdminBroadcastJobCreated = onDocumentCreated(
       const jobData = await claimQueuedJob(jobRef);
       if (!jobData) return null;
 
-      await processBroadcastJob({
+      const result = await processBroadcastJob({
         db,
         jobId,
         jobRef,
@@ -219,11 +354,28 @@ exports.onAdminBroadcastJobCreated = onDocumentCreated(
         stats,
       });
 
+      const shouldFinalizeNow = !result.smsEnabled || result.smsQueuedUsers === 0;
       await updateJobProgress(jobRef, stats, {
-        status: 'completed',
-        completedAt: FieldValue.serverTimestamp(),
+        status: shouldFinalizeNow ? 'completed' : 'processing',
+        completedAt: shouldFinalizeNow ? FieldValue.serverTimestamp() : null,
         lastProcessedUserId: null,
+        smsStatus: result.smsEnabled
+          ? (result.smsQueuedUsers > 0 ? 'processing' : 'completed')
+          : 'disabled',
+        smsEnqueueComplete: true,
         error: null,
+      });
+      console.log('[onAdminBroadcastJobCreated] Broadcast enqueue completed', {
+        jobId,
+        inAppEnabled: result.inAppEnabled,
+        smsEnabled: result.smsEnabled,
+        smsAudienceMode: result.smsAudienceMode,
+        smsAudienceAllowlistCount: result.smsAudienceAllowlistCount,
+        smsQueuedUsers: result.smsQueuedUsers,
+        smsTotalUsers: result.smsTotalUsers,
+        smsNoPhoneUsers: result.smsNoPhoneUsers,
+        smsFilteredOutUsers: result.smsFilteredOutUsers,
+        smsUnmatchedAllowlistPhones: result.smsUnmatchedAllowlistPhones,
       });
 
       return null;
@@ -234,6 +386,8 @@ exports.onAdminBroadcastJobCreated = onDocumentCreated(
       });
       await updateJobProgress(jobRef, stats, {
         status: 'failed',
+        smsStatus: 'failed',
+        smsEnqueueComplete: true,
         failedAt: FieldValue.serverTimestamp(),
         error: safeErrorMessage(error),
       });

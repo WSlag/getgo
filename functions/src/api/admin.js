@@ -12,13 +12,32 @@ const {
   mergePlatformSettings,
   validatePlatformSettingsPatch,
 } = require('../config/platformSettings');
+const { normalizePhoneNumber } = require('../services/smsGateService');
 const TRUCKER_CANCELLATION_THRESHOLD = 5;
 const TRUCKER_CANCELLATION_WINDOW_DAYS = 30;
 const TRUCKER_CANCELLATION_BLOCK_DAYS = 7;
 const ADMIN_GRANTS_ENABLED = String(process.env.ALLOW_ADMIN_GRANTS || '').trim().toLowerCase() === 'true';
 const BROADCAST_TITLE_MAX_LENGTH = 120;
 const BROADCAST_MESSAGE_MAX_LENGTH = 2000;
+const SMS_AUDIENCE_MODE_ALL = 'all';
+const SMS_AUDIENCE_MODE_PHONE_ALLOWLIST = 'phone_allowlist';
+const SMS_AUDIENCE_MAX_PHONE_ALLOWLIST = 50;
 const BROADCAST_JOB_COLLECTION = 'adminBroadcastJobs';
+const SMSGATE_DEFAULT_API_URL = 'https://api.sms-gate.app/3rdparty/v1/message';
+
+function buildInitialSmsProgress() {
+  return {
+    totalUsers: 0,
+    queuedUsers: 0,
+    processedUsers: 0,
+    sentUsers: 0,
+    failedUsers: 0,
+    noPhoneUsers: 0,
+    retryAttempts: 0,
+    filteredOutUsers: 0,
+    unmatchedAllowlistPhones: 0,
+  };
+}
 
 function safeErrorMessage(error) {
   if (!error) return 'Unknown error';
@@ -262,6 +281,96 @@ function normalizeTrimmedText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeBroadcastChannels(rawChannels = {}) {
+  const inApp = rawChannels?.inApp !== false;
+  const sms = rawChannels?.sms === true;
+  if (!inApp && !sms) {
+    throw new functions.https.HttpsError('invalid-argument', 'At least one broadcast channel must be enabled');
+  }
+  return { inApp, sms };
+}
+
+function normalizeSmsAudienceMode(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return SMS_AUDIENCE_MODE_ALL;
+  if (normalized === SMS_AUDIENCE_MODE_ALL || normalized === SMS_AUDIENCE_MODE_PHONE_ALLOWLIST) {
+    return normalized;
+  }
+  throw new functions.https.HttpsError(
+    'invalid-argument',
+    `smsAudience.mode must be "${SMS_AUDIENCE_MODE_ALL}" or "${SMS_AUDIENCE_MODE_PHONE_ALLOWLIST}"`
+  );
+}
+
+function normalizeSmsAudience(rawSmsAudience = {}, channels = {}) {
+  if (channels?.sms !== true) {
+    return {
+      mode: SMS_AUDIENCE_MODE_ALL,
+      phoneAllowlist: [],
+      phoneAllowlistCount: 0,
+    };
+  }
+
+  const mode = normalizeSmsAudienceMode(rawSmsAudience?.mode);
+  if (mode !== SMS_AUDIENCE_MODE_PHONE_ALLOWLIST) {
+    return {
+      mode: SMS_AUDIENCE_MODE_ALL,
+      phoneAllowlist: [],
+      phoneAllowlistCount: 0,
+    };
+  }
+
+  const rawPhoneAllowlist = Array.isArray(rawSmsAudience?.phoneAllowlist)
+    ? rawSmsAudience.phoneAllowlist
+    : [];
+  const normalizedSet = new Set();
+  rawPhoneAllowlist.forEach((value) => {
+    const normalizedPhone = normalizePhoneNumber(value);
+    if (normalizedPhone) {
+      normalizedSet.add(normalizedPhone);
+    }
+  });
+  const phoneAllowlist = [...normalizedSet];
+
+  if (phoneAllowlist.length === 0) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'smsAudience.phoneAllowlist must include at least one valid phone number'
+    );
+  }
+  if (phoneAllowlist.length > SMS_AUDIENCE_MAX_PHONE_ALLOWLIST) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      `smsAudience.phoneAllowlist must contain ${SMS_AUDIENCE_MAX_PHONE_ALLOWLIST} phone numbers or fewer`
+    );
+  }
+
+  return {
+    mode,
+    phoneAllowlist,
+    phoneAllowlistCount: phoneAllowlist.length,
+  };
+}
+
+function getSmsRuntimeConfig() {
+  const username = normalizeTrimmedText(process.env.SMSGATE_USERNAME);
+  const password = normalizeTrimmedText(process.env.SMSGATE_PASSWORD);
+  const apiUrl = normalizeTrimmedText(process.env.SMSGATE_API_URL) || SMSGATE_DEFAULT_API_URL;
+  const timeoutMs = Math.min(Math.max(Number(process.env.SMSGATE_TIMEOUT_MS || 15000), 1000), 60000);
+  const maxRetries = Math.min(Math.max(Number(process.env.SMSGATE_MAX_RETRIES || 3), 0), 10);
+  const retryBaseDelayMs = Math.min(Math.max(Number(process.env.SMSGATE_RETRY_BASE_DELAY_MS || 1000), 100), 60000);
+
+  return {
+    username,
+    password,
+    apiUrl,
+    timeoutMs,
+    maxRetries,
+    retryBaseDelayMs,
+    hasCredentials: Boolean(username && password),
+  };
+}
+
 function validateBoundedText(value, label, maxLength) {
   const normalized = normalizeTrimmedText(value);
   if (!normalized) {
@@ -336,6 +445,8 @@ exports.adminQueueBroadcastMessage = functions.region('asia-southeast1').https.o
 
   const title = validateBoundedText(data?.title, 'title', BROADCAST_TITLE_MAX_LENGTH);
   const message = validateBoundedText(data?.message, 'message', BROADCAST_MESSAGE_MAX_LENGTH);
+  const channels = normalizeBroadcastChannels(data?.channels || {});
+  const smsAudience = normalizeSmsAudience(data?.smsAudience || {}, channels);
   const db = admin.firestore();
   const settings = await loadPlatformSettings(db, { forceRefresh: true });
   if (settings?.communications?.broadcastEnabled === false) {
@@ -344,16 +455,38 @@ exports.adminQueueBroadcastMessage = functions.region('asia-southeast1').https.o
       'Broadcast messaging is currently disabled in system settings'
     );
   }
+  const smsRuntimeConfig = getSmsRuntimeConfig();
+  if (channels.sms) {
+    if (settings?.communications?.smsBroadcastEnabled !== true) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'SMS broadcast is currently disabled in system settings'
+      );
+    }
+    if (!smsRuntimeConfig.hasCredentials) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'SMS gateway credentials are not configured on the server'
+      );
+    }
+  }
 
   const now = admin.firestore.FieldValue.serverTimestamp();
   const jobRef = db.collection(BROADCAST_JOB_COLLECTION).doc();
+  const smsProgress = buildInitialSmsProgress();
 
   await jobRef.set({
     type: 'broadcast',
     status: 'queued',
     title,
     message,
-    audience: 'all_active_users',
+    channels,
+    smsAudience,
+    audience: channels.sms
+      ? (smsAudience.mode === SMS_AUDIENCE_MODE_PHONE_ALLOWLIST
+        ? 'sms_phone_allowlist'
+        : 'all_authenticated_users_for_sms')
+      : 'all_active_users',
     createdBy: context.auth.uid,
     createdAt: now,
     queuedAt: now,
@@ -370,6 +503,15 @@ exports.adminQueueBroadcastMessage = functions.region('asia-southeast1').https.o
       skippedUsers: 0,
       failedUsers: 0,
     },
+    smsStatus: channels.sms ? 'queued' : 'disabled',
+    smsEnqueueComplete: channels.sms ? false : true,
+    smsProgress,
+    smsConfig: {
+      apiUrl: smsRuntimeConfig.apiUrl,
+      timeoutMs: smsRuntimeConfig.timeoutMs,
+      maxRetries: settings?.communications?.sms?.maxRetries ?? smsRuntimeConfig.maxRetries,
+      retryBaseDelayMs: settings?.communications?.sms?.retryBaseDelayMs ?? smsRuntimeConfig.retryBaseDelayMs,
+    },
     error: null,
   });
 
@@ -381,6 +523,11 @@ exports.adminQueueBroadcastMessage = functions.region('asia-southeast1').https.o
     changes: {
       title,
       messageLength: message.length,
+      channels,
+      smsAudience: {
+        mode: smsAudience.mode,
+        phoneAllowlistCount: Number(smsAudience.phoneAllowlistCount || 0),
+      },
     },
   });
 
@@ -388,6 +535,11 @@ exports.adminQueueBroadcastMessage = functions.region('asia-southeast1').https.o
     success: true,
     jobId: jobRef.id,
     status: 'queued',
+    channels,
+    smsAudience: {
+      mode: smsAudience.mode,
+      phoneAllowlistCount: Number(smsAudience.phoneAllowlistCount || 0),
+    },
   };
 });
 
