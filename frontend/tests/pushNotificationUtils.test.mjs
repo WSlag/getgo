@@ -5,6 +5,8 @@ import {
   classifyPushRegistrationError,
   cleanupPushRegistrationOnLogout,
   purgeLocalMessagingRegistrationArtifacts,
+  reconcileBrowserTokenRegistration,
+  shouldShowPushActivationPending,
 } from '../src/hooks/pushNotificationUtils.js';
 
 test('classifyPushRegistrationError marks token-unsubscribe 400 as stale cleanup', () => {
@@ -105,4 +107,68 @@ test('purgeLocalMessagingRegistrationArtifacts attempts indexeddb cleanup', asyn
       globalThis.indexedDB = previousIndexedDb;
     }
   }
+});
+
+test('reconcileBrowserTokenRegistration confirms active token when token document exists', async () => {
+  const result = await reconcileBrowserTokenRegistration({
+    storedToken: 'token-active',
+    hasTokenDocument: async (token) => token === 'token-active',
+  });
+
+  assert.equal(result.isRegistered, true);
+  assert.equal(result.token, 'token-active');
+  assert.equal(result.reason, 'token-doc-found');
+  assert.equal(result.tokenSource, 'storage');
+});
+
+test('reconcileBrowserTokenRegistration stays unregistered when token document is missing', async () => {
+  const result = await reconcileBrowserTokenRegistration({
+    storedToken: '',
+    resolveToken: async () => 'token-missing',
+    hasTokenDocument: async () => false,
+  });
+
+  assert.equal(result.isRegistered, false);
+  assert.equal(result.token, 'token-missing');
+  assert.equal(result.reason, 'token-doc-missing');
+  assert.equal(result.tokenSource, 'messaging');
+});
+
+test('reconcileBrowserTokenRegistration never marks active on token verification failure', async () => {
+  const result = await reconcileBrowserTokenRegistration({
+    storedToken: 'token-failing',
+    hasTokenDocument: async () => {
+      throw new Error('verification-failed');
+    },
+  });
+
+  assert.equal(result.isRegistered, false);
+  assert.equal(result.reason, 'verify-token-error');
+  assert.equal(result.token, 'token-failing');
+});
+
+test('shouldShowPushActivationPending hides card while registration check is pending', () => {
+  const result = shouldShowPushActivationPending({
+    permissionStatus: 'granted',
+    isRegistered: false,
+    isRegistrationStatusChecked: false,
+  });
+
+  assert.equal(result, false);
+});
+
+test('shouldShowPushActivationPending shows card only for granted + unchecked registration false', () => {
+  const visible = shouldShowPushActivationPending({
+    permissionStatus: 'granted',
+    isRegistered: false,
+    isRegistrationStatusChecked: true,
+  });
+  const hiddenWhenRegistered = shouldShowPushActivationPending({
+    permissionStatus: 'granted',
+    isRegistered: true,
+    isRegistrationStatusChecked: true,
+  });
+
+  assert.equal(visible, true);
+  assert.equal(hiddenWhenRegistered, false);
 });

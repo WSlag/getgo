@@ -99,6 +99,87 @@ export function clearStoredRegistration(uid, storageLike = globalThis?.localStor
   removeSafeStorageValue(storageLike, getRegisteredTokenKey(uid));
 }
 
+function normalizeToken(value) {
+  return String(value || '').trim();
+}
+
+export async function reconcileBrowserTokenRegistration({
+  storedToken,
+  resolveToken,
+  hasTokenDocument,
+} = {}) {
+  let token = normalizeToken(storedToken);
+  let tokenSource = token ? 'storage' : 'none';
+
+  if (!token && typeof resolveToken === 'function') {
+    try {
+      token = normalizeToken(await resolveToken());
+      tokenSource = token ? 'messaging' : 'none';
+    } catch (error) {
+      return {
+        checked: true,
+        isRegistered: false,
+        token: '',
+        tokenSource: 'none',
+        reason: 'resolve-token-error',
+        error,
+      };
+    }
+  }
+
+  if (!token) {
+    return {
+      checked: true,
+      isRegistered: false,
+      token: '',
+      tokenSource: 'none',
+      reason: 'no-token',
+    };
+  }
+
+  if (typeof hasTokenDocument !== 'function') {
+    return {
+      checked: true,
+      isRegistered: false,
+      token,
+      tokenSource,
+      reason: 'missing-token-check',
+    };
+  }
+
+  try {
+    const hasTokenDoc = await hasTokenDocument(token);
+    return {
+      checked: true,
+      isRegistered: Boolean(hasTokenDoc),
+      token,
+      tokenSource,
+      reason: hasTokenDoc ? 'token-doc-found' : 'token-doc-missing',
+    };
+  } catch (error) {
+    return {
+      checked: true,
+      isRegistered: false,
+      token,
+      tokenSource,
+      reason: 'verify-token-error',
+      error,
+    };
+  }
+}
+
+export function shouldShowPushActivationPending({
+  permissionStatus,
+  isRegistered,
+  isRegistrationStatusChecked,
+} = {}) {
+  return (
+    String(permissionStatus || '') === 'granted'
+    && isRegistered !== true
+    && isRegistrationStatusChecked === true
+  );
+}
+
 export async function purgeLocalMessagingRegistrationArtifacts({
   includeInstallations = false,
 } = {}) {
