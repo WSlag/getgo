@@ -146,7 +146,7 @@ async function incrementJobSmsProgress(jobRef, deltas = {}, extra = {}) {
     payload[`smsProgress.${key}`] = FieldValue.increment(delta);
   });
 
-  await jobRef.set(payload, { merge: true });
+  await jobRef.update(payload);
 }
 
 async function processBroadcastJob({ db, jobId, jobRef, jobData, stats }) {
