@@ -14,7 +14,11 @@ import {
 import { doc, onSnapshot, setDoc, getDoc, getDocFromServer, serverTimestamp } from 'firebase/firestore';
 import { auth, db, waitForAppCheckInitialization } from '../firebase';
 import api from '../services/api';
-import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
+import {
+  isPermissionDeniedError,
+  reportFirestoreListenerError,
+  safeFirestoreUnsubscribe,
+} from '../utils/firebaseErrors';
 
 const AuthContext = createContext();
 const RECAPTCHA_CONTAINER_ID = 'firebase-auth-recaptcha-container';
@@ -30,6 +34,29 @@ const PROFILE_LISTENER_MAX_RETRIES = 4;
 const PROFILE_LISTENER_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
 const loggedTerminalProfileFailures = new Set();
 const AUTH_LOADING_TIMEOUT_MS = 8000;
+const PHONE_AUTH_MODE = (() => {
+  const normalized = String(import.meta.env.VITE_PHONE_AUTH_MODE || 'auto').trim().toLowerCase();
+  if (normalized === 'enterprise' || normalized === 'legacy' || normalized === 'auto') {
+    return normalized;
+  }
+  return 'auto';
+})();
+const OTP_SEND_TIMEOUT_MS = (() => {
+  const parsed = Number.parseInt(String(import.meta.env.VITE_OTP_SEND_TIMEOUT_MS || '15000'), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 15000;
+})();
+const OTP_SEND_TIMEOUT_CODE = 'otp_send_timeout';
+const OTP_SEND_IN_FLIGHT_CODE = 'otp_send_in_flight';
+const PHONE_AUTH_ENTERPRISE_BYPASS_SESSION_KEY = 'karga_phone_auth_enterprise_bypass_v1';
+const RECAPTCHA_CONFIG_FETCH_TIMEOUT_MS = (() => {
+  const parsed = Number.parseInt(String(import.meta.env.VITE_RECAPTCHA_CONFIG_FETCH_TIMEOUT_MS || '3000'), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 3000;
+})();
+const APP_CHECK_ENTERPRISE_KEY_ID = extractRecaptchaKeyId(import.meta.env.VITE_RECAPTCHA_ENTERPRISE_KEY || '');
+
+let cachedAuthEnterpriseRecaptchaKeyId = null;
+let authEnterpriseRecaptchaKeyProbeAttempted = false;
+let authEnterpriseRecaptchaKeyProbePromise = null;
 
 function classifyProfileLoadError(error) {
   if (isPermissionDeniedError(error)) return 'permission-denied';
@@ -316,6 +343,224 @@ function formatFirebaseAuthError(error) {
   return isDev && code ? `${normalizedMessage} (${code})` : normalizedMessage;
 }
 
+function withTimeout(promise, timeoutMs, timeoutCode) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      const timeoutError = new Error('OTP send operation timed out');
+      timeoutError.code = timeoutCode;
+      setTimeout(() => reject(timeoutError), timeoutMs);
+    }),
+  ]);
+}
+
+function withTimeoutValue(promise, timeoutMs, fallbackValue = null) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve(fallbackValue), timeoutMs);
+    }),
+  ]);
+}
+
+function extractRecaptchaKeyId(rawValue) {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return '';
+  const keyMarker = '/keys/';
+  const markerIndex = raw.lastIndexOf(keyMarker);
+  if (markerIndex >= 0) {
+    return raw.slice(markerIndex + keyMarker.length);
+  }
+  return raw;
+}
+
+async function resolveAuthEnterpriseRecaptchaKeyId() {
+  if (authEnterpriseRecaptchaKeyProbeAttempted) {
+    return cachedAuthEnterpriseRecaptchaKeyId;
+  }
+
+  if (authEnterpriseRecaptchaKeyProbePromise) {
+    return authEnterpriseRecaptchaKeyProbePromise;
+  }
+
+  authEnterpriseRecaptchaKeyProbePromise = (async () => {
+    const apiKey = String(import.meta.env.VITE_FIREBASE_API_KEY || '').trim();
+    if (!apiKey) {
+      authEnterpriseRecaptchaKeyProbeAttempted = true;
+      return null;
+    }
+
+    const url = new URL('https://identitytoolkit.googleapis.com/v2/recaptchaConfig');
+    url.searchParams.set('key', apiKey);
+    url.searchParams.set('clientType', 'CLIENT_TYPE_WEB');
+    url.searchParams.set('version', 'RECAPTCHA_ENTERPRISE');
+
+    try {
+      const response = await withTimeoutValue(fetch(url.toString()), RECAPTCHA_CONFIG_FETCH_TIMEOUT_MS, null);
+      if (!response || !response.ok) {
+        authEnterpriseRecaptchaKeyProbeAttempted = true;
+        return null;
+      }
+      const payload = await response.json().catch(() => null);
+      const resolvedKeyId = extractRecaptchaKeyId(payload?.recaptchaKey || '');
+      cachedAuthEnterpriseRecaptchaKeyId = resolvedKeyId || null;
+      authEnterpriseRecaptchaKeyProbeAttempted = true;
+      return cachedAuthEnterpriseRecaptchaKeyId;
+    } catch {
+      authEnterpriseRecaptchaKeyProbeAttempted = true;
+      return null;
+    } finally {
+      authEnterpriseRecaptchaKeyProbePromise = null;
+    }
+  })();
+
+  return authEnterpriseRecaptchaKeyProbePromise;
+}
+
+function createLegacyRecaptchaConfigBypassStub() {
+  return {
+    siteKey: '',
+    isProviderEnabled: () => false,
+    isAnyProviderEnabled: () => false,
+    getProviderEnforcementState: () => 'AUDIT',
+  };
+}
+
+async function withLegacyRecaptchaBypass(authInstance, operation) {
+  const candidateAuth = authInstance;
+  if (!candidateAuth || typeof operation !== 'function') {
+    return operation();
+  }
+
+  const hasAgentConfigSlot = '_agentRecaptchaConfig' in candidateAuth;
+  const hasTenantConfigSlot = '_tenantRecaptchaConfigs' in candidateAuth;
+  if (!hasAgentConfigSlot && !hasTenantConfigSlot) {
+    return operation();
+  }
+
+  const bypassConfig = createLegacyRecaptchaConfigBypassStub();
+  const tenantId = typeof candidateAuth.tenantId === 'string' && candidateAuth.tenantId
+    ? candidateAuth.tenantId
+    : null;
+  const previousAgentConfig = candidateAuth._agentRecaptchaConfig;
+  const previousTenantConfigs = candidateAuth._tenantRecaptchaConfigs;
+  const previousTenantConfig =
+    tenantId && previousTenantConfigs && typeof previousTenantConfigs === 'object'
+      ? previousTenantConfigs[tenantId]
+      : undefined;
+
+  try {
+    if (tenantId && previousTenantConfigs && typeof previousTenantConfigs === 'object') {
+      previousTenantConfigs[tenantId] = bypassConfig;
+    } else if (hasAgentConfigSlot) {
+      candidateAuth._agentRecaptchaConfig = bypassConfig;
+    }
+    return await operation();
+  } finally {
+    if (tenantId && previousTenantConfigs && typeof previousTenantConfigs === 'object') {
+      if (typeof previousTenantConfig === 'undefined') {
+        delete previousTenantConfigs[tenantId];
+      } else {
+        previousTenantConfigs[tenantId] = previousTenantConfig;
+      }
+    } else if (hasAgentConfigSlot) {
+      candidateAuth._agentRecaptchaConfig = previousAgentConfig;
+    }
+  }
+}
+
+function shouldRetryOtpSend(error) {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+
+  return (
+    code === OTP_SEND_TIMEOUT_CODE
+    || code === 'auth/network-request-failed'
+    || code === 'auth/captcha-check-failed'
+    || code === 'auth/invalid-app-credential'
+    || message.includes('invalid site key')
+    || message.includes('captcha')
+  );
+}
+
+function shouldFallbackEnterpriseOtpToLegacy(error) {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+
+  return (
+    code === OTP_SEND_TIMEOUT_CODE
+    || code === 'auth/network-request-failed'
+    || code === 'auth/invalid-app-credential'
+    || code === 'auth/captcha-check-failed'
+    || code === 'auth/internal-error'
+    || message.includes('/v2/recaptchaconfig')
+    || message.includes('recaptchaconfig')
+    || message.includes('no recaptcha enterprise script loaded')
+    || message.includes('invalid site key')
+    || message.includes('captcha')
+  );
+}
+
+function shouldPersistEnterpriseBypassForSession(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('invalid site key')
+    || message.includes('/v2/recaptchaconfig')
+    || message.includes('recaptchaconfig')
+    || message.includes('no recaptcha enterprise script loaded')
+  );
+}
+
+async function evaluateEnterpriseAutoBypass() {
+  if (!APP_CHECK_ENTERPRISE_KEY_ID) {
+    return { bypass: false, reason: 'appcheck_enterprise_key_missing' };
+  }
+
+  const authEnterpriseKeyId = await resolveAuthEnterpriseRecaptchaKeyId();
+  if (!authEnterpriseKeyId) {
+    // Fail-safe: when Auth key discovery is unavailable, skip enterprise to avoid
+    // repeated 15s timeout loops before falling back to legacy.
+    return { bypass: true, reason: 'auth_enterprise_key_unavailable' };
+  }
+
+  if (authEnterpriseKeyId !== APP_CHECK_ENTERPRISE_KEY_ID) {
+    return { bypass: true, reason: 'appcheck_auth_enterprise_key_mismatch' };
+  }
+
+  return { bypass: false, reason: 'enterprise_keys_match' };
+}
+
+function isEnterpriseBypassedForSession() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.sessionStorage.getItem(PHONE_AUTH_ENTERPRISE_BYPASS_SESSION_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function setEnterpriseBypassForSession(enabled) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (enabled) {
+      window.sessionStorage.setItem(PHONE_AUTH_ENTERPRISE_BYPASS_SESSION_KEY, '1');
+    } else {
+      window.sessionStorage.removeItem(PHONE_AUTH_ENTERPRISE_BYPASS_SESSION_KEY);
+    }
+  } catch {
+    // Ignore storage write failures
+  }
+}
+
+function logOtpEvent(eventName, payload = {}) {
+  const level = eventName === 'otp_send_fail' || eventName === 'otp_send_timeout' ? 'warn' : 'info';
+  console[level]('[otp_send]', {
+    event: eventName,
+    timestampMs: Date.now(),
+    ...payload,
+  });
+}
+
 export function AuthProvider({ children }) {
   const [authUser, setAuthUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -339,6 +584,7 @@ export function AuthProvider({ children }) {
   const profileRetryTimerRef = useRef(null);
   const lastKnownGoodProfileRef = useRef(new Map());
   const authLoadingTimeoutRef = useRef(null);
+  const otpSendInFlightRef = useRef(false);
 
   const clearProfileRetryTimer = useCallback(() => {
     if (profileRetryTimerRef.current) {
@@ -610,32 +856,39 @@ export function AuthProvider({ children }) {
       }, retryDelayMs);
     };
 
-    const unsubProfile = onSnapshot(
-      userRef,
-      (snap) => {
-        applyProfileSnapshot(snap);
-      },
-      async (error) => {
-        reportFirestoreListenerError('user profile', error);
-        const profileError = toProfileLoadError(error);
+    let unsubProfile = () => {};
+    try {
+      unsubProfile = onSnapshot(
+        userRef,
+        (snap) => {
+          applyProfileSnapshot(snap);
+        },
+        async (error) => {
+          reportFirestoreListenerError('user profile', error);
+          const profileError = toProfileLoadError(error);
 
-        const recoveryResult = await recoverProfileWithFallback();
-        if (disposed) return;
-        if (recoveryResult.recovered && recoveryResult.source === 'server') {
-          // Restore a realtime listener after one-shot recovery.
-          setProfileRetryNonce((prev) => prev + 1);
-          return;
+          const recoveryResult = await recoverProfileWithFallback();
+          if (disposed) return;
+          if (recoveryResult.recovered && recoveryResult.source === 'server') {
+            // Restore a realtime listener after one-shot recovery.
+            setProfileRetryNonce((prev) => prev + 1);
+            return;
+          }
+          if (recoveryResult.recovered) return;
+
+          scheduleRetry(profileError);
         }
-        if (recoveryResult.recovered) return;
-
-        scheduleRetry(profileError);
-      }
-    );
+      );
+    } catch (error) {
+      reportFirestoreListenerError('user profile subscribe', error);
+      const profileError = toProfileLoadError(error);
+      scheduleRetry(profileError);
+    }
 
     return () => {
       disposed = true;
       clearProfileRetryTimer();
-      unsubProfile();
+      safeFirestoreUnsubscribe(unsubProfile, 'user profile listener');
     };
   }, [authUser, clearProfileRetryTimer, profileRetryNonce]);
 
@@ -644,14 +897,20 @@ export function AuthProvider({ children }) {
     if (!authUser || !userProfile) return;
 
     const shipperRef = doc(db, 'users', authUser.uid, 'shipperProfile', 'profile');
-    const unsubShipper = onSnapshot(shipperRef, (snap) => {
-      setShipperProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-    }, (error) => {
-      reportFirestoreListenerError('shipper profile', error);
+    let unsubShipper = () => {};
+    try {
+      unsubShipper = onSnapshot(shipperRef, (snap) => {
+        setShipperProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      }, (error) => {
+        reportFirestoreListenerError('shipper profile', error);
+        setShipperProfile(null);
+      });
+    } catch (error) {
+      reportFirestoreListenerError('shipper profile subscribe', error);
       setShipperProfile(null);
-    });
+    }
 
-    return unsubShipper;
+    return () => safeFirestoreUnsubscribe(unsubShipper, 'shipper profile listener');
   }, [authUser, userProfile]);
 
   // Best-effort retry path: if a referral code is still stored after login/profile creation
@@ -735,14 +994,20 @@ export function AuthProvider({ children }) {
     if (!authUser || !userProfile) return;
 
     const truckerRef = doc(db, 'users', authUser.uid, 'truckerProfile', 'profile');
-    const unsubTrucker = onSnapshot(truckerRef, (snap) => {
-      setTruckerProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-    }, (error) => {
-      reportFirestoreListenerError('trucker profile', error);
+    let unsubTrucker = () => {};
+    try {
+      unsubTrucker = onSnapshot(truckerRef, (snap) => {
+        setTruckerProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      }, (error) => {
+        reportFirestoreListenerError('trucker profile', error);
+        setTruckerProfile(null);
+      });
+    } catch (error) {
+      reportFirestoreListenerError('trucker profile subscribe', error);
       setTruckerProfile(null);
-    });
+    }
 
-    return unsubTrucker;
+    return () => safeFirestoreUnsubscribe(unsubTrucker, 'trucker profile listener');
   }, [authUser, userProfile]);
 
   // Listen to trucker compliance (server-managed)
@@ -750,14 +1015,20 @@ export function AuthProvider({ children }) {
     if (!authUser || !userProfile) return;
 
     const complianceRef = doc(db, 'users', authUser.uid, 'truckerCompliance', 'profile');
-    const unsubCompliance = onSnapshot(complianceRef, (snap) => {
-      setTruckerCompliance(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-    }, (error) => {
-      reportFirestoreListenerError('trucker compliance', error);
+    let unsubCompliance = () => {};
+    try {
+      unsubCompliance = onSnapshot(complianceRef, (snap) => {
+        setTruckerCompliance(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      }, (error) => {
+        reportFirestoreListenerError('trucker compliance', error);
+        setTruckerCompliance(null);
+      });
+    } catch (error) {
+      reportFirestoreListenerError('trucker compliance subscribe', error);
       setTruckerCompliance(null);
-    });
+    }
 
-    return unsubCompliance;
+    return () => safeFirestoreUnsubscribe(unsubCompliance, 'trucker compliance listener');
   }, [authUser, userProfile]);
 
   // Listen to broker profile
@@ -765,14 +1036,20 @@ export function AuthProvider({ children }) {
     if (!authUser || !userProfile) return;
 
     const brokerRef = doc(db, 'users', authUser.uid, 'brokerProfile', 'profile');
-    const unsubBroker = onSnapshot(brokerRef, (snap) => {
-      setBrokerProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-    }, (error) => {
-      reportFirestoreListenerError('broker profile', error);
+    let unsubBroker = () => {};
+    try {
+      unsubBroker = onSnapshot(brokerRef, (snap) => {
+        setBrokerProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      }, (error) => {
+        reportFirestoreListenerError('broker profile', error);
+        setBrokerProfile(null);
+      });
+    } catch (error) {
+      reportFirestoreListenerError('broker profile subscribe', error);
       setBrokerProfile(null);
-    });
+    }
 
-    return unsubBroker;
+    return () => safeFirestoreUnsubscribe(unsubBroker, 'broker profile listener');
   }, [authUser, userProfile]);
 
   // Listen to wallet
@@ -780,14 +1057,20 @@ export function AuthProvider({ children }) {
     if (!authUser || !userProfile) return;
 
     const walletRef = doc(db, 'users', authUser.uid, 'wallet', 'main');
-    const unsubWallet = onSnapshot(walletRef, (snap) => {
-      setWallet(snap.exists() ? { id: snap.id, ...snap.data() } : { balance: 0 });
-    }, (error) => {
-      reportFirestoreListenerError('wallet', error);
+    let unsubWallet = () => {};
+    try {
+      unsubWallet = onSnapshot(walletRef, (snap) => {
+        setWallet(snap.exists() ? { id: snap.id, ...snap.data() } : { balance: 0 });
+      }, (error) => {
+        reportFirestoreListenerError('wallet', error);
+        setWallet({ balance: 0 });
+      });
+    } catch (error) {
+      reportFirestoreListenerError('wallet subscribe', error);
       setWallet({ balance: 0 });
-    });
+    }
 
-    return unsubWallet;
+    return () => safeFirestoreUnsubscribe(unsubWallet, 'wallet listener');
   }, [authUser, userProfile]);
 
   const requestEmailMagicLink = useCallback(async (email) => {
@@ -1045,7 +1328,25 @@ export function AuthProvider({ children }) {
   // reCAPTCHA Enterprise verification is handled automatically by Firebase Auth
   // when enabled in Firebase Console > Authentication > Settings.
   const sendOtp = async (phoneNumber) => {
+    const startedAtMs = Date.now();
+    let effectivePhoneAuthMode = PHONE_AUTH_MODE;
     try {
+      if (otpSendInFlightRef.current) {
+        const inFlightMessage = 'Verification request is already in progress. Please wait.';
+        setAuthError(inFlightMessage);
+        logOtpEvent('otp_send_fail', {
+          mode: PHONE_AUTH_MODE,
+          code: OTP_SEND_IN_FLIGHT_CODE,
+          elapsedMs: Date.now() - startedAtMs,
+        });
+        return {
+          success: false,
+          error: inFlightMessage,
+          code: OTP_SEND_IN_FLIGHT_CODE,
+        };
+      }
+
+      otpSendInFlightRef.current = true;
       setAuthError(null);
       // Format phone number to E.164 format (+63XXXXXXXXXX)
       let formattedPhone = phoneNumber.trim();
@@ -1061,38 +1362,169 @@ export function AuthProvider({ children }) {
         // Just the number without prefix, add +63
         formattedPhone = '+63' + formattedPhone;
       }
+      const phoneCountryPrefix = formattedPhone.startsWith('+63') ? '+63' : 'unknown';
+      logOtpEvent('otp_send_start', {
+        mode: PHONE_AUTH_MODE,
+        phoneCountryPrefix,
+      });
 
       await waitForAppCheckInitialization();
-      // NOTE: Do NOT preload the reCAPTCHA Enterprise script here.
-      // App Check already initialises grecaptcha.enterprise with its own site key.
-      // Pre-loading a second Enterprise script with the Identity Platform key
-      // conflicts with the singleton grecaptcha.enterprise instance, causing
-      // INVALID_APP_CREDENTIAL errors on sendVerificationCode.
-      // Firebase Auth SDK (v11+) handles its own reCAPTCHA flow internally.
-      const verifier = getRecaptchaVerifier();
-      const result = await signInWithPhoneNumber(auth, formattedPhone, verifier);
+      const preflightEnterpriseBypassCheck = PHONE_AUTH_MODE === 'auto'
+        ? await evaluateEnterpriseAutoBypass()
+        : { bypass: false, reason: 'not_auto_mode' };
+      const preflightEnterpriseBypass = preflightEnterpriseBypassCheck.bypass;
+      const sendWithEnterprise = () => withTimeout(
+        signInWithPhoneNumber(auth, formattedPhone),
+        OTP_SEND_TIMEOUT_MS,
+        OTP_SEND_TIMEOUT_CODE
+      );
+
+      const sendWithLegacy = ({ refreshVerifier = false } = {}) => {
+        if (refreshVerifier) {
+          clearRecaptchaVerifier();
+        }
+        const verifier = getRecaptchaVerifier();
+        return withTimeout(
+          withLegacyRecaptchaBypass(auth, () => signInWithPhoneNumber(auth, formattedPhone, verifier)),
+          OTP_SEND_TIMEOUT_MS,
+          OTP_SEND_TIMEOUT_CODE
+        );
+      };
+
+      const attemptSendOtp = async ({ refreshVerifier = false, forceMode = PHONE_AUTH_MODE } = {}) => {
+        if (forceMode === 'enterprise') {
+          effectivePhoneAuthMode = 'enterprise';
+          return sendWithEnterprise();
+        }
+
+        if (forceMode === 'legacy') {
+          effectivePhoneAuthMode = 'legacy';
+          return sendWithLegacy({ refreshVerifier });
+        }
+
+        if (preflightEnterpriseBypass) {
+          effectivePhoneAuthMode = 'legacy';
+          setEnterpriseBypassForSession(true);
+          logOtpEvent('otp_send_auto_short_circuit', {
+            mode: forceMode,
+            to: 'legacy',
+            reason: preflightEnterpriseBypassCheck.reason,
+            elapsedMs: Date.now() - startedAtMs,
+          });
+          return sendWithLegacy({ refreshVerifier: true });
+        }
+
+        if (isEnterpriseBypassedForSession()) {
+          effectivePhoneAuthMode = 'legacy';
+          logOtpEvent('otp_send_auto_short_circuit', {
+            mode: forceMode,
+            to: 'legacy',
+            reason: 'session_enterprise_bypassed',
+            elapsedMs: Date.now() - startedAtMs,
+          });
+          return sendWithLegacy({ refreshVerifier: true });
+        }
+
+        try {
+          effectivePhoneAuthMode = 'enterprise';
+          return await sendWithEnterprise();
+        } catch (enterpriseError) {
+          if (!shouldFallbackEnterpriseOtpToLegacy(enterpriseError)) {
+            throw enterpriseError;
+          }
+
+          logOtpEvent('otp_send_fallback', {
+            mode: forceMode,
+            from: 'enterprise',
+            to: 'legacy',
+            code: enterpriseError?.code || 'enterprise_fallback_error',
+            elapsedMs: Date.now() - startedAtMs,
+          });
+          if (shouldPersistEnterpriseBypassForSession(enterpriseError)) {
+            setEnterpriseBypassForSession(true);
+          }
+          effectivePhoneAuthMode = 'legacy';
+          return sendWithLegacy({ refreshVerifier: true });
+        }
+      };
+
+      let result;
+      try {
+        result = await attemptSendOtp();
+      } catch (error) {
+        if (!shouldRetryOtpSend(error)) {
+          throw error;
+        }
+
+        logOtpEvent('otp_send_fail', {
+          mode: effectivePhoneAuthMode,
+          configuredMode: PHONE_AUTH_MODE,
+          phoneCountryPrefix,
+          code: error?.code || 'otp_send_retryable_error',
+          elapsedMs: Date.now() - startedAtMs,
+          retried: false,
+        });
+
+        // One controlled retry.
+        // - legacy: rebuild verifier state
+        // - enterprise: retry enterprise path
+        // - auto: retry whichever path was active when the error occurred
+        const retryMode = PHONE_AUTH_MODE === 'auto' ? effectivePhoneAuthMode : PHONE_AUTH_MODE;
+        result = await attemptSendOtp({ refreshVerifier: true, forceMode: retryMode });
+      }
 
       setConfirmationResult(result);
+      logOtpEvent('otp_send_success', {
+        mode: effectivePhoneAuthMode,
+        configuredMode: PHONE_AUTH_MODE,
+        phoneCountryPrefix,
+        elapsedMs: Date.now() - startedAtMs,
+      });
       return { success: true, formattedPhone };
     } catch (error) {
       const recaptchaFailure =
-        error?.code === 'auth/invalid-app-credential'
+        error?.code === OTP_SEND_TIMEOUT_CODE
+        || error?.code === 'auth/network-request-failed'
+        || error?.code === 'auth/invalid-app-credential'
         || error?.code === 'auth/captcha-check-failed'
-        || String(error?.message || '').toLowerCase().includes('invalid site key');
+        || String(error?.message || '').toLowerCase().includes('invalid site key')
+        || String(error?.message || '').toLowerCase().includes('recaptchaconfig');
       if (recaptchaFailure) {
         clearRecaptchaVerifier();
       }
 
+      if (error?.code === OTP_SEND_TIMEOUT_CODE) {
+        const timeoutMessage = 'Verification is taking too long. Please retry.';
+        setAuthError(timeoutMessage);
+        logOtpEvent('otp_send_timeout', {
+          mode: effectivePhoneAuthMode,
+          configuredMode: PHONE_AUTH_MODE,
+          elapsedMs: Date.now() - startedAtMs,
+          code: OTP_SEND_TIMEOUT_CODE,
+        });
+        return { success: false, error: timeoutMessage, code: OTP_SEND_TIMEOUT_CODE };
+      }
+
       const formattedError = formatFirebaseAuthError(error);
-      console.error('Send OTP error:', {
-        code: error?.code,
-        message: error?.message,
-        name: error?.name,
+      logOtpEvent('otp_send_fail', {
+        mode: effectivePhoneAuthMode,
+        configuredMode: PHONE_AUTH_MODE,
+        code: error?.code || 'otp_send_failed',
+        elapsedMs: Date.now() - startedAtMs,
       });
       setAuthError(formattedError);
       return { success: false, error: formattedError, code: error?.code || null };
+    } finally {
+      otpSendInFlightRef.current = false;
     }
   };
+
+  const resetOtpSendState = useCallback(() => {
+    clearRecaptchaVerifier();
+    setConfirmationResult(null);
+    setAuthError(null);
+    otpSendInFlightRef.current = false;
+  }, [clearRecaptchaVerifier]);
 
   // Verify OTP code
   const verifyOtp = async (code) => {
@@ -1389,6 +1821,7 @@ export function AuthProvider({ children }) {
     emailLinkError,
     clearEmailLinkError: () => setEmailLinkError(null),
     sendOtp,
+    resetOtpSendState,
     verifyOtp,
     requestEmailMagicLink,
     startEmailLinking,

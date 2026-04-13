@@ -1,0 +1,635 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\Administrator\\Karga\\playwright.config.js",
+    "rootDir": "C:/Users/Administrator/Karga/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Administrator/Karga/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/Users/Administrator/Karga/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "notifications\\notifications-view.spec.js",
+      "file": "notifications/notifications-view.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Notifications View",
+          "file": "notifications/notifications-view.spec.js",
+          "line": 39,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should load notifications view for authenticated user",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 22915,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:38:23.152Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b06569ebbd0ff5eb51f7-39a6c7378b67c73f6dbf",
+              "file": "notifications/notifications-view.spec.js",
+              "line": 44,
+              "column": 3
+            },
+            {
+              "title": "should show empty state when no notifications",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 55513,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('main h1').filter({ hasText: /notifications/i }).first()\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for locator('main h1').filter({ hasText: /notifications/i }).first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('main h1').filter({ hasText: /notifications/i }).first()\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for locator('main h1').filter({ hasText: /notifications/i }).first()\u001b[22m\n\n    at ensureNotificationsViewOpen (C:\\Users\\Administrator\\Karga\\tests\\e2e\\notifications\\notifications-view.spec.js:23:25)\n    at C:\\Users\\Administrator\\Karga\\tests\\e2e\\notifications\\notifications-view.spec.js:66:5",
+                        "location": {
+                          "file": "C:\\Users\\Administrator\\Karga\\tests\\e2e\\notifications\\notifications-view.spec.js",
+                          "column": 25,
+                          "line": 23
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 21 |\u001b[39m   }\n \u001b[90m 22 |\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 23 |\u001b[39m   \u001b[36mawait\u001b[39m expect(heading)\u001b[33m.\u001b[39mtoBeVisible({ timeout\u001b[33m:\u001b[39m \u001b[35m20000\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                         \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 24 |\u001b[39m }\n \u001b[90m 25 |\u001b[39m\n \u001b[90m 26 |\u001b[39m \u001b[90m/**\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\Administrator\\Karga\\tests\\e2e\\notifications\\notifications-view.spec.js",
+                            "column": 25,
+                            "line": 23
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('main h1').filter({ hasText: /notifications/i }).first()\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for locator('main h1').filter({ hasText: /notifications/i }).first()\u001b[22m\n\n\n  21 |   }\n  22 |\n> 23 |   await expect(heading).toBeVisible({ timeout: 20000 });\n     |                         ^\n  24 | }\n  25 |\n  26 | /**\n    at ensureNotificationsViewOpen (C:\\Users\\Administrator\\Karga\\tests\\e2e\\notifications\\notifications-view.spec.js:23:25)\n    at C:\\Users\\Administrator\\Karga\\tests\\e2e\\notifications\\notifications-view.spec.js:66:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:38:48.724Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\Administrator\\Karga\\test-results\\notifications-notification-a28bc-state-when-no-notifications-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "C:\\Users\\Administrator\\Karga\\test-results\\notifications-notification-a28bc-state-when-no-notifications-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Users\\Administrator\\Karga\\test-results\\notifications-notification-a28bc-state-when-no-notifications-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\Administrator\\Karga\\tests\\e2e\\notifications\\notifications-view.spec.js",
+                        "column": 25,
+                        "line": 23
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "b06569ebbd0ff5eb51f7-9764a44371c2ae07ef06",
+              "file": "notifications/notifications-view.spec.js",
+              "line": 58,
+              "column": 3
+            },
+            {
+              "title": "should show mark all read button when notifications exist",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10426,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:39:49.734Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b06569ebbd0ff5eb51f7-41e58ad3766e234aa10c",
+              "file": "notifications/notifications-view.spec.js",
+              "line": 73,
+              "column": 3
+            },
+            {
+              "title": "should show notification bell icon in header",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9225,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:40:00.361Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b06569ebbd0ff5eb51f7-6abc212fe20f99ceec19",
+              "file": "notifications/notifications-view.spec.js",
+              "line": 101,
+              "column": 3
+            },
+            {
+              "title": "should redirect guest to sign-in for notifications",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4053,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:40:09.610Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b06569ebbd0ff5eb51f7-73f06042644f0d3199ed",
+              "file": "notifications/notifications-view.spec.js",
+              "line": 119,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "profile\\profile-view.spec.js",
+      "file": "profile/profile-view.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Profile View",
+          "file": "profile/profile-view.spec.js",
+          "line": 17,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should open profile page after login",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 40450,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:40:13.725Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5c3843c769c63e0fcc7d-67943c8b95bc3990d540",
+              "file": "profile/profile-view.spec.js",
+              "line": 22,
+              "column": 3
+            },
+            {
+              "title": "should display correct user name on profile",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8779,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:40:54.197Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5c3843c769c63e0fcc7d-f9ec6807c0820e8d00f5",
+              "file": "profile/profile-view.spec.js",
+              "line": 41,
+              "column": 3
+            },
+            {
+              "title": "should not show fallback profile placeholders for authenticated users",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 18697,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:41:02.999Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5c3843c769c63e0fcc7d-36a606b7781a9aff482f",
+              "file": "profile/profile-view.spec.js",
+              "line": 57,
+              "column": 3
+            },
+            {
+              "title": "should show trucker badge/rating for trucker profile",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 17778,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:41:21.718Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5c3843c769c63e0fcc7d-c6524a4ce230da7fa3f4",
+              "file": "profile/profile-view.spec.js",
+              "line": 79,
+              "column": 3
+            },
+            {
+              "title": "should have logout option accessible",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 23053,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:41:39.521Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5c3843c769c63e0fcc7d-0fbf7e0864c37d554a38",
+              "file": "profile/profile-view.spec.js",
+              "line": 98,
+              "column": 3
+            },
+            {
+              "title": "should logout and return to login screen",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 10101,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at C:\\Users\\Administrator\\Karga\\tests\\e2e\\profile\\profile-view.spec.js:167:63",
+                        "location": {
+                          "file": "C:\\Users\\Administrator\\Karga\\tests\\e2e\\profile\\profile-view.spec.js",
+                          "column": 63,
+                          "line": 167
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 165 |\u001b[39m     \u001b[36mconst\u001b[39m signInText \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'text=/sign in|enter your phone/i'\u001b[39m)\u001b[33m.\u001b[39mcount()\u001b[33m;\u001b[39m\n \u001b[90m 166 |\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 167 |\u001b[39m     expect(phoneInput \u001b[33m>\u001b[39m \u001b[35m0\u001b[39m \u001b[33m||\u001b[39m authModal \u001b[33m>\u001b[39m \u001b[35m0\u001b[39m \u001b[33m||\u001b[39m signInText \u001b[33m>\u001b[39m \u001b[35m0\u001b[39m)\u001b[33m.\u001b[39mtoBe(\u001b[36mtrue\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                                                               \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 168 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 169 |\u001b[39m\n \u001b[90m 170 |\u001b[39m   test(\u001b[32m'should show broker profile features for broker user'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\Administrator\\Karga\\tests\\e2e\\profile\\profile-view.spec.js",
+                            "column": 63,
+                            "line": 167
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n\n  165 |     const signInText = await page.locator('text=/sign in|enter your phone/i').count();\n  166 |\n> 167 |     expect(phoneInput > 0 || authModal > 0 || signInText > 0).toBe(true);\n      |                                                               ^\n  168 |   });\n  169 |\n  170 |   test('should show broker profile features for broker user', async ({\n    at C:\\Users\\Administrator\\Karga\\tests\\e2e\\profile\\profile-view.spec.js:167:63"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:42:02.598Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\Administrator\\Karga\\test-results\\profile-profile-view-Profi-66f35--and-return-to-login-screen-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "C:\\Users\\Administrator\\Karga\\test-results\\profile-profile-view-Profi-66f35--and-return-to-login-screen-chromium\\video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Users\\Administrator\\Karga\\test-results\\profile-profile-view-Profi-66f35--and-return-to-login-screen-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\Administrator\\Karga\\tests\\e2e\\profile\\profile-view.spec.js",
+                        "column": 63,
+                        "line": 167
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "5c3843c769c63e0fcc7d-55ddf8a50c402386785d",
+              "file": "profile/profile-view.spec.js",
+              "line": 143,
+              "column": 3
+            },
+            {
+              "title": "should show broker profile features for broker user",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9433,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Emulator data cleared\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T06:42:15.766Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5c3843c769c63e0fcc7d-1c7416dc0de13797a7dc",
+              "file": "profile/profile-view.spec.js",
+              "line": 170,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-03-30T06:37:53.935Z",
+    "duration": 272493.985,
+    "expected": 10,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

@@ -2,6 +2,9 @@ const { HttpsError } = require('firebase-functions/v2/https');
 const functions = require('firebase-functions');
 
 function isAppCheckEnforced() {
+  const override = String(process.env.APP_CHECK_ENFORCED_OVERRIDE || '').trim().toLowerCase();
+  if (override === 'true') return true;
+  if (override === 'false') return false;
   return process.env.APP_CHECK_ENFORCED === 'true';
 }
 

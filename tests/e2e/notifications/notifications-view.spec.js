@@ -6,6 +6,15 @@ const getNotificationBell = (page) =>
     'header button[aria-label*="notification" i], header button[title*="notification" i]'
   ).first();
 
+const getNotificationsHeading = (page) =>
+  page.locator('main h1').filter({ hasText: /notifications/i }).first();
+
+async function openNotificationsRoute(page, authHelper) {
+  await authHelper.navigateTo('notifications');
+  await expect(page).toHaveURL(/\/app\/notifications(?:[/?#]|$)/);
+  await expect(getNotificationsHeading(page)).toBeVisible({ timeout: 20000 });
+}
+
 /**
  * Notifications View E2E Tests
  *
@@ -34,24 +43,8 @@ test.describe('Notifications View', () => {
     await authHelper.login(testPhoneNumbers.shipper);
     const userData = generateTestUser('shipper', 1);
     await authHelper.register(userData);
-
-    // The app should already be on notifications view after login via bell
-    // OR we can click the bell button to go there
-    const bellBtn = getNotificationBell(page);
-
-    // Click bell if notifications view not already showing
-    let notifContent = await page.locator('text=/notifications|all caught up/i').count();
-    if (notifContent === 0) {
-      const bellVisible = await bellBtn.isVisible().catch(() => false);
-      if (bellVisible) {
-        await bellBtn.click();
-        await page.waitForTimeout(1500);
-        notifContent = await page.locator('text=/notifications|all caught up/i').count();
-      }
-    }
-
-    // Should show notifications view content
-    expect(notifContent).toBeGreaterThan(0);
+    await openNotificationsRoute(page, authHelper);
+    await expect(getNotificationsHeading(page)).toBeVisible();
   });
 
   test('should show empty state when no notifications', async ({
@@ -62,28 +55,19 @@ test.describe('Notifications View', () => {
     await authHelper.login(testPhoneNumbers.trucker);
     const userData = generateTestUser('trucker', 1);
     await authHelper.register(userData);
+    await openNotificationsRoute(page, authHelper);
 
-    // App should already be on notifications view after login via bell
-    let emptyState = await page.locator(
-      'text=/no notifications|all caught up|nothing to see|empty/i'
-    ).count();
+    const emptyState = page.locator('main').locator('text=/no notifications|all caught up|nothing to see|empty/i').first();
+    const hasEmptyState = await emptyState.isVisible().catch(() => false);
 
-    if (emptyState === 0) {
-      // Click bell to navigate to notifications
-      const bellBtn = getNotificationBell(page);
-      const bellVisible = await bellBtn.isVisible().catch(() => false);
-      if (bellVisible) {
-        await bellBtn.click();
-        await page.waitForTimeout(1500);
-        emptyState = await page.locator(
-          'text=/no notifications|all caught up|nothing to see|empty/i'
-        ).count();
-      }
+    if (!hasEmptyState) {
+      await expect(
+        page.locator('main').locator('text=/welcome to getgo|just now|ago|notification/i').first()
+      ).toBeVisible({ timeout: 20000 });
+      return;
     }
 
-    // Either empty state or notifications content should be visible
-    const notifContent = await page.locator('text=/notifications/i').count();
-    expect(emptyState > 0 || notifContent > 0).toBe(true);
+    await expect(emptyState).toBeVisible({ timeout: 20000 });
   });
 
   test('should show mark all read button when notifications exist', async ({
@@ -94,17 +78,7 @@ test.describe('Notifications View', () => {
     await authHelper.login(testPhoneNumbers.shipper);
     const userData = generateTestUser('shipper', 2);
     await authHelper.register(userData);
-
-    // Ensure we're on notifications view
-    let onNotifView = await page.locator('text=/notifications|all caught up/i').count();
-    if (onNotifView === 0) {
-      const bellBtn = getNotificationBell(page);
-      const bellVisible = await bellBtn.isVisible().catch(() => false);
-      if (bellVisible) {
-        await bellBtn.click();
-        await page.waitForTimeout(1500);
-      }
-    }
+    await openNotificationsRoute(page, authHelper);
 
     // If mark all read button is present, click it
     const markAllReadButton = page.locator('button').filter({
@@ -140,6 +114,46 @@ test.describe('Notifications View', () => {
     // No crash
     const errorText = await page.locator('text=/error|crashed/i').count();
     expect(errorText).toBe(0);
+  });
+
+  test('should hide soft push banner after permission becomes denied', async ({
+    page,
+    authHelper,
+    testPhoneNumbers,
+  }) => {
+    await page.addInitScript(() => {
+      const OriginalNotification = window.Notification;
+      let permissionState = 'default';
+
+      function FakeNotification() {}
+      Object.defineProperty(FakeNotification, 'permission', {
+        get() {
+          return permissionState;
+        },
+      });
+      FakeNotification.requestPermission = async () => {
+        permissionState = 'denied';
+        return permissionState;
+      };
+
+      if (OriginalNotification) {
+        Object.setPrototypeOf(FakeNotification, OriginalNotification);
+      }
+
+      window.Notification = FakeNotification;
+    });
+
+    await authHelper.login(testPhoneNumbers.shipper);
+    const userData = generateTestUser('shipper', 4);
+    await authHelper.register(userData);
+    await openNotificationsRoute(page, authHelper);
+
+    const softBannerLaterButton = page.getByRole('button', { name: /^Later$/i });
+    await expect(softBannerLaterButton).toBeVisible({ timeout: 15000 });
+    await page.getByRole('button', { name: /^Activate$/i }).last().click();
+
+    await expect(page.locator('text=Notifications Blocked')).toBeVisible({ timeout: 15000 });
+    await expect(softBannerLaterButton).toBeHidden({ timeout: 15000 });
   });
 
   test('should redirect guest to sign-in for notifications', async ({ page }) => {

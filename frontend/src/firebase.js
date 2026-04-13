@@ -39,9 +39,9 @@ function extractHost(value) {
   const trimmed = value.trim();
   if (!trimmed) return '';
   try {
-    return new URL(trimmed).hostname;
+    return new URL(trimmed).hostname.replace(/\.+$/, '');
   } catch {
-    return trimmed.replace(/^https?:\/\//, '').split('/')[0];
+    return trimmed.replace(/^https?:\/\//, '').split('/')[0].replace(/\.+$/, '');
   }
 }
 
@@ -65,9 +65,15 @@ function isProjectHostedDomain(host, projectId) {
 }
 
 function resolveAuthDomain(configuredAuthDomain) {
-  // Keep authDomain stable by default.
-  // Set VITE_USE_RUNTIME_AUTH_DOMAIN=true to opt in to host-based authDomain overrides.
-  const allowRuntimeAuthDomain = import.meta.env.VITE_USE_RUNTIME_AUTH_DOMAIN === 'true';
+  // Runtime authDomain mode:
+  // - "false" disables host-based override.
+  // - "true" forces opt-in.
+  // - "auto" (or unset) enables safe host-based override in production.
+  const runtimeAuthDomainMode = String(import.meta.env.VITE_USE_RUNTIME_AUTH_DOMAIN || 'auto')
+    .trim()
+    .toLowerCase();
+  const allowRuntimeAuthDomain = runtimeAuthDomainMode !== 'false';
+
   if (typeof window === 'undefined' || !import.meta.env.PROD || !allowRuntimeAuthDomain) {
     return configuredAuthDomain;
   }
@@ -228,17 +234,10 @@ export const shouldInitializeAppCheck =
   typeof window !== 'undefined' &&
   appCheckProviderConfigured;
 
-// Pre-create a secondary Firebase app for messaging so it is isolated from the default app.
-// The Functions client SDK (which uses the default app) calls getImmediate('messaging') in
-// getContext() on every callable invocation — if messaging lives on the default app, it
-// triggers a spurious FCM token registration that fails with 401.
-// By using a separate named app, the Functions SDK cannot discover the messaging instance.
-// Created eagerly (before messaging is initialized) so App Check can be started on it in
-// initializeAppCheckRuntime(), ensuring tokens are ready before any FCM call.
-const messagingFirebaseApp =
-  typeof window !== 'undefined' && !useEmulator
-    ? getOrInitializeApp(firebaseConfig, 'karga-messaging')
-    : app;
+// Use the default Firebase app for Messaging so Auth, Installations, and App Check
+// credentials stay on a single app identity for FCM registration requests.
+// Functions SDK churn is handled separately via disableFunctionsMessagingTokenBridge().
+const messagingFirebaseApp = app;
 export const messagingClientIdentity = `${messagingFirebaseApp.name}:${firebaseConfig.appId}`;
 
 async function initializeAppCheckRuntime() {
@@ -438,6 +437,21 @@ export const db = (() => {
 export const storage = getStorage(app);
 export const functions = getFunctions(app, 'asia-southeast1');
 
+function disableFunctionsMessagingTokenBridge(functionsInstance) {
+  // Firebase Functions SDK automatically attempts to include a Messaging token
+  // in callable context when Notification.permission is granted. That triggers
+  // internal FCM registration churn (POST 401 / DELETE 400) unrelated to our
+  // explicit push activation flow.
+  const contextProvider = functionsInstance?.contextProvider;
+  if (!contextProvider || typeof contextProvider.getMessagingToken !== 'function') {
+    return;
+  }
+
+  contextProvider.getMessagingToken = async () => undefined;
+}
+
+disableFunctionsMessagingTokenBridge(functions);
+
 // Connect to Firebase Emulators if in test mode
 if (useEmulator) {
   const emulatorHost = import.meta.env.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
@@ -457,15 +471,13 @@ if (useEmulator) {
 // FCM registration request that fails with 401 when App Check is enforced for FCM.
 let messaging = null;
 let messagingInitPromise = null;
+let installationsModulePromise = null;
 
 async function initializeMessagingRuntime() {
   if (typeof window === 'undefined' || useEmulator) return null;
   try {
     const { getMessaging } = await import('firebase/messaging');
-    // messagingFirebaseApp is a pre-created secondary app (see above). App Check is
-    // already initialized on it by initializeAppCheckRuntime(), so FCM token requests
-    // will include proper attestation. The Functions SDK uses the default app and cannot
-    // discover this messaging instance, preventing spurious FCM registration calls.
+    // Messaging runs on the default app so it shares Auth/Installations/App Check state.
     messaging = getMessaging(messagingFirebaseApp);
   } catch (error) {
     if (import.meta.env.DEV) {
@@ -481,6 +493,55 @@ export async function getOrInitMessaging() {
     messagingInitPromise = initializeMessagingRuntime();
   }
   return messagingInitPromise;
+}
+
+async function getInstallationsModule() {
+  if (!installationsModulePromise) {
+    installationsModulePromise = import('firebase/installations');
+  }
+  return installationsModulePromise;
+}
+
+async function resolveMessagingInstallationsToken(timeoutMs = 3000, forceRefresh = false) {
+  const installationsModule = await getInstallationsModule();
+  const installations = installationsModule.getInstallations(messagingFirebaseApp);
+  const token = await raceWithTimeout(
+    installationsModule.getToken(installations, forceRefresh),
+    timeoutMs
+  );
+  return typeof token === 'string' ? token : '';
+}
+
+export async function hasValidMessagingInstallationAuthToken(
+  timeoutMs = 3000,
+  forceRefreshFirst = false
+) {
+  if (typeof window === 'undefined' || useEmulator) {
+    return true;
+  }
+
+  if (forceRefreshFirst) {
+    try {
+      const refreshedToken = await resolveMessagingInstallationsToken(timeoutMs, true);
+      return Boolean(refreshedToken);
+    } catch {
+      return false;
+    }
+  }
+
+  try {
+    const token = await resolveMessagingInstallationsToken(timeoutMs, false);
+    if (token) return true;
+  } catch {
+    // Best effort fallback below.
+  }
+
+  try {
+    const refreshedToken = await resolveMessagingInstallationsToken(timeoutMs, true);
+    return Boolean(refreshedToken);
+  } catch {
+    return false;
+  }
 }
 
 export { messaging };
@@ -505,3 +566,7 @@ export { analytics };
 export { appCheck };
 
 export default app;
+
+
+
+

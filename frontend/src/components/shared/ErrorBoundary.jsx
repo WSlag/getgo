@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { isFirestoreInternalAssertionError } from '../../utils/firebaseErrors';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -16,11 +17,25 @@ class ErrorBoundary extends React.Component {
     );
   }
 
+  static shouldIgnoreError(error) {
+    const ignoreFirestoreAssertion = import.meta.env.VITE_IGNORE_FIRESTORE_INTERNAL_ASSERTION === 'true';
+    return ignoreFirestoreAssertion && isFirestoreInternalAssertionError(error);
+  }
+
   static getDerivedStateFromError(error) {
+    if (ErrorBoundary.shouldIgnoreError(error)) {
+      return null;
+    }
     return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
+    if (ErrorBoundary.shouldIgnoreError(error)) {
+      if (import.meta.env.DEV) {
+        console.warn('ErrorBoundary ignored transient Firestore internal assertion:', error);
+      }
+      return;
+    }
     console.error('ErrorBoundary caught:', error, errorInfo);
     try {
       import('@sentry/react').then(Sentry => {

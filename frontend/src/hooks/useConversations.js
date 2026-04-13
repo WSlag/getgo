@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { parseTimestampSafely, sortEntitiesNewestFirst } from '../utils/activitySorting';
-import { isPermissionDeniedError, reportFirestoreListenerError } from '../utils/firebaseErrors';
+import {
+  isPermissionDeniedError,
+  reportFirestoreListenerError,
+  safeFirestoreUnsubscribe,
+} from '../utils/firebaseErrors';
 import { sanitizeMessage, sanitizePublicName } from '../utils/messageUtils';
 
 /**
@@ -89,7 +93,7 @@ export function useConversations(userId, enabled = true) {
     const unsubscribeBidMessages = (bidId) => {
       const unsubscribe = messageUnsubs.get(bidId);
       if (unsubscribe) {
-        unsubscribe();
+        safeFirestoreUnsubscribe(unsubscribe, `messages for bid ${bidId}`);
         messageUnsubs.delete(bidId);
       }
       const retryTimer = messageRetryTimers.get(bidId);
@@ -109,50 +113,56 @@ export function useConversations(userId, enabled = true) {
         orderBy('createdAt', 'asc')
       );
 
-      const unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          const messages = snapshot.docs.map((docSnap) => {
-            const messageData = docSnap.data();
-            return {
-              id: docSnap.id,
-              ...messageData,
-              createdAt: toDate(messageData.createdAt),
-            };
-          });
-          messageRetryCounts.delete(bidId);
-          messagesByBid.set(bidId, messages);
-          recompute();
-        },
-        (err) => {
-          reportFirestoreListenerError(`messages for bid ${bidId}`, err);
-          messagesByBid.set(bidId, []);
-          recompute();
+      try {
+        const unsubscribe = onSnapshot(
+          q,
+          (snapshot) => {
+            const messages = snapshot.docs.map((docSnap) => {
+              const messageData = docSnap.data();
+              return {
+                id: docSnap.id,
+                ...messageData,
+                createdAt: toDate(messageData.createdAt),
+              };
+            });
+            messageRetryCounts.delete(bidId);
+            messagesByBid.set(bidId, messages);
+            recompute();
+          },
+          (err) => {
+            reportFirestoreListenerError(`messages for bid ${bidId}`, err);
+            messagesByBid.set(bidId, []);
+            recompute();
 
-          const code = String(err?.code || '').toLowerCase();
-          const shouldRetry =
-            !isPermissionDeniedError(err)
-            && (code === 'unavailable' || code === 'deadline-exceeded');
+            const code = String(err?.code || '').toLowerCase();
+            const shouldRetry =
+              !isPermissionDeniedError(err)
+              && (code === 'unavailable' || code === 'deadline-exceeded');
 
-          if (shouldRetry && !disposed && bidMap.has(bidId)) {
-            const attempts = (messageRetryCounts.get(bidId) || 0) + 1;
-            if (attempts <= 3 && !messageRetryTimers.has(bidId)) {
-              messageRetryCounts.set(bidId, attempts);
-              const delayMs = attempts * 1000;
-              const timer = setTimeout(() => {
-                messageRetryTimers.delete(bidId);
-                const bid = bidMap.get(bidId);
-                if (!disposed && bid && bid.hasPendingWrites !== true) {
-                  subscribeBidMessages(bidId);
-                }
-              }, delayMs);
-              messageRetryTimers.set(bidId, timer);
+            if (shouldRetry && !disposed && bidMap.has(bidId)) {
+              const attempts = (messageRetryCounts.get(bidId) || 0) + 1;
+              if (attempts <= 3 && !messageRetryTimers.has(bidId)) {
+                messageRetryCounts.set(bidId, attempts);
+                const delayMs = attempts * 1000;
+                const timer = setTimeout(() => {
+                  messageRetryTimers.delete(bidId);
+                  const bid = bidMap.get(bidId);
+                  if (!disposed && bid && bid.hasPendingWrites !== true) {
+                    subscribeBidMessages(bidId);
+                  }
+                }, delayMs);
+                messageRetryTimers.set(bidId, timer);
+              }
             }
           }
-        }
-      );
+        );
 
-      messageUnsubs.set(bidId, unsubscribe);
+        messageUnsubs.set(bidId, unsubscribe);
+      } catch (err) {
+        reportFirestoreListenerError(`messages for bid ${bidId} subscribe`, err);
+        messagesByBid.set(bidId, []);
+        recompute();
+      }
     };
 
     const syncBids = () => {
@@ -206,41 +216,60 @@ export function useConversations(userId, enabled = true) {
 
     setLoading(true);
 
-    const bidderUnsub = onSnapshot(
-      query(collection(db, 'bids'), where('bidderId', '==', userId)),
-      { includeMetadataChanges: true },
-      (snapshot) => {
-        bidderDocs = snapshot.docs;
-        syncBids();
-      },
-      (err) => {
-        reportFirestoreListenerError('bidder conversations', err);
-        setConversations([]);
-        setError(isPermissionDeniedError(err) ? null : err.message);
-        setLoading(false);
-      }
-    );
+    let bidderUnsub = null;
+    let ownerUnsub = null;
 
-    const ownerUnsub = onSnapshot(
-      query(collection(db, 'bids'), where('listingOwnerId', '==', userId)),
-      { includeMetadataChanges: true },
-      (snapshot) => {
-        ownerDocs = snapshot.docs;
-        syncBids();
-      },
-      (err) => {
-        reportFirestoreListenerError('owner conversations', err);
-        setConversations([]);
-        setError(isPermissionDeniedError(err) ? null : err.message);
-        setLoading(false);
-      }
-    );
+    try {
+      bidderUnsub = onSnapshot(
+        query(collection(db, 'bids'), where('bidderId', '==', userId)),
+        { includeMetadataChanges: true },
+        (snapshot) => {
+          bidderDocs = snapshot.docs;
+          syncBids();
+        },
+        (err) => {
+          reportFirestoreListenerError('bidder conversations', err);
+          setConversations([]);
+          setError(isPermissionDeniedError(err) ? null : err.message);
+          setLoading(false);
+        }
+      );
+    } catch (err) {
+      reportFirestoreListenerError('bidder conversations subscribe', err);
+      setConversations([]);
+      setError(isPermissionDeniedError(err) ? null : err.message);
+      setLoading(false);
+    }
+
+    try {
+      ownerUnsub = onSnapshot(
+        query(collection(db, 'bids'), where('listingOwnerId', '==', userId)),
+        { includeMetadataChanges: true },
+        (snapshot) => {
+          ownerDocs = snapshot.docs;
+          syncBids();
+        },
+        (err) => {
+          reportFirestoreListenerError('owner conversations', err);
+          setConversations([]);
+          setError(isPermissionDeniedError(err) ? null : err.message);
+          setLoading(false);
+        }
+      );
+    } catch (err) {
+      reportFirestoreListenerError('owner conversations subscribe', err);
+      setConversations([]);
+      setError(isPermissionDeniedError(err) ? null : err.message);
+      setLoading(false);
+    }
 
     return () => {
       disposed = true;
-      bidderUnsub();
-      ownerUnsub();
-      messageUnsubs.forEach((unsubscribe) => unsubscribe());
+      safeFirestoreUnsubscribe(bidderUnsub, 'bidder conversations listener');
+      safeFirestoreUnsubscribe(ownerUnsub, 'owner conversations listener');
+      messageUnsubs.forEach((unsubscribe, bidId) => {
+        safeFirestoreUnsubscribe(unsubscribe, `messages for bid ${bidId}`);
+      });
       messageUnsubs.clear();
       messageRetryTimers.forEach((timer) => clearTimeout(timer));
       messageRetryTimers.clear();

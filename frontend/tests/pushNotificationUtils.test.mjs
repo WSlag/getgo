@@ -2,10 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildPushRegistrationDiagnostics,
   classifyPushRegistrationError,
+  clearProjectDefaultVapidPreferredForSession,
   cleanupPushRegistrationOnLogout,
+  markProjectDefaultVapidPreferredForSession,
+  markStaleCleanupInstallationsPurged,
   purgeLocalMessagingRegistrationArtifacts,
   reconcileBrowserTokenRegistration,
+  shouldPreferProjectDefaultVapidForSession,
+  shouldPurgeInstallationsForStaleCleanup,
+  shouldShortCircuitForAppCheck,
   shouldShowPushActivationPending,
 } from '../src/hooks/pushNotificationUtils.js';
 
@@ -33,6 +40,18 @@ test('classifyPushRegistrationError marks unauthorized 401 as session cooldown',
   assert.equal(classified.shouldEnterSessionCooldown, true);
 });
 
+test('classifyPushRegistrationError treats bare token-subscribe-failed as unauthorized fallback', () => {
+  const error = {
+    code: 'messaging/token-subscribe-failed',
+    message: 'Messaging: token-subscribe-failed.',
+  };
+
+  const classified = classifyPushRegistrationError(error);
+  assert.equal(classified.category, 'unauthorized');
+  assert.equal(classified.shouldRetry, false);
+  assert.equal(classified.shouldEnterSessionCooldown, true);
+});
+
 test('classifyPushRegistrationError reads unauthorized from customData.serverResponse', () => {
   const error = {
     code: 'messaging/token-subscribe-failed',
@@ -46,6 +65,21 @@ test('classifyPushRegistrationError reads unauthorized from customData.serverRes
   assert.equal(classified.category, 'unauthorized');
   assert.equal(classified.httpStatus, 401);
   assert.equal(classified.shouldRetry, false);
+  assert.equal(classified.shouldEnterSessionCooldown, true);
+});
+
+test('classifyPushRegistrationError prioritizes unauthorized over stale cleanup when both signatures exist', () => {
+  const error = {
+    code: 'messaging/token-unsubscribe-failed',
+    message: 'Messaging: token-unsubscribe-failed. Request contains an invalid argument.',
+    customData: {
+      serverResponse: '{"error":{"code":401,"status":"UNAUTHENTICATED"}}',
+    },
+  };
+
+  const classified = classifyPushRegistrationError(error);
+  assert.equal(classified.category, 'unauthorized');
+  assert.equal(classified.httpStatus, 401);
   assert.equal(classified.shouldEnterSessionCooldown, true);
 });
 
@@ -98,8 +132,8 @@ test('purgeLocalMessagingRegistrationArtifacts attempts indexeddb cleanup', asyn
     };
 
     const result = await purgeLocalMessagingRegistrationArtifacts({ includeInstallations: true });
-    assert.equal(result.attempted, 2);
-    assert.equal(result.deleted, 2);
+    assert.equal(result.attempted, 5);
+    assert.equal(result.deleted, 5);
   } finally {
     if (typeof previousIndexedDb === 'undefined') {
       delete globalThis.indexedDB;
@@ -107,6 +141,86 @@ test('purgeLocalMessagingRegistrationArtifacts attempts indexeddb cleanup', asyn
       globalThis.indexedDB = previousIndexedDb;
     }
   }
+});
+
+test('stale cleanup installations purge is guarded to once per session', () => {
+  const storage = {
+    map: new Map(),
+    getItem(key) {
+      return this.map.has(key) ? this.map.get(key) : null;
+    },
+    setItem(key, value) {
+      this.map.set(key, String(value));
+    },
+    removeItem(key) {
+      this.map.delete(key);
+    },
+  };
+
+  assert.equal(shouldPurgeInstallationsForStaleCleanup('user-1', storage), true);
+  markStaleCleanupInstallationsPurged('user-1', storage);
+  assert.equal(shouldPurgeInstallationsForStaleCleanup('user-1', storage), false);
+  assert.equal(shouldPurgeInstallationsForStaleCleanup('user-2', storage), true);
+});
+
+test('project-default vapid session preference is scoped per user and clearable', () => {
+  const storage = {
+    map: new Map(),
+    getItem(key) {
+      return this.map.has(key) ? this.map.get(key) : null;
+    },
+    setItem(key, value) {
+      this.map.set(key, String(value));
+    },
+    removeItem(key) {
+      this.map.delete(key);
+    },
+  };
+
+  assert.equal(shouldPreferProjectDefaultVapidForSession('user-1', storage), false);
+  markProjectDefaultVapidPreferredForSession('user-1', storage);
+  assert.equal(shouldPreferProjectDefaultVapidForSession('user-1', storage), true);
+  assert.equal(shouldPreferProjectDefaultVapidForSession('user-2', storage), false);
+
+  clearProjectDefaultVapidPreferredForSession('user-1', storage);
+  assert.equal(shouldPreferProjectDefaultVapidForSession('user-1', storage), false);
+});
+
+test('shouldShortCircuitForAppCheck only triggers when app check is required but not ready', () => {
+  assert.equal(
+    shouldShortCircuitForAppCheck({ appCheckRequired: true, appCheckReady: false }),
+    true
+  );
+  assert.equal(
+    shouldShortCircuitForAppCheck({ appCheckRequired: true, appCheckReady: true }),
+    false
+  );
+  assert.equal(
+    shouldShortCircuitForAppCheck({ appCheckRequired: false, appCheckReady: false }),
+    false
+  );
+});
+
+test('buildPushRegistrationDiagnostics includes recovery action telemetry fields', () => {
+  const diagnostics = buildPushRegistrationDiagnostics({
+    permissionStatus: 'granted',
+    appCheckReady: false,
+    swRegistration: { scope: 'https://getgoph.com/' },
+    classification: {
+      category: 'unauthorized',
+      normalizedCode: 'messaging/token-subscribe-failed',
+      normalizedMessage: 'token-subscribe-failed 401 unauthorized',
+      httpStatus: 401,
+      shouldRetry: false,
+    },
+    recoveryAction: 'unauthorized_session_cooldown',
+    purgedInstallations: true,
+    cooldownSet: true,
+  });
+
+  assert.equal(diagnostics.recoveryAction, 'unauthorized_session_cooldown');
+  assert.equal(diagnostics.purgedInstallations, true);
+  assert.equal(diagnostics.cooldownSet, true);
 });
 
 test('reconcileBrowserTokenRegistration confirms active token when token document exists', async () => {

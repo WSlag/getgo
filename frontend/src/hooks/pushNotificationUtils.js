@@ -4,7 +4,16 @@ const LEGACY_REGISTERED_KEY = 'karga.push.registered';
 const LEGACY_REGISTERED_TOKEN_KEY = 'karga.push.token';
 const MESSAGING_IDENTITY_KEY = 'karga.push.messaging.identity';
 const UNAUTHORIZED_COOLDOWN_KEY_PREFIX = 'karga.push.cooldown.unauthorized';
-const MESSAGING_INDEXED_DB_NAMES = ['firebase-messaging-database'];
+const STALE_FULL_RESET_KEY_PREFIX = 'karga.push.recovery.stale-reset';
+const VAPID_PROJECT_DEFAULT_PREFERENCE_KEY_PREFIX = 'karga.push.vapid.prefer-default';
+const MESSAGING_INDEXED_DB_NAMES = [
+  'firebase-messaging-database',
+  // Legacy Messaging DBs used by older Firebase Web SDK migrations.
+  // If left behind, stale token/VAPID state can be restored after cleanup.
+  'fcm_token_details_db',
+  'fcm_vapid_details_db',
+  'undefined',
+];
 const INSTALLATIONS_INDEXED_DB_NAMES = ['firebase-installations-database'];
 
 function getSafeStorageValue(storageLike, key) {
@@ -47,6 +56,41 @@ function truncateText(value, maxLength = 180) {
   const text = String(value || '');
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 3)}...`;
+}
+
+function decodeBase64UrlSegment(segment) {
+  const value = String(segment || '').replace(/-/g, '+').replace(/_/g, '/');
+  if (!value) return '';
+  const padLength = (4 - (value.length % 4)) % 4;
+  const padded = `${value}${'='.repeat(padLength)}`;
+
+  if (typeof atob === 'function') {
+    return atob(padded);
+  }
+
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(padded, 'base64').toString('utf8');
+  }
+
+  return '';
+}
+
+function parseServerResponseStatus(rawServerResponse) {
+  const raw = String(rawServerResponse || '').trim();
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    const nestedStatus = Number(parsed?.error?.code);
+    if (Number.isFinite(nestedStatus)) return nestedStatus;
+  } catch {
+    // Fall back to regex extraction from plain text payloads.
+  }
+
+  const match = raw.match(/\b(4\d{2}|5\d{2})\b/);
+  if (!match) return null;
+  const numeric = Number(match[1]);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 async function deleteIndexedDbIfPresent(name) {
@@ -183,15 +227,92 @@ export function shouldShowPushActivationPending({
 export async function purgeLocalMessagingRegistrationArtifacts({
   includeInstallations = false,
 } = {}) {
-  const dbNames = includeInstallations
-    ? [...MESSAGING_INDEXED_DB_NAMES, ...INSTALLATIONS_INDEXED_DB_NAMES]
-    : [...MESSAGING_INDEXED_DB_NAMES];
+  let pushSubscriptionsAttempted = 0;
+  let pushSubscriptionsCleared = 0;
+
+  if (
+    typeof navigator !== 'undefined'
+    && navigator?.serviceWorker
+    && typeof navigator.serviceWorker.getRegistrations === 'function'
+  ) {
+    try {
+      let registrations = await navigator.serviceWorker.getRegistrations();
+      if ((!registrations || registrations.length === 0) && navigator.serviceWorker.ready) {
+        const readyRegistration = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise((resolve) => setTimeout(() => resolve(null), 1500)),
+        ]);
+        if (readyRegistration) {
+          registrations = [readyRegistration];
+        }
+      }
+
+      for (const registration of registrations || []) {
+        if (!registration?.pushManager?.getSubscription) continue;
+        pushSubscriptionsAttempted += 1;
+        try {
+          const subscription = await registration.pushManager.getSubscription();
+          if (subscription) {
+            const unsubscribed = await subscription.unsubscribe().catch(() => false);
+            if (unsubscribed) {
+              pushSubscriptionsCleared += 1;
+            }
+          }
+        } catch {
+          // Best effort cleanup.
+        }
+      }
+    } catch {
+      // Best effort cleanup.
+    }
+  }
+
+  const dbNames = [
+    ...new Set(
+      includeInstallations
+        ? [...MESSAGING_INDEXED_DB_NAMES, ...INSTALLATIONS_INDEXED_DB_NAMES]
+        : [...MESSAGING_INDEXED_DB_NAMES]
+    ),
+  ];
 
   const results = await Promise.allSettled(dbNames.map((name) => deleteIndexedDbIfPresent(name)));
   return {
     attempted: dbNames.length,
     deleted: results.filter((entry) => entry.status === 'fulfilled' && entry.value === true).length,
+    pushSubscriptionsAttempted,
+    pushSubscriptionsCleared,
   };
+}
+
+function getStaleFullResetKey(uid) {
+  return `${STALE_FULL_RESET_KEY_PREFIX}.${uid}`;
+}
+
+export function shouldPurgeInstallationsForStaleCleanup(
+  uid,
+  sessionStorageLike = globalThis?.sessionStorage
+) {
+  if (!uid) return true;
+  return getSafeStorageValue(sessionStorageLike, getStaleFullResetKey(uid)) !== '1';
+}
+
+export function markStaleCleanupInstallationsPurged(
+  uid,
+  sessionStorageLike = globalThis?.sessionStorage
+) {
+  if (!uid || !sessionStorageLike) return;
+  try {
+    sessionStorageLike.setItem(getStaleFullResetKey(uid), '1');
+  } catch {
+    // Best effort.
+  }
+}
+
+export function shouldShortCircuitForAppCheck({
+  appCheckRequired,
+  appCheckReady,
+} = {}) {
+  return Boolean(appCheckRequired) && !Boolean(appCheckReady);
 }
 
 export function migrateLegacyKeysForUid(uid, storageLike = globalThis?.localStorage) {
@@ -266,11 +387,21 @@ function inferHttpStatus(rawCode, rawMessage) {
 export function classifyPushRegistrationError(error) {
   const normalizedCode = normalizeErrorText(error?.code);
   const normalizedMessage = normalizeErrorText(error?.message || error);
+  const rawServerResponse = error?.customData?.serverResponse || error?.customData?._serverResponse;
+  const serializedRawServerResponse =
+    typeof rawServerResponse === 'string'
+      ? rawServerResponse
+      : rawServerResponse
+        ? String(rawServerResponse)
+        : '';
   const normalizedServerResponse = normalizeErrorText(
-    error?.customData?.serverResponse || error?.customData?._serverResponse
+    rawServerResponse
   );
   const searchableMessage = `${normalizedMessage} ${normalizedServerResponse}`.trim();
-  const httpStatus = inferHttpStatus(normalizedCode, searchableMessage);
+  const serverStatus = parseServerResponseStatus(rawServerResponse);
+  const inferredStatus = inferHttpStatus(normalizedCode, searchableMessage);
+  const httpStatus = Number.isFinite(serverStatus) ? serverStatus : inferredStatus;
+  const isTokenSubscribeFailure = normalizedCode.includes('token-subscribe-failed');
 
   const isStaleUnsubscribe =
     searchableMessage.includes('token-unsubscribe-failed') &&
@@ -281,7 +412,11 @@ export function classifyPushRegistrationError(error) {
     searchableMessage.includes('missing required authentication credential') ||
     searchableMessage.includes('unauthenticated') ||
     searchableMessage.includes('request had invalid authentication credentials') ||
-    searchableMessage.includes('token-subscribe-failed') && searchableMessage.includes('unauthorized');
+    searchableMessage.includes('token-subscribe-failed') && searchableMessage.includes('unauthorized') ||
+    // Firebase SDK often throws token-subscribe-failed without surfacing the
+    // backend 401 payload in .message. Treat it as unauthorized by default so
+    // we enter session cooldown instead of retry loops.
+    (isTokenSubscribeFailure && !searchableMessage.includes('invalid argument'));
 
   const isTransient =
     normalizedCode.includes('unavailable') ||
@@ -292,10 +427,11 @@ export function classifyPushRegistrationError(error) {
     searchableMessage.includes('failed to fetch') ||
     searchableMessage.includes('service worker');
 
-  const category = isStaleUnsubscribe
-    ? 'stale_cleanup'
-    : isUnauthorized
+  // Unauthorized must win when both signatures are present in a single payload.
+  const category = isUnauthorized
       ? 'unauthorized'
+      : isStaleUnsubscribe
+        ? 'stale_cleanup'
       : isTransient
         ? 'transient'
         : 'permanent';
@@ -304,6 +440,7 @@ export function classifyPushRegistrationError(error) {
     category,
     normalizedCode,
     normalizedMessage: searchableMessage,
+    rawServerResponse: serializedRawServerResponse,
     httpStatus,
     shouldRetry: category === 'transient',
     shouldEnterSessionCooldown: category === 'unauthorized',
@@ -313,24 +450,43 @@ export function classifyPushRegistrationError(error) {
 export function buildPushRegistrationDiagnostics({
   permissionStatus,
   appCheckReady,
+  installationsReady,
   swRegistration,
+  tokenAcquisitionMode,
+  configuredVapidPrefix,
+  registrationStage,
   classification,
+  recoveryAction = 'none',
+  purgedInstallations = false,
+  cooldownSet = false,
 }) {
   return {
     permissionStatus: String(permissionStatus || 'unknown'),
     appCheckReady: Boolean(appCheckReady),
+    installationsReady: Boolean(installationsReady),
     hasServiceWorkerRegistration: Boolean(swRegistration),
     serviceWorkerScope: String(swRegistration?.scope || ''),
+    tokenAcquisitionMode: String(tokenAcquisitionMode || ''),
+    configuredVapidPrefix: String(configuredVapidPrefix || ''),
+    registrationStage: String(registrationStage || ''),
     errorCategory: String(classification?.category || 'unknown'),
     errorCode: String(classification?.normalizedCode || ''),
     httpStatus: classification?.httpStatus ?? null,
     retryable: Boolean(classification?.shouldRetry),
+    recoveryAction: String(recoveryAction || 'none'),
+    purgedInstallations: Boolean(purgedInstallations),
+    cooldownSet: Boolean(cooldownSet),
+    rawServerResponse: truncateText(classification?.rawServerResponse || '', 120),
     message: truncateText(classification?.normalizedMessage || ''),
   };
 }
 
 function getUnauthorizedCooldownKey(uid) {
   return `${UNAUTHORIZED_COOLDOWN_KEY_PREFIX}.${uid}`;
+}
+
+function getProjectDefaultVapidPreferenceKey(uid) {
+  return `${VAPID_PROJECT_DEFAULT_PREFERENCE_KEY_PREFIX}.${uid}`;
 }
 
 export function isInUnauthorizedSessionCooldown(uid, sessionStorageLike = globalThis?.sessionStorage) {
@@ -350,6 +506,34 @@ export function markUnauthorizedSessionCooldown(uid, sessionStorageLike = global
 export function clearUnauthorizedSessionCooldown(uid, sessionStorageLike = globalThis?.sessionStorage) {
   if (!uid) return;
   removeSafeStorageValue(sessionStorageLike, getUnauthorizedCooldownKey(uid));
+}
+
+export function shouldPreferProjectDefaultVapidForSession(
+  uid,
+  sessionStorageLike = globalThis?.sessionStorage
+) {
+  if (!uid) return false;
+  return getSafeStorageValue(sessionStorageLike, getProjectDefaultVapidPreferenceKey(uid)) === '1';
+}
+
+export function markProjectDefaultVapidPreferredForSession(
+  uid,
+  sessionStorageLike = globalThis?.sessionStorage
+) {
+  if (!uid || !sessionStorageLike) return;
+  try {
+    sessionStorageLike.setItem(getProjectDefaultVapidPreferenceKey(uid), '1');
+  } catch {
+    // Best effort.
+  }
+}
+
+export function clearProjectDefaultVapidPreferredForSession(
+  uid,
+  sessionStorageLike = globalThis?.sessionStorage
+) {
+  if (!uid) return;
+  removeSafeStorageValue(sessionStorageLike, getProjectDefaultVapidPreferenceKey(uid));
 }
 
 export async function cleanupPushRegistrationOnLogout({

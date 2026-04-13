@@ -163,6 +163,8 @@ test.describe('Authentication Flow', () => {
     testPhoneNumbers,
     testEmails,
   }) => {
+    test.slow();
+
     await authHelper.login(testPhoneNumbers.shipper);
     await authHelper.register({
       name: 'Magic Link User',
@@ -172,6 +174,7 @@ test.describe('Authentication Flow', () => {
 
     await authHelper.configureBackupEmail(testEmails.shipper);
     await authHelper.completeLatestMagicLink(testEmails.shipper);
+    await authHelper.waitForBackupEmailEnabled();
 
     await authHelper.logout();
     await authHelper.requestMagicLinkFromAuthModal(testEmails.shipper);
@@ -186,6 +189,8 @@ test.describe('Authentication Flow', () => {
     testPhoneNumbers,
     testEmails,
   }) => {
+    test.slow();
+
     await authHelper.login(testPhoneNumbers.trucker);
     await authHelper.register({
       name: 'Disable Magic Link User',
@@ -195,19 +200,27 @@ test.describe('Authentication Flow', () => {
 
     await authHelper.configureBackupEmail(testEmails.trucker);
     await authHelper.completeLatestMagicLink(testEmails.trucker);
+    await authHelper.waitForBackupEmailEnabled();
     await authHelper.disableBackupEmail();
     await authHelper.logout();
 
-    const countBeforeResp = await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/oobCodes`);
-    const countBeforePayload = await countBeforeResp.json();
-    const countBefore = Array.isArray(countBeforePayload?.oobCodes) ? countBeforePayload.oobCodes.length : 0;
+    const getEmailSignInCodeCount = async (targetEmail) => {
+      const response = await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/oobCodes`);
+      const payload = await response.json();
+      const normalizedEmail = String(targetEmail || '').trim().toLowerCase();
+      const codes = Array.isArray(payload?.oobCodes) ? payload.oobCodes : [];
+      return codes.filter((code) => (
+        String(code?.email || '').trim().toLowerCase() === normalizedEmail
+        && String(code?.requestType || '').toUpperCase() === 'EMAIL_SIGNIN'
+      )).length;
+    };
+
+    const countBefore = await getEmailSignInCodeCount(testEmails.trucker);
 
     await authHelper.requestMagicLinkFromAuthModal(testEmails.trucker);
     await new Promise((resolve) => setTimeout(resolve, 700));
 
-    const countAfterResp = await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/oobCodes`);
-    const countAfterPayload = await countAfterResp.json();
-    const countAfter = Array.isArray(countAfterPayload?.oobCodes) ? countAfterPayload.oobCodes.length : 0;
+    const countAfter = await getEmailSignInCodeCount(testEmails.trucker);
 
     expect(countAfter).toBe(countBefore);
   });

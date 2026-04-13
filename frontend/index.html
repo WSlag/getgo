@@ -3,10 +3,17 @@
   <head>
     <script>
       (function () {
-        var h = window.location.hostname;
-        if (h === 'getgoph.web.app' || h === 'getgoph.firebaseapp.com' || h === 'www.getgoph.com') {
+        var rawHost = String(window.location.hostname || '').toLowerCase();
+        var normalizedHost = rawHost.replace(/\.+$/, '');
+        var canonicalHost = 'getgoph.com';
+        if (
+          normalizedHost === 'getgoph.web.app' ||
+          normalizedHost === 'getgoph.firebaseapp.com' ||
+          normalizedHost === 'www.getgoph.com' ||
+          (normalizedHost === canonicalHost && rawHost !== canonicalHost)
+        ) {
           window.location.replace(
-            'https://getgoph.com' +
+            'https://' + canonicalHost +
             window.location.pathname +
             window.location.search +
             window.location.hash

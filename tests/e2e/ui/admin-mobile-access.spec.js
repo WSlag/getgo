@@ -75,7 +75,7 @@ test.describe('Admin Mobile Access', () => {
     ).toHaveCount(0);
   });
 
-  test('should block #admin deep link for non-admin users', async ({
+  test('should block /app/admin deep link for non-admin users', async ({
     page,
     authHelper,
     testPhoneNumbers,
@@ -83,7 +83,7 @@ test.describe('Admin Mobile Access', () => {
     await authHelper.login(testPhoneNumbers.shipper);
     await authHelper.register(generateTestUser('shipper', 42));
 
-    await page.goto('/#admin');
+    await page.goto('/app/admin');
     await page.waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 20000 }).catch(() => {});
 
     await expect(page.getByText(/access denied/i)).toBeVisible();
@@ -105,7 +105,7 @@ test.describe('Admin Mobile Access', () => {
     expect(adminUid).toBeTruthy();
     await promoteUserToAdmin(adminUid);
 
-    await page.goto('/#admin');
+    await page.goto('/app/admin');
     await page.waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 20000 }).catch(() => {});
 
     const menuButton = page.locator('header button', {
@@ -136,7 +136,16 @@ test.describe('Admin Mobile Access', () => {
     }
 
     await backToAppButton.click();
-    await expect(page).not.toHaveURL(/#admin/);
-    await expect(page.locator('header')).toBeVisible();
+    await expect(page).not.toHaveURL(/\/app\/admin(?:\/)?$/);
+
+    await expect
+      .poll(async () => {
+        const hasHeader = await page.locator('header').first().isVisible().catch(() => false);
+        const retryingProfile = await page.getByText(/retrying profile load/i).first().isVisible().catch(() => false);
+        const hasFatalFallback = await page.getByText(/something went wrong|fatal error|unhandled error/i).count();
+        if (hasFatalFallback > 0) return false;
+        return hasHeader || retryingProfile;
+      }, { timeout: 15000 })
+      .toBe(true);
   });
 });

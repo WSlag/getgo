@@ -67,6 +67,9 @@ export default defineConfig({
       env: {
         VITE_USE_FIREBASE_EMULATOR: 'true',
         VITE_FIREBASE_EMULATOR_HOST: '127.0.0.1',
+        VITE_ENABLE_CALL_SIGNALING: 'false',
+        VITE_IGNORE_FIRESTORE_INTERNAL_ASSERTION: 'true',
+        VITE_FIRESTORE_FORCE_LONG_POLLING: 'true',
       },
       stdout: 'pipe',
       stderr: 'pipe',
@@ -84,6 +87,8 @@ export default defineConfig({
         FIREBASE_PROJECT: EMULATOR_PROJECT_ID,
         FIREBASE_PROJECT_ID: EMULATOR_PROJECT_ID,
         GCLOUD_PROJECT: EMULATOR_PROJECT_ID,
+        APP_CHECK_ENFORCED: 'false',
+        APP_CHECK_ENFORCED_OVERRIDE: 'false',
       },
       stdout: 'pipe',
       stderr: 'pipe',

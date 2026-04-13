@@ -7,7 +7,7 @@ const OTP_MAX_RETRIES = 3;
 const OTP_COOLDOWN_SECONDS = 30;
 
 export default function LoginScreen({ darkMode, onSkipLogin, onOpenLegal }) {
-  const { sendOtp, verifyOtp, signInWithRecoveryCode } = useAuth();
+  const { sendOtp, resetOtpSendState, verifyOtp, signInWithRecoveryCode } = useAuth();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
@@ -54,6 +54,10 @@ export default function LoginScreen({ darkMode, onSkipLogin, onOpenLegal }) {
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
+    await handleSubmitPhoneForOtp();
+  };
+
+  const handleSubmitPhoneForOtp = async ({ resetVerifier = false } = {}) => {
     if (!phone.trim()) {
       setError('Please enter your phone number');
       return;
@@ -61,18 +65,33 @@ export default function LoginScreen({ darkMode, onSkipLogin, onOpenLegal }) {
 
     setLoading(true);
     setError('');
+    try {
+      if (resetVerifier) {
+        resetOtpSendState();
+      }
 
-    const result = await sendOtp(phone);
+      const result = await sendOtp(phone);
 
-    setLoading(false);
-
-    if (result.success) {
-      setFormattedPhone(result.formattedPhone);
-      resetOtpGuard();
-      setStep('otp');
-    } else {
-      setError(result.error || 'Failed to send OTP. Please try again.');
+      if (result.success) {
+        setFormattedPhone(result.formattedPhone);
+        resetOtpGuard();
+        setStep('otp');
+      } else {
+        const fallbackError =
+          result.code === 'otp_send_timeout'
+            ? 'Verification is taking too long. Please retry.'
+            : 'Failed to send OTP. Please try again.';
+        setError(result.error || fallbackError);
+      }
+    } catch {
+      setError('Verification is taking too long. Please retry.');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleRetryOtpSend = async () => {
+    await handleSubmitPhoneForOtp({ resetVerifier: true });
   };
 
   const handleVerifyOtp = async (e) => {
@@ -167,6 +186,7 @@ export default function LoginScreen({ darkMode, onSkipLogin, onOpenLegal }) {
   };
 
   const handleBack = () => {
+    resetOtpSendState();
     setStep('phone');
     setOtp('');
     setRecoveryCode('');
@@ -236,7 +256,16 @@ export default function LoginScreen({ darkMode, onSkipLogin, onOpenLegal }) {
                   Continue
                   <ArrowRight className="w-5 h-5" />
                 </>
-              )}
+                )}
+            </button>
+
+            <button
+              type="button"
+              disabled={loading || phone.length < 10}
+              onClick={handleRetryOtpSend}
+              className={`w-full mt-2 py-2 text-sm ${theme.textMuted} hover:text-orange-500 ${loading || phone.length < 10 ? 'cursor-not-allowed opacity-70' : ''}`}
+            >
+              Retry OTP send
             </button>
 
             <button
@@ -315,7 +344,13 @@ export default function LoginScreen({ darkMode, onSkipLogin, onOpenLegal }) {
 
             <button
               type="button"
-              onClick={() => { setStep('phone'); setOtp(''); resetOtpGuard(); setError(''); }}
+              onClick={() => {
+                resetOtpSendState();
+                setStep('phone');
+                setOtp('');
+                resetOtpGuard();
+                setError('');
+              }}
               className={`w-full mt-3 py-2 text-sm ${theme.textMuted} hover:text-orange-500`}
             >
               Didn&apos;t receive code? Try again
