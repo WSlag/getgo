@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import api from '../services/api';
+import { safeFirestoreUnsubscribe } from '../utils/firebaseErrors';
 
 /**
  * Derive a deterministic Agora numeric UID (uint32) from a Firebase UID.
@@ -33,9 +34,10 @@ export function deriveAgoraUid(firebaseUid) {
  */
 export function useCallSignaling(currentUserId) {
   const [incomingCall, setIncomingCall] = useState(null);
+  const callSignalingEnabled = import.meta.env.VITE_ENABLE_CALL_SIGNALING !== 'false';
 
   useEffect(() => {
-    if (!currentUserId) {
+    if (!callSignalingEnabled || !currentUserId) {
       setIncomingCall(null);
       return;
     }
@@ -46,36 +48,42 @@ export function useCallSignaling(currentUserId) {
       where('status', '==', 'ringing')
     );
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        if (snapshot.empty) {
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          if (snapshot.empty) {
+            setIncomingCall(null);
+            return;
+          }
+          // Pick the most recent ringing call
+          const calls = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+          calls.sort((a, b) => {
+            const ta = a.createdAt?.seconds ?? 0;
+            const tb = b.createdAt?.seconds ?? 0;
+            return tb - ta;
+          });
+          setIncomingCall(calls[0]);
+        },
+        (err) => {
+          const code = String(err?.code || '').toLowerCase();
+          const isPermissionDenied = code.includes('permission-denied');
+          if (!isPermissionDenied) {
+            console.warn('[useCallSignaling] listener error:', err);
+          } else if (import.meta.env.DEV) {
+            console.warn('[useCallSignaling] permission denied listener (suppressed in prod):', err?.message || err);
+          }
           setIncomingCall(null);
-          return;
         }
-        // Pick the most recent ringing call
-        const calls = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-        calls.sort((a, b) => {
-          const ta = a.createdAt?.seconds ?? 0;
-          const tb = b.createdAt?.seconds ?? 0;
-          return tb - ta;
-        });
-        setIncomingCall(calls[0]);
-      },
-      (err) => {
-        const code = String(err?.code || '').toLowerCase();
-        const isPermissionDenied = code.includes('permission-denied');
-        if (!isPermissionDenied) {
-          console.warn('[useCallSignaling] listener error:', err);
-        } else if (import.meta.env.DEV) {
-          console.warn('[useCallSignaling] permission denied listener (suppressed in prod):', err?.message || err);
-        }
-        setIncomingCall(null);
-      }
-    );
+      );
+    } catch (err) {
+      console.warn('[useCallSignaling] subscribe failed:', err);
+      setIncomingCall(null);
+    }
 
-    return () => unsubscribe();
-  }, [currentUserId]);
+    return () => safeFirestoreUnsubscribe(unsubscribe, 'call signaling listener');
+  }, [callSignalingEnabled, currentUserId]);
 
   /**
    * Create a new call document (initiates the call).

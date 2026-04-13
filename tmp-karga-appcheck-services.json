@@ -1,0 +1,17 @@
+﻿{
+  "services": [
+    {
+      "name": "projects/580800488549/services/firebasestorage.googleapis.com",
+      "enforcementMode": "ENFORCED"
+    },
+    {
+      "name": "projects/580800488549/services/firestore.googleapis.com",
+      "enforcementMode": "ENFORCED"
+    },
+    {
+      "name": "projects/580800488549/services/identitytoolkit.googleapis.com",
+      "enforcementMode": "UNENFORCED"
+    }
+  ]
+}
+

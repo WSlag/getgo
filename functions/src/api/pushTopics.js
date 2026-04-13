@@ -119,8 +119,8 @@ async function handleSyncTopicsRequest(data, context) {
   const db = admin.firestore();
   await enforceUserRateLimit({
     db,
-    uid,
-    action: 'syncListingTopics',
+    userId: uid,
+    operation: 'syncListingTopics',
     windowMs: SUBSCRIBE_RATE_LIMIT_WINDOW_MS,
     maxAttempts: SUBSCRIBE_RATE_LIMIT_ATTEMPTS,
   });

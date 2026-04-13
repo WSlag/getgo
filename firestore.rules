@@ -408,9 +408,17 @@ service cloud.firestore {
       match /fcmTokens/{tokenId} {
         allow read, delete: if isOwner(uid);
         allow create, update: if isOwner(uid)
-          && request.resource.data.keys().hasOnly(['token', 'createdAt', 'updatedAt', 'platform', 'userAgent'])
+          && request.resource.data.keys().hasOnly([
+            'token',
+            'tokenAcquisitionMode',
+            'createdAt',
+            'updatedAt',
+            'platform',
+            'userAgent'
+          ])
           && request.resource.data.token is string
-          && request.resource.data.token.size() > 0;
+          && request.resource.data.token.size() > 0
+          && request.resource.data.get('tokenAcquisitionMode', '') is string;
       }
 
       // Broker Onboarding subcollection

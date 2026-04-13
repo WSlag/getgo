@@ -19,6 +19,20 @@ async function waitForSpinnerToClear(page, timeoutMs = 60000) {
   throw new Error('Timed out waiting for loading spinner to clear');
 }
 
+async function hasFirebaseAuthUserInStorage(page) {
+  return page.evaluate(() => {
+    try {
+      return Object.keys(window.localStorage || {}).some((key) => {
+        if (!key.startsWith('firebase:authUser:')) return false;
+        const value = window.localStorage.getItem(key);
+        return Boolean(value && value !== 'null');
+      });
+    } catch {
+      return false;
+    }
+  });
+}
+
 const AUTH_MODAL_SELECTOR = '[data-testid="auth-modal"]';
 const AUTH_PHONE_INPUT_SELECTOR = `${AUTH_MODAL_SELECTOR} input[placeholder="9171234567"]`;
 const AUTH_OTP_INPUT_SELECTOR = `${AUTH_MODAL_SELECTOR} input[placeholder="000000"], ${AUTH_MODAL_SELECTOR} input[type="text"][maxlength="6"]`;
@@ -382,8 +396,9 @@ export const test = base.extend({
        * Complete registration form
        * @param {Object} userData - User data (name, role, etc.)
        */
-      async ensureRegistrationComplete(userData = {}) {
+      async ensureRegistrationComplete(userData = {}, options = {}) {
         const { name = 'E2E User', role = 'shipper', email } = userData;
+        const waitForLateRegistration = options?.waitForLateRegistration !== false;
 
         await page.waitForFunction(
           () => {
@@ -396,9 +411,9 @@ export const test = base.extend({
 
         const registrationHeading = page.locator('h1').filter({ hasText: /Complete Your Profile/i }).first();
         let onRegistrationScreen = await registrationHeading.isVisible().catch(() => false);
-        if (!onRegistrationScreen) {
+        if (!onRegistrationScreen && waitForLateRegistration) {
           // Auth/profile listeners can briefly land on main shell before showing RegisterScreen.
-          for (let attempt = 0; attempt < 8; attempt++) {
+          for (let attempt = 0; attempt < 20; attempt++) {
             await page.waitForTimeout(1000);
             onRegistrationScreen = await registrationHeading.isVisible().catch(() => false);
             if (onRegistrationScreen) break;
@@ -415,9 +430,12 @@ export const test = base.extend({
         await nameInput.fill('');
         await nameInput.fill(name);
 
-        const enteredName = await nameInput.inputValue().catch(() => '');
-        if (!enteredName.trim()) {
-          await nameInput.type(name, { delay: 30 });
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const enteredName = String(await nameInput.inputValue().catch(() => '') || '').trim();
+          if (enteredName) break;
+          await nameInput.click({ force: true }).catch(() => {});
+          await nameInput.type(name, { delay: 30 }).catch(() => {});
+          await page.waitForTimeout(150);
         }
 
         if (email) {
@@ -483,6 +501,47 @@ export const test = base.extend({
           );
         }
 
+        // Registration can briefly reappear while auth/profile listeners settle.
+        // Only return once we're stably out of the registration screen.
+        for (let settleAttempt = 0; settleAttempt < 3; settleAttempt += 1) {
+          const bouncedBackToRegistration = await registrationHeading.isVisible().catch(() => false);
+          if (!bouncedBackToRegistration) {
+            break;
+          }
+
+          const settleNameInput = page.locator('input[placeholder="Juan dela Cruz"]').first();
+          if (await settleNameInput.isVisible().catch(() => false)) {
+            const currentName = String(await settleNameInput.inputValue().catch(() => '') || '').trim();
+            if (!currentName) {
+              await settleNameInput.fill(name);
+            }
+          }
+
+          if (await skipButton.isVisible().catch(() => false)) {
+            await skipButton.click().catch(() => {});
+          } else if (await submitButton.isVisible().catch(() => false)) {
+            const disabled = await submitButton.isDisabled().catch(() => true);
+            if (!disabled) {
+              await submitButton.click().catch(() => {});
+            }
+          }
+
+          await page.waitForFunction(
+            () => {
+              const onRegScreen = Array.from(document.querySelectorAll('h1'))
+                .some((h) => String(h.textContent || '').includes('Complete Your Profile'));
+              return !onRegScreen && Boolean(document.querySelector('header'));
+            },
+            { timeout: 20000 }
+          ).catch(() => {});
+          await page.waitForTimeout(400);
+        }
+
+        const finalOnRegistration = await registrationHeading.isVisible().catch(() => false);
+        if (finalOnRegistration) {
+          throw new Error('Could not exit registration screen after retries');
+        }
+
         await dismissBlockingDialogs(page);
         await waitForSpinnerToClear(page, 60000);
         await page.waitForTimeout(600);
@@ -494,6 +553,22 @@ export const test = base.extend({
        */
       async register(userData) {
         await helper.ensureRegistrationComplete(userData);
+
+        // Profile screen can reappear a few seconds after auth listeners settle.
+        // Re-check and finish it deterministically before continuing test actions.
+        const registrationHeading = page.locator('h1').filter({ hasText: /Complete Your Profile/i }).first();
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const onRegistrationScreen = await registrationHeading.isVisible().catch(() => false);
+          if (onRegistrationScreen) {
+            await helper.ensureRegistrationComplete(userData);
+          } else {
+            const authModalVisible = await page.locator(AUTH_MODAL_SELECTOR).first().isVisible().catch(() => false);
+            if (!authModalVisible) {
+              break;
+            }
+          }
+          await page.waitForTimeout(1000);
+        }
       },
 
       async openAuthModal() {
@@ -503,34 +578,40 @@ export const test = base.extend({
         await page.waitForTimeout(600);
 
         const modal = page.locator(AUTH_MODAL_SELECTOR).first();
-        const authModalVisible = await modal.isVisible().catch(() => false);
-        if (authModalVisible) {
-          const usePhoneButton = page.locator(`${AUTH_MODAL_SELECTOR} button`).filter({
-            hasText: /use phone verification instead|use sms verification instead/i,
-          }).first();
-          if (await usePhoneButton.isVisible().catch(() => false)) {
-            await usePhoneButton.click();
-            await page.waitForTimeout(250);
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if (await modal.isVisible().catch(() => false)) {
+            break;
           }
-          await page.waitForSelector(AUTH_PHONE_INPUT_SELECTOR, { timeout: 10000 });
-          return;
-        }
 
-        const notificationButton = page.locator('header button[aria-label*="notification" i], header button[title*="notification" i]').first();
-        if (await notificationButton.isVisible().catch(() => false)) {
-          await notificationButton.click({ force: true }).catch(() => {});
-          await page.waitForTimeout(700);
-        }
+          const notificationButton = page.locator('header button[aria-label*="notification" i], header button[title*="notification" i]').first();
+          if (await notificationButton.isVisible().catch(() => false)) {
+            await notificationButton.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(700);
+          }
 
-        if (!(await modal.isVisible().catch(() => false))) {
+          if (await modal.isVisible().catch(() => false)) {
+            break;
+          }
+
           const profileButton = page.locator('header button').last();
           if (await profileButton.isVisible().catch(() => false)) {
             await profileButton.click({ force: true }).catch(() => {});
-            await page.waitForTimeout(700);
+            await page.waitForTimeout(450);
+          }
+
+          const logoutMenuItem = page.locator('[role="menuitem"], button, a').filter({
+            hasText: /logout|sign out/i,
+          }).first();
+          if (await logoutMenuItem.isVisible().catch(() => false)) {
+            await logoutMenuItem.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(1200);
+            await page.goto('/');
+            await waitForSpinnerToClear(page, 60000);
+            await dismissBlockingDialogs(page);
           }
         }
 
-        await modal.waitFor({ state: 'visible', timeout: 10000 });
+        await modal.waitFor({ state: 'visible', timeout: 12000 });
         const usePhoneButton = page.locator(`${AUTH_MODAL_SELECTOR} button`).filter({
           hasText: /use phone verification instead|use sms verification instead/i,
         }).first();
@@ -560,10 +641,20 @@ export const test = base.extend({
         }).first();
         await sendButton.click();
         await page.waitForTimeout(800);
+
+        const inlineError = page.locator(
+          `${AUTH_MODAL_SELECTOR} p.text-red-600, ${AUTH_MODAL_SELECTOR} p.text-red-500, ${AUTH_MODAL_SELECTOR} .text-red-600, ${AUTH_MODAL_SELECTOR} .text-red-500`
+        ).first();
+        if (await inlineError.isVisible().catch(() => false)) {
+          const errorText = String(await inlineError.textContent().catch(() => '') || '').trim();
+          if (errorText) {
+            throw new Error(`[AuthFixture] Magic-link request failed in modal: ${errorText}`);
+          }
+        }
       },
 
       async configureBackupEmail(email) {
-        await helper.ensureRegistrationComplete({ email });
+        await helper.ensureRegistrationComplete({ email }, { waitForLateRegistration: false });
         const securityCard = page.locator('[data-testid="backup-email-card"]').first();
 
         for (let attempt = 0; attempt < 2; attempt++) {
@@ -573,7 +664,7 @@ export const test = base.extend({
           const onRegistrationScreen = await page.locator('h1').filter({ hasText: /Complete Your Profile/i }).first()
             .isVisible().catch(() => false);
           if (onRegistrationScreen) {
-            await helper.ensureRegistrationComplete({ email });
+            await helper.ensureRegistrationComplete({ email }, { waitForLateRegistration: false });
             continue;
           }
 
@@ -595,42 +686,107 @@ export const test = base.extend({
       },
 
       async disableBackupEmail() {
-        await helper.ensureRegistrationComplete();
+        await helper.ensureRegistrationComplete({}, { waitForLateRegistration: false });
         await helper.navigateTo('profile');
         await dismissBlockingDialogs(page);
 
         const disableBtn = page.locator('main button').filter({
           hasText: /disable email backup/i,
         }).first();
-        if (await disableBtn.count() > 0) {
-          await disableBtn.click();
-          await page.waitForTimeout(700);
-        }
+        await disableBtn.waitFor({ state: 'visible', timeout: 15000 });
+        await disableBtn.click();
+        await helper.waitForBackupEmailDisabled().catch(async () => {
+          // Emulator/UI sync can lag even after callable success; tests validate behavior separately.
+          await page.waitForTimeout(1500);
+        });
       },
 
-      async getLatestMagicLink(email) {
-        const resp = await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/oobCodes`);
-        if (!resp.ok) {
-          throw new Error(`Failed to read oob codes from emulator: ${resp.status}`);
-        }
-        const payload = await resp.json();
+      async waitForBackupEmailEnabled(timeoutMs = 30000) {
+        await helper.ensureRegistrationComplete({}, { waitForLateRegistration: false });
+        await helper.navigateTo('profile');
+        await dismissBlockingDialogs(page);
+
+        const backupCard = page.locator('[data-testid="backup-email-card"]').first();
+        await backupCard.waitFor({ state: 'visible', timeout: 15000 });
+
+        await page.waitForFunction(
+          () => {
+            const card = document.querySelector('[data-testid="backup-email-card"]');
+            if (!card) return false;
+            const text = String(card.textContent || '').toLowerCase();
+            const hasEnabledStatus = text.includes('enabled');
+            const hasDisableButton = Array.from(card.querySelectorAll('button')).some((btn) =>
+              /disable email backup/i.test(String(btn.textContent || ''))
+            );
+            // In emulator runs we can stay in "Pending" even when fallback is active.
+            return hasEnabledStatus || hasDisableButton;
+          },
+          { timeout: timeoutMs }
+        );
+      },
+
+      async waitForBackupEmailDisabled(timeoutMs = 30000) {
+        await helper.ensureRegistrationComplete({}, { waitForLateRegistration: false });
+        await helper.navigateTo('profile');
+        await dismissBlockingDialogs(page);
+
+        const backupCard = page.locator('[data-testid="backup-email-card"]').first();
+        await backupCard.waitFor({ state: 'visible', timeout: 15000 });
+
+        await page.waitForFunction(
+          () => {
+            const card = document.querySelector('[data-testid="backup-email-card"]');
+            if (!card) return false;
+            const text = String(card.textContent || '').toLowerCase();
+            const hasEnabledStatus = text.includes('enabled');
+            const hasPendingStatus = text.includes('pending');
+            const hasNotConfiguredStatus = text.includes('not configured');
+            const hasDisableButton = Array.from(card.querySelectorAll('button')).some((btn) =>
+              /disable email backup/i.test(String(btn.textContent || ''))
+            );
+            return !hasDisableButton && !hasEnabledStatus && (hasPendingStatus || hasNotConfiguredStatus);
+          },
+          { timeout: timeoutMs }
+        );
+      },
+
+      async getLatestMagicLink(email, options = {}) {
+        const timeoutMs = Number(options?.timeoutMs || 20000);
+        const pollMs = Number(options?.pollMs || 500);
         const normalizedEmail = String(email || '').trim().toLowerCase();
-        const match = (payload.oobCodes || [])
-          .filter((item) => {
-            const itemEmail = String(item?.email || '').trim().toLowerCase();
-            const requestType = String(item?.requestType || '').toUpperCase();
-            return itemEmail === normalizedEmail && requestType === 'EMAIL_SIGNIN';
-          })
-          .pop();
+        const deadline = Date.now() + timeoutMs;
+        let lastSeenRequestTypes = [];
 
-        if (!match?.oobLink) {
-          throw new Error(`No EMAIL_SIGNIN oob link found for ${normalizedEmail}`);
+        while (Date.now() < deadline) {
+          const resp = await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${EMULATOR_PROJECT_ID}/oobCodes`);
+          if (!resp.ok) {
+            throw new Error(`Failed to read oob codes from emulator: ${resp.status}`);
+          }
+          const payload = await resp.json();
+          const codesForEmail = (payload.oobCodes || []).filter((item) => {
+            const itemEmail = String(item?.email || '').trim().toLowerCase();
+            return itemEmail === normalizedEmail;
+          });
+          lastSeenRequestTypes = codesForEmail
+            .map((item) => String(item?.requestType || '').toUpperCase())
+            .filter(Boolean);
+
+          const match = codesForEmail
+            .filter((item) => String(item?.requestType || '').toUpperCase() === 'EMAIL_SIGNIN')
+            .pop();
+
+          if (match?.oobLink) {
+            const source = new URL(match.oobLink);
+            const appUrl = new URL('/', page.url());
+            appUrl.search = source.search;
+            return appUrl.toString();
+          }
+
+          await page.waitForTimeout(pollMs);
         }
 
-        const source = new URL(match.oobLink);
-        const appUrl = new URL('/', page.url());
-        appUrl.search = source.search;
-        return appUrl.toString();
+        const seenTypes = lastSeenRequestTypes.length > 0 ? lastSeenRequestTypes.join(', ') : '<none>';
+        throw new Error(`No EMAIL_SIGNIN oob link found for ${normalizedEmail} (seen requestTypes: ${seenTypes})`);
       },
 
       async completeLatestMagicLink(email) {
@@ -647,48 +803,59 @@ export const test = base.extend({
        * Logout from the application
        */
       async logout() {
-        await dismissBlockingDialogs(page);
-        for (let i = 0; i < 3; i++) {
-          await page.keyboard.press('Escape').catch(() => {});
-          await page.waitForTimeout(120);
-        }
+        await helper.ensureRegistrationComplete({}, { waitForLateRegistration: false });
 
-        await dismissBlockingDialogs(page);
+        // Most deterministic path: use the profile page sign-out control.
+        for (let directAttempt = 0; directAttempt < 2; directAttempt += 1) {
+          await page.goto('/app/profile').catch(() => {});
+          await waitForSpinnerToClear(page, 60000).catch(() => {});
+          await dismissBlockingDialogs(page);
 
-        // The logout option is inside the ProfileDropdown in the header.
-        // The avatar button (last header button) opens the dropdown.
-        const allHeaderBtns = page.locator('header button');
-        const headerBtnCount = await allHeaderBtns.count();
-
-        if (headerBtnCount > 0) {
-          // Click the last header button (avatar/profile)
-          const avatarBtn = allHeaderBtns.last();
-          const isVisible = await avatarBtn.isVisible().catch(() => false);
-          if (isVisible) {
-            await avatarBtn.click({ force: true });
-            await page.waitForTimeout(500);
+          const profileSignOut = page.locator('button, [role="button"], a').filter({
+            hasText: /sign out|logout/i,
+          }).first();
+          if (await profileSignOut.isVisible().catch(() => false)) {
+            await profileSignOut.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(1500);
+            const stillAuthenticated = await hasFirebaseAuthUserInStorage(page);
+            if (!stillAuthenticated) {
+              return;
+            }
           }
         }
 
-        // Click Logout menu item - it's a DropdownMenuItem with text "Logout"
-        const logoutMenuItem = page.locator('[role="menuitem"]').filter({
-          hasText: /logout/i,
-        }).first();
+        // Fallback path: avatar dropdown sign-out in header.
+        for (let attempt = 0; attempt < 3; attempt++) {
+          await dismissBlockingDialogs(page);
+          for (let i = 0; i < 3; i++) {
+            await page.keyboard.press('Escape').catch(() => {});
+            await page.waitForTimeout(120);
+          }
 
-        if (await logoutMenuItem.count() > 0) {
-          await logoutMenuItem.click();
-          await page.waitForTimeout(1500);
-          return;
-        }
+          const allHeaderBtns = page.locator('header button');
+          const headerBtnCount = await allHeaderBtns.count();
+          if (headerBtnCount > 0) {
+            const avatarBtn = allHeaderBtns.last();
+            const isVisible = await avatarBtn.isVisible().catch(() => false);
+            if (isVisible) {
+              await avatarBtn.click({ force: true }).catch(() => {});
+              await page.waitForTimeout(500);
+            }
+          }
 
-        // Fallback: any visible button/link with logout text
-        const anyLogout = page.locator('button, a').filter({
-          hasText: /logout|sign out/i,
-        }).first();
+          const logoutMenuItem = page.locator('[role="menuitem"], button, a').filter({
+            hasText: /logout|sign out/i,
+          }).first();
 
-        if (await anyLogout.count() > 0 && await anyLogout.isVisible().catch(() => false)) {
-          await anyLogout.click();
-          await page.waitForTimeout(1500);
+          if (await logoutMenuItem.count() > 0 && await logoutMenuItem.isVisible().catch(() => false)) {
+            await logoutMenuItem.click({ force: true }).catch(() => {});
+            await page.waitForTimeout(1500);
+          }
+
+          const stillLoggedIn = await hasFirebaseAuthUserInStorage(page);
+          if (!stillLoggedIn) {
+            return;
+          }
         }
       },
 
@@ -723,21 +890,30 @@ export const test = base.extend({
         }
 
         if (tabLower === 'profile') {
-          await helper.ensureRegistrationComplete();
-          await page.goto('/#profile');
+          await helper.ensureRegistrationComplete({}, { waitForLateRegistration: false });
+          await page.goto('/app/profile');
           await waitForSpinnerToClear(page, 60000);
           await dismissBlockingDialogs(page);
 
           const onRegistrationScreen = await page.locator('h1').filter({ hasText: /Complete Your Profile/i }).first()
             .isVisible().catch(() => false);
           if (onRegistrationScreen) {
-            await helper.ensureRegistrationComplete();
-            await page.goto('/#profile');
+            await helper.ensureRegistrationComplete({}, { waitForLateRegistration: false });
+            await page.goto('/app/profile');
             await waitForSpinnerToClear(page, 60000);
           }
 
           await page.locator('[data-testid="profile-page"]').waitFor({ state: 'visible', timeout: 30000 });
           await dismissBlockingDialogs(page);
+          return;
+        }
+
+        if (tabLower === 'notifications') {
+          await helper.ensureRegistrationComplete({}, { waitForLateRegistration: false });
+          await page.goto('/app/notifications');
+          await waitForSpinnerToClear(page, 60000);
+          await dismissBlockingDialogs(page);
+          await page.waitForURL('**/app/notifications*', { timeout: 15000 });
           return;
         }
 
@@ -801,7 +977,11 @@ export const test = base.extend({
        * and the header shows a user initial/avatar.
        */
       async isLoggedIn() {
-        await dismissBlockingDialogs(page);
+        const hasAuthUser = await hasFirebaseAuthUserInStorage(page);
+
+        const loggedInBadgeVisible = await page.locator('text=/logged in as/i').first().isVisible().catch(() => false);
+        if (loggedInBadgeVisible) return true;
+        if (!hasAuthUser) return false;
 
         const hasHeader = await page.locator('header').count() > 0;
         if (!hasHeader) return false;
@@ -812,9 +992,6 @@ export const test = base.extend({
 
         const authModalVisible = await page.locator(AUTH_MODAL_SELECTOR).first().isVisible().catch(() => false);
         if (authModalVisible) return false;
-
-        const loggedInBadgeVisible = await page.locator('text=/logged in as/i').first().isVisible().catch(() => false);
-        if (loggedInBadgeVisible) return true;
 
         const avatarBtnVisible = await page.locator('header button').last().isVisible().catch(() => false);
         return avatarBtnVisible;

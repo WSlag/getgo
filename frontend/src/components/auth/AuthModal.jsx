@@ -14,6 +14,7 @@ const OTP_COOLDOWN_SECONDS = 30;
 export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in to continue', onOpenLegal }) {
   const {
     sendOtp,
+    resetOtpSendState,
     verifyOtp,
     requestEmailMagicLink,
     signInWithRecoveryCode,
@@ -91,6 +92,10 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
+    await handleSubmitPhoneForOtp();
+  };
+
+  const handleSubmitPhoneForOtp = async ({ resetVerifier = false } = {}) => {
     if (!phone.trim()) {
       setError('Please enter your phone number');
       return;
@@ -98,18 +103,33 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
     setLoading(true);
     setError('');
+    try {
+      if (resetVerifier) {
+        resetOtpSendState();
+      }
 
-    const result = await sendOtp(phone);
+      const result = await sendOtp(phone);
 
-    setLoading(false);
-
-    if (result.success) {
-      setFormattedPhone(result.formattedPhone);
-      resetOtpGuard();
-      setStep('otp');
-    } else {
-      setError(result.error || 'Failed to send OTP. Please try again.');
+      if (result.success) {
+        setFormattedPhone(result.formattedPhone);
+        resetOtpGuard();
+        setStep('otp');
+      } else {
+        const fallbackError =
+          result.code === 'otp_send_timeout'
+            ? 'Verification is taking too long. Please retry.'
+            : 'Failed to send OTP. Please try again.';
+        setError(result.error || fallbackError);
+      }
+    } catch {
+      setError('Verification is taking too long. Please retry.');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleRetryOtpSend = async () => {
+    await handleSubmitPhoneForOtp({ resetVerifier: true });
   };
 
   const handleVerifyOtp = async (e) => {
@@ -234,6 +254,7 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
   };
 
   const handleBack = () => {
+    resetOtpSendState();
     setStep('phone');
     setOtp('');
     setEmailMessage('');
@@ -395,6 +416,21 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
               <button
                 type="button"
+                disabled={loading || phone.length < 10}
+                onClick={handleRetryOtpSend}
+                className={cn(
+                  "w-full transition-colors",
+                  loading || phone.length < 10
+                    ? "text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                    : "text-gray-500 dark:text-gray-400 hover:text-orange-500"
+                )}
+                style={{ marginTop: '10px', padding: '10px', fontSize: '14px' }}
+              >
+                Retry OTP send
+              </button>
+
+              <button
+                type="button"
                 disabled={loading || !emailMagicLinkEnabled}
                 onClick={() => { setStep('email'); setError(''); setEmailMessage(''); }}
                 className={cn(
@@ -510,7 +546,13 @@ export default function AuthModal({ open, onClose, onSuccess, title = 'Sign in t
 
               <button
                 type="button"
-                onClick={() => { setStep('phone'); setOtp(''); resetOtpGuard(); setError(''); }}
+                onClick={() => {
+                  resetOtpSendState();
+                  setStep('phone');
+                  setOtp('');
+                  resetOtpGuard();
+                  setError('');
+                }}
                 className="w-full text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors min-h-[44px]"
                 style={{ marginTop: '12px', padding: '10px', fontSize: '14px' }}
               >

@@ -6,6 +6,7 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const { FieldValue } = require('firebase-admin/firestore');
 const { assertAppCheckGen1 } = require('../utils/appCheck');
 
 const REGION = 'asia-southeast1';
@@ -17,6 +18,8 @@ const EMAIL_LINK_RATE_LIMIT_BLOCK_MS = 30 * 60 * 1000;
 const EMAIL_MAGIC_LINK_RESPONSE_FLOOR_DEFAULT_MS = 650;
 const EMAIL_MAGIC_LINK_RESPONSE_FLOOR_MIN_MS = 200;
 const EMAIL_MAGIC_LINK_RESPONSE_FLOOR_MAX_MS = 5000;
+const EMAIL_MAGIC_LINK_ELIGIBILITY_MAX_ATTEMPTS = 4;
+const EMAIL_MAGIC_LINK_ELIGIBILITY_RETRY_DELAYS_MS = [250, 500, 1000];
 const EMAIL_SIGNIN_OOB_ENDPOINT = 'https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode';
 const warnedEmailLinkConfig = new Set();
 
@@ -169,7 +172,7 @@ async function consumeEmailPrepareRateLimit(rateLimitRef, nowMs) {
       attempts: Math.min(attempts, EMAIL_LINK_RATE_LIMIT_MAX_ATTEMPTS),
       windowStartedAtMs,
       blockedUntilMs,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
     if (blockedUntilMs) {
@@ -219,6 +222,34 @@ async function resolveEligibleEmailSignInUser(db, normalizedEmail) {
   };
 }
 
+async function resolveEligibleEmailSignInUserWithRetry(db, normalizedEmail) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < EMAIL_MAGIC_LINK_ELIGIBILITY_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const eligibleUser = await resolveEligibleEmailSignInUser(db, normalizedEmail);
+      if (eligibleUser) {
+        return eligibleUser;
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt >= EMAIL_MAGIC_LINK_ELIGIBILITY_MAX_ATTEMPTS - 1) {
+        throw error;
+      }
+    }
+
+    if (attempt < EMAIL_MAGIC_LINK_ELIGIBILITY_MAX_ATTEMPTS - 1) {
+      const delayMs = EMAIL_MAGIC_LINK_ELIGIBILITY_RETRY_DELAYS_MS[attempt]
+        || EMAIL_MAGIC_LINK_ELIGIBILITY_RETRY_DELAYS_MS[EMAIL_MAGIC_LINK_ELIGIBILITY_RETRY_DELAYS_MS.length - 1]
+        || 250;
+      await wait(delayMs);
+    }
+  }
+
+  if (lastError) throw lastError;
+  return null;
+}
+
 exports.authRequestEmailMagicLinkSignInV2 = functions.region(REGION).https.onCall(async (data, context) => {
   checkAppToken(context);
 
@@ -260,7 +291,7 @@ exports.authRequestEmailMagicLinkSignInV2 = functions.region(REGION).https.onCal
   }
 
   try {
-    const eligibleUser = await resolveEligibleEmailSignInUser(db, normalizedEmail);
+    const eligibleUser = await resolveEligibleEmailSignInUserWithRetry(db, normalizedEmail);
     if (eligibleUser) {
       try {
         await dispatchSignInLinkWithIdentityToolkit(normalizedEmail);
@@ -318,7 +349,7 @@ exports.authPrepareEmailMagicLinkSignIn = functions.region(REGION).https.onCall(
   let shouldSend = false;
 
   try {
-    const eligibleUser = await resolveEligibleEmailSignInUser(db, normalizedEmail);
+    const eligibleUser = await resolveEligibleEmailSignInUserWithRetry(db, normalizedEmail);
     shouldSend = Boolean(eligibleUser);
   } catch (error) {
     console.error('authPrepareEmailMagicLinkSignIn eligibility check failed:', error);
@@ -380,9 +411,9 @@ exports.authFinalizeEmailLinking = functions.region(REGION).https.onCall(async (
     email: normalizedEmail,
     emailAuthEnabled: true,
     emailAuthVerified: true,
-    emailLinkedAt: admin.firestore.FieldValue.serverTimestamp(),
-    emailAuthUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    emailLinkedAt: FieldValue.serverTimestamp(),
+    emailAuthUpdatedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
   return {
@@ -408,8 +439,8 @@ exports.authDisableEmailMagicLink = functions.region(REGION).https.onCall(async 
 
   await userRef.set({
     emailAuthEnabled: false,
-    emailAuthUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    emailAuthUpdatedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
   return { success: true };
@@ -483,7 +514,7 @@ exports.switchUserRole = functions.region(REGION).https.onCall(async (data, cont
   // Update role
   await db.collection('users').doc(uid).update({
     role,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
   // Create role-specific profile if it doesn't exist
@@ -497,8 +528,8 @@ exports.switchUserRole = functions.region(REGION).https.onCall(async (data, cont
         businessType: null,
         totalTransactions: 0,
         membershipTier: 'NEW',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     }
   } else if (role === 'trucker') {
@@ -512,8 +543,8 @@ exports.switchUserRole = functions.region(REGION).https.onCall(async (data, cont
         rating: 0,
         totalTrips: 0,
         badge: 'STARTER',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     }
   }

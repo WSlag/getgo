@@ -281,7 +281,7 @@ test.describe('Mobile Responsiveness', () => {
     await expect(stickyControls).toBeVisible();
 
     const cargoButton = page.getByRole('button', { name: /cargo/i }).first();
-    const trucksButton = page.getByRole('button', { name: /trucks/i }).first();
+    const trucksButton = page.getByRole('button', { name: /find truck|trucks/i }).first();
     await expect(cargoButton).toBeVisible();
     await expect(trucksButton).toBeVisible();
 
@@ -325,7 +325,7 @@ test.describe('Mobile Responsiveness', () => {
   });
 
   test('should auto-load more home listings on mobile when reaching pagination sentinel', async ({ page }) => {
-    const trucksButton = page.getByRole('button', { name: /trucks/i }).first();
+    const trucksButton = page.getByRole('button', { name: /find truck|trucks/i }).first();
     await expect(trucksButton).toBeVisible();
     await trucksButton.click();
     await page.waitForTimeout(350);
@@ -353,7 +353,7 @@ test.describe('Mobile Responsiveness', () => {
   });
 
   test('should keep home pagination controls above mobile nav on browser mobile layout', async ({ page }) => {
-    const trucksButton = page.getByRole('button', { name: /trucks/i }).first();
+    const trucksButton = page.getByRole('button', { name: /find truck|trucks/i }).first();
     await expect(trucksButton).toBeVisible();
     await trucksButton.click();
     await page.waitForTimeout(350);

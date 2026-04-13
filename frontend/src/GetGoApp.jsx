@@ -104,7 +104,11 @@ import { trackAnalyticsEvent } from './services/analyticsService';
 import { guestCargoListings, guestTruckListings, guestActiveShipments } from '@/data/guestMarketplaceData';
 import { canBidCargoStatus, canBookTruckStatus, matchesMarketplaceFilter, normalizeListingStatus, toTruckUiStatus } from '@/utils/listingStatus';
 import { sortEntitiesNewestFirst } from '@/utils/activitySorting';
-import { isPermissionDeniedError, reportFirestoreListenerError } from '@/utils/firebaseErrors';
+import {
+  isPermissionDeniedError,
+  reportFirestoreListenerError,
+  safeFirestoreUnsubscribe,
+} from '@/utils/firebaseErrors';
 import {
   WORKSPACE_ROLES,
   normalizeWorkspaceRole,
@@ -620,41 +624,46 @@ export default function GetGoApp() {
 
     const subscribedCallId = activeCall.callId;
     const callRef = doc(db, 'calls', subscribedCallId);
-    const unsubscribe = onSnapshot(
-      callRef,
-      (snap) => {
-        if (!snap.exists()) {
-          setActiveCall((prev) => (prev?.callId === subscribedCallId ? null : prev));
-          notifyCallStatus(subscribedCallId, 'ended');
-          return;
-        }
-
-        const data = snap.data() || {};
-        const nextStatus = typeof data.status === 'string' ? data.status : null;
-        if (!nextStatus) return;
-
-        const otherPartyId = data.callerId === authUser?.uid ? data.calleeId : data.callerId;
-
-        setActiveCall((prev) => {
-          if (!prev || prev.callId !== subscribedCallId) return prev;
-          if (prev.status === nextStatus) return prev;
-          return { ...prev, status: nextStatus };
-        });
-
-        if (TERMINAL_CALL_STATUSES.has(nextStatus)) {
-          if (otherPartyId) {
-            ensureCallEligibility(otherPartyId, { force: true }).catch(() => {});
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onSnapshot(
+        callRef,
+        (snap) => {
+          if (!snap.exists()) {
+            setActiveCall((prev) => (prev?.callId === subscribedCallId ? null : prev));
+            notifyCallStatus(subscribedCallId, 'ended');
+            return;
           }
-          setActiveCall((prev) => (prev?.callId === subscribedCallId ? null : prev));
-          notifyCallStatus(subscribedCallId, nextStatus);
-        }
-      },
-      (err) => {
-        console.warn('[call-status-listener] failed:', err);
-      }
-    );
 
-    return () => unsubscribe();
+          const data = snap.data() || {};
+          const nextStatus = typeof data.status === 'string' ? data.status : null;
+          if (!nextStatus) return;
+
+          const otherPartyId = data.callerId === authUser?.uid ? data.calleeId : data.callerId;
+
+          setActiveCall((prev) => {
+            if (!prev || prev.callId !== subscribedCallId) return prev;
+            if (prev.status === nextStatus) return prev;
+            return { ...prev, status: nextStatus };
+          });
+
+          if (TERMINAL_CALL_STATUSES.has(nextStatus)) {
+            if (otherPartyId) {
+              ensureCallEligibility(otherPartyId, { force: true }).catch(() => {});
+            }
+            setActiveCall((prev) => (prev?.callId === subscribedCallId ? null : prev));
+            notifyCallStatus(subscribedCallId, nextStatus);
+          }
+        },
+        (err) => {
+          console.warn('[call-status-listener] failed:', err);
+        }
+      );
+    } catch (err) {
+      console.warn('[call-status-listener] subscribe failed:', err);
+    }
+
+    return () => safeFirestoreUnsubscribe(unsubscribe, 'call status listener');
   }, [activeCall?.callId, authUser?.uid, ensureCallEligibility, notifyCallStatus]);
 
   // Outgoing no-answer timeout should be based on signaling status, not local SDK state.
@@ -967,10 +976,12 @@ export default function GetGoApp() {
     const timer = setTimeout(() => setShowPushBanner(true), 5000);
     return () => clearTimeout(timer);
   }, [activeUserId, isPushRegistered, pushPermission]);
-  // Auto-hide banner once push is activated
+  // Keep the soft banner in sync with permission state to avoid conflicting UI cards.
   useEffect(() => {
-    if (isPushRegistered) setShowPushBanner(false);
-  }, [isPushRegistered]);
+    if (!activeUserId || isPushRegistered || pushPermission !== 'default') {
+      setShowPushBanner(false);
+    }
+  }, [activeUserId, isPushRegistered, pushPermission]);
 
   // Loading states for form submissions
   const [postLoading, setPostLoading] = useState(false);
@@ -1314,24 +1325,29 @@ export default function GetGoApp() {
       where('status', '==', 'manual_review')
     );
 
-    const unsubscribe = onSnapshot(
-      paymentsQuery,
-      (snapshot) => {
-        setPendingPaymentsCount(snapshot.size);
-      },
-      async (error) => {
-        console.error('Error subscribing pending payments count:', error);
-        try {
-          const data = await api.admin.getPaymentStats();
-          const pendingReview = Number(data?.pendingReview || data?.stats?.pendingReview || 0);
-          setPendingPaymentsCount(pendingReview);
-        } catch (fallbackError) {
-          console.error('Fallback pending count fetch failed:', fallbackError);
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onSnapshot(
+        paymentsQuery,
+        (snapshot) => {
+          setPendingPaymentsCount(snapshot.size);
+        },
+        async (error) => {
+          console.error('Error subscribing pending payments count:', error);
+          try {
+            const data = await api.admin.getPaymentStats();
+            const pendingReview = Number(data?.pendingReview || data?.stats?.pendingReview || 0);
+            setPendingPaymentsCount(pendingReview);
+          } catch (fallbackError) {
+            console.error('Fallback pending count fetch failed:', fallbackError);
+          }
         }
-      }
-    );
+      );
+    } catch (error) {
+      console.error('Error subscribing pending payments count:', error);
+    }
 
-    return () => unsubscribe();
+    return () => safeFirestoreUnsubscribe(unsubscribe, 'pending payments count listener');
   }, [isAdmin]);
 
   // Broker Re-engagement Triggers
@@ -1381,35 +1397,42 @@ export default function GetGoApp() {
       where('participantIds', 'array-contains', activeUserId)
     );
 
-    const unsubscribe = onSnapshot(
-      contractsQuery,
-      (snapshot) => {
-        const contractDocs = sortEntitiesNewestFirst(
-          snapshot.docs.map((docSnap) => ({
-            id: docSnap.id,
-            ...docSnap.data(),
-          })),
-          { fallbackKeys: ['signedAt', 'completedAt', 'updatedAt'] }
-        );
-        setContracts(contractDocs);
-        setContractsLoading(false);
-      },
-      async (error) => {
-        reportFirestoreListenerError('contracts', error);
-        if (isPermissionDeniedError(error)) {
-          setContracts([]);
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onSnapshot(
+        contractsQuery,
+        (snapshot) => {
+          const contractDocs = sortEntitiesNewestFirst(
+            snapshot.docs.map((docSnap) => ({
+              id: docSnap.id,
+              ...docSnap.data(),
+            })),
+            { fallbackKeys: ['signedAt', 'completedAt', 'updatedAt'] }
+          );
+          setContracts(contractDocs);
           setContractsLoading(false);
-          return;
+        },
+        async (error) => {
+          reportFirestoreListenerError('contracts', error);
+          if (isPermissionDeniedError(error)) {
+            setContracts([]);
+            setContractsLoading(false);
+            return;
+          }
+          try {
+            await loadContracts();
+          } finally {
+            setContractsLoading(false);
+          }
         }
-        try {
-          await loadContracts();
-        } finally {
-          setContractsLoading(false);
-        }
-      }
-    );
+      );
+    } catch (error) {
+      reportFirestoreListenerError('contracts subscribe', error);
+      setContracts([]);
+      setContractsLoading(false);
+    }
 
-    return () => unsubscribe();
+    return () => safeFirestoreUnsubscribe(unsubscribe, 'contracts listener');
   }, [activeUserId]);
 
   // Mark PWA engagement when a user signs in (fires once per uid).
@@ -3079,8 +3102,8 @@ export default function GetGoApp() {
               onOpenActivity={() => handleTabChange('activity')}
               darkMode={darkMode}
               pushPermission={pushPermission}
-              isPushRegistrationStatusChecked={isPushRegistrationStatusChecked}
               isPushRegistered={isPushRegistered}
+              isPushRegistrationStatusChecked={isPushRegistrationStatusChecked}
               onEnablePush={() => requestPushRegistration(activeUserId)}
             />
           </ErrorBoundary>
@@ -3233,19 +3256,27 @@ export default function GetGoApp() {
           </ErrorBoundary>
         )}
 
-        {activeTab === 'adminPayments' && isAdmin && (
-          <ErrorBoundary>
-            <AdminPaymentsView
-              darkMode={darkMode}
-              onVerifyContracts={() => setActiveTab('contractVerification')}
-            />
-          </ErrorBoundary>
+        {activeTab === 'adminPayments' && (
+          isAdmin ? (
+            <ErrorBoundary>
+              <AdminPaymentsView
+                darkMode={darkMode}
+                onVerifyContracts={() => setActiveTab('contractVerification')}
+              />
+            </ErrorBoundary>
+          ) : (
+            <NotFoundView onGoHome={() => setActiveTab('home')} />
+          )
         )}
 
-        {activeTab === 'contractVerification' && isAdmin && (
-          <ErrorBoundary>
-            <ContractVerificationView darkMode={darkMode} />
-          </ErrorBoundary>
+        {activeTab === 'contractVerification' && (
+          isAdmin ? (
+            <ErrorBoundary>
+              <ContractVerificationView darkMode={darkMode} />
+            </ErrorBoundary>
+          ) : (
+            <NotFoundView onGoHome={() => setActiveTab('home')} />
+          )
         )}
 
         {/* Fallback for invalid/unknown tabs */}

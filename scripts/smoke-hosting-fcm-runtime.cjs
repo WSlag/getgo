@@ -32,6 +32,46 @@ function isRecaptchaChallengeError(message) {
   return value.includes('recaptcha') || value.includes('otp step did not appear');
 }
 
+async function hasAuthenticatedSession(page) {
+  return page.evaluate(() => {
+    try {
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index);
+        if (!key || !key.startsWith('firebase:authUser:')) continue;
+        const value = window.localStorage.getItem(key);
+        if (typeof value === 'string' && value !== 'null' && value.includes('"uid"')) {
+          return true;
+        }
+      }
+    } catch {
+      // Ignore storage access issues.
+    }
+    return false;
+  }).catch(() => false);
+}
+
+async function waitForManualAuth(page, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const [isAuthed, pathname] = await Promise.all([
+      hasAuthenticatedSession(page),
+      page.evaluate(() => window.location.pathname).catch(() => ''),
+    ]);
+
+    if (isAuthed || String(pathname || '').startsWith('/app/')) {
+      return { ready: true };
+    }
+
+    await delay(1000);
+  }
+
+  return {
+    ready: false,
+    reason: `Timed out waiting for manual auth after ${timeoutMs}ms.`,
+  };
+}
+
 async function dismissBlockingDialogs(page, attempts = 6) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const dialog = page.locator('[role="dialog"]').first();
@@ -286,9 +326,21 @@ async function run() {
   const otp = getArgValue('--otp', '123456');
   const settleMs = Number(getArgValue('--settle-ms', '12000')) || 12000;
   const timeoutMs = Number(getArgValue('--timeout-ms', '60000')) || 60000;
+  const manualAuthTimeoutMs = Number(getArgValue('--manual-auth-timeout-ms', '180000')) || 180000;
+  const slowMoMs = Number(getArgValue('--slow-mo-ms', '0')) || 0;
   const skipAuth = hasFlag('--skip-auth');
   const strictAuth = hasFlag('--strict-auth');
   const skipLogout = hasFlag('--skip-logout');
+  const headed = hasFlag('--headed');
+  const manualAuth = hasFlag('--manual-auth');
+
+  if (manualAuth && skipAuth) {
+    console.warn('[fcm-runtime] --manual-auth is ignored because --skip-auth is enabled.');
+  }
+
+  if (manualAuth && !headed) {
+    throw new Error('--manual-auth requires --headed so you can complete login interactively.');
+  }
 
   const fcmEvents = [];
   const badFcmEvents = [];
@@ -297,7 +349,10 @@ async function run() {
   let authSucceeded = false;
   let pushActivateClicked = false;
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: !headed,
+    ...(slowMoMs > 0 ? { slowMo: slowMoMs } : {}),
+  });
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
 
@@ -358,7 +413,23 @@ async function run() {
     await waitForSpinnerToClear(page, timeoutMs).catch(() => {});
     await dismissBlockingDialogs(page);
 
-    if (!skipAuth) {
+    if (!skipAuth && manualAuth) {
+      console.log('[fcm-runtime] Manual auth mode enabled.');
+      console.log('[fcm-runtime] Complete sign-in in the opened browser window (including OTP/reCAPTCHA).');
+      const manualResult = await waitForManualAuth(page, manualAuthTimeoutMs);
+      if (!manualResult.ready) {
+        console.warn(`[fcm-runtime] Manual auth failed: ${manualResult.reason}`);
+        if (strictAuth) {
+          throw new Error(`Manual auth failed: ${manualResult.reason}`);
+        }
+        console.warn('[fcm-runtime] Continuing in guest mode because strict auth is disabled.');
+      } else {
+        authSucceeded = true;
+        await waitForSpinnerToClear(page, timeoutMs).catch(() => {});
+        await dismissBlockingDialogs(page);
+        console.log('[fcm-runtime] Manual sign-in detected.');
+      }
+    } else if (!skipAuth) {
       try {
         console.log('[fcm-runtime] Attempting sign-in using test phone credentials');
         await signInWithTestPhone(page, phone, otp);
