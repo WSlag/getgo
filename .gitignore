@@ -40,6 +40,9 @@ nul
 *.log
 npm-debug.log*
 
+# Temporary investigation/debug artifacts
+/tmp-*
+
 # Cache
 .cache/
 *.sqlite
