@@ -1,94 +1,136 @@
-# GETGO PH
+# 🚚 GETGO PH
 
-Philippine Trucking Backload Marketplace - A two-way marketplace connecting shippers with cargo to truckers with available space.
+## 🚀 Production App
+This is a live, production-ready logistics marketplace platform currently deployed at:
 
-## Features
+👉 https://getgoph.com
 
-- **Two-Way Marketplace**: Shippers post cargo, Truckers post available trucks
-- **Open Bidding System**: Bid higher or lower than asking price
-- **Trucker Wallet System**: Top-up via GCash, Maya, Bank Transfer
-- **Contact Masking**: Phone/FB hidden until contract signed
-- **Live Cargo Tracking**: Real-time shipment updates
-- **Rating System**: Trucker badges (Starter → Elite)
-- **Shipper Membership Tiers**: New → Diamond (with discounts)
-- **Broker/Referral Commission System**: Earn by referring users
-- **Route Optimization**: Find backload opportunities
-- **Dark/Light Theme**: User preference toggle
+Designed for real-world use with scalable architecture for the Philippine logistics market.
 
-## Tech Stack
+---
+
+## 🌐 Live
+👉 https://getgoph.com
+
+---
+
+## 📌 Overview
+GETGO PH is a Philippine trucking backload marketplace that connects shippers with cargo to truckers with available space.
+
+It is designed as a two-way digital marketplace where:
+- Shippers can post cargo requirements
+- Truckers can post available trucks and routes
+- Both sides can connect through a structured, platform-based workflow
+
+---
+
+## 🏢 Business Context
+GETGO PH is designed for the Philippine market, where logistics coordination is often manual, fragmented, and inefficient.
+
+The platform focuses on:
+- Connecting cargo owners with truckers
+- Improving truck utilization through backload matching
+- Digitizing traditional logistics workflows
+- Creating a more transparent marketplace
+
+This project reflects real-world business logic and production-ready system design.
+
+---
+
+## 💡 Problem Solved
+Traditional trucking coordination relies on:
+- Calls, SMS, and chat apps
+- Manual negotiation
+- No centralized system
+
+This leads to:
+- Low visibility of trucks
+- Empty return trips
+- Slow coordination
+- Limited trust
+
+👉 GETGO PH solves this through a centralized marketplace with structured workflows.
+
+---
+
+## 🚀 Key Features
+
+- **Two-Way Marketplace** – Shippers and truckers connect in one platform  
+- **Open Bidding System** – Flexible price negotiation  
+- **Trucker Wallet System** – Supports GCash, Maya, bank transfer  
+- **Contact Masking** – Privacy until contract is confirmed  
+- **Live Cargo Tracking** – Real-time updates  
+- **Rating System** – Performance-based trucker badges  
+- **Membership Tiers** – Discounts for frequent users  
+- **Referral System** – Earn via broker commissions  
+- **Route Optimization** – Identify backload opportunities  
+- **Dark/Light Mode** – User preference UI  
+
+---
+
+## 🛠 Tech Stack
 
 ### Frontend
-- React 18 + Vite
+- React 18
+- Vite
 - Tailwind CSS
 - Lucide Icons
 
-### Backend
+### Backend / Services
 - Firebase Cloud Functions (Node.js)
 - Firestore
 - Firebase Auth
 - Firebase Storage
 
-## Project Structure
+---
 
-```
+## 📱 Screenshots
+
+### Homepage
+![Homepage](./screenshots/home.png)
+
+### Dashboard
+![Dashboard](./screenshots/dashboard.png)
+
+### Mobile View
+![Mobile](./screenshots/mobile.png)
+
+---
+
+## 📁 Project Structure
+
+```text
 Karga/
-├── frontend/              # React frontend
+├── frontend/
 │   ├── src/
-│   │   ├── KargaMarketplace.jsx  # Main UI component
+│   │   ├── KargaMarketplace.jsx
 │   │   ├── App.jsx
 │   │   ├── main.jsx
 │   │   └── index.css
 │   ├── package.json
 │   └── vite.config.js
-│
-├── functions/             # Firebase Cloud Functions backend
-├── frontend/              # React frontend
+├── functions/
 └── README.md
 ```
-
-## Quick Start
-
-### Prerequisites
-- Node.js 18+ installed
-- npm or yarn
-
-### Installation
-
-1. **Clone/Navigate to the project**
-```bash
+# Installation
 cd C:\Users\Administrator\Karga
-```
-
-2. **Install Frontend Dependencies**
-```bash
 cd frontend
 npm install
-```
 
 ### Running the Application
 
-**Option 1: Run Frontend + Emulators (Recommended)**
-
-Open two terminal windows:
-
-**Terminal 1 - Firebase Emulators:**
+**Terminal 1 
 ```bash
 cd C:\Users\Administrator\Karga
 npm run emulators:start
 ```
 
-**Terminal 2 - Frontend (Vite):**
+**Terminal 2
 ```bash
 cd C:\Users\Administrator\Karga\frontend
 npm run dev
 ```
 App runs on http://localhost:5173
-
-**Option 2: Run smoke tests (optional)**
-```bash
-cd C:\Users\Administrator\Karga
-npm run test:smoke:gcash
-```
 
 ### Test Accounts
 
@@ -128,54 +170,13 @@ Tests cover:
 - Cargo/truck listing creation
 - Contract workflows
 
-All tests run against Firebase Emulators (zero production impact).
-
 ## Environment Variables
 
 Environment settings are managed via Firebase function env files (`functions/.env*`) and frontend env files (`frontend/.env*`).
 
-## Security Rollout Gates
-
-Use the staged security rollout runbook when deploying auth/CSP/security hardening updates:
-
-- [SECURITY_ROLLOUT_RUNBOOK.md](SECURITY_ROLLOUT_RUNBOOK.md)
-- Baseline gate command: `npm run security:gate:baseline`
-
 ## Platform Fee Structure
 
 - **Platform Fee**: 3% of agreed price
-- **Fee Collection**: Deducted from trucker's wallet when bidding on cargo
-- **Minimum Wallet Balance**: ₱500 required to accept jobs
-
-## Membership Tiers
-
-### Shipper Tiers
-| Tier | Transactions | Fee Discount |
-|------|--------------|--------------|
-| New | 0+ | 0% |
-| Bronze | 3+ | 2% |
-| Silver | 10+ | 5% |
-| Gold | 25+ | 8% |
-| Platinum | 50+ | 10% |
-| Diamond | 100+ | 15% |
-
-### Trucker Badges
-| Badge | Requirements |
-|-------|--------------|
-| Starter | New trucker |
-| Active | 5+ trips |
-| Verified | 4.0+ rating, 20+ trips |
-| Pro | 4.5+ rating, 50+ trips |
-| Elite | 4.8+ rating, 100+ trips |
-
-## Payment Methods (Mock)
-
-- GCash - Free
-- Maya - Free
-- GrabPay - Free
-- Bank Transfer - Free
-- 7-Eleven - ₱15 fee
-- Cebuana - ₱25 fee
 
 ## License
 
