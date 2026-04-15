@@ -169,10 +169,77 @@ Environment settings are managed via Firebase function env files (`functions/.en
 
 MIT License
 
-## Support
+##Status
 
-For issues and questions, please open an issue on GitHub.
+Active Development
+
+# 🚚 GetGo PH – Case Study
+
+## 🌐 Live Platform
+https://getgoph.com
 
 ---
+
+## 🎯 Objective
+Build a logistics marketplace that connects shippers and truckers in a centralized digital system.
+
+---
+
+## 🚨 Problem
+Logistics coordination is:
+- Manual
+- Fragmented
+- Inefficient
+
+Truckers often return empty.  
+Shippers struggle to find transport.
+
+---
+
+## 💡 Solution
+A marketplace platform where:
+- Shippers post cargo
+- Truckers find jobs
+- Transactions are structured and trackable
+
+---
+
+## ⚙️ Implementation
+
+- React + Vite frontend
+- Firebase backend
+- Mobile-first PWA
+- Real-time data system
+
+---
+
+## 📈 Impact
+
+- Reduces empty trips
+- Improves logistics efficiency
+- Digitizes manual workflows
+- Creates a scalable platform model
+
+---
+
+## 💼 What This Proves
+
+This project demonstrates:
+- Marketplace system design
+- Real-world business logic
+- Production deployment
+- End-to-end system building
+
+---
+
+## 📩 Work With Me
+
+I build:
+- Logistics platforms
+- Marketplaces
+- CRM systems
+- Admin dashboards
+
+👉 https://github.com/WSlag
 
 **GETGO PH** - Connecting Filipino Truckers and Shippers
