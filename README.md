@@ -84,19 +84,6 @@ This leads to:
 
 ---
 
-## 📱 Screenshots
-
-### Homepage
-![Homepage](./screenshots/home.png)
-
-### Dashboard
-![Dashboard](./screenshots/dashboard.png)
-
-### Mobile View
-![Mobile](./screenshots/mobile.png)
-
----
-
 ## 📁 Project Structure
 
 ```text
